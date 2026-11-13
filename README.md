@@ -40,6 +40,7 @@ Roof shapes, trees, cars and lamps are made up. They're tied to the seed and to 
 | `src/render.ts` | Runs the passes in order |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/worker.ts` | Runs all of the above off the main thread |
+| `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |
 
 ## Run it locally
 
