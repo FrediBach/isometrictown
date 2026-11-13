@@ -257,7 +257,11 @@ export function App() {
             />
           </div>
           {slider('margin', 'Margin', 5, 60, 1)}
-          <KeyGrid>{key('frame', 'Frame line')}</KeyGrid>
+          <KeyGrid>
+            {key('frame', 'Frame line')}
+            {key('marginalia', 'Map notes')}
+          </KeyGrid>
+          <Hint className="mt-2 mb-0">Map notes letter the margin like a printed town map: title, coordinates, scale bar and north arrow. With the frame line on, a second border carries latitude and longitude ticks. A wider margin gives them more room.</Hint>
         </FoldingSection>
 
         <FoldingSection

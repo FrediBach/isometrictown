@@ -62,7 +62,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'shadows' | 'shadeWalls' | 'frame' | 'mono';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,
@@ -80,9 +80,9 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
 };
 
 /** Keys that move the red footprint on the locator map. */
-export const VIEW_KEYS = new Set<keyof Settings>(['bearing', 'tilt', 'scale', 'sheet', 'landscape', 'margin']);
+export const VIEW_KEYS = new Set<keyof Settings>(['bearing', 'tilt', 'scale', 'sheet', 'landscape', 'margin', 'marginalia']);
 /** Keys that change the footprint's size, so the map refits to it. */
-export const REFIT_KEYS = new Set<keyof Settings>(['scale', 'sheet', 'landscape', 'tilt']);
+export const REFIT_KEYS = new Set<keyof Settings>(['scale', 'sheet', 'landscape', 'tilt', 'marginalia']);
 
 export function minutes(seconds: number): string {
   const m = Math.round(seconds / 60);

@@ -25,6 +25,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
   - Cemeteries get rows of headstones and crosses.
   - Sports pitches get their markings for football, tennis, basketball or a running track, with goals, nets and hoops.
 - **Shadows** are hatched on the ground, from a sun you can move.
+- **Map notes** letter the margin like a printed town map, in single-stroke capitals. The neat line gets a second border with latitude and longitude ticks. Below the drawing are the place name, its coordinates and view, a scale bar, a round north arrow whose needle runs along north as drawn, parallel to north–south streets, and the imprint.
 
 Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it.
 
@@ -53,6 +54,7 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |
 | `src/render.ts` | Runs the passes in order |
+| `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/worker.ts` | Runs all of the above off the main thread |
 | `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |

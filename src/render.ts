@@ -4,6 +4,7 @@ import { drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, t
 import { Camera } from './camera';
 import type { Frame } from './geo';
 import { placeTrees, treeSprite, type Masks } from './nature';
+import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
 import { LINEWORK, SHADOWS, GREENERY, ROOFS, type Settings } from './settings';
@@ -148,6 +149,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   for (const sp of sprites) sp.draw();
 
   if (set.frame) paper.pens[LINEWORK].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
+  if (set.marginalia) paper.pens[LINEWORK].push(...marginalia(set, cam, frame));
   return { pens: paper.pens, counts };
 }
 

@@ -1,5 +1,7 @@
 import { mmPerMetre, sheetSize, type Settings } from './settings';
 
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
 /**
  * An orthographic camera looking down at the ground.
  * World: metres, x east, y north, z up. Sheet: millimetres, y down.
@@ -18,7 +20,7 @@ export class Camera {
   readonly rect: [number, number, number, number];
   readonly sheet: [number, number];
 
-  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin'>) {
+  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'>) {
     const b = (set.bearing * Math.PI) / 180;
     const a = (set.tilt * Math.PI) / 180;
     this.sb = Math.sin(b);
@@ -29,9 +31,11 @@ export class Camera {
     this.sheet = sheetSize(set);
     const [w, h] = this.sheet;
     const m = Math.min(set.margin, w / 2 - 10, h / 2 - 10);
-    this.rect = [m, m, w - m, h - m];
+    // Map notes need a deeper margin below, as on a printed map. The place stays centred in the drawing.
+    const foot = set.marginalia ? Math.min(clamp(m * 0.7, 8, 22), h / 2 - 10 - m) : 0;
+    this.rect = [m, m, w - m, h - m - Math.max(0, foot)];
     this.cx = w / 2;
-    this.cy = h / 2;
+    this.cy = (this.rect[1] + this.rect[3]) / 2;
   }
 
   sx(x: number, y: number): number {

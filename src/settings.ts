@@ -16,6 +16,8 @@ export type Settings = {
   landscape: boolean;
   margin: number;
   frame: boolean;
+  /** Title, graticule ticks, scale bar, north arrow and imprint in the margin. */
+  marginalia: boolean;
 
   pitched: number;
   /** Regional building style, or 'auto' to pick one from the country. */
@@ -89,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   landscape: true,
   margin: 20,
   frame: true,
+  marginalia: true,
 
   pitched: 0.7,
   style: 'auto',
