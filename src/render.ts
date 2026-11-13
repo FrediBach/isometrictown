@@ -3,6 +3,7 @@ import { classify } from './classify';
 import { drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, textured } from './ground';
 import { Camera } from './camera';
 import type { Frame } from './geo';
+import type { StageProgress } from './app/stages';
 import { placeTrees, treeSprite, type Masks } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
@@ -20,7 +21,10 @@ export function reachHeight(set: Settings): number {
   return Math.min(400, 160 * set.heightScale);
 }
 
-export function render(town: Town, set: Settings, frame: Frame, style: Style): Drawing {
+/** Reports where the drawing has got to; called often, so keep it cheap. */
+export type OnStage = (p: StageProgress) => void;
+
+export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}): Drawing {
   const cam = new Camera(set);
   const paper = new Paper(cam);
   const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
@@ -40,6 +44,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
+  onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
   const water = [...town.water, ...streamShapes(town.streams)];
 
@@ -53,7 +58,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   // Buildings, only those that can show inside the drawing area
   const [rx0, ry0, rx1, ry1] = cam.rect;
   const solids: Solid[] = [];
-  for (const b of town.buildings) {
+  const candidates = town.buildings.length;
+  for (let i = 0; i < candidates; i++) {
+    const b = town.buildings[i];
+    onStage({ stage: 'buildings', done: i, total: candidates, note: `${counts.buildings.toLocaleString('en')} in view` });
     const p = b.shape[0].pts;
     let sx0 = Infinity;
     let sx1 = -Infinity;
@@ -76,6 +84,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   }
 
   // Life on the ground
+  onStage({ stage: 'life', note: `${counts.buildings.toLocaleString('en')} buildings standing` });
   const box = cam.region(0);
   let trees = placeTrees(B, paper, M, box, toAbs, fromAbs);
   if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs)];
@@ -85,6 +94,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   solids.push(...cars);
 
   // Depth
+  onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
   for (const s of solids) for (const f of s.faces) paper.fillFace(f);
   const sprites = trees.map((t) => treeSprite(B, paper, t));
   for (const sp of sprites) paper.fillSprite(sp.ring, sp.depth);
@@ -123,6 +133,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   }
 
   // Lines, ground first
+  onStage({ stage: 'lines', note: 'Ground and streets' });
   if (set.water) {
     waves(paper, M, set.seed);
     outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y));
@@ -145,6 +156,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   railings(paper, town.ways);
 
   // Solids and trees
+  onStage({ stage: 'lines', note: 'Buildings and trees' });
   for (const s of solids) for (const l of s.lines) paper.line3(l.pen, l.pts, paper.seen, l.closed);
   for (const sp of sprites) sp.draw();
 

@@ -3,8 +3,11 @@ import type { Counts } from '../render';
 import { sheetSize, type Settings } from '../settings';
 import type { Region } from '../styles';
 import type { Job, Reply } from '../worker';
+import { STAGE_LABEL, type StageProgress } from './stages';
 
-export type RenderStatus = { text: string; state: 'idle' | 'working' | 'error' };
+export type RenderStatus = { text: string; state: 'idle' | 'working' | 'error'; progress?: StageProgress };
+
+const working = (p: StageProgress): RenderStatus => ({ text: STAGE_LABEL[p.stage], state: 'working', progress: p });
 
 export type RenderResult = {
   svg: string;
@@ -35,7 +38,7 @@ export class Renderer {
     this.worker.onmessage = (e: MessageEvent<Reply>) => {
       const r = e.data;
       if (r.kind === 'progress') {
-        this.onStatus({ text: r.text, state: 'working' });
+        if (r.id === this.jobId) this.onStatus(working(r));
         return;
       }
       this.busy = false;
@@ -66,7 +69,7 @@ export class Renderer {
     if (this.busy || !this.queued) return;
     this.queued = false;
     this.busy = true;
-    this.onStatus({ text: 'Drawing', state: 'working' });
+    this.onStatus(working({ stage: 'map' }));
     const job: Job = { id: ++this.jobId, set: structuredClone(this.settings()) };
     this.worker.postMessage(job);
   }

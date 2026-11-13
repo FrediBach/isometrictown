@@ -5,6 +5,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { metres, minutes, MONO_INK, num } from '../app/model';
 import type { RenderResult, RenderStatus } from '../app/renderer';
+import { DrawingProgress } from './drawing-progress';
 import { PenDot } from './title-block';
 
 export type Zoom = 'fit' | '0.5' | '1' | '2';
@@ -66,9 +67,10 @@ type PreviewProps = {
   zoom: Zoom;
   pens: string[];
   mono: boolean;
+  status: RenderStatus;
 };
 
-export function Preview({ result, sheet, zoom, pens, mono }: PreviewProps) {
+export function Preview({ result, sheet, zoom, pens, mono, status }: PreviewProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
 
@@ -104,9 +106,20 @@ export function Preview({ result, sheet, zoom, pens, mono }: PreviewProps) {
     return () => ro.disconnect();
   }, [sheet, zoom]);
 
+  const working = status.state === 'working';
   return (
-    <div ref={viewport} className={cn('perforated relative min-h-0', zoom === 'fit' ? 'grid place-items-center overflow-hidden' : 'grid place-items-start overflow-auto p-6')}>
-      <div ref={paper} className="sheet rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)]" />
+    <div className="relative min-h-0">
+      <div ref={viewport} className={cn('perforated absolute inset-0', zoom === 'fit' ? 'grid place-items-center overflow-hidden' : 'grid place-items-start overflow-auto p-6')}>
+        <div
+          ref={paper}
+          className={cn(
+            'sheet rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
+            // Fade the old drawing only once the progress card shows, so quick redraws don't flicker.
+            working && 'opacity-55 delay-350',
+          )}
+        />
+      </div>
+      <DrawingProgress status={status} />
     </div>
   );
 }

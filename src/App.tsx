@@ -130,7 +130,7 @@ export function App() {
 
       <main className="grid min-h-0 min-w-0 grid-rows-[auto_1fr_auto] bg-stage max-[900px]:grid-rows-[auto_70vh_auto]">
         <Toolbar zoom={zoom} onZoom={setZoom} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} />
-        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} />
+        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} />
         <Stats result={result} />
       </main>
 

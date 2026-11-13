@@ -216,3 +216,55 @@
     opacity: 0.35;
   }
 }
+
+/* Drawing progress: each icon is plotted, the pen lifts, and it starts again. */
+.ip-draw {
+  stroke-dasharray: 1;
+  animation: ip-draw 3s var(--d, 0s) ease-in-out infinite both;
+}
+.ip-pop {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: ip-pop 2.6s var(--d, 0s) cubic-bezier(0.3, 1.4, 0.5, 1) infinite both;
+}
+.ip-march {
+  stroke-dasharray: 2 2.6;
+  animation: ip-march 0.9s linear infinite;
+}
+.ip-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ip-spin 12s linear infinite;
+}
+/* Shown only when a drawing takes long enough to notice, so quick redraws don't flash. */
+.ip-enter {
+  animation: ip-enter 220ms 350ms ease-out both;
+}
+.ip-still * {
+  animation: none !important;
+}
+
+@keyframes ip-draw {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  45%, 85% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes ip-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  18%, 82% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+@keyframes ip-march {
+  to { stroke-dashoffset: -4.6; }
+}
+@keyframes ip-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes ip-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip-draw, .ip-pop, .ip-march, .ip-spin { animation: none; }
+  .ip-enter { animation: ip-enter 1ms 350ms both; }
+}

@@ -47,4 +47,6 @@ Composed fields (search, seed) put the input and its action key inside one frame
 
 The pen palette picker ([`src/components/palette-picker.tsx`](src/components/palette-picker.tsx)) shows each palette as a tiny test plot of a house: every pen does its own job in it (shadow hatching, tree, roof, linework), with a strip of the four colours below. It is a single-choice group; editing any pen by hand makes the set "Custom" and nothing is selected. Palettes live in [`src/palettes.ts`](src/palettes.ts), in pen order, darkest pen last.
 
+While a drawing is made, a progress card sits over the stage ([`src/components/drawing-progress.tsx`](src/components/drawing-progress.tsx)). It names the current step and shows a small isometric line icon for it, plotted the way the plotter would: pen down, lift, again. One signal-coloured element per icon is the live part (the pen, the route). Below it, a segmented scale shows the seven steps. The card fades in only after 350 ms so quick redraws don't flash, and it is static under reduced motion. The steps are defined in [`src/app/stages.ts`](src/app/stages.ts) and reported by the worker from inside the render.
+
 The stats footer is a plot sheet: per-pen bars show each pen's share of plot time. They are coloured by pen and always labelled by pen name, so colour is never the only cue.
