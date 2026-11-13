@@ -73,7 +73,10 @@ export function Preview({ result, sheet, zoom, pens, mono }: PreviewProps) {
   const paper = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (result) paper.current!.innerHTML = result.svg.replace(/^<\?xml[^>]*>\s*/, '');
+    if (!result) return;
+    // Parse as XML rather than HTML: the SVG is our own output, and this keeps it out of the HTML parser.
+    const doc = new DOMParser().parseFromString(result.svg, 'image/svg+xml');
+    paper.current!.replaceChildren(document.importNode(doc.documentElement, true));
   }, [result]);
 
   // Pen colours change without redrawing: just restyle the preview layers.

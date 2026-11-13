@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { MONO_INK } from '../app/model';
-import { sheetSize, SHEETS, type Settings } from '../settings';
+import { PEN_NAMES, sheetSize, SHEETS, type Settings } from '../settings';
 
 export function PenDot({ color, size = 12, className }: { color: string; size?: number; className?: string }) {
   return <span className={`inline-block shrink-0 rounded-full ring-1 ring-black/20 ring-inset ${className ?? ''}`} style={{ background: color, width: size, height: size }} />;
@@ -40,7 +40,7 @@ export function TitleBlock({ set }: { set: Settings }) {
         <Fact label="Pens">
           <span className="flex h-5 items-center gap-1">
             {(set.mono ? [MONO_INK] : set.pens).map((c, i) => (
-              <PenDot key={i} color={c} size={14} />
+              <PenDot key={PEN_NAMES[i]} color={c} size={14} />
             ))}
           </span>
         </Fact>

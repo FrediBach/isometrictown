@@ -114,7 +114,7 @@ export function PlaceSearch({ onPick }: { onPick: (center: LngLat, name: string)
         >
           {shown.map((p, i) => (
             <li
-              key={`${p.label}-${i}`}
+              key={`${p.label}@${p.center.join(',')}`}
               id={`sugg-${i}`}
               role="option"
               aria-selected={i === active}
