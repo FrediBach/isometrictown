@@ -389,6 +389,14 @@ export function App() {
               isometrictown.com
             </a>
           </div>
+          <div className="border-t px-6 py-3 text-xs text-muted-foreground">
+            <p className="readout m-0 text-[11px]">
+              © {new Date().getFullYear()}{' '}
+              <a className="underline decoration-input underline-offset-2 hover:text-foreground" href="https://fredibach.com" target="_blank" rel="noopener">
+                Fredi Bach
+              </a>
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

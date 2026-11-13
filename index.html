@@ -3,17 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Isometric Town</title>
+    <title>Isometric Town · Draw any town as plotter-ready SVG</title>
     <meta name="description" content="Pick any town and draw it in isometric 3D as layered, plotter-ready SVG linework." />
+    <meta name="author" content="Fredi Bach" />
     <link rel="canonical" href="https://isometrictown.com/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Isometric Town" />
     <meta property="og:title" content="Isometric Town" />
     <meta property="og:description" content="Pick any town and draw it in isometric 3D as layered, plotter-ready SVG linework." />
     <meta property="og:url" content="https://isometrictown.com/" />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://isometrictown.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="An isometric pen-plotter drawing of central Amsterdam, made with Isometric Town." />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Isometric Town" />
+    <meta name="twitter:description" content="Pick any town and draw it in isometric 3D as layered, plotter-ready SVG linework." />
+    <meta name="twitter:image" content="https://isometrictown.com/og-image.png" />
+    <meta name="twitter:image:alt" content="An isometric pen-plotter drawing of central Amsterdam, made with Isometric Town." />
+
     <meta name="theme-color" content="#252722" />
+    <meta name="color-scheme" content="light" />
+    <meta name="application-name" content="Isometric Town" />
+    <meta name="apple-mobile-web-app-title" content="Isometric Town" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Isometric Town",
+        "url": "https://isometrictown.com/",
+        "description": "Pick any town and draw it in isometric 3D as layered, plotter-ready SVG linework.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Any",
+        "image": "https://isometrictown.com/og-image.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Fredi Bach", "url": "https://fredibach.com" }
+      }
+    </script>
   </head>
   <body>
+    <noscript>Isometric Town needs JavaScript to draw your town.</noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
