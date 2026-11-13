@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ShuffleIcon } from 'lucide-react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { CheckIcon, CopyIcon, LockIcon, LockOpenIcon, ShuffleIcon, Undo2Icon, WandSparklesIcon } from 'lucide-react';
 import { Segmented } from '@/components/ui/segmented';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -9,8 +9,9 @@ import type { RenderResult } from '../app/renderer';
 import { FORMAT, MONO_INK, PRESETS, type BoolKey } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
+import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { PEN_NAMES, PEN_ROLES, SHEETS, type Settings, type SheetId } from '../settings';
+import { PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, type Settings, type SheetId } from '../settings';
 import { STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -193,9 +194,44 @@ type PensSectionProps = {
   onPenCommit: () => void;
 };
 
+const UNLOCKED: Locks = Array<boolean>(PEN_COUNT).fill(false);
+const HISTORY = 30;
+
 export function PensSection({ onPalette, onPen, onPenCommit }: PensSectionProps) {
   const { set } = useSettings();
-  const paletteName = currentPalette(set.pens)?.name ?? 'Custom';
+  const [locks, setLocks] = useState<Locks>(UNLOCKED);
+  const [history, setHistory] = useState<Settings['pens'][]>([]);
+  /** Which wheel the last harmonised set was built on, while the pens are still that set. */
+  const [made, setMade] = useState<{ pens: Settings['pens']; scheme: string } | null>(null);
+  /** Counts how often each pen was harmonised, so a new colour replays its entrance. */
+  const [rounds, setRounds] = useState(() => Array<number>(PEN_COUNT).fill(0));
+  const scheme = made && made.pens.every((c, i) => c === set.pens[i]) ? made.scheme : null;
+  const paletteName = currentPalette(set.pens)?.name ?? (scheme ? `Custom · ${scheme}` : 'Custom');
+  const allLocked = locks.every(Boolean);
+
+  function replace(pens: Settings['pens']): void {
+    setHistory((h) => [...h.slice(-(HISTORY - 1)), set.pens]);
+    onPalette(pens);
+  }
+
+  function harmoniseUnlocked(): void {
+    const next = harmonise(set.pens, locks);
+    setMade(next);
+    setRounds((r) => r.map((n, i) => (locks[i] ? n : n + 1)));
+    replace(next.pens);
+  }
+
+  function undo(): void {
+    const prev = history.at(-1);
+    if (!prev) return;
+    setHistory((h) => h.slice(0, -1));
+    onPalette(prev);
+  }
+
+  function toggleLock(i: number, on = !locks[i]): void {
+    setLocks((l) => l.map((v, j) => (j === i ? on : v)));
+  }
+
   return (
     <FoldingSection
       index={6}
@@ -211,32 +247,127 @@ export function PensSection({ onPalette, onPen, onPenCommit }: PensSectionProps)
         </span>
       }
     >
-      <div className="mb-2 flex items-baseline justify-between">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
         <Caption className="mb-0">Palette</Caption>
-        <span className="readout text-[11px] text-muted-foreground">{paletteName}</span>
+        <span className="readout truncate text-[11px] text-muted-foreground">{paletteName}</span>
       </div>
-      <PalettePicker pens={set.pens} disabled={set.mono} onPick={onPalette} />
+      <PalettePicker
+        pens={set.pens}
+        disabled={set.mono}
+        onPick={(pens) => {
+          setLocks(UNLOCKED);
+          replace(pens);
+        }}
+      />
       <Caption className="mt-4">Pens</Caption>
-      <ol className={cn('m-0 mb-4 list-none overflow-hidden rounded-md border border-input bg-card p-0 transition-opacity', set.mono && 'opacity-45')}>
-        {set.pens.map((color, i) => (
-          <li key={PEN_NAMES[i]} className="border-b last:border-b-0">
-            <label title={PEN_ROLES[i]} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/60">
-              <span className="readout w-3 text-[11px] text-muted-foreground">{i + 1}</span>
-              <PenSwatch color={color} label={`${PEN_NAMES[i]} pen colour`} onInput={(c) => onPen(i, c)} onCommit={onPenCommit} />
-              <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="text-[13px] font-medium">{PEN_NAMES[i]}</span>
-                <span className="readout text-[11px] text-muted-foreground uppercase">{color}</span>
-              </span>
-            </label>
-          </li>
-        ))}
-      </ol>
+      <div className={cn('mb-4 transition-opacity', set.mono && 'pointer-events-none opacity-45')}>
+        <ol className="m-0 list-none overflow-hidden rounded-t-md border border-input bg-card p-0">
+          {set.pens.map((color, i) => (
+            <li key={PEN_NAMES[i]} className="flex items-center border-b last:border-b-0 hover:bg-muted/60">
+              <label title={PEN_ROLES[i]} className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-2 pl-3">
+                <span className="readout w-3 text-[11px] text-muted-foreground">{i + 1}</span>
+                <span key={rounds[i]} className={cn('flex', rounds[i] > 0 && 'pen-in')} style={{ '--d': `${i * 45}ms` } as CSSProperties}>
+                  <PenSwatch
+                    color={color}
+                    label={`${PEN_NAMES[i]} pen colour`}
+                    onInput={(c) => {
+                      // A colour set by hand is one to keep.
+                      toggleLock(i, true);
+                      onPen(i, c);
+                    }}
+                    onCommit={onPenCommit}
+                  />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="text-[13px] font-medium">{PEN_NAMES[i]}</span>
+                  <span className="readout text-[11px] text-muted-foreground uppercase">{color}</span>
+                </span>
+              </label>
+              <LockKey locked={locks[i]} pen={PEN_NAMES[i]} onToggle={() => toggleLock(i)} />
+            </li>
+          ))}
+        </ol>
+        <div className="flex h-10 items-stretch gap-1 rounded-b-md border border-t-0 border-input bg-muted/40 p-1">
+          <button
+            type="button"
+            onClick={harmoniseUnlocked}
+            disabled={allLocked}
+            title={allLocked ? 'Every pen is locked' : 'New colours for the unlocked pens, matched to the locked ones'}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-[4px] border border-input bg-background px-3 text-[13px] font-medium transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 active:shadow-[inset_0_1px_2px_rgb(0_0_0/0.1)] disabled:opacity-45"
+          >
+            <WandSparklesIcon className="size-3.5" />
+            Harmonise
+          </button>
+          <IconKey label="Undo palette change" disabled={!history.length} onClick={undo}>
+            <Undo2Icon className="size-3.5" />
+          </IconKey>
+          <CopyKey pens={set.pens} name={currentPalette(set.pens)?.name} />
+        </div>
+      </div>
+      <Hint className="-mt-2 mb-4">Lock the pens you like; Harmonise matches the rest to them. A colour you pick yourself is locked for you.</Hint>
       <NumberSetting name="penWidth" label="Pen width" min={0.1} max={1} step={0.05} />
       <NumberSetting name="speed" label="Plot speed" min={10} max={120} step={5} />
       <KeyGrid>
         <BoolSetting name="mono" label="One black pen" />
       </KeyGrid>
     </FoldingSection>
+  );
+}
+
+function IconKey({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="grid w-8 place-items-center rounded-[4px] border border-input bg-background text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 active:shadow-[inset_0_1px_2px_rgb(0_0_0/0.1)] disabled:opacity-45 disabled:hover:bg-background"
+    >
+      {children}
+    </button>
+  );
+}
+
+function LockKey({ locked, pen, onToggle }: { locked: boolean; pen: string; onToggle: () => void }) {
+  const Icon = locked ? LockIcon : LockOpenIcon;
+  return (
+    <button
+      type="button"
+      aria-pressed={locked}
+      aria-label={`Lock ${pen} pen`}
+      title={locked ? `${pen} is kept when harmonising` : `Keep ${pen} when harmonising`}
+      onClick={onToggle}
+      className={cn(
+        'mr-1.5 grid size-8 place-items-center rounded-[4px] transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
+        locked ? 'text-foreground' : 'text-muted-foreground/60 hover:text-foreground'
+      )}
+    >
+      <Icon className="size-3.5" />
+    </button>
+  );
+}
+
+/** Copies the pens as a line for PALETTES, so a good find can become a default. */
+function CopyKey({ pens, name }: { pens: Settings['pens']; name?: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1400);
+    return () => clearTimeout(t);
+  }, [copied]);
+  return (
+    <IconKey
+      label={copied ? 'Copied' : 'Copy palette as code'}
+      onClick={() => {
+        navigator.clipboard.writeText(paletteSource(pens, name)).then(
+          () => setCopied(true),
+          () => setCopied(false)
+        );
+      }}
+    >
+      {copied ? <CheckIcon className="size-3.5 text-foreground" /> : <CopyIcon className="size-3.5" />}
+    </IconKey>
   );
 }
 

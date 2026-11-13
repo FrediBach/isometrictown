@@ -1,4 +1,4 @@
-import { PEN_NAMES, type Settings } from './settings';
+import { LINEWORK, PEN_NAMES, type Settings } from './settings';
 
 export type PenStats = { name: string; color: string; ink: number; lifts: number; travel: number; seconds: number };
 export type PlotStats = {
@@ -167,7 +167,7 @@ export type Plotted = { pens: number[][][]; stats: PlotStats };
 
 /** Join, sort and measure every pen. */
 export function plan(raw: number[][][], set: Settings): Plotted {
-  const sources = set.mono ? [[], [], [], raw.flat()] : raw;
+  const sources = set.mono ? raw.map((_, i) => (i === LINEWORK ? raw.flat() : [])) : raw;
   const pens: number[][][] = [];
   const stats: PenStats[] = [];
   let rawLifts = 0;

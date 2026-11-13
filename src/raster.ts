@@ -1,4 +1,5 @@
 import type { Camera } from './camera';
+import { PEN_COUNT } from './settings';
 
 /** Visibility test for a point on the sheet (mm) at a given depth (m). */
 export type Test = (x: number, y: number, d: number) => boolean;
@@ -66,7 +67,7 @@ export class Paper {
   readonly y1: number;
   readonly z: Float32Array;
   far: Float32Array;
-  readonly pens: number[][][] = [[], [], [], []];
+  readonly pens: number[][][] = Array.from({ length: PEN_COUNT }, () => []);
   private run: number[] | null = null;
   private runPen = 0;
   readonly seen: Test;

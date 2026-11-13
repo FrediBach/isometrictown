@@ -18,6 +18,7 @@
     "@rapideditor/country-coder": "^5.6.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
+    "culori": "^4.0.2",
     "lucide-react": "^1.72.0",
     "maplibre-gl": "^6.17.0",
     "pbf": "^5.1.2",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.5",
+    "@types/culori": "^4.0.1",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

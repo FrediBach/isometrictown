@@ -8,7 +8,7 @@ import { placeTrees, treeSprite, type Masks } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
-import { LINEWORK, SHADOWS, GREENERY, ROOFS, type Settings } from './settings';
+import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, parkCars, railways } from './streets';
 import type { Style } from './styles';
 import type { Shape, Stream, Town } from './tiles';
@@ -182,7 +182,7 @@ function waves(paper: Paper, M: Masks, seed: number): void {
         const yy = y + Math.sin((t / len) * waves * Math.PI * 2) * amp + t * tilt;
         pts.push(x + t, yy, cam.groundDepth(yy));
       }
-      if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(SHADOWS, pts, keep);
+      if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(WATER, pts, keep);
       x += len + 1 + rnd() * 5.5;
     }
   }

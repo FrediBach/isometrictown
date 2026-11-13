@@ -264,7 +264,16 @@
   from { opacity: 0; transform: translateY(6px) scale(0.98); }
 }
 
+/* A harmonised pen settles into its swatch, one after another. */
+.pen-in {
+  animation: pen-in 380ms var(--d, 0s) cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+@keyframes pen-in {
+  from { transform: scale(0.55); opacity: 0.3; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .pen-in { animation: none; }
   .ip-draw, .ip-pop, .ip-march, .ip-spin { animation: none; }
   .ip-enter { animation: ip-enter 1ms 350ms both; }
 }

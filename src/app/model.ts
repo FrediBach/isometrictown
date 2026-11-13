@@ -1,5 +1,6 @@
 import type { LngLat } from '../geo';
-import { DEFAULT_SETTINGS, SHEETS, type Settings } from '../settings';
+import { PALETTES } from '../palettes';
+import { DEFAULT_SETTINGS, PEN_COUNT, SHEETS, type Settings } from '../settings';
 import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
@@ -35,9 +36,25 @@ export function loadSettings(): Settings {
     if (h.length >= 5 && h[4] > 0) s.seed = Math.round(h[4]);
     s.place = decodeURIComponent(parts[5] ?? '') || 'Somewhere';
   }
+  s.pens = migratePens(s.pens);
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   return s;
+}
+
+/**
+ * Saved sets from before water had its own pen hold four colours, the first one
+ * drawing both shadows and water. A set that was a preset becomes that preset;
+ * any other keeps its look, with the old pen drawing both again.
+ */
+function migratePens(pens: unknown): Settings['pens'] {
+  if (!Array.isArray(pens) || !pens.every((c) => typeof c === 'string')) return [...DEFAULT_SETTINGS.pens];
+  if (pens.length === PEN_COUNT) return pens as Settings['pens'];
+  if (pens.length !== 4) return [...DEFAULT_SETTINGS.pens];
+  const [shared, ...rest] = pens.map((c) => c.toLowerCase());
+  const same = (a: string[], b: string[]) => a.every((c, i) => c === b[i]);
+  const preset = PALETTES.find(({ pens: p }) => same(rest, p.slice(2)) && (p[0] === shared || p[1] === shared));
+  return preset ? [...preset.pens] : [shared, shared, ...rest] as Settings['pens'];
 }
 
 export function persist(set: Settings): void {

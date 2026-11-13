@@ -5,12 +5,13 @@ import type { Settings } from '../settings';
 
 /**
  * A small test plot of one house, drawn with each pen doing its own job:
- * shadow hatching, a tree, the roof and the linework.
+ * shadow hatching, a ripple of water, a tree, the roof and the linework.
  */
-function Vignette({ pens: [shade, nature, roof, line] }: { pens: Settings['pens'] }) {
+function Vignette({ pens: [shade, water, nature, roof, line] }: { pens: Settings['pens'] }) {
   return (
     <svg aria-hidden viewBox="0 0 48 30" fill="none" strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" className="block h-auto w-full">
       <path stroke={shade} d="M29.5 22.5 33 19M31.5 24 36.5 19M34 24.5 38.5 20M36.5 25 40 21.5" />
+      <path stroke={water} d="M1.5 24.5q1.25-.9 2.5 0t2.5 0M2.5 27.5q1.25-.9 2.5 0t2.5 0t2.5 0" />
       <g stroke={nature}>
         <circle cx={40.5} cy={11} r={4.5} />
         <path d="M40.5 15.5v4.5" />
@@ -21,7 +22,7 @@ function Vignette({ pens: [shade, nature, roof, line] }: { pens: Settings['pens'
   );
 }
 
-/** Pen sets as a row of test plots. Picking one sets all four pens; editing a pen makes the set custom. */
+/** Pen sets as a row of test plots. Picking one sets all five pens; editing a pen makes the set custom. */
 export function PalettePicker({ pens, onPick, disabled }: { pens: Settings['pens']; onPick: (pens: Settings['pens']) => void; disabled?: boolean }) {
   const current = currentPalette(pens);
   return (

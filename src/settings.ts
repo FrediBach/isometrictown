@@ -45,7 +45,7 @@ export type Settings = {
   sunHeight: number;
   shadeWalls: boolean;
 
-  pens: [string, string, string, string];
+  pens: [string, string, string, string, string];
   penWidth: number;
   mono: boolean;
   speed: number;
@@ -72,12 +72,14 @@ export function sheetSize(s: Pick<Settings, 'sheet' | 'landscape'>): [number, nu
 }
 
 /** Short names for the pens, by what each one draws. */
-export const PEN_NAMES = ['Shadows', 'Greenery', 'Roofs', 'Linework'] as const;
-export const PEN_ROLES = ['Shadows and water', 'Parks and trees', 'Pitched roofs', 'Buildings and streets'] as const;
+export const PEN_NAMES = ['Shadows', 'Water', 'Greenery', 'Roofs', 'Linework'] as const;
+export const PEN_ROLES = ['Cast shadows', 'Rivers, lakes and sea', 'Parks and trees', 'Pitched roofs', 'Buildings and streets'] as const;
 export const SHADOWS = 0;
-export const GREENERY = 1;
-export const ROOFS = 2;
-export const LINEWORK = 3;
+export const WATER = 1;
+export const GREENERY = 2;
+export const ROOFS = 3;
+export const LINEWORK = 4;
+export const PEN_COUNT = PEN_NAMES.length;
 
 export const DEFAULT_SETTINGS: Settings = {
   center: [4.8862, 52.3727],
@@ -114,7 +116,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sunHeight: 38,
   shadeWalls: false,
 
-  pens: ['#2149b8', '#21894a', '#d42f3a', '#1b1e23'],
+  pens: ['#a6b9dd', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'],
   penWidth: 0.35,
   mono: false,
   speed: 40,

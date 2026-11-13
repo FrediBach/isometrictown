@@ -32,7 +32,7 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 ## Made for pen plotters
 
 - Hidden lines are removed geometrically with a depth buffer before export, so nothing shows through a wall and nothing is drawn twice.
-- Each pen is its own Inkscape layer, in plot order: blue, green, red, black.
+- Each pen is its own Inkscape layer, in plot order: shadows, water, greenery, roofs, linework.
 - Strokes that touch are joined, and the stroke order is sorted to cut pen-up travel.
 - The stats panel shows ink length, pen lifts and an estimated plot time for each pen.
 - Sizes are real millimetres for A4, A3, A2, Letter, Tabloid and more.
