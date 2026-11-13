@@ -1,6 +1,7 @@
 import type { PlotStats } from '../plot';
 import type { Counts } from '../render';
 import { sheetSize, type Settings } from '../settings';
+import type { Region } from '../styles';
 import type { Job, Reply } from '../worker';
 
 export type RenderStatus = { text: string; state: 'idle' | 'working' | 'error' };
@@ -10,6 +11,8 @@ export type RenderResult = {
   sheet: [number, number];
   stats: PlotStats;
   counts: Counts;
+  /** Country and building style detected for the place. */
+  region: Region;
   ms: number;
   /** Settings at the time the drawing came back, for the stats panel. */
   mono: boolean;
@@ -41,7 +44,7 @@ export class Renderer {
       } else {
         const set = this.settings();
         this.onStatus({ text: '', state: 'idle' });
-        this.onResult({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, ms: r.ms, mono: set.mono, speed: set.speed });
+        this.onResult({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed });
       }
       this.dispatch();
     };

@@ -1,5 +1,6 @@
 import type { LngLat } from '../geo';
 import { DEFAULT_SETTINGS, SHEETS, type Settings } from '../settings';
+import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
 
@@ -35,6 +36,7 @@ export function loadSettings(): Settings {
     s.place = decodeURIComponent(parts[5] ?? '') || 'Somewhere';
   }
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
+  if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   return s;
 }
 
@@ -60,7 +62,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'shadows' | 'shadeWalls' | 'frame' | 'mono';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'shadows' | 'shadeWalls' | 'frame' | 'mono';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,

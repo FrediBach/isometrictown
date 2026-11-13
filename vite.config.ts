@@ -5,6 +5,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // The worker loads the country lookup on demand, which needs ES module workers.
+  worker: { format: 'es' },
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },

@@ -18,6 +18,7 @@ import { PenDot, TitleBlock } from './components/title-block';
 import { currentPalette } from './palettes';
 import { cn } from '@/lib/utils';
 import { PEN_NAMES, PEN_ROLES, SHEETS, sheetSize, type Settings, type SheetId } from './settings';
+import { STYLE_IDS, STYLES } from './styles';
 
 function PenSwatch({ color, label, onInput, onCommit }: { color: string; label: string; onInput: (c: string) => void; onCommit: () => void }) {
   const ref = useNativeChange<HTMLInputElement>(onCommit);
@@ -135,6 +136,8 @@ export function App() {
     ['windows', 'Windows'],
     ['roofHatch', 'Roof hatching'],
     ['rooftops', 'Rooftop boxes'],
+    ['details', 'Roof details'],
+    ['osmTags', 'OSM roof tags'],
     ['lamps', 'Street lamps'],
     ['paths', 'Footpaths'],
     ['rails', 'Railways'],
@@ -142,6 +145,8 @@ export function App() {
     ['parks', 'Parks'],
   ];
   const sep = ' · ';
+  const region = result?.region;
+  const autoStyle = region ? `Auto: ${STYLES[region.style].label} (${region.country})` : 'Auto, from the country';
 
   return (
     <div className="grid h-screen grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1">
@@ -190,7 +195,24 @@ export function App() {
         </FoldingSection>
 
         <FoldingSection index={3} title="Town" defaultOpen summary={`${townKeys.filter(([k]) => set[k]).length} of ${townKeys.length} layers`}>
-          {slider('pitched', 'Pitched roofs', 0, 1, 0.01, 'Share of small, simple buildings that get a gabled or hipped roof.')}
+          <Caption className="mt-0">Building style</Caption>
+          <Select value={set.style} onValueChange={(v) => change('style', v as Settings['style'])}>
+            <SelectTrigger aria-label="Building style" className="mb-1 h-9 w-full rounded-md bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-md">
+              <SelectItem value="auto" className="rounded-[4px]">
+                {autoStyle}
+              </SelectItem>
+              {STYLE_IDS.map((id) => (
+                <SelectItem key={id} value={id} className="rounded-[4px]">
+                  {STYLES[id].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Hint>Roof shapes, pitches and details typical for the region. Auto picks them from the country.</Hint>
+          {slider('pitched', 'Pitched roofs', 0, 1, 0.01, 'How many houses get pitched roofs, compared with what is usual for the style.')}
           {slider('trees', 'Trees', 0, 1, 0.01)}
           {slider('cars', 'Parked cars', 0, 1, 0.01)}
           <Caption className="mt-4">Layers</Caption>
@@ -332,8 +354,9 @@ export function App() {
               Inkscape or vpype.
             </p>
             <p className="m-0 text-muted-foreground">
-              Buildings, streets, water and parks come from OpenStreetMap. Building heights come from the map data where it has them. Roof shapes, trees, cars and lamps are made up, with a seed
-              so the same settings always give the same drawing.
+              Buildings, streets, water and parks come from OpenStreetMap. Building heights come from the map data where it has them. Roof shapes come from OpenStreetMap where they're
+              tagged. Elsewhere they're worked out from each building's shape, its neighbours and the local building style. Trees, cars and lamps are made up, with a seed so the same
+              settings always give the same drawing.
             </p>
             <p className="m-0 text-muted-foreground">Hidden lines are removed before you download, so nothing is drawn twice and nothing shows through a wall.</p>
           </div>

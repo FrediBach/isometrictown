@@ -1,5 +1,6 @@
 import { VectorTile, type VectorTileFeature } from '@mapbox/vector-tile';
 import { PbfReader } from 'pbf';
+import type { Info } from './classify';
 import { EARTH, ringArea, type Frame } from './geo';
 
 /** A ring as flat [x, y, ...] coordinates. seam[i] marks edge i -> i+1 as a cut along a tile edge. */
@@ -7,9 +8,17 @@ export type Ring = { pts: number[]; seam: Uint8Array };
 /** Outer ring (counter-clockwise) followed by holes (clockwise). */
 export type Shape = Ring[];
 
-export type Building = { shape: Shape; h: number; min: number };
+export type Building = { shape: Shape; h: number; min: number; info?: Info };
+/** Building tags from OpenStreetMap, at the building's centre. */
+export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean };
 export type WayKind = 'road' | 'rail' | 'path';
-export type Way = { pts: number[]; kind: WayKind; width: number; cls: string };
+export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; bridge?: boolean };
+/** A point of interest, e.g. a place of worship with its religion as `sub`. */
+export type Poi = { x: number; y: number; cls: string; sub: string };
+/** A land-use area such as residential or industrial. */
+export type Area = { shape: Shape; cls: string };
+/** A waterway centre line: canal, stream, ditch. */
+export type Stream = { pts: number[]; width: number };
 
 export type Town = {
   buildings: Building[];
@@ -18,6 +27,13 @@ export type Town = {
   wood: Shape[];
   plazas: Shape[];
   ways: Way[];
+  pois: Poi[];
+  /** House-number points as flat [x, y, ...]. */
+  numbers: number[];
+  landuse: Area[];
+  streams: Stream[];
+  /** Buildings with real OSM roof or type tags, when they could be fetched. */
+  tagged: Tagged[];
 };
 
 const ZOOM = 14;
@@ -39,6 +55,11 @@ export const ROAD_WIDTH: Record<string, number> = {
 const PATHS = new Set(['path', 'track', 'bridleway', 'cycleway', 'footway', 'steps']);
 const GREEN_LANDUSE = new Set(['cemetery', 'pitch', 'playground', 'grass', 'park', 'garden', 'recreation_ground', 'village_green']);
 const GREEN_COVER = new Set(['grass', 'wetland']);
+/** Land uses that say something about the buildings standing on them. */
+const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retail', 'railway', 'school', 'university', 'college', 'hospital', 'military', 'garages', 'farmyard', 'cemetery']);
+/** Points of interest that tell us what a building is. */
+const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway']);
+const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, drain: 1.6, ditch: 1.4 };
 
 let template: Promise<string> | null = null;
 const cache = new Map<string, Promise<Town>>();
@@ -104,7 +125,7 @@ function readTile(url: string, x: number, y: number): Promise<Town> {
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [] };
+  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], streams: [], tagged: [] };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -173,6 +194,37 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     for (const s of polygons(f, ext)) town.buildings.push({ shape: scaleShape(s, ext), h, min });
   });
 
+  const point = (f: VectorTileFeature, ext: number, fn: (x: number, y: number) => void) => {
+    if (f.type !== 1) return;
+    for (const ring of f.loadGeometry()) {
+      for (const q of ring) {
+        if (q.x < 0 || q.y < 0 || q.x >= ext || q.y >= ext) continue;
+        fn(((tx + q.x / ext) / n - 0.5) * EARTH, (0.5 - (ty + q.y / ext) / n) * EARTH);
+      }
+    }
+  };
+
+  each('poi', (f, _m, ext) => {
+    const cls = String(f.properties.class);
+    if (!KEY_POIS.has(cls)) return;
+    const sub = String(f.properties.subclass ?? '');
+    point(f, ext, (x, y) => town.pois.push({ x, y, cls, sub }));
+  });
+
+  each('housenumber', (f, _m, ext) => point(f, ext, (x, y) => town.numbers.push(x, y)));
+
+  each('waterway', (f, toMerc, ext) => {
+    const p = f.properties;
+    const width = STREAM_WIDTH[String(p.class)];
+    if (!width || p.brunnel === 'tunnel' || f.type !== 2) return;
+    for (const line of f.loadGeometry()) {
+      for (const piece of clipLine(line, ext)) {
+        const pts = toMerc(piece);
+        if (pts) town.streams.push({ pts, width });
+      }
+    }
+  });
+
   each('water', (f, _m, ext) => {
     if (f.properties.brunnel === 'tunnel') return;
     for (const s of polygons(f, ext)) town.water.push(scaleShape(s, ext));
@@ -190,7 +242,9 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
   });
 
   each('landuse', (f, _m, ext) => {
-    if (!GREEN_LANDUSE.has(String(f.properties.class))) return;
+    const cls = String(f.properties.class);
+    if (BUILT_LANDUSE.has(cls)) for (const s of polygons(f, ext)) town.landuse.push({ shape: scaleShape(s, ext), cls });
+    if (!GREEN_LANDUSE.has(cls)) return;
     for (const s of polygons(f, ext)) town.green.push(scaleShape(s, ext));
   });
 
@@ -198,6 +252,7 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     const p = f.properties;
     const cls = String(p.class);
     if (p.brunnel === 'tunnel' || cls === 'ferry' || cls === 'aerialway') return;
+    const bridge = p.brunnel === 'bridge' || undefined;
     if (f.type === 3) {
       if (cls === 'bridge') return;
       for (const s of polygons(f, ext)) town.plazas.push(scaleShape(s, ext));
@@ -216,7 +271,7 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     for (const line of f.loadGeometry()) {
       for (const piece of clipLine(line, ext)) {
         const pts = toMerc(piece);
-        if (pts) town.ways.push({ pts, kind, width, cls });
+        if (pts) town.ways.push({ pts, kind, width, cls, bridge });
       }
     }
   });
@@ -339,6 +394,25 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     for (const b of t.buildings) {
       const s = shape(b.shape);
       if (s) town.buildings.push({ shape: s, h: b.h, min: b.min });
+    }
+    for (const a of t.landuse) {
+      const s = shape(a.shape);
+      if (s) town.landuse.push({ shape: s, cls: a.cls });
+    }
+    const inside = (x: number, y: number) => x >= bx0 && x <= bx1 && y >= by0 && y <= by1;
+    for (const p of t.pois) {
+      const x = frame.x(p.x);
+      const y = frame.y(p.y);
+      if (inside(x, y)) town.pois.push({ ...p, x, y });
+    }
+    for (let i = 0; i < t.numbers.length; i += 2) {
+      const x = frame.x(t.numbers[i]);
+      const y = frame.y(t.numbers[i + 1]);
+      if (inside(x, y)) town.numbers.push(x, y);
+    }
+    for (const w of t.streams) {
+      const pts = local(w.pts);
+      if (pts) town.streams.push({ ...w, pts });
     }
     for (const key of ['water', 'green', 'wood', 'plazas'] as const) {
       for (const sh of t[key]) {

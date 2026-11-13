@@ -1,4 +1,5 @@
 import type { LngLat } from './geo';
+import type { StyleId } from './styles';
 
 export type Settings = {
   center: LngLat;
@@ -17,7 +18,13 @@ export type Settings = {
   frame: boolean;
 
   pitched: number;
+  /** Regional building style, or 'auto' to pick one from the country. */
+  style: 'auto' | StyleId;
+  /** Fetch real roof shapes and building types from OpenStreetMap where they're tagged. */
+  osmTags: boolean;
   windows: boolean;
+  /** Chimneys, dormers and parapets. */
+  details: boolean;
   roofHatch: boolean;
   rooftops: boolean;
   trees: number;
@@ -82,7 +89,10 @@ export const DEFAULT_SETTINGS: Settings = {
   frame: true,
 
   pitched: 0.7,
+  style: 'auto',
+  osmTags: true,
   windows: true,
+  details: true,
   roofHatch: true,
   rooftops: true,
   trees: 0.7,

@@ -12,12 +12,14 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 ## What it draws
 
-- **Buildings** use their real footprints and heights from the map data. Windows are set by floor. Small, simple buildings get gabled or hipped roofs with hatching.
+- **Buildings** use their real footprints and heights from the map data. Windows are set by floor.
+- **Roofs** follow what each building is and where it stands. Houses get gabled, hipped, half-hipped or mansard roofs, and L- and T-shaped houses get cross gables. Terraced rows share party walls, with chimney stacks on them. Paris blocks get mansards with dormers. Dutch canal houses turn stepped or neck gables to the street. Factories get sawtooth roofs, churches get a tower and spire, mosques get a dome and minaret, and temples get tiered roofs.
+- **Regional style** is picked from the country: Alpine, Dutch, British, French, Mediterranean, East Asian, North American and more. Each style sets roof shapes, pitches, overhangs, which way ridges run and how many chimneys and dormers there are. You can override it.
 - **Streets** get kerb lines, parked cars and street lamps. Railways get rails and sleepers. Footpaths are dashed.
 - **Water** is drawn as wavy strokes. Parks are hatched, and parks and woods get trees.
 - **Shadows** are hatched on the ground, from a sun you can move.
 
-Roof shapes, trees, cars and lamps are made up. They're tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle them.
+Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it.
 
 ## Made for pen plotters
 
@@ -32,8 +34,13 @@ Roof shapes, trees, cars and lamps are made up. They're tied to the seed and to 
 | File | Role |
 | --- | --- |
 | `src/tiles.ts` | Loads OpenFreeMap vector tiles (z14), clips them to tile edges and marks seams |
+| `src/osm.ts` | Fetches tagged roof shapes and building types from Overpass, best effort |
+| `src/styles.ts` | Regional building styles and offline country detection |
+| `src/classify.ts` | Works out each building's kind, party walls, street side and roof |
 | `src/camera.ts` | Orthographic isometric camera: rotation, tilt, scale |
-| `src/buildings.ts` | Walls, flat and pitched roofs, windows, rooftop boxes, cars |
+| `src/shape.ts` | Footprint geometry: best-fit rectangles, splitting into rectangles, inset outlines |
+| `src/buildings.ts` | Walls, windows and the choice of roof per building, rooftop boxes, cars |
+| `src/roofs.ts` | Pitched, mansard, shed and sawtooth roofs, gables, chimneys, dormers, spires, domes |
 | `src/streets.ts` | Road surfaces, kerbs, lamps, rails, footpaths |
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |
@@ -51,7 +58,7 @@ npm run dev
 
 ## Credits
 
-Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). Tiles by [OpenFreeMap](https://openfreemap.org), schema © [OpenMapTiles](https://www.openmaptiles.org). Map view by [MapLibre GL](https://maplibre.org). Place search by [Photon](https://photon.komoot.io) and [Nominatim](https://nominatim.org). Town list from [Natural Earth](https://www.naturalearthdata.com).
+Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). Tiles by [OpenFreeMap](https://openfreemap.org), schema © [OpenMapTiles](https://www.openmaptiles.org). Map view by [MapLibre GL](https://maplibre.org). Place search by [Photon](https://photon.komoot.io) and [Nominatim](https://nominatim.org). Roof tags via the [Overpass API](https://overpass-api.de). Country lookup by [country-coder](https://github.com/rapideditor/country-coder). Town list from [Natural Earth](https://www.naturalearthdata.com).
 
 ## License
 

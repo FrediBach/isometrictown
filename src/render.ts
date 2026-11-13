@@ -1,4 +1,5 @@
 import { building, type Build, type Solid } from './buildings';
+import { classify } from './classify';
 import { Camera } from './camera';
 import type { Frame } from './geo';
 import { placeTrees, treeSprite, type Masks } from './nature';
@@ -6,7 +7,8 @@ import { Paper } from './raster';
 import { sequence } from './rng';
 import { LINEWORK, SHADOWS, GREENERY, ROOFS, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, parkCars, railways } from './streets';
-import type { Town } from './tiles';
+import type { Style } from './styles';
+import type { Shape, Stream, Town } from './tiles';
 
 export type Counts = { buildings: number; houses: number; trees: number; cars: number; lamps: number };
 export type Drawing = { pens: number[][][]; counts: Counts };
@@ -16,7 +18,7 @@ export function reachHeight(set: Settings): number {
   return Math.min(400, 160 * set.heightScale);
 }
 
-export function render(town: Town, set: Settings, frame: Frame): Drawing {
+export function render(town: Town, set: Settings, frame: Frame, style: Style): Drawing {
   const cam = new Camera(set);
   const paper = new Paper(cam);
   const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
@@ -26,6 +28,7 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
   const B: Build = {
     cam,
     set,
+    style,
     sun,
     key: (x, y) => {
       const [X, Y] = toAbs(x, y);
@@ -35,8 +38,11 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
   const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
+  classify(town, style, set, B.key);
+  const water = [...town.water, ...streamShapes(town.streams)];
+
   // Ground
-  for (const s of town.water) paper.fillMask(M.water, s.map((r) => r.pts));
+  for (const s of water) paper.fillMask(M.water, s.map((r) => r.pts));
   for (const s of town.green) paper.fillMask(M.green, s.map((r) => r.pts));
   for (const s of town.wood) paper.fillMask(M.wood, s.map((r) => r.pts));
   fillRoads(paper, town.ways, town.plazas, M.road);
@@ -115,7 +121,7 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
   // Lines, ground first
   if (set.water) {
     waves(paper, M, set.seed);
-    outline(paper, LINEWORK, town.water, M.water, (x, y) => !paper.on(M.road, x, y));
+    outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y));
   }
   if (set.parks) {
     paper.hatchGround(GREENERY, -27, 1.1, (x, y) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y));
@@ -128,6 +134,7 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
   if (set.rails) railways(B, paper, town.ways);
   if (set.paths) footpaths(B, paper, town.ways, M);
   if (set.lamps) counts.lamps = lamps(B, paper, town.ways, M);
+  railings(paper, town.ways);
 
   // Solids and trees
   for (const s of solids) for (const l of s.lines) paper.line3(l.pen, l.pts, paper.seen, l.closed);
@@ -156,6 +163,65 @@ function waves(paper: Paper, M: Masks, seed: number): void {
       }
       if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(SHADOWS, pts, keep);
       x += len + 1 + rnd() * 5.5;
+    }
+  }
+}
+
+/** Waterway centre lines as water shapes: a strip per segment and a disc per joint. */
+function streamShapes(streams: Stream[]): Shape[] {
+  const out: Shape[] = [];
+  const ring = (pts: number[]) => [{ pts, seam: new Uint8Array(pts.length / 2) }];
+  for (const s of streams) {
+    const hw = s.width / 2;
+    const p = s.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const [ax, ay, bx, by] = [p[i], p[i + 1], p[i + 2], p[i + 3]];
+      const l = Math.hypot(bx - ax, by - ay);
+      if (l < 1e-6) continue;
+      const nx = (-(by - ay) / l) * hw;
+      const ny = ((bx - ax) / l) * hw;
+      out.push(ring([ax - nx, ay - ny, bx - nx, by - ny, bx + nx, by + ny, ax + nx, ay + ny]));
+    }
+    for (let i = 2; i + 2 < p.length; i += 2) {
+      const pts: number[] = [];
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        pts.push(p[i] + Math.cos(a) * hw, p[i + 1] + Math.sin(a) * hw);
+      }
+      out.push(ring(pts));
+    }
+  }
+  return out;
+}
+
+/** Railings along both edges of road bridges, with posts. */
+function railings(paper: Paper, ways: Town['ways']): void {
+  const z = 1.1;
+  for (const w of ways) {
+    if (!w.bridge || w.kind === 'rail') continue;
+    const hw = Math.max(1.2, w.width / 2);
+    const p = w.pts;
+    for (const side of [-1, 1]) {
+      const pts: number[] = [];
+      for (let i = 0; i < p.length; i += 2) {
+        const a = Math.max(0, i - 2);
+        const b = Math.min(p.length - 2, i + 2);
+        const dx = p[b] - p[a];
+        const dy = p[b + 1] - p[a + 1];
+        const l = Math.hypot(dx, dy) || 1;
+        pts.push(p[i] - (dy / l) * hw * side, p[i + 1] + (dx / l) * hw * side, z);
+      }
+      paper.line3(LINEWORK, pts);
+      for (let i = 0; i + 5 < pts.length; i += 3) {
+        const l = Math.hypot(pts[i + 3] - pts[i], pts[i + 4] - pts[i + 1]);
+        const n = Math.floor(l / 2.5);
+        for (let k = 0; k <= n; k++) {
+          const t = n ? k / n : 0;
+          const x = pts[i] + (pts[i + 3] - pts[i]) * t;
+          const y = pts[i + 1] + (pts[i + 4] - pts[i + 1]) * t;
+          paper.line3(LINEWORK, [x, y, 0, x, y, z]);
+        }
+      }
     }
   }
 }
