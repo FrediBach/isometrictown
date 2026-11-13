@@ -1,7 +1,7 @@
 import type { Camera } from './camera';
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
-import { BLACK, BLUE, RED, type Settings } from './settings';
+import { LINEWORK, SHADOWS, ROOFS, type Settings } from './settings';
 import type { Building, Ring } from './tiles';
 
 export type Line3 = { pen: number; pts: number[]; closed?: boolean };
@@ -94,7 +94,7 @@ export function prism(B: Build, rings: Ring[], z0: number, z1: number, o: PrismO
           const t = k / m;
           const x = ax + (bx - ax) * t;
           const y = ay + (by - ay) * t;
-          out.lines.push({ pen: BLUE, pts: [x, y, z0, x, y, z1] });
+          out.lines.push({ pen: SHADOWS, pts: [x, y, z0, x, y, z1] });
         }
       }
     }
@@ -141,14 +141,14 @@ function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: 
       if (!full) {
         const x = ax + dx * m;
         const y = ay + dy * m;
-        out.lines.push({ pen: BLACK, pts: [x, y, zb, x, y, zt] });
+        out.lines.push({ pen: LINEWORK, pts: [x, y, zb, x, y, zt] });
         continue;
       }
       const px = ax + dx * (m - half);
       const py = ay + dy * (m - half);
       const qx = ax + dx * (m + half);
       const qy = ay + dy * (m + half);
-      out.lines.push({ pen: BLACK, pts: [px, py, zb, qx, qy, zb, qx, qy, zt, px, py, zt], closed: true });
+      out.lines.push({ pen: LINEWORK, pts: [px, py, zb, qx, qy, zb, qx, qy, zt, px, py, zt], closed: true });
     }
   }
 }
@@ -210,13 +210,13 @@ function house(B: Build, r: Rect, z0: number, H: number, k: [number, number], ou
     [cx - ux * (L / 2) + vx * (w / 2), cy - uy * (L / 2) + vy * (w / 2)],
   ];
   const ring: Ring = { pts: c.flat(), seam: new Uint8Array(4) };
-  prism(B, [ring], z0, He, { roof: false, windows: true, pen: BLACK }, out);
+  prism(B, [ring], z0, He, { roof: false, windows: true, pen: LINEWORK }, out);
 
   const inset = hip ? w / 2 : 0;
   const R0 = [cx - ux * (L / 2 - inset), cy - uy * (L / 2 - inset), Hr];
   const R1 = [cx + ux * (L / 2 - inset), cy + uy * (L / 2 - inset), Hr];
   const at = (i: number) => [c[i][0], c[i][1], He];
-  const pen = RED;
+  const pen = ROOFS;
   if (hip) {
     out.faces.push([[...at(0), ...at(1), ...R1, ...R0]], [[...at(1), ...at(2), ...R1]], [[...at(2), ...at(3), ...R0, ...R1]], [[...at(3), ...at(0), ...R0]]);
     out.lines.push({ pen, pts: [...at(0), ...at(1), ...at(2), ...at(3)], closed: true });
@@ -292,7 +292,7 @@ function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Sol
     const inside = corners.every(([x, y]) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts)));
     if (!inside) continue;
     const s = newSolid();
-    prism(B, [{ pts: corners.flat(), seam: new Uint8Array(4) }], z, z + h, { roof: true, windows: false, pen: BLACK }, s);
+    prism(B, [{ pts: corners.flat(), seam: new Uint8Array(4) }], z, z + h, { roof: true, windows: false, pen: LINEWORK }, s);
     out.push(s);
     made++;
   }
@@ -330,7 +330,7 @@ export function building(B: Build, b: Building): Solid[] {
     }
   }
 
-  prism(B, b.shape, z0, H, { roof: true, windows: true, pen: BLACK }, solid);
+  prism(B, b.shape, z0, H, { roof: true, windows: true, pen: LINEWORK }, solid);
   solid.casts.push({ ring: p, h: H });
   if (set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], set.seed, 2) < 0.55) rooftop(B, b, H, k, out);
   return out;
@@ -343,7 +343,7 @@ export function car(B: Build, x: number, y: number, ux: number, uy: number, k: n
   const vy = ux;
   const box = (a0: number, a1: number, hw: number, z0: number, z1: number, roof: boolean) => {
     const pts = [x + ux * a0 - vx * hw, y + uy * a0 - vy * hw, x + ux * a1 - vx * hw, y + uy * a1 - vy * hw, x + ux * a1 + vx * hw, y + uy * a1 + vy * hw, x + ux * a0 + vx * hw, y + uy * a0 + vy * hw];
-    prism(B, [{ pts, seam: new Uint8Array(4) }], z0, z1, { roof, windows: false, pen: BLACK }, s);
+    prism(B, [{ pts, seam: new Uint8Array(4) }], z0, z1, { roof, windows: false, pen: LINEWORK }, s);
     return pts;
   };
   const van = k > 0.85;

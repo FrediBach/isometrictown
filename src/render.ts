@@ -4,7 +4,7 @@ import type { Frame } from './geo';
 import { placeTrees, treeSprite, type Masks } from './nature';
 import { Paper } from './raster';
 import { sequence } from './rng';
-import { BLACK, BLUE, GREEN, RED, type Settings } from './settings';
+import { LINEWORK, SHADOWS, GREENERY, ROOFS, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, parkCars, railways } from './streets';
 import type { Town } from './tiles';
 
@@ -62,7 +62,7 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
     const made = building(B, b);
     counts.buildings++;
-    if (made[0].lines.some((l) => l.pen === RED)) counts.houses++;
+    if (made[0].lines.some((l) => l.pen === ROOFS)) counts.houses++;
     solids.push(...made);
   }
 
@@ -115,16 +115,16 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
   // Lines, ground first
   if (set.water) {
     waves(paper, M, set.seed);
-    outline(paper, BLACK, town.water, M.water, (x, y) => !paper.on(M.road, x, y));
+    outline(paper, LINEWORK, town.water, M.water, (x, y) => !paper.on(M.road, x, y));
   }
   if (set.parks) {
-    paper.hatchGround(GREEN, -27, 1.1, (x, y) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y));
-    outline(paper, GREEN, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
-    outline(paper, GREEN, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
+    paper.hatchGround(GREENERY, -27, 1.1, (x, y) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y));
+    outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
+    outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
   }
-  if (set.shadows) paper.hatchGround(BLUE, 62, 0.85, (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y));
+  if (set.shadows) paper.hatchGround(SHADOWS, 62, 0.85, (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y));
   curbs(paper, town.ways, M);
-  outline(paper, BLACK, town.plazas, M.road);
+  outline(paper, LINEWORK, town.plazas, M.road);
   if (set.rails) railways(B, paper, town.ways);
   if (set.paths) footpaths(B, paper, town.ways, M);
   if (set.lamps) counts.lamps = lamps(B, paper, town.ways, M);
@@ -133,7 +133,7 @@ export function render(town: Town, set: Settings, frame: Frame): Drawing {
   for (const s of solids) for (const l of s.lines) paper.line3(l.pen, l.pts, paper.seen, l.closed);
   for (const sp of sprites) sp.draw();
 
-  if (set.frame) paper.pens[BLACK].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
+  if (set.frame) paper.pens[LINEWORK].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   return { pens: paper.pens, counts };
 }
 
@@ -154,7 +154,7 @@ function waves(paper: Paper, M: Masks, seed: number): void {
         const yy = y + Math.sin((t / len) * waves * Math.PI * 2) * amp + t * tilt;
         pts.push(x + t, yy, cam.groundDepth(yy));
       }
-      if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(BLUE, pts, keep);
+      if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(SHADOWS, pts, keep);
       x += len + 1 + rnd() * 5.5;
     }
   }

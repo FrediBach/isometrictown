@@ -60,12 +60,13 @@ export function sheetSize(s: Pick<Settings, 'sheet' | 'landscape'>): [number, nu
   return s.landscape ? [w, h] : [h, w];
 }
 
-export const PEN_NAMES = ['Blue', 'Green', 'Red', 'Black'] as const;
+/** Short names for the pens, by what each one draws. */
+export const PEN_NAMES = ['Shadows', 'Greenery', 'Roofs', 'Linework'] as const;
 export const PEN_ROLES = ['Shadows and water', 'Parks and trees', 'Pitched roofs', 'Buildings and streets'] as const;
-export const BLUE = 0;
-export const GREEN = 1;
-export const RED = 2;
-export const BLACK = 3;
+export const SHADOWS = 0;
+export const GREENERY = 1;
+export const ROOFS = 2;
+export const LINEWORK = 3;
 
 export const DEFAULT_SETTINGS: Settings = {
   center: [4.8862, 52.3727],

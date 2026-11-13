@@ -2,7 +2,7 @@ import { car, type Build, type Solid } from './buildings';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
-import { BLACK } from './settings';
+import { LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
 
 const PARKING = new Set(['minor', 'tertiary', 'secondary', 'primary']);
@@ -92,7 +92,7 @@ export function curbs(paper: Paper, ways: Way[], M: Masks): void {
         if (l < 1e-6) continue;
         const nx = (-(by - ay) / l) * side;
         const ny = ((bx - ax) / l) * side;
-        groundSeg(paper, BLACK, ax + nx * hw, ay + ny * hw, bx + nx * hw, by + ny * hw, edgeTest(paper, M.road, nx, ny));
+        groundSeg(paper, LINEWORK, ax + nx * hw, ay + ny * hw, bx + nx * hw, by + ny * hw, edgeTest(paper, M.road, nx, ny));
       }
       paper.end();
     }
@@ -111,7 +111,7 @@ export function curbs(paper: Paper, ways: Way[], M: Masks): void {
         const a1 = ((k + 1) / m) * Math.PI * 2;
         const am = (a0 + a1) / 2;
         const test = edgeTest(paper, M.road, Math.cos(am), Math.sin(am));
-        groundSeg(paper, BLACK, p[i * 2] + Math.cos(a0) * hw, p[i * 2 + 1] + Math.sin(a0) * hw, p[i * 2] + Math.cos(a1) * hw, p[i * 2 + 1] + Math.sin(a1) * hw, test);
+        groundSeg(paper, LINEWORK, p[i * 2] + Math.cos(a0) * hw, p[i * 2 + 1] + Math.sin(a0) * hw, p[i * 2] + Math.cos(a1) * hw, p[i * 2 + 1] + Math.sin(a1) * hw, test);
       }
       paper.end();
     }
@@ -183,7 +183,7 @@ export function lamps(B: Build, paper: Paper, ways: Way[], M: Masks): number {
       if (paper.on(M.road, sx, sy) || paper.on(M.foot, sx, sy) || paper.on(M.water, sx, sy)) return;
       const ax = lx - nx * 1.3;
       const ay = ly - ny * 1.3;
-      paper.line3(BLACK, [lx, ly, 0, lx, ly, 5.4, ax, ay, 5.6, ax, ay, 5.25]);
+      paper.line3(LINEWORK, [lx, ly, 0, lx, ly, 5.4, ax, ay, 5.6, ax, ay, 5.25]);
       count++;
     });
   }
@@ -206,10 +206,10 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
         const l = Math.hypot(p[b] - p[a], p[b + 1] - p[a + 1]) || 1;
         pts.push(p[i] - ((p[b + 1] - p[a + 1]) / l) * o, p[i + 1] + ((p[b] - p[a]) / l) * o, 0);
       }
-      paper.line3(BLACK, pts);
+      paper.line3(LINEWORK, pts);
     }
     if (twin && s * 2.6 >= 1) {
-      walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(BLACK, x + uy * 1.3, y - ux * 1.3, 0, x - uy * 1.3, y + ux * 1.3, 0));
+      walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * 1.3, y - ux * 1.3, 0, x - uy * 1.3, y + ux * 1.3, 0));
     }
   }
 }
@@ -234,7 +234,7 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
         const inDash = phase < dash;
         const left = Math.max(1e-3, inDash ? dash - phase : dash + gap - phase);
         const t1 = Math.min(l, t + left);
-        if (inDash) groundSeg(paper, BLACK, p[i] + ux * t, p[i + 1] + uy * t, p[i] + ux * t1, p[i + 1] + uy * t1, test);
+        if (inDash) groundSeg(paper, LINEWORK, p[i] + ux * t, p[i + 1] + uy * t, p[i] + ux * t1, p[i + 1] + uy * t1, test);
         else paper.end();
         phase = (phase + (t1 - t)) % (dash + gap);
         t = t1;

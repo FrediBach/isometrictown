@@ -45,4 +45,6 @@ App patterns in [`src/components/fields.tsx`](src/components/fields.tsx): `Secti
 
 Composed fields (search, seed) put the input and its action key inside one frame instead of side by side. Lists of choices that are also navigation (the preset towns) are set as text links; the current one is underlined in the signal colour.
 
+The pen palette picker ([`src/components/palette-picker.tsx`](src/components/palette-picker.tsx)) shows each palette as a tiny test plot of a house: every pen does its own job in it (shadow hatching, tree, roof, linework), with a strip of the four colours below. It is a single-choice group; editing any pen by hand makes the set "Custom" and nothing is selected. Palettes live in [`src/palettes.ts`](src/palettes.ts), in pen order, darkest pen last.
+
 The stats footer is a plot sheet: per-pen bars show each pen's share of plot time. They are coloured by pen and always labelled by pen name, so colour is never the only cue.

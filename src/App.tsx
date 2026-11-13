@@ -13,7 +13,9 @@ import { Caption, FoldingSection, Hint, Key, KeyGrid, Section, SliderField } fro
 import { LocatorMap } from './components/locator-map';
 import { PlaceSearch } from './components/place-search';
 import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
+import { PalettePicker } from './components/palette-picker';
 import { PenDot, TitleBlock } from './components/title-block';
+import { currentPalette } from './palettes';
 import { cn } from '@/lib/utils';
 import { PEN_NAMES, PEN_ROLES, SHEETS, sheetSize, type Settings, type SheetId } from './settings';
 
@@ -240,7 +242,7 @@ export function App() {
           title="Pens"
           summary={
             <span className="inline-flex items-center gap-2">
-              {FORMAT.penWidth(set.penWidth)}
+              {[set.mono ? 'One pen' : (currentPalette(set.pens)?.name ?? 'Custom'), FORMAT.penWidth(set.penWidth)].join(sep)}
               <span className="inline-flex gap-0.5">
                 {(set.mono ? [MONO_INK] : set.pens).map((c, i) => (
                   <PenDot key={i} color={c} size={9} />
@@ -249,17 +251,29 @@ export function App() {
             </span>
           }
         >
+          <div className="mb-2 flex items-baseline justify-between">
+            <Caption className="mb-0">Palette</Caption>
+            <span className="readout text-[11px] text-muted-foreground">{currentPalette(set.pens)?.name ?? 'Custom'}</span>
+          </div>
+          <PalettePicker
+            pens={set.pens}
+            disabled={set.mono}
+            onPick={(pens) => {
+              commit({ ...live.current, pens });
+              schedule(0);
+            }}
+          />
+          <Caption className="mt-4">Pens</Caption>
           <ol className={cn('m-0 mb-4 list-none overflow-hidden rounded-md border border-input bg-card p-0 transition-opacity', set.mono && 'opacity-45')}>
             {set.pens.map((color, i) => (
               <li key={i} className="border-b last:border-b-0">
-                <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/60">
+                <label title={PEN_ROLES[i]} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/60">
                   <span className="readout w-3 text-[11px] text-muted-foreground">{i + 1}</span>
                   <PenSwatch color={color} label={`${PEN_NAMES[i]} pen colour`} onInput={(c) => setPen(i, c)} onCommit={() => schedule(0)} />
                   <span className="flex min-w-0 flex-1 flex-col leading-tight">
                     <span className="text-[13px] font-medium">{PEN_NAMES[i]}</span>
-                    <span className="truncate text-xs text-muted-foreground">{PEN_ROLES[i]}</span>
+                    <span className="readout text-[11px] text-muted-foreground uppercase">{color}</span>
                   </span>
-                  <span className="readout text-[11px] text-muted-foreground uppercase">{color}</span>
                 </label>
               </li>
             ))}

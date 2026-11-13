@@ -1,7 +1,7 @@
 import type { Build } from './buildings';
 import type { Paper } from './raster';
 import { hash } from './rng';
-import { GREEN } from './settings';
+import { GREENERY } from './settings';
 
 export type Tree = { x: number; y: number; r: number; h: number; conifer: boolean };
 export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow', Uint8Array>;
@@ -83,10 +83,10 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
       ring,
       depth,
       draw: () => {
-        paper.sheet(GREEN, withDepth(ring, depth), paper.seen, true);
+        paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true);
         const ym = yb + (yt - yb) * 0.42;
-        paper.sheet(GREEN, withDepth([sx - w * 0.6, ym, sx, ym + (yt - yb) * 0.22, sx + w * 0.6, ym], depth - 0.01));
-        paper.line3(GREEN, [t.x, t.y, 0, t.x, t.y, zb]);
+        paper.sheet(GREENERY, withDepth([sx - w * 0.6, ym, sx, ym + (yt - yb) * 0.22, sx + w * 0.6, ym], depth - 0.01));
+        paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, zb]);
       },
     };
   }
@@ -98,9 +98,9 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
     ring,
     depth,
     draw: () => {
-      paper.sheet(GREEN, withDepth(ring, depth), paper.seen, true);
-      if (R > 0.9) paper.sheet(GREEN, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
-      paper.line3(GREEN, [t.x, t.y, 0, t.x, t.y, t.h]);
+      paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true);
+      if (R > 0.9) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
+      paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, t.h]);
     },
   };
 }
