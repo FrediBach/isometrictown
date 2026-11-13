@@ -74,9 +74,9 @@ export function SliderField({ label, value, display, min, max, step, ticks, hint
   return (
     <div className="mb-2.5">
       <div className="flex items-baseline justify-between gap-2">
-        <label id={id} className="text-[13px]">
+        <span id={id} className="text-[13px]">
           {label}
-        </label>
+        </span>
         <output className="readout text-foreground">{display}</output>
       </div>
       <Slider className="mt-0.5" aria-labelledby={id} value={[value]} min={min} max={max} step={step} ticks={ticks} onValueChange={([v]) => onChange(v)} />

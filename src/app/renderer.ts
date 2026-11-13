@@ -67,7 +67,7 @@ export class Renderer {
     this.queued = false;
     this.busy = true;
     this.onStatus({ text: 'Drawing', state: 'working' });
-    const job: Job = { id: ++this.jobId, set: JSON.parse(JSON.stringify(this.settings())) };
+    const job: Job = { id: ++this.jobId, set: structuredClone(this.settings()) };
     this.worker.postMessage(job);
   }
 

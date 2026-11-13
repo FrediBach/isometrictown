@@ -10,6 +10,8 @@ import { Slider as SliderPrimitive } from "radix-ui"
 function Slider({
   className,
   ticks = 10,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> & { ticks?: number }) {
   return (
@@ -48,6 +50,8 @@ function Slider({
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         data-slot="slider-thumb"
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         className="relative block h-[18px] w-1 shrink-0 rounded-[1px] bg-foreground ring-ring/30 transition-[background-color,box-shadow] outline-none after:absolute after:-inset-x-3 after:-inset-y-1.5 group-hover/slider:ring-4 focus-visible:bg-signal focus-visible:ring-4 active:bg-signal"
       />
     </SliderPrimitive.Root>

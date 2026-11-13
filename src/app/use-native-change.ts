@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 
 /**
  * React's onChange fires on every keystroke. The DOM `change` event fires when an edit is
@@ -6,11 +6,10 @@ import { useEffect, useRef } from 'react';
  */
 export function useNativeChange<T extends HTMLInputElement>(onCommit: (el: T) => void) {
   const ref = useRef<T>(null);
-  const handler = useRef(onCommit);
-  handler.current = onCommit;
+  const commit = useEffectEvent(onCommit);
   useEffect(() => {
     const el = ref.current!;
-    const listener = () => handler.current(el);
+    const listener = () => commit(el);
     el.addEventListener('change', listener);
     return () => el.removeEventListener('change', listener);
   }, []);

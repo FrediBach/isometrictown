@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import type { LngLat } from '../geo';
 import { createLocator, type Locator } from '../locator';
 
@@ -14,13 +14,12 @@ const coord = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(4)
 /** Hosts the MapLibre locator. It is created once; the app drives it imperatively afterwards. */
 export function LocatorMap({ center, bearing, onReady, onMove }: Props) {
   const box = useRef<HTMLDivElement>(null);
-  const moved = useRef(onMove);
-  moved.current = onMove;
+  const moved = useEffectEvent(onMove);
   const init = useRef({ center, bearing, onReady });
 
   useEffect(() => {
     const { center, bearing, onReady } = init.current;
-    const locator = createLocator(box.current!, center, bearing, (c, b) => moved.current(c, b));
+    const locator = createLocator(box.current!, center, bearing, (c, b) => moved(c, b));
     onReady(locator);
     return () => locator.map.remove();
   }, []);

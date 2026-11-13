@@ -225,7 +225,7 @@ export function toSvg(pens: number[][][], set: Settings, sheet: [number, number]
     .map((lines, i) => {
       if (!lines.length) return '';
       const label = set.mono ? 'Black' : `${i + 1} ${PEN_NAMES[i]}`;
-      return `<g inkscape:groupmode="layer" inkscape:label="${label}" id="pen-${i + 1}" fill="none" stroke="${set.mono ? '#000000' : set.pens[i]}" stroke-width="${set.penWidth}" stroke-linecap="round" stroke-linejoin="round"><path d="${pathData(lines)}"/></g>`;
+      return `<g inkscape:groupmode="layer" inkscape:label="${label}" id="pen-${i + 1}" fill="none" stroke="${escape(set.mono ? '#000000' : set.pens[i])}" stroke-width="${Number(set.penWidth)}" stroke-linecap="round" stroke-linejoin="round"><path d="${pathData(lines)}"/></g>`;
     })
     .join('\n');
   const [lng, lat] = set.center;

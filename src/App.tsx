@@ -182,7 +182,7 @@ export function App() {
             onMove={onMapMove}
             onReady={(loc) => {
               locator.current = loc;
-              loc.map.on('load', () => updateFootprint(true));
+              loc.map.once('load', () => updateFootprint(true));
             }}
           />
           <Hint className="mt-2 mb-0">Drag the map to move. Right-drag or use the compass to turn. The red outline is the ground that lands on the sheet.</Hint>
