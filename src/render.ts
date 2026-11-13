@@ -1,5 +1,6 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
+import { drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, textured } from './ground';
 import { Camera } from './camera';
 import type { Frame } from './geo';
 import { placeTrees, treeSprite, type Masks } from './nature';
@@ -46,6 +47,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
   for (const s of town.green) paper.fillMask(M.green, s.map((r) => r.pts));
   for (const s of town.wood) paper.fillMask(M.wood, s.map((r) => r.pts));
   fillRoads(paper, town.ways, town.plazas, M.road);
+  const G = set.ground ? planGround(B, paper, town) : null;
 
   // Buildings, only those that can show inside the drawing area
   const [rx0, ry0, rx1, ry1] = cam.rect;
@@ -74,7 +76,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
 
   // Life on the ground
   const box = cam.region(0);
-  const trees = placeTrees(B, paper, M, box, toAbs, fromAbs);
+  let trees = placeTrees(B, paper, M, box, toAbs, fromAbs);
+  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs)];
   counts.trees = trees.length;
   const cars = parkCars(B, paper, town.ways, M);
   counts.cars = cars.length;
@@ -124,11 +127,15 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style): D
     outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y));
   }
   if (set.parks) {
-    paper.hatchGround(GREENERY, -27, 1.1, (x, y) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y));
+    const grass = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y);
+    paper.hatchGround(GREENERY, -27, 1.1, (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
+    // Every other line of the same hatch, so it runs on unbroken from the plain grass around.
+    if (G) paper.hatchGround(GREENERY, -27, 2.2, (x, y) => grass(x, y) && lightly(G, paper, x, y));
     outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
     outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
   }
   if (set.shadows) paper.hatchGround(SHADOWS, 62, 0.85, (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y));
+  if (G) drawGround(B, paper, M, G, toAbs, fromAbs);
   curbs(paper, town.ways, M);
   outline(paper, LINEWORK, town.plazas, M.road);
   if (set.rails) railways(B, paper, town.ways);

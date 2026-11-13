@@ -31,6 +31,8 @@ export type Town = {
   /** House-number points as flat [x, y, ...]. */
   numbers: number[];
   landuse: Area[];
+  /** Land cover drawn with its own texture: farmland, vineyard, orchard, meadow, wetland, sand. */
+  cover: Area[];
   streams: Stream[];
   /** Buildings with real OSM roof or type tags, when they could be fetched. */
   tagged: Tagged[];
@@ -56,9 +58,9 @@ const PATHS = new Set(['path', 'track', 'bridleway', 'cycleway', 'footway', 'ste
 const GREEN_LANDUSE = new Set(['cemetery', 'pitch', 'playground', 'grass', 'park', 'garden', 'recreation_ground', 'village_green']);
 const GREEN_COVER = new Set(['grass', 'wetland']);
 /** Land uses that say something about the buildings standing on them. */
-const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retail', 'railway', 'school', 'university', 'college', 'hospital', 'military', 'garages', 'farmyard', 'cemetery']);
+const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retail', 'railway', 'school', 'university', 'college', 'hospital', 'military', 'garages', 'farmyard', 'cemetery', 'pitch', 'track', 'stadium']);
 /** Points of interest that tell us what a building is. */
-const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway']);
+const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch']);
 const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, drain: 1.6, ditch: 1.4 };
 
 let template: Promise<string> | null = null;
@@ -125,7 +127,7 @@ function readTile(url: string, x: number, y: number): Promise<Town> {
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], streams: [], tagged: [] };
+  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [] };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -236,6 +238,8 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
   each('landcover', (f, _m, ext) => {
     const c = String(f.properties.class);
+    const cover = coverKind(c, String(f.properties.subclass ?? ''));
+    if (cover) for (const s of polygons(f, ext)) town.cover.push({ shape: scaleShape(s, ext), cls: cover });
     const target = c === 'wood' ? town.wood : GREEN_COVER.has(c) ? town.green : null;
     if (!target) return;
     for (const s of polygons(f, ext)) target.push(scaleShape(s, ext));
@@ -277,6 +281,15 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
   });
 
   return town;
+}
+
+/** Land cover that gets its own ground texture, by OpenMapTiles class and subclass. */
+function coverKind(cls: string, sub: string): string | null {
+  if (cls === 'farmland') return sub === 'vineyard' ? 'vineyard' : sub === 'orchard' ? 'orchard' : 'farmland';
+  if (cls === 'grass' && (sub === 'meadow' || sub === 'grassland' || sub === 'heath' || sub === 'fell')) return 'meadow';
+  if (cls === 'wetland') return 'wetland';
+  if (cls === 'sand') return 'sand';
+  return null;
 }
 
 /** Sutherland–Hodgman clip of a ring to the tile square, marking edges that lie on the tile border. */
@@ -395,9 +408,11 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const s = shape(b.shape);
       if (s) town.buildings.push({ shape: s, h: b.h, min: b.min });
     }
-    for (const a of t.landuse) {
-      const s = shape(a.shape);
-      if (s) town.landuse.push({ shape: s, cls: a.cls });
+    for (const key of ['landuse', 'cover'] as const) {
+      for (const a of t[key]) {
+        const s = shape(a.shape);
+        if (s) town[key].push({ shape: s, cls: a.cls });
+      }
     }
     const inside = (x: number, y: number) => x >= bx0 && x <= bx1 && y >= by0 && y <= by1;
     for (const p of t.pois) {

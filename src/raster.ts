@@ -175,8 +175,14 @@ export class Paper {
     });
   }
 
-  /** Mark ground rings (flat x,y local metres at z = 0) in a mask. */
-  fillMask(mask: Uint8Array, rings: ArrayLike<number>[]): void {
+  /** The value a mask holds at a sheet position, 0 outside the drawing area. */
+  at(mask: Uint8Array, x: number, y: number): number {
+    if (x < this.x0 || y < this.y0 || x >= this.x1 || y >= this.y1) return 0;
+    return mask[this.index(x, y)];
+  }
+
+  /** Mark ground rings (flat x,y local metres at z = 0) in a mask, with 1 or another code. */
+  fillMask(mask: Uint8Array, rings: ArrayLike<number>[], value = 1): void {
     const cam = this.cam;
     const P = rings.map((r) => {
       const out = new Array<number>(r.length);
@@ -187,7 +193,7 @@ export class Paper {
       return out;
     });
     const W = this.W;
-    scan(P, W, this.H, (y, xa, xb) => mask.fill(1, y * W + xa, y * W + xb + 1));
+    scan(P, W, this.H, (y, xa, xb) => mask.fill(value, y * W + xa, y * W + xb + 1));
   }
 
   /** Done filling depth: build the 3×3 max buffer used for line visibility. */

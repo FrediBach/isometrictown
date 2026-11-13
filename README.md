@@ -17,6 +17,13 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 - **Regional style** is picked from the country: Alpine, Dutch, British, French, Mediterranean, East Asian, North American and more. Each style sets roof shapes, pitches, overhangs, which way ridges run and how many chimneys and dormers there are. You can override it.
 - **Streets** get kerb lines, parked cars and street lamps. Railways get rails and sleepers. Footpaths are dashed.
 - **Water** is drawn as wavy strokes. Parks are hatched, and parks and woods get trees.
+- **Fields and pitches** each get their own texture:
+  - Fields are furrowed along their length, and some are dashed stubble.
+  - Vineyards get trellis rows on stakes, and orchards get rows of fruit trees.
+  - Meadows get grass tufts, marshes get blue dashes with tufts, and sand is stippled.
+  - Villages and suburbs often map only "residential" round their houses, with no gardens drawn. Where buildings cover less than 30% of such an area, the open ground is drawn as lawn with a few garden trees.
+  - Cemeteries get rows of headstones and crosses.
+  - Sports pitches get their markings for football, tennis, basketball or a running track, with goals, nets and hoops.
 - **Shadows** are hatched on the ground, from a sun you can move.
 
 Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it.
@@ -42,6 +49,7 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/buildings.ts` | Walls, windows and the choice of roof per building, rooftop boxes, cars |
 | `src/roofs.ts` | Pitched, mansard, shed and sawtooth roofs, gables, chimneys, dormers, spires, domes |
 | `src/streets.ts` | Road surfaces, kerbs, lamps, rails, footpaths |
+| `src/ground.ts` | Field furrows, vineyards, orchards, meadow and marsh symbols, sand, inferred gardens, headstones, pitch markings |
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |
 | `src/render.ts` | Runs the passes in order |

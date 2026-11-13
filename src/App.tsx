@@ -143,6 +143,7 @@ export function App() {
     ['rails', 'Railways'],
     ['water', 'Water'],
     ['parks', 'Parks'],
+    ['ground', 'Fields and gardens'],
   ];
   const sep = ' · ';
   const region = result?.region;

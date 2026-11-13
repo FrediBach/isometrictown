@@ -34,6 +34,8 @@ export type Settings = {
   rails: boolean;
   water: boolean;
   parks: boolean;
+  /** Furrowed fields, vineyards, orchards, meadows, marsh, sand, cemeteries and pitch markings. */
+  ground: boolean;
 
   shadows: boolean;
   /** Where the light comes from, relative to the view, in degrees clockwise from straight up the sheet. */
@@ -102,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rails: true,
   water: true,
   parks: true,
+  ground: true,
 
   shadows: true,
   sunAngle: 55,
