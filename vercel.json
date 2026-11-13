@@ -25,7 +25,7 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
-      "source": "/(cities.json|site.webmanifest|og-image.png|logo.svg|favicon.svg|favicon.ico|apple-touch-icon.png|icon-(.*).png)",
+      "source": "/:file(cities\\.json|site\\.webmanifest|og-image\\.png|logo\\.svg|favicon\\.svg|favicon\\.ico|apple-touch-icon\\.png|icon-[^/]+\\.png)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
     }
   ]
