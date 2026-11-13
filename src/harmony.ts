@@ -32,12 +32,12 @@ type Role = {
 /**
  * Where each pen sits in OKLCH, measured from the hand-tuned palettes in palettes.ts
  * and widened a little. The roofs carry the most colour; the linework is a dark,
- * barely tinted ink. Shadows are the lightest and quietest, so hatching reads as
- * shade, not as a thing; water and greenery sit in the middle.
+ * barely tinted ink. Shadows are dark, just above the linework, so hatching reads
+ * as shade, not as a thing; water and greenery sit in the middle.
  * In pen order: shadows, water, greenery, roofs, linework.
  */
 const ROLES: readonly Role[] = [
-  { l: [0.58, 0.82], c: [0.01, 0.1], hues: [[220, 330]] },
+  { l: [0.34, 0.48], c: [0.01, 0.12], hues: [[220, 330]] },
   { l: [0.42, 0.7], c: [0.05, 0.15], hues: [[175, 265]] },
   { l: [0.45, 0.72], c: [0.04, 0.15], hues: [[75, 170]] },
   { l: [0.42, 0.7], c: [0.11, 0.21], hues: [[340, 360], [0, 85]] },
