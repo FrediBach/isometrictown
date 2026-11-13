@@ -6,9 +6,6 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
-  "redirects": [
-    { "source": "/:path*", "has": [{ "type": "host", "value": "www.isometrictown.com" }], "destination": "https://isometrictown.com/:path*", "permanent": true }
-  ],
   "headers": [
     {
       "source": "/(.*)",
