@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import type { LngLat } from '../geo';
-import { createLocator, type Locator } from '../locator';
+import type { Locator } from '../locator';
 
 type Props = {
   center: LngLat;
@@ -11,17 +11,28 @@ type Props = {
 
 const coord = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(4)}° ${v >= 0 ? pos : neg}`;
 
-/** Hosts the MapLibre locator. It is created once; the app drives it imperatively afterwards. */
+/** Hosts the MapLibre locator. It is created once, after MapLibre loads; the app drives it imperatively afterwards. */
 export function LocatorMap({ center, bearing, onReady, onMove }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const moved = useEffectEvent(onMove);
-  const init = useRef({ center, bearing, onReady });
-
-  useEffect(() => {
-    const { center, bearing, onReady } = init.current;
+  // Reads the latest props, so a place picked while MapLibre is still loading isn't lost.
+  const create = useEffectEvent((createLocator: typeof import('../locator').createLocator) => {
     const locator = createLocator(box.current!, center, bearing, (c, b) => moved(c, b));
     onReady(locator);
-    return () => locator.map.remove();
+    return locator;
+  });
+
+  useEffect(() => {
+    // MapLibre is most of the app's code; load it on its own so the rest of the page and the first drawing don't wait.
+    let locator: Locator | undefined;
+    let cancelled = false;
+    void import('../locator').then(({ createLocator }) => {
+      if (!cancelled) locator = create(createLocator);
+    });
+    return () => {
+      cancelled = true;
+      locator?.map.remove();
+    };
   }, []);
 
   return (
