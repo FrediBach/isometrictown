@@ -1,4 +1,4 @@
-import type { PlotStats } from '../plot';
+import { recolor, type PlotStats } from '../plot';
 import type { Counts } from '../render';
 import { sheetSize, type Settings } from '../settings';
 import type { Region } from '../styles';
@@ -47,7 +47,8 @@ export class Renderer {
       } else {
         const set = this.settings();
         this.onStatus({ text: '', state: 'idle' });
-        this.onResult({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed });
+        // Pens may have changed while this drawing was on the worker; colour costs no redraw.
+        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed }, set));
       }
       this.dispatch();
     };

@@ -186,11 +186,11 @@ function OrientationIcon({ landscape = false }: { landscape?: boolean }) {
 }
 
 type PensSectionProps = {
-  /** Replace every pen at once and redraw. */
+  /** Replace every pen at once. */
   onPalette: (pens: Settings['pens']) => void;
   /** Live-update one pen while its picker is open. */
   onPen: (index: number, color: string) => void;
-  /** A pen edit was committed; redraw. */
+  /** A pen edit was committed. */
   onPenCommit: () => void;
 };
 

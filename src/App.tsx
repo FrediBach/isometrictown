@@ -9,6 +9,7 @@ import { AboutDialog } from './components/about-dialog';
 import { LightSection, PensSection, PlaceSection, SeedSection, SheetSection, TownSection, ViewSection } from './components/sections';
 import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
+import { recolor } from './plot';
 import { sheetSize, type Settings } from './settings';
 
 const norm = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
@@ -84,9 +85,15 @@ export function App() {
     schedule(0);
   }
 
+  /** Pen colours only restyle the finished drawing, so they never send it back to the worker. */
+  function recolorPens(): void {
+    persist(live.current);
+    setResult((r) => r && recolor(r, live.current));
+  }
+
   function setPens(pens: Settings['pens']): void {
     commit({ ...live.current, pens });
-    schedule(0);
+    recolorPens();
   }
 
   function setPen(i: number, color: string): void {
@@ -123,7 +130,7 @@ export function App() {
           <TownSection region={result?.region} />
           <LightSection />
           <SheetSection />
-          <PensSection onPalette={setPens} onPen={setPen} onPenCommit={() => schedule(0)} />
+          <PensSection onPalette={setPens} onPen={setPen} onPenCommit={recolorPens} />
           <SeedSection onSeed={setSeed} />
         </SettingsContext>
       </aside>

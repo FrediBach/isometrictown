@@ -238,3 +238,14 @@ ${layers}
 </svg>
 `;
 }
+
+/**
+ * The same drawing with new pen colours. Colour only reaches the layer strokes and the
+ * stats, so a palette change never needs the town fetched or drawn again.
+ */
+export function recolor<T extends { svg: string; stats: PlotStats }>(drawn: T, set: Settings): T {
+  if (set.mono) return drawn;
+  const svg = drawn.svg.replace(/(id="pen-(\d+)" fill="none" stroke=")[^"]*"/g, (_, head: string, n: string) => `${head}${escape(set.pens[Number(n) - 1] ?? '#000000')}"`);
+  const pens = drawn.stats.pens.map((p, i) => ({ ...p, color: set.pens[i] }));
+  return { ...drawn, svg, stats: { ...drawn.stats, pens } };
+}
