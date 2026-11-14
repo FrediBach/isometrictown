@@ -803,7 +803,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
         const [k0, k1] = B.key(Math.round(x), Math.round(y));
         if (hash(k0, k1, B.set.seed, 435) > 0.6) continue;
         // On the kerb to the right of traffic heading into the junction.
-        const side = -dir;
+        const side = B.left ? -dir : dir;
         const px = x - uy * side * (w.width / 2 + 0.8);
         const py = y + ux * side * (w.width / 2 + 0.8);
         if (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py)) continue;

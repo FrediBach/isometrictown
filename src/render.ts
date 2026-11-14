@@ -12,7 +12,8 @@ import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
 import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, type Settings } from './settings';
-import { curbs, fillRoads, footpaths, lamps, outline, parkCars, railways } from './streets';
+import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
+import { traffic } from './traffic';
 import type { Style } from './styles';
 import type { Shape, Stream, Town } from './tiles';
 
@@ -27,7 +28,7 @@ export function reachHeight(set: Settings): number {
 /** Reports where the drawing has got to; called often, so keep it cheap. */
 export type OnStage = (p: StageProgress) => void;
 
-export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}): Drawing {
+export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false): Drawing {
   const cam = new Camera(set);
   const paper = new Paper(cam);
   const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
@@ -39,6 +40,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     set,
     style,
     sun,
+    left,
     key: (x, y) => {
       const [X, Y] = toAbs(x, y);
       return [Math.round(X), Math.round(Y)];
@@ -107,7 +109,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     return paper.on(M.wood, sx, sy) || (!!G && !G.inTown(t.x, t.y, sx, sy));
   });
   counts.trees = trees.length;
-  const cars = parkCars(B, paper, town.ways, M);
+  const cars = traffic(B, paper, town, M);
   const bays = parking(B, paper, town.ways, M);
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars);

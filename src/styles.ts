@@ -117,7 +117,8 @@ function alpineEdge(cc: string, [lng, lat]: LngLat): boolean {
   return false;
 }
 
-export type Region = { country: string; code: string; style: StyleId };
+/** `left` when traffic keeps to the left there. */
+export type Region = { country: string; code: string; style: StyleId; left: boolean };
 
 type CountryCoder = typeof import('@rapideditor/country-coder');
 let coder: Promise<CountryCoder> | null = null;
@@ -142,5 +143,5 @@ export async function detectRegion(at: LngLat): Promise<Region> {
       }
     }
   }
-  return { country: name, code, style: style ?? 'generic' };
+  return { country: name, code, style: style ?? 'generic', left: cc.driveSide(at) === 'left' };
 }

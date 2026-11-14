@@ -53,7 +53,7 @@ self.onmessage = async (e: MessageEvent<Job>) => {
     town.tagged = (await Promise.race([tags, new Promise<Tagged[]>((r) => setTimeout(() => r([]), TAG_GRACE_MS))])) ?? [];
     const style = STYLES[set.style === 'auto' ? region.style : set.style] ?? STYLES.generic;
     const t1 = performance.now();
-    const drawing = render(town, set, frame, style, report);
+    const drawing = render(town, set, frame, style, report, region.left);
     report({ stage: 'plan', note: 'Joining strokes, ordering pens' });
     const planned = plan(drawing.pens, set);
     const svg = toSvg(planned.pens, set, cam.sheet);

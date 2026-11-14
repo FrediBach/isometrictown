@@ -14,7 +14,7 @@ export type Building = { shape: Shape; h: number; min: number; guess?: boolean; 
 export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean };
 export type WayKind = 'road' | 'rail' | 'path';
 /** `sub` is the OpenMapTiles subclass (tram, narrow_gauge, steps…), `service` the kind of service road (parking_aisle, driveway…). */
-export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean };
+export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean; oneway?: 1 | -1 };
 /** A cable car, gondola, chair lift or drag lift. */
 export type Lift = { pts: number[]; cls: string };
 /** A point of interest, e.g. a place of worship with its religion as `sub`. */
@@ -339,7 +339,8 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     const sub = cls === 'pier' ? 'pier' : p.subclass ? String(p.subclass) : undefined;
     const service = p.service ? String(p.service) : undefined;
     const unpaved = p.surface === 'unpaved' || undefined;
-    lines((pts) => (tunnel ? town.tunnels : town.ways).push({ pts, kind, width, cls, sub, service, unpaved, bridge }));
+    const oneway = p.oneway === 1 || p.oneway === -1 ? (p.oneway as 1 | -1) : undefined;
+    lines((pts) => (tunnel ? town.tunnels : town.ways).push({ pts, kind, width, cls, sub, service, unpaved, bridge, oneway }));
   });
 
   return town;

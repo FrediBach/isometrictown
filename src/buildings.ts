@@ -25,6 +25,8 @@ export type Build = {
   key: (x: number, y: number) => [number, number];
   /** Horizontal unit vector pointing towards the sun. */
   sun: [number, number];
+  /** Traffic keeps to the left. */
+  left: boolean;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */

@@ -1,11 +1,9 @@
-import { car, type Build, type Solid } from './buildings';
+import type { Build } from './buildings';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
-import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
 
-const PARKING = new Set(['minor', 'tertiary', 'secondary', 'primary']);
 /** Regions where most railways run under overhead wires. */
 const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
 const LIT = new Set(['minor', 'tertiary', 'secondary', 'primary', 'trunk']);
@@ -139,31 +137,6 @@ export function walk(p: number[], start: number, step: number, stopBefore: numbe
     }
     acc += l;
   }
-}
-
-/** Cars parked along kerbs. */
-export function parkCars(B: Build, paper: Paper, ways: Way[], M: Masks): Solid[] {
-  const { set, cam } = B;
-  const out: Solid[] = [];
-  if (set.cars <= 0) return out;
-  for (const w of ways) {
-    if (w.kind !== 'road' || !PARKING.has(w.cls)) continue;
-    const off = w.width / 2 - 1.35;
-    walk(w.pts, 9, 6.3, 9, (x, y, ux, uy) => {
-      for (const side of [1, -1]) {
-        const cx = x - uy * side * off;
-        const cy = y + ux * side * off;
-        const [ka, kb] = B.key(cx, cy);
-        if (hash(ka, kb, set.seed, 70 + side) >= set.cars * 0.85) continue;
-        const sx = cam.sx(cx, cy);
-        const sy = cam.sy(cx, cy, 0);
-        if (sy < paper.y0 - 2 || sy > paper.y1 + 6 || sx < paper.x0 - 6 || sx > paper.x1 + 6) continue;
-        if (!paper.on(M.road, sx, sy) || paper.on(M.foot, sx, sy) || paper.on(M.water, sx, sy)) continue;
-        out.push(car(B, cx, cy, ux * side, uy * side, hash(ka, kb, set.seed, 90)));
-      }
-    });
-  }
-  return out;
 }
 
 /** Street lamps on the pavement. */

@@ -23,7 +23,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 - **People** stand about on squares, pedestrian streets and beaches, when the scale is large enough to show them. They, the herds and the boats can be switched off together for a quieter plot.
 - **Roofs** follow what each building is and where it stands. Houses get gabled, hipped, half-hipped or mansard roofs, and L- and T-shaped houses get cross gables. Terraced rows share party walls, with chimney stacks on them. Paris blocks get mansards with dormers. Dutch canal houses turn stepped or neck gables to the street. Factories get sawtooth roofs, churches get a tower and spire (an onion dome in eastern Europe and round the Alps), mosques get a dome and minaret, and temples get tiered roofs.
 - **Regional style** is picked from the country: Alpine, Dutch, British, French, Mediterranean, East Asian, North American and more. Each style sets roof shapes, pitches, overhangs, which way ridges run and how many chimneys and dormers there are. You can override it.
-- **Streets** get kerb lines, parked cars and street lamps, centre dashes and zebra crossings near busy junctions. Main roads may be lined with trees, and roundabouts get a planted island. Parking aisles get painted bays with cars in them.
+- **Traffic** drives in its lanes, on the right or the left depending on the country. How busy a road is depends on its class and how built up the land around it is: a country lane carries the odd car, a town-centre street a steady stream, a motorway is busy anywhere. Vehicles bunch into platoons, queue at red lights near busier junctions, and include buses in town and trucks on main roads. Cars are only parked at the kerb in town, in stretches.
+- **Streets** get kerb lines and street lamps, centre dashes and zebra crossings near busy junctions. Main roads may be lined with trees, and roundabouts get a planted island. Parking aisles get painted bays with cars in them.
 - **Railways** get rails and sleepers; narrow gauge sits closer, and trams run under a contact wire hung from poles. In Europe and East Asia main lines run under overhead wires on masts, and station platforms get a canopy on columns. Where a road or railway goes underground there's a portal with an arch. Footpaths are dashed, farm tracks are two wheel ruts, and steps have treads.
 - **Cable cars, gondolas, chair lifts and drag lifts** hang from pylons, with cabins, chairs or bars along the cable and stations where they end.
 - **Airfields** get runway markings, taxiway lines and planes parked on the aprons.
@@ -64,6 +65,7 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/camera.ts` | Orthographic isometric camera: rotation, tilt, scale |
 | `src/shape.ts` | Footprint geometry: best-fit rectangles, splitting into rectangles, inset outlines |
 | `src/buildings.ts` | Walls, windows and the choice of roof per building, rooftop boxes, cars |
+| `src/traffic.ts` | Traffic density from road class and surroundings, vehicles in lanes, queues at lights, kerb parking |
 | `src/roofs.ts` | Pitched, mansard, shed and sawtooth roofs, gables, chimneys, dormers, spires, domes |
 | `src/streets.ts` | Road surfaces, kerbs, lamps, rails and trams, footpaths, tracks and steps |
 | `src/infra.ts` | Lifts, ferries and moored boats, bridges, station platforms, tunnel portals, airfields, road markings, parking bays, roundabouts |

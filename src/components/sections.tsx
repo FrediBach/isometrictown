@@ -111,7 +111,7 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
       <Hint>Roof shapes, pitches and details typical for the region. Auto picks them from the country.</Hint>
       <NumberSetting name="pitched" label="Pitched roofs" min={0} max={1} step={0.01} hint="How many houses get pitched roofs, compared with what is usual for the style." />
       <NumberSetting name="trees" label="Trees" min={0} max={1} step={0.01} />
-      <NumberSetting name="cars" label="Parked cars" min={0} max={1} step={0.01} />
+      <NumberSetting name="cars" label="Traffic" min={0} max={1} step={0.01} />
       <Caption className="mt-4">Layers</Caption>
       <KeyGrid className="mt-0">
         {TOWN_KEYS.map(([k, label]) => (
