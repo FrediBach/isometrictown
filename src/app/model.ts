@@ -37,6 +37,10 @@ export const PRESETS: Preset[] = [
   { name: 'La Plata', country: 'Argentina', center: [-57.9543, -34.9213], bearing: 35, scale: 12000 },
   { name: 'Sułoszowa', country: 'Poland', center: [19.7107, 50.2728], bearing: 35, scale: 1600 },
   { name: 'Sapporo', country: 'Japan', center: [141.3505, 43.0612], bearing: 35, scale: 3050 },
+  { name: 'Kowloon', country: 'Hong Kong', center: [114.1848, 22.3151], bearing: 35, scale: 1550 },
+  { name: 'Lemmer', country: 'Netherlands', center: [5.694, 52.8555], bearing: 35, scale: 775 },
+  { name: 'Sun City', country: 'USA', center: [-112.2916, 33.618], bearing: 35, scale: 3100 },
+  { name: 'Celebration', country: 'USA', center: [-81.5428, 28.322], bearing: 35, scale: 1100 },
 ];
 
 export const MONO_INK = '#1b1e23';
