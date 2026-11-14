@@ -243,7 +243,7 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
  * the water's edge near a harbour.
  */
 export function moorings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
-  if (!B.set.water || B.cam.s < 0.25) return none;
+  if (!B.set.water || !B.set.life || B.cam.s < 0.25) return none;
   const harbours = town.pois.filter((p) => p.cls === 'harbor');
   const solids: Solid[] = [];
   const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y);
@@ -455,7 +455,7 @@ export function platforms(B: Build, town: Town): Extra {
 export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
   const { cam, set } = B;
-  if (!set.water || cam.s < 0.15 || !town.water.length) return { solids, draw: () => {} };
+  if (!set.water || !set.life || cam.s < 0.15 || !town.water.length) return { solids, draw: () => {} };
   const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y) && !onMask(paper, M.road, x, y);
   const wind = hash(set.seed, 7, 0, 470) * Math.PI * 2;
   const [x0, y0, x1, y1] = cam.region(0);

@@ -66,8 +66,8 @@ export type Ground = {
   pitches: Pitch[];
   /** Whether any residential land was taken to be gardens. */
   gardens: boolean;
-  /** Ground that belongs to the town: near buildings, or on built-up land. Open country is the rest. */
-  town: Uint8Array;
+  /** Whether ground (local metres, and where it falls on the sheet) belongs to the town: near buildings, or on built-up land. Open country is the rest. */
+  inTown: (x: number, y: number, sx: number, sy: number) => boolean;
 };
 
 const SPORTS: [RegExp, Sport][] = [
@@ -95,8 +95,7 @@ function mmPer(B: Build, vx: number, vy: number): number {
 /** Work out where each texture goes and paint the land mask. Call before the trees are placed. */
 export function planGround(B: Build, paper: Paper, town: Town): Ground {
   const s = B.cam.s;
-  const G: Ground = { land: paper.mask(), farms: paper.mask(), farmShapes: [], covers: [], cemeteries: [], pitches: [], gardens: false, town: paper.mask() };
-  paintTown(paper, town, G.town);
+  const G: Ground = { land: paper.mask(), farms: paper.mask(), farmShapes: [], covers: [], cemeteries: [], pitches: [], gardens: false, inTown: townTest(paper, town) };
   // First, so anything mapped explicitly paints over it.
   if (B.style.id !== 'arid') G.gardens = paintGardens(paper, town, G.land);
   for (const a of town.cover) {
@@ -142,9 +141,21 @@ const TOWN_LAND = new Set(['residential', 'industrial', 'commercial', 'retail', 
 /** How far round a building the ground still counts as town, in metres. */
 const TOWN_REACH = 30;
 
-function paintTown(paper: Paper, town: Town, mask: Uint8Array): void {
-  for (const a of town.landuse) if (TOWN_LAND.has(a.cls)) paper.fillMask(mask, a.shape.map((r) => r.pts));
-  for (const b of town.buildings) {
+/** Cell size (m) of the grid that records which ground lies near a building. */
+const TOWN_CELL = 10;
+
+/**
+ * Town ground: built-up land use, painted on the sheet (a few polygons), and the ground
+ * within reach of any building, kept on a coarse grid in metres (thousands of buildings).
+ */
+function townTest(paper: Paper, town: Town): Ground['inTown'] {
+  const land = paper.mask();
+  for (const a of town.landuse) if (TOWN_LAND.has(a.cls)) paper.fillMask(land, a.shape.map((r) => r.pts));
+  let gx0 = Infinity;
+  let gy0 = Infinity;
+  let gx1 = -Infinity;
+  let gy1 = -Infinity;
+  const boxes = town.buildings.map((b) => {
     const p = b.shape[0].pts;
     let x0 = Infinity;
     let y0 = Infinity;
@@ -156,14 +167,34 @@ function paintTown(paper: Paper, town: Town, mask: Uint8Array): void {
       y0 = Math.min(y0, p[i + 1]);
       y1 = Math.max(y1, p[i + 1]);
     }
-    const d = TOWN_REACH;
-    paper.fillMask(mask, [[x0 - d, y0 - d, x1 + d, y0 - d, x1 + d, y1 + d, x0 - d, y1 + d]]);
+    gx0 = Math.min(gx0, x0 - TOWN_REACH);
+    gy0 = Math.min(gy0, y0 - TOWN_REACH);
+    gx1 = Math.max(gx1, x1 + TOWN_REACH);
+    gy1 = Math.max(gy1, y1 + TOWN_REACH);
+    return [x0, y0, x1, y1];
+  });
+  if (!boxes.length) return (_x, _y, sx, sy) => paper.on(land, sx, sy);
+  const W = Math.ceil((gx1 - gx0) / TOWN_CELL) + 1;
+  const H = Math.ceil((gy1 - gy0) / TOWN_CELL) + 1;
+  const grid = new Uint8Array(W * H);
+  for (const [x0, y0, x1, y1] of boxes) {
+    const i0 = Math.floor((x0 - TOWN_REACH - gx0) / TOWN_CELL);
+    const i1 = Math.floor((x1 + TOWN_REACH - gx0) / TOWN_CELL);
+    const j0 = Math.floor((y0 - TOWN_REACH - gy0) / TOWN_CELL);
+    const j1 = Math.floor((y1 + TOWN_REACH - gy0) / TOWN_CELL);
+    for (let j = j0; j <= j1; j++) grid.fill(1, j * W + i0, j * W + i1 + 1);
   }
+  return (x, y, sx, sy) => {
+    const i = Math.floor((x - gx0) / TOWN_CELL);
+    const j = Math.floor((y - gy0) / TOWN_CELL);
+    if (i >= 0 && j >= 0 && i < W && j < H && grid[j * W + i]) return true;
+    return paper.on(land, sx, sy);
+  };
 }
 
 /** Open country the map says nothing about: not town, not water, not any mapped cover. */
-function wild(G: Ground, M: Masks, paper: Paper, sx: number, sy: number): boolean {
-  return paper.at(G.land, sx, sy) === 0 && !paper.on(G.town, sx, sy) && !paper.on(M.green, sx, sy) && !paper.on(M.wood, sx, sy) && !paper.on(M.water, sx, sy) && !paper.on(M.road, sx, sy) && !paper.on(M.foot, sx, sy);
+function wild(G: Ground, M: Masks, paper: Paper, x: number, y: number, sx: number, sy: number): boolean {
+  return paper.at(G.land, sx, sy) === 0 && !G.inTown(x, y, sx, sy) && !paper.on(M.green, sx, sy) && !paper.on(M.wood, sx, sy) && !paper.on(M.water, sx, sy) && !paper.on(M.road, sx, sy) && !paper.on(M.foot, sx, sy);
 }
 
 /** What open country looks like by region: tuft and dot chances for the texture, and how many trees or bushes stand on it. */
@@ -200,7 +231,7 @@ function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: numb
       const [x, y] = fromAbs((i + 0.1 + 0.8 * r(1)) * step, (j + 0.1 + 0.8 * r(2)) * step);
       const sx = cam.sx(x, y);
       const sy = cam.sy(x, y, 0);
-      if (!wild(G, M, paper, sx, sy) || paper.on(M.shadow, sx, sy)) continue;
+      if (!wild(G, M, paper, x, y, sx, sy) || paper.on(M.shadow, sx, sy)) continue;
       const d = cam.depth(x, y, 0);
       const u = r(3);
       if (u < w.tuft) paper.sheet(GREENERY, (r(4) < 0.5 ? TUFT : SMALL_TUFT).flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep);
@@ -228,7 +259,7 @@ export function wildTrees(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
       const u = h(0);
       if (u >= (w.trees + w.bush) * set.trees * 1.4) continue;
       const [x, y] = fromAbs((i + 0.15 + 0.7 * h(1)) * step, (j + 0.15 + 0.7 * h(2)) * step);
-      if (!wild(G, M, paper, cam.sx(x, y), cam.sy(x, y, 0))) continue;
+      if (!wild(G, M, paper, x, y, cam.sx(x, y), cam.sy(x, y, 0))) continue;
       if (u < w.trees * set.trees * 1.4) {
         const conifer = h(3) < w.conifer;
         const r = conifer ? 1.6 + h(4) * 1.0 : 2.0 + h(4) * 1.6;
@@ -937,7 +968,7 @@ export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
   const out: Solid[] = [];
   const { cam, set, style } = B;
   const cows = COWS.has(style.id);
-  if (cam.s < 0.6 || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
+  if (cam.s < 0.6 || !set.life || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
   const step = 70 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);

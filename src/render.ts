@@ -5,7 +5,7 @@ import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares } from './sites';
 import { airfields, crossings, motorways, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
-import type { Frame } from './geo';
+import { ringArea, type Frame } from './geo';
 import type { StageProgress } from './app/stages';
 import { placeTrees, regionalTrees, treeSprite, type Masks } from './nature';
 import { marginalia } from './marginalia';
@@ -104,7 +104,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   trees = regionalTrees(B, trees, (t) => {
     const sx = cam.sx(t.x, t.y);
     const sy = cam.sy(t.x, t.y, 0);
-    return paper.on(M.wood, sx, sy) || (!!G && !paper.on(G.town, sx, sy));
+    return paper.on(M.wood, sx, sy) || (!!G && !G.inTown(t.x, t.y, sx, sy));
   });
   counts.trees = trees.length;
   const cars = parkCars(B, paper, town.ways, M);
@@ -141,9 +141,13 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
         const moved = r.map((v, i) => v + (i % 2 ? dy : dx));
         paper.fillMask(M.shadow, [r]);
         paper.fillMask(M.shadow, [moved]);
+        // The swept shadow is the footprint, the moved footprint and the sides that face the
+        // way the shadow falls; the other sides' quads lie inside those already.
         const n = r.length / 2;
+        const sgn = ringArea(r) >= 0 ? 1 : -1;
         for (let i = 0; i < n; i++) {
           const j = (i + 1) % n;
+          if (((r[j * 2 + 1] - r[i * 2 + 1]) * dx - (r[j * 2] - r[i * 2]) * dy) * sgn <= 0) continue;
           paper.fillMask(M.shadow, [[r[i * 2], r[i * 2 + 1], r[j * 2], r[j * 2 + 1], moved[j * 2], moved[j * 2 + 1], moved[i * 2], moved[i * 2 + 1]]]);
         }
       }

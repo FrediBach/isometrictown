@@ -40,6 +40,8 @@ export type Settings = {
   ground: boolean;
   /** Road markings, zebra crossings, parking bays and runway markings. */
   markings: boolean;
+  /** Made-up life: people about town, herds on the meadows, sailing and moored boats. */
+  life: boolean;
 
   shadows: boolean;
   /** Where the light comes from, relative to the view, in degrees clockwise from straight up the sheet. */
@@ -113,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
   parks: true,
   ground: true,
   markings: true,
+  life: true,
 
   shadows: true,
   sunAngle: 55,
