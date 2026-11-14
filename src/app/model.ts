@@ -40,6 +40,7 @@ export const PRESETS: Preset[] = [
   { name: 'Lemmer', country: 'Netherlands', center: [5.694, 52.8555], bearing: 35, scale: 775 },
   { name: 'Sun City', country: 'USA', center: [-112.2916, 33.618], bearing: 35, scale: 3100 },
   { name: 'Celebration', country: 'USA', center: [-81.5428, 28.322], bearing: 35, scale: 1100 },
+  { name: 'Cupertino', country: 'USA', center: [-122.0098, 37.3386], bearing: 35, scale: 2100 },
 ];
 
 export const MONO_INK = '#1b1e23';
