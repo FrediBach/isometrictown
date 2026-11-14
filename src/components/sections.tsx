@@ -84,7 +84,7 @@ const TOWN_KEYS: [BoolKey, string][] = [
   ['parks', 'Parks'],
   ['ground', 'Fields and gardens'],
   ['markings', 'Road markings'],
-  ['life', 'People, animals and boats'],
+  ['life', 'People, animals, boats and trains'],
 ];
 
 export function TownSection({ region }: { region?: RenderResult['region'] }) {
