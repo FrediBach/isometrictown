@@ -5,7 +5,7 @@ import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
 
-export type Preset = { name: string; center: LngLat; bearing: number; scale: number };
+export type Preset = { name: string; country: string; center: LngLat; bearing: number; scale: number };
 /**
  * Places to try. Small, low towns with a clear plan (ring walls, star forts,
  * canals, a lake shore) draw best; there is no terrain, so steep hill towns and
@@ -13,22 +13,30 @@ export type Preset = { name: string; center: LngLat; bearing: number; scale: num
  * it can be helped.
  */
 export const PRESETS: Preset[] = [
-  { name: 'Mollis', center: [9.0744, 47.0934], bearing: 35, scale: 1000 },
-  { name: 'Bauma', center: [8.8858, 47.3653], bearing: 35, scale: 1000 },
-  { name: 'Lenzburg', center: [8.1745, 47.3876], bearing: 35, scale: 1000 },
-  { name: 'Wädenswil', center: [8.6738, 47.2302], bearing: 35, scale: 1000 },
-  { name: 'Amsterdam', center: [4.8862, 52.3727], bearing: 35, scale: 1000 },
-  { name: 'Nördlingen', center: [10.4878, 48.8518], bearing: 30, scale: 2500 },
-  { name: 'Bourtange', center: [7.1918, 53.0068], bearing: 20, scale: 1800 },
-  { name: 'Palmanova', center: [13.3099, 45.9054], bearing: 0, scale: 3200 },
-  { name: 'Neuf-Brisach', center: [7.5278, 48.0174], bearing: 45, scale: 2400 },
-  { name: 'Hallstatt', center: [13.6493, 47.5617], bearing: 300, scale: 800 },
-  { name: 'Dubrovnik', center: [18.1095, 42.6405], bearing: 30, scale: 900 },
-  { name: 'Venice', center: [12.3358, 45.4375], bearing: 40, scale: 1000 },
-  { name: 'Rye', center: [0.7335, 50.9503], bearing: 25, scale: 900 },
-  { name: 'Ærøskøbing', center: [10.4115, 54.8893], bearing: 40, scale: 900 },
-  { name: 'Shirakawa-go', center: [136.906, 36.2565], bearing: 20, scale: 1500 },
-  { name: 'Nantucket', center: [-70.099, 41.2838], bearing: 35, scale: 1000 },
+  { name: 'Mollis', country: 'Switzerland', center: [9.0744, 47.0934], bearing: 35, scale: 1000 },
+  { name: 'Bauma', country: 'Switzerland', center: [8.8858, 47.3653], bearing: 35, scale: 1000 },
+  { name: 'Lenzburg', country: 'Switzerland', center: [8.1745, 47.3876], bearing: 35, scale: 1000 },
+  { name: 'Wädenswil', country: 'Switzerland', center: [8.6738, 47.2302], bearing: 35, scale: 1000 },
+  { name: 'Amsterdam', country: 'Netherlands', center: [4.8862, 52.3727], bearing: 35, scale: 1000 },
+  { name: 'Nördlingen', country: 'Germany', center: [10.4878, 48.8518], bearing: 30, scale: 2500 },
+  { name: 'Bourtange', country: 'Netherlands', center: [7.1918, 53.0068], bearing: 20, scale: 1800 },
+  { name: 'Palmanova', country: 'Italy', center: [13.3099, 45.9054], bearing: 0, scale: 3200 },
+  { name: 'Neuf-Brisach', country: 'France', center: [7.5278, 48.0174], bearing: 45, scale: 2400 },
+  { name: 'Hallstatt', country: 'Austria', center: [13.6493, 47.5617], bearing: 300, scale: 800 },
+  { name: 'Dubrovnik', country: 'Croatia', center: [18.1095, 42.6405], bearing: 30, scale: 900 },
+  { name: 'Venice', country: 'Italy', center: [12.3358, 45.4375], bearing: 40, scale: 1000 },
+  { name: 'Rye', country: 'England', center: [0.7335, 50.9503], bearing: 25, scale: 900 },
+  { name: 'Ærøskøbing', country: 'Denmark', center: [10.4115, 54.8893], bearing: 40, scale: 900 },
+  { name: 'Shirakawa-go', country: 'Japan', center: [136.906, 36.2565], bearing: 20, scale: 1500 },
+  { name: 'Nantucket', country: 'USA', center: [-70.099, 41.2838], bearing: 35, scale: 1000 },
+  { name: 'Mexico City', country: 'Mexico', center: [-99.088, 19.4195], bearing: 35, scale: 1600 },
+  { name: 'Aubervilliers', country: 'France', center: [2.3862, 48.9087], bearing: 35, scale: 1600 },
+  { name: 'Sun Lakes', country: 'USA', center: [-111.8669, 33.2089], bearing: 35, scale: 3100 },
+  { name: 'Jumeirah Village Circle', country: 'UAE', center: [55.2042, 25.059], bearing: 35, scale: 4300 },
+  { name: 'Pointe-Noire', country: 'Congo', center: [11.8573, -4.7935], bearing: 35, scale: 1500 },
+  { name: 'La Plata', country: 'Argentina', center: [-57.9543, -34.9213], bearing: 35, scale: 12000 },
+  { name: 'Sułoszowa', country: 'Poland', center: [19.7107, 50.2728], bearing: 35, scale: 1600 },
+  { name: 'Sapporo', country: 'Japan', center: [141.3505, 43.0612], bearing: 35, scale: 3050 },
 ];
 
 export const MONO_INK = '#1b1e23';

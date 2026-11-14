@@ -22,6 +22,9 @@ import { PenDot } from './title-block';
 
 const SEP = ' · ';
 
+/** The presets in alphabetical order, for the dropdown. */
+const TRY_PLACES = [...PRESETS].sort((a, b) => a.name.localeCompare(b.name));
+
 type PlaceSectionProps = {
   onGoTo: (center: LngLat, name: string, extra?: Partial<Settings>) => void;
   onMapMove: (center: LngLat, bearing: number) => void;
@@ -33,26 +36,25 @@ export function PlaceSection({ onGoTo, onMapMove, onMapReady }: PlaceSectionProp
   return (
     <Section index={1} title="Place">
       <PlaceSearch onPick={(center, name) => onGoTo(center, name)} />
-      <div className="mt-3 mb-3.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="micro mr-0.5">Try</span>
-        {PRESETS.map((p) => {
-          const current = set.place === p.name;
-          return (
-            <button
-              key={p.name}
-              type="button"
-              aria-current={current || undefined}
-              onClick={() => onGoTo(p.center, p.name, { bearing: p.bearing, scale: p.scale })}
-              className={cn(
-                'rounded-sm py-0.5 text-[13px] underline decoration-1 underline-offset-[5px] transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50',
-                current ? 'text-foreground decoration-signal decoration-2' : 'text-muted-foreground decoration-input hover:text-foreground hover:decoration-foreground',
-              )}
-            >
+      <Select
+        value={PRESETS.some((p) => p.name === set.place) ? set.place : ''}
+        onValueChange={(name) => {
+          const p = PRESETS.find((q) => q.name === name);
+          if (p) onGoTo(p.center, p.name, { bearing: p.bearing, scale: p.scale });
+        }}
+      >
+        <SelectTrigger aria-label="Places to try" className="mt-3 mb-3.5 h-9 w-full rounded-md bg-card">
+          <SelectValue placeholder="Try a place…" />
+        </SelectTrigger>
+        <SelectContent className="rounded-md">
+          {TRY_PLACES.map((p) => (
+            <SelectItem key={p.name} value={p.name} className="rounded-[4px]">
               {p.name}
-            </button>
-          );
-        })}
-      </div>
+              <span className="text-muted-foreground">{p.country}</span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <LocatorMap center={set.center} bearing={set.bearing} onMove={onMapMove} onReady={onMapReady} />
       <Hint className="mt-2 mb-0">Drag the map to move. Right-drag or use the compass to turn. The red outline is the ground that lands on the sheet.</Hint>
     </Section>
