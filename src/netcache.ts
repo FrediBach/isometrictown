@@ -38,7 +38,7 @@ function open(store: Store): Promise<Cache | null> {
 async function prune(cache: Cache, max: number): Promise<void> {
   try {
     const keys = await cache.keys();
-    for (let i = 0; i < keys.length - max; i++) await cache.delete(keys[i]);
+    await Promise.all(keys.slice(0, Math.max(0, keys.length - max)).map((k) => cache.delete(k)));
   } catch {
     /* best effort */
   }

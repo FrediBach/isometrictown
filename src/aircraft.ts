@@ -355,12 +355,16 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   }
 
   // Runways: one aircraft lined up near an end, and gliders lined up beside gliding strips.
-  if (life)
-    for (const p of joined(town.runways.filter((w) => w.cls === 'runway').map((w) => w.pts))) {
+  if (life) {
+    const strips = town.runways.filter((w) => w.cls === 'runway');
+    // Each joined runway takes the width of the strip it starts from.
+    const widthAt = new Map<string, number>();
+    for (const q of strips) if (!widthAt.has(`${q.pts[0]},${q.pts[1]}`)) widthAt.set(`${q.pts[0]},${q.pts[1]}`, q.width);
+    for (const p of joined(strips.map((w) => w.pts))) {
       const cum = measure(p);
       const L = cum[cum.length - 1];
       if (L < 200) continue;
-      const w = town.runways.find((q) => q.cls === 'runway' && q.pts[0] === p[0] && q.pts[1] === p[1])?.width ?? town.runways.find((q) => q.cls === 'runway')?.width ?? 30;
+      const w = widthAt.get(`${p[0]},${p[1]}`) ?? strips[0]?.width ?? 30;
       const [mx, my] = at(p, cum, L / 2);
       const field = nearest(town.airports, mx, my);
       const gliders = !!field?.gliders;
@@ -396,6 +400,7 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
         break;
       }
     }
+  }
 
   // Ground helipads: a circle and an H, and often a helicopter standing on it.
   for (const h of town.helipads) {

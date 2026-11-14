@@ -201,8 +201,8 @@ function roadSurfaces(ways: Way[], degree: Map<string, number>, key: (x: number,
   /** Two pieces of one road meeting end to end, with nothing else joining there. */
   const continues = (a: Way, b: Way) => {
     if (a.cls !== b.cls) return false;
-    const eb = ends(b);
-    return ends(a).some((k) => eb.includes(k) && degree.get(k) === 2);
+    const [b0, b1] = ends(b);
+    return ends(a).some((k) => (k === b0 || k === b1) && degree.get(k) === 2);
   };
   return (w, x, y, parked) => {
     if (w.bridge) return false;
