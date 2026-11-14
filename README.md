@@ -12,7 +12,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 ## What it draws
 
-- **Buildings** use their real footprints and heights from the map data. Windows are set by floor. Most buildings have no height in the map, so their storeys are worked out from what they are, the region and how densely built the town is round them: low houses in suburbs, taller rows and blocks in town centres.
+- **Buildings** use their real footprints and heights from the map data. Most buildings have no height in the map, so their storeys are worked out from what they are, the region and how densely built the town is round them: low houses in suburbs, taller rows and blocks in town centres.
+- **Windows** are set by floor in a pattern that suits the building and the region: plain grids, pairs, tall French windows, small deep ones, piecemeal ones on houses, ribbon windows on modern blocks, curtain walls on towers, round-headed windows on churches and stations, and glazing bars where they're the local habit. Away from the tropics, walls facing the equator get more and wider windows, and the shady side fewer. Warehouses and halls are often blank, or have a band of windows under the eaves or a corner of offices, with loading doors on the street side. Sheds mostly have none, and garages have up-and-over doors.
 - **Front doors** face the street, with a little hood over them, and in southern Europe, France, the Alps and the Low Countries many windows have shutters, drawn in a pen colour.
 - **Shop fronts** with wide windows and striped awnings line the ground floors where the map has shops, and along busy and pedestrian streets in town centres.
 - **Flat roofs** carry boxes, water tanks (on legs in North America) or rows of solar panels, depending on the region.
@@ -68,7 +69,8 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/classify.ts` | Works out each building's kind, height where the map has none, party walls, street side, shop fronts and roof |
 | `src/camera.ts` | Orthographic isometric camera: rotation, tilt, scale |
 | `src/shape.ts` | Footprint geometry: best-fit rectangles, splitting into rectangles, inset outlines |
-| `src/buildings.ts` | Walls, windows and the choice of roof per building, rooftop boxes, cars |
+| `src/buildings.ts` | Walls and the choice of roof per building, rooftop boxes, cars |
+| `src/facades.ts` | Window schemes: picks a pattern and sizes per building, then lays out and draws windows, doors and balconies on each wall |
 | `src/traffic.ts` | Traffic density from road class and surroundings, vehicles in lanes, queues at lights, kerb parking |
 | `src/trains.ts` | Joins rail pieces into tracks, picks a few to carry trains, and composes and draws the rolling stock |
 | `src/aircraft.ts` | Airliners, light aircraft, gliders and helicopters, placed on aprons, runways and helipads by the kind of airfield |

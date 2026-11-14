@@ -71,6 +71,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   };
   const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
   const sun: [number, number] = [Math.sin(A), Math.cos(A)];
+  // Builders put more windows on the side facing the equator, the more so away from the tropics.
+  const lat = set.center[1];
+  const equator: [number, number] = [0, (lat >= 0 ? -1 : 1) * Math.max(0, Math.min(1, (Math.abs(lat) - 12) / 25))];
   const toAbs = (x: number, y: number): [number, number] => [frame.mx0 + x / frame.k, frame.my0 + y / frame.k];
   const fromAbs = (X: number, Y: number): [number, number] => [frame.x(X), frame.y(Y)];
   const B: Build = {
@@ -78,6 +81,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     set,
     style,
     sun,
+    equator,
     left,
     seed: set.seed,
     key: (x, y) => {

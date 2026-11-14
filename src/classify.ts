@@ -1,3 +1,4 @@
+import { chooseFacade, type Facade } from './facades';
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
 import { GREENERY, ROOFS } from './settings';
@@ -39,6 +40,8 @@ export type Info = {
   /** 0: plain gable; 1: stepped gable; 2: neck gable, on the end facing the street. */
   gableFront: 0 | 1 | 2;
   parapet: boolean;
+  /** How the windows are laid out and sized. */
+  facade: Facade;
   /** Stable seed shared by a row of terraced houses, so they match. */
   seed: [number, number];
   /** True when the roof came from OSM tags rather than a guess. */
@@ -503,6 +506,24 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     const busy = !!way && (HIGH_STREETS.has(way.cls) || way.sub === 'pedestrian');
     const urban = density[i] > 0.4 || land[i] === 'retail' || land[i] === 'commercial';
     const shop = fronts && (kind === 'terrace' || kind === 'apartment' || kind === 'civic') && (shops[i] > 0 || (busy && urban && r(12) < 0.55));
+    // An industrial hall's offices sit in the corner nearest the street.
+    let office: [number, number] | undefined;
+    if (kind === 'industrial') {
+      const n = p.length / 2;
+      let best = Math.floor(r(21) * n) % n;
+      if (toStreet) {
+        const [cx, cy] = centre[i];
+        let far = -Infinity;
+        for (let q = 0; q < n; q++) {
+          const d = (p[q * 2] - cx) * toStreet[0] + (p[q * 2 + 1] - cy) * toStreet[1] + hash(q, k[0], k[1], own, 124) * 2;
+          if (d > far) {
+            far = d;
+            best = q;
+          }
+        }
+      }
+      office = [p[best * 2], p[best * 2 + 1]];
+    }
     const pick2 = (prob: number, salt: number) => (kind === 'terrace' ? row(salt) : r(salt)) < prob;
     b.info = {
       kind,
@@ -523,6 +544,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       dormers: (isHome || kind === 'civic') && pick2(style.dormer, 8),
       gableFront: isHome && roof === 'gabled' && r(9) < style.gableFront ? (r(10) < 0.55 ? 1 : 2) : 0,
       parapet: r(11) < style.parapet,
+      facade: chooseFacade(kind, t?.building, roof, H, style.id, kind === 'terrace' ? row : r, office),
       seed,
       tagged: !!tagRoof,
     };

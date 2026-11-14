@@ -57,7 +57,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 
 **Things drawn** (each takes `Build` and returns solids and/or draws onto `Paper`)
 
-`buildings.ts` (walls, windows, cars, `prism`), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `power.ts`, `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals).
+`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `power.ts`, `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals).
 
 **Interface**
 
