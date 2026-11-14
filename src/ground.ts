@@ -785,3 +785,102 @@ export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Sol
   }
   return out;
 }
+
+/** Square bales lying in rows on stubble fields, the same fields that are drawn dashed. */
+export function bales(B: Build, paper: Paper, G: Ground, M: Masks): Solid[] {
+  const out: Solid[] = [];
+  const { cam, set } = B;
+  if (cam.s < 0.3) return out;
+  for (const c of G.covers) {
+    if (c.code !== FIELD) continue;
+    const { ux, uy } = c.rect;
+    const [k0, k1] = B.key(c.rect.cx, c.rect.cy);
+    // The same draw as the field's own texture, so bales lie only on stubble.
+    if (!(hash(k0, k1, set.seed, 52) < 0.3 && mmPer(B, ux, uy) > 0)) continue;
+    rows(c.shape, c.rect, 14, (ax, ay, bx, by, row) => {
+      const len = Math.hypot(bx - ax, by - ay);
+      for (let t = 6 + (row % 2) * 9; t < len - 6; t += 18) {
+        const x = ax + ux * t;
+        const y = ay + uy * t;
+        const [b0, b1] = B.key(x, y);
+        if (hash(b0, b1, set.seed, 170) > 0.6) continue;
+        const sx = cam.sx(x, y);
+        const sy = cam.sy(x, y, 0);
+        if (paper.at(G.land, sx, sy) !== FIELD || paper.on(M.road, sx, sy) || paper.on(M.foot, sx, sy)) continue;
+        const vx = -uy * 0.6;
+        const vy = ux * 0.6;
+        const pts = [x - ux * 1.2 - vx, y - uy * 1.2 - vy, x + ux * 1.2 - vx, y + uy * 1.2 - vy, x + ux * 1.2 + vx, y + uy * 1.2 + vy, x - ux * 1.2 + vx, y - uy * 1.2 + vy];
+        const s = newSolid();
+        prism(B, [{ pts, seam: new Uint8Array(4) }], 0, 0.9, { roof: true, windows: false, pen: LINEWORK }, s);
+        s.casts.push({ ring: pts, h: 0.9 });
+        out.push(s);
+      }
+    });
+  }
+  return out;
+}
+
+/** Where cows graze, and where sheep do. */
+const COWS = new Set(['alpine', 'central', 'dutch', 'french', 'eastern', 'american', 'generic']);
+const SHEEP = new Set(['british', 'nordic', 'antipodean', 'mediterranean', 'arid']);
+
+/** Small herds of cows or sheep out on the meadows. */
+export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [number, number, number, number], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Solid[] {
+  const out: Solid[] = [];
+  const { cam, set, style } = B;
+  const cows = COWS.has(style.id);
+  if (cam.s < 0.4 || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
+  const step = 30 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  const [A0x, A0y] = toAbs(box[0], box[1]);
+  const [A1x, A1y] = toAbs(box[2], box[3]);
+  const i0 = Math.floor(A0x / step);
+  const i1 = Math.ceil(A1x / step);
+  const j0 = Math.floor(A0y / step);
+  const j1 = Math.ceil(A1y / step);
+  if ((i1 - i0) * (j1 - j0) > 200000) return out;
+  for (let i = i0; i <= i1; i++)
+    for (let j = j0; j <= j1; j++) {
+      const h = (k: number) => hash(i, j, set.seed, 180 + k);
+      if (h(0) > 0.3) continue;
+      const [hx, hy] = fromAbs((i + 0.5) * step, (j + 0.5) * step);
+      const count = 3 + Math.floor(h(1) * 5);
+      for (let a = 0; a < count; a++) {
+        const x = hx + (h(2 + a * 3) - 0.5) * 16;
+        const y = hy + (h(3 + a * 3) - 0.5) * 16;
+        const sx = cam.sx(x, y);
+        const sy = cam.sy(x, y, 0);
+        if (paper.at(G.land, sx, sy) !== MEADOW || paper.on(M.road, sx, sy) || paper.on(M.foot, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.wood, sx, sy)) continue;
+        const ang = h(4 + a * 3) * Math.PI * 2;
+        out.push(animal(B, x, y, Math.cos(ang), Math.sin(ang), cows));
+      }
+    }
+  return out;
+}
+
+/** A cow or a sheep: a body on four legs, and a head held forward. */
+function animal(B: Build, x: number, y: number, ux: number, uy: number, cow: boolean): Solid {
+  const s = newSolid();
+  const L = cow ? 1.1 : 0.6;
+  const W = cow ? 0.4 : 0.35;
+  const z0 = cow ? 0.75 : 0.4;
+  const z1 = cow ? 1.45 : 0.95;
+  const vx = -uy;
+  const vy = ux;
+  const P = (a: number, b: number) => [x + ux * a + vx * b, y + uy * a + vy * b];
+  const body = [P(-L, -W), P(L, -W), P(L, W), P(-L, W)].flat();
+  prism(B, [{ pts: body, seam: new Uint8Array(4) }], z0, z1, { roof: true, windows: false, pen: LINEWORK }, s);
+  const hd = cow ? 0.3 : 0.2;
+  const head = [P(L, -hd), P(L + hd * 1.8, -hd), P(L + hd * 1.8, hd), P(L, hd)].flat();
+  prism(B, [{ pts: head, seam: new Uint8Array(4) }], z1 - hd * 2.2, z1 + hd * 0.3, { roof: true, windows: false, pen: LINEWORK }, s);
+  for (const [a, b] of [
+    [-L * 0.8, -W * 0.7],
+    [-L * 0.8, W * 0.7],
+    [L * 0.8, -W * 0.7],
+    [L * 0.8, W * 0.7],
+  ]) {
+    const [lx, ly] = P(a, b);
+    s.lines.push({ pen: LINEWORK, pts: [lx, ly, 0, lx, ly, z0] });
+  }
+  s.casts.push({ ring: body, h: z1 * 0.8 });
+  return s;
+}

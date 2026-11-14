@@ -13,6 +13,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 ## What it draws
 
 - **Buildings** use their real footprints and heights from the map data. Windows are set by floor. Most buildings have no height in the map, so their storeys are worked out from what they are, the region and how densely built the town is round them: low houses in suburbs, taller rows and blocks in town centres.
+- **Front doors** face the street, with a little hood over them, and in southern Europe, France, the Alps and the Low Countries many windows have shutters, drawn in a pen colour.
 - **Shop fronts** with wide windows and striped awnings line the ground floors where the map has shops, and along busy and pedestrian streets in town centres.
 - **Flat roofs** carry boxes, water tanks (on legs in North America) or rows of solar panels, depending on the region.
 - **Balconies** hang off flats where that's the habit: deep ones in southern and eastern Europe and East Asia, and in Paris a continuous railing on the second and fifth floors of the street front.
@@ -35,7 +36,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
   - Field edges get hedgerows with the odd tree, most of all in Britain and France.
   - Scrub gets bushes, allotments get plots and sheds, bare rock gets boulders and glaciers get crevasses.
   - Beaches get parasols and towels, campsites get tents and caravans, playgrounds get swings and a slide, and quarries are cut into benches.
-  - Big barns out among the fields get a silo or two.
+  - Big barns out among the fields get a silo or two, stubble fields have bales lying in rows, and meadows have small herds: cows in the Alps and central Europe, sheep in Britain, Scandinavia and Australia.
   - Cemeteries get rows of headstones and crosses.
   - Sports pitches get their markings for football, tennis, basketball or a running track, with goals, nets and hoops.
 - **Shadows** are hatched on the ground, from a sun you can move.

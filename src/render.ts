@@ -1,6 +1,6 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
-import { allotmentSheds, drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
+import { allotmentSheds, bales, drawGround, livestock, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares } from './sites';
 import { airfields, crossings, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
@@ -112,7 +112,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   extras.push(squares(B, paper, town, M), busStops(B, paper, town, M), fuel(B, paper, town, M), chimneys(B, paper, town, M), peaks(B, town));
   extras.push(sailing(B, paper, town, M), crossings(B, paper, town, M), people(B, paper, town, M));
   for (const e of extras) solids.push(...e.solids);
-  if (G) solids.push(...allotmentSheds(B, paper, G, M));
+  if (G) solids.push(...allotmentSheds(B, paper, G, M), ...bales(B, paper, G, M), ...livestock(B, paper, G, M, box, toAbs, fromAbs));
   const fences = G ? plots(B, paper, town, G, M) : null;
   if (fences) solids.push(...fences.solids);
 

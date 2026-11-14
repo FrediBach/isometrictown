@@ -1,5 +1,6 @@
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
+import { GREENERY, ROOFS } from './settings';
 import { bestRect } from './shape';
 import type { Settings } from './settings';
 import type { HouseRoof, Style } from './styles';
@@ -23,6 +24,8 @@ export type Info = {
   streetGap?: number;
   /** Shops on the ground floor, on the street side. */
   shop: boolean;
+  /** Pen for window shutters, or -1 for none. */
+  shutters: number;
   /** Landmarks the map names: battlements and turrets, a helipad on the roof, a flag. */
   castle: boolean;
   hospital: boolean;
@@ -53,6 +56,15 @@ const WORK_LAND = new Set(['industrial', 'railway', 'garages', 'military']);
 const DENSITY_R = 45;
 /** Streets busy enough to have shops along them in a town centre. */
 const HIGH_STREETS = new Set(['primary', 'secondary', 'tertiary']);
+/** Chance of shutters on homes, by region, and the pen they're painted in. */
+const SHUTTERS: Partial<Record<Style['id'], [number, number]>> = {
+  mediterranean: [0.7, GREENERY],
+  french: [0.55, GREENERY],
+  alpine: [0.6, ROOFS],
+  central: [0.3, GREENERY],
+  eastern: [0.3, GREENERY],
+  dutch: [0.3, ROOFS],
+};
 /** Chance of balconies on flats, by region, and whether they're shallow French ones. */
 const BALCONIES: Partial<Record<Style['id'], [number, 1 | 2]>> = {
   mediterranean: [0.65, 1],
@@ -487,6 +499,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       streetGap,
       shop,
       balconies: balconies(kind, H, style, r),
+      shutters: SHUTTERS[style.id] && (kind === 'house' || kind === 'terrace' || (kind === 'apartment' && (style.id === 'mediterranean' || style.id === 'french'))) && r(15) < SHUTTERS[style.id]![0] ? SHUTTERS[style.id]![1] : -1,
       castle: !!(marks[i] & 1) && area > 150,
       hospital: !!(marks[i] & 2) || (land[i] === 'hospital' && area > 4000 && r(14) < 0.5),
       townHall: !!(marks[i] & 4),
