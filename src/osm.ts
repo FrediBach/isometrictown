@@ -1,4 +1,5 @@
 import { EARTH, latOf, lngOf, mercX, mercY, type Frame } from './geo';
+import { json, LOCAL, META, read, TTL, write } from './netcache';
 import type { Tagged } from './tiles';
 
 /**
@@ -48,6 +49,13 @@ async function query(s: number, w: number, n: number, e: number): Promise<Elemen
   throw last;
 }
 
+const cellKey = (key: string) => `${LOCAL}overpass/${ZOOM}/${key}`;
+
+function remember(key: string, v: Abs[]) {
+  cache.set(key, v);
+  while (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
+}
+
 /** Tagged buildings inside a local-metre box. Resolves to an empty list if Overpass can't be reached. */
 export async function loadTags(frame: Frame, box: [number, number, number, number]): Promise<Tagged[]> {
   const n = 2 ** ZOOM;
@@ -63,18 +71,35 @@ export async function loadTags(frame: Frame, box: [number, number, number, numbe
   const cy1 = cellY(Y0);
   if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > MAX_CELLS) return [];
 
-  const missing: [number, number][] = [];
+  const unknown: [number, number][] = [];
   const waits = new Set<Promise<void>>();
   for (let x = cx0; x <= cx1; x++)
     for (let y = cy0; y <= cy1; y++) {
       const key = `${x}/${y}`;
       const job = pending.get(key);
       if (job) waits.add(job);
-      else if (!cache.has(key)) missing.push([x, y]);
+      else if (!cache.has(key)) unknown.push([x, y]);
     }
+
+  // Cells we fetched in an earlier session come from the browser's cache, not Overpass.
+  const missing: [number, number][] = [];
+  const stale = new Map<string, Abs[]>();
+  await Promise.all(
+    unknown.map(async ([x, y]) => {
+      const key = `${x}/${y}`;
+      const hit = await read(META, cellKey(key), json<Abs[]>, TTL.month);
+      if (hit?.fresh) remember(key, hit.value);
+      else {
+        if (hit) stale.set(key, hit.value);
+        missing.push([x, y]);
+      }
+    }),
+  );
 
   if (missing.length && Date.now() > pausedUntil) waits.add(fetchCells(missing, n, cell, cellY));
   await Promise.all(waits);
+  // Overpass couldn't be reached: an old answer beats none.
+  for (const [k, v] of stale) if (!cache.has(k)) remember(k, v);
 
   const out: Tagged[] = [];
   for (let x = cx0; x <= cx1; x++)
@@ -117,8 +142,10 @@ function fetchCells(missing: [number, number][], n: number, cell: (mx: number) =
           across: t['roof:orientation'] === 'across' || undefined,
         });
       }
-      for (const [k, v] of fresh) cache.set(k, v);
-      while (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
+      for (const [k, v] of fresh) {
+        remember(k, v);
+        void write(META, cellKey(k), JSON.stringify(v), 'application/json');
+      }
     } catch {
       pausedUntil = Date.now() + BACKOFF_MS;
     }

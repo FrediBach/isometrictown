@@ -2,6 +2,7 @@ import { VectorTile, type VectorTileFeature } from '@mapbox/vector-tile';
 import { PbfReader } from 'pbf';
 import type { Info } from './classify';
 import { EARTH, ringArea, type Frame } from './geo';
+import { bytes, cached, json, LOCAL, META, TILES, TTL } from './netcache';
 
 /** A ring as flat [x, y, ...] coordinates. seam[i] marks edge i -> i+1 as a cut along a tile edge. */
 export type Ring = { pts: number[]; seam: Uint8Array };
@@ -102,11 +103,13 @@ let template: Promise<string> | null = null;
 const cache = new Map<string, Promise<Town>>();
 
 function tileTemplate(): Promise<string> {
-  template ??= fetch(TILEJSON)
-    .then((r) => {
-      if (!r.ok) throw new Error(`Tile index failed (${r.status})`);
-      return r.json() as Promise<{ tiles: string[] }>;
-    })
+  // The index names the current planet build; it changes about weekly, so a day-old copy is fine.
+  template ??= cached(META, `${LOCAL}tilejson`, TTL.day, json<{ tiles: string[] }>, async () => {
+    const r = await fetch(TILEJSON);
+    if (!r.ok) throw new Error(`Tile index failed (${r.status})`);
+    const text = await r.text();
+    return { body: text, value: JSON.parse(text) as { tiles: string[] } };
+  })
     .then((j) => j.tiles[0])
     .catch((e) => {
       template = null;
@@ -147,13 +150,14 @@ function readTile(url: string, x: number, y: number): Promise<Town> {
   const key = `${x}/${y}`;
   let job = cache.get(key);
   if (!job) {
-    job = fetch(url.replace('{z}', String(ZOOM)).replace('{x}', String(x)).replace('{y}', String(y)))
-      .then((r) => {
-        if (r.status === 204 || r.status === 404) return null;
-        if (!r.ok) throw new Error(`Map tile failed (${r.status})`);
-        return r.arrayBuffer();
-      })
-      .then((buf) => decode(buf, x, y));
+    // Keyed by z/x/y rather than the full URL, so a new planet build doesn't throw away every tile we have.
+    job = cached(TILES, `${LOCAL}tiles/${ZOOM}/${x}/${y}`, TTL.month, bytes, async () => {
+      const r = await fetch(url.replace('{z}', String(ZOOM)).replace('{x}', String(x)).replace('{y}', String(y)));
+      if (r.status === 204 || r.status === 404) return { body: null, value: null };
+      if (!r.ok) throw new Error(`Map tile failed (${r.status})`);
+      const buf = await r.arrayBuffer();
+      return { body: buf, value: buf };
+    }).then((buf) => decode(buf, x, y));
     job.catch(() => cache.delete(key));
     cache.set(key, job);
     while (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
