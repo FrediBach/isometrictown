@@ -6,15 +6,29 @@ import { STYLES } from '../styles';
 const STORE = 'isometrictown:settings';
 
 export type Preset = { name: string; center: LngLat; bearing: number; scale: number };
+/**
+ * Places to try. Small, low towns with a clear plan (ring walls, star forts,
+ * canals, a lake shore) draw best; there is no terrain, so steep hill towns and
+ * tall downtowns lose what makes them interesting. One per regional style where
+ * it can be helped.
+ */
 export const PRESETS: Preset[] = [
+  { name: 'Mollis', center: [9.0744, 47.0934], bearing: 35, scale: 1000 },
+  { name: 'Bauma', center: [8.8858, 47.3653], bearing: 35, scale: 1000 },
+  { name: 'Lenzburg', center: [8.1745, 47.3876], bearing: 35, scale: 1000 },
+  { name: 'Wädenswil', center: [8.6738, 47.2302], bearing: 35, scale: 1000 },
   { name: 'Amsterdam', center: [4.8862, 52.3727], bearing: 35, scale: 1000 },
-  { name: 'Bern', center: [7.4513, 46.948], bearing: 20, scale: 1000 },
-  { name: 'Dubrovnik', center: [18.1095, 42.6405], bearing: 30, scale: 900 },
-  { name: 'Lower Manhattan', center: [-74.0105, 40.7075], bearing: 29, scale: 2000 },
-  { name: 'Venice', center: [12.3358, 45.4375], bearing: 40, scale: 1000 },
+  { name: 'Nördlingen', center: [10.4878, 48.8518], bearing: 30, scale: 2500 },
+  { name: 'Bourtange', center: [7.1918, 53.0068], bearing: 20, scale: 1800 },
+  { name: 'Palmanova', center: [13.3099, 45.9054], bearing: 0, scale: 3200 },
+  { name: 'Neuf-Brisach', center: [7.5278, 48.0174], bearing: 45, scale: 2400 },
   { name: 'Hallstatt', center: [13.6493, 47.5617], bearing: 300, scale: 800 },
-  { name: 'Lisbon', center: [-9.1385, 38.711], bearing: 15, scale: 1100 },
-  { name: 'Kyoto', center: [135.7795, 34.9985], bearing: 45, scale: 1000 },
+  { name: 'Dubrovnik', center: [18.1095, 42.6405], bearing: 30, scale: 900 },
+  { name: 'Venice', center: [12.3358, 45.4375], bearing: 40, scale: 1000 },
+  { name: 'Rye', center: [0.7335, 50.9503], bearing: 25, scale: 900 },
+  { name: 'Ærøskøbing', center: [10.4115, 54.8893], bearing: 40, scale: 900 },
+  { name: 'Shirakawa-go', center: [136.906, 36.2565], bearing: 20, scale: 1500 },
+  { name: 'Nantucket', center: [-70.099, 41.2838], bearing: 35, scale: 1000 },
 ];
 
 export const MONO_INK = '#1b1e23';

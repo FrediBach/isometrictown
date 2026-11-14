@@ -55,6 +55,6 @@ Read [render-pipeline.md](render-pipeline.md) first. Rules: masks something read
 ## Check your work
 
 - `npm run build` must pass (type check + bundle). There are no unit tests.
-- Look at the result in `npm run dev` with a few presets (Amsterdam, Lower Manhattan, Hallstatt, Kyoto) and at both coarse (1:8000) and fine (1:500) scales.
+- Look at the result in `npm run dev` with a few presets (Amsterdam, Nördlingen, Hallstatt, Shirakawa-go) and at both coarse (1:8000) and fine (1:500) scales.
 - Pan a little and check that made-up detail stays put.
 - Run `npm run doctor` after React changes.

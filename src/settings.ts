@@ -98,8 +98,8 @@ export const LINEWORK = 4;
 export const PEN_COUNT = PEN_NAMES.length;
 
 export const DEFAULT_SETTINGS: Settings = {
-  center: [4.8862, 52.3727],
-  place: 'Amsterdam',
+  center: [9.0744, 47.0934],
+  place: 'Mollis',
   bearing: 35,
   tilt: 32,
   scale: 1000,
