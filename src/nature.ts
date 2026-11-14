@@ -1,5 +1,6 @@
 import type { Build } from './buildings';
 import type { Paper } from './raster';
+import { LOD, thin } from './lod';
 import { hash } from './rng';
 import { GREENERY } from './settings';
 
@@ -49,6 +50,8 @@ export function placeTrees(B: Build, paper: Paper, M: Masks, box: [number, numbe
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   for (const pass of passes) {
+    // Packed closer than reads on paper, a wood is thinned out rather than drawn as a blot.
+    const chance = pass.chance * thin(cam, LOD.treeSpacing, pass.cell);
     const step = pass.cell * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
     const i0 = Math.floor(A0x / step);
     const i1 = Math.ceil(A1x / step);
@@ -57,7 +60,7 @@ export function placeTrees(B: Build, paper: Paper, M: Masks, box: [number, numbe
     if ((i1 - i0) * (j1 - j0) > 400000) continue;
     for (let i = i0; i <= i1; i++) {
       for (let j = j0; j <= j1; j++) {
-        if (hash(i, j, set.seed, pass.salt) >= pass.chance) continue;
+        if (hash(i, j, set.seed, pass.salt) >= chance) continue;
         const X = (i + 0.15 + 0.7 * hash(i, j, set.seed, pass.salt + 10)) * step;
         const Y = (j + 0.15 + 0.7 * hash(i, j, set.seed, pass.salt + 20)) * step;
         const [x, y] = fromAbs(X, Y);
@@ -94,6 +97,31 @@ function withDepth(pts: number[], d: number): number[] {
 }
 
 type Sprite = { ring: number[]; depth: number; draw: () => void };
+
+/** Trees are drawn up to this much bigger than they are, so that small ones still read. */
+const TREE_GROW = 1.5;
+
+/**
+ * Trees too small on paper to read as trees, thinned out, and the rest drawn no smaller than
+ * reads (up to `TREE_GROW` times their size): a wood keeps its tone instead of closing up into
+ * a blot of tiny circles.
+ */
+export function legibleTrees(B: Build, trees: Tree[]): Tree[] {
+  const { cam } = B;
+  const out: Tree[] = [];
+  for (const t of trees) {
+    const keep = thin(cam, LOD.tree, t.r * 2);
+    if (keep >= 1) {
+      out.push(t);
+      continue;
+    }
+    const [k0, k1] = B.key(t.x, t.y);
+    if (hash(k0, k1, B.set.seed, 9105) >= keep) continue;
+    const k = Math.min(TREE_GROW, LOD.tree.mm / cam.size(t.r * 2));
+    out.push({ ...t, r: t.r * k, h: t.h * k });
+  }
+  return out;
+}
 
 /** Trees are flat cut-outs facing the viewer. */
 export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
@@ -185,13 +213,13 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
   const cy = cam.sy(t.x, t.y, t.h);
   const R = t.r * s;
   const depth = cam.depth(t.x, t.y, t.h) - t.r;
-  const ring = circle(sx, cy, R, R * cam.detail > 2 ? 22 : 14);
+  const ring = circle(sx, cy, R, cam.size(t.r) > 2 ? 22 : 14);
   return {
     ring,
     depth,
     draw: () => {
       paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true);
-      if (R * cam.detail > 0.9) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
+      if (cam.size(t.r) > 0.9) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
       paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, t.h]);
     },
   };

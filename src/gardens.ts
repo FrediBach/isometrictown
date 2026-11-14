@@ -3,6 +3,7 @@ import { FIELD, GARDEN, MEADOW, type Ground } from './ground';
 import { ringArea } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
+import { LOD, shows } from './lod';
 import { hash } from './rng';
 import { GREENERY, LINEWORK } from './settings';
 import { walk } from './streets';
@@ -112,7 +113,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
   const fences: { pts: number[]; picket: boolean }[] = [];
   const marks: { pts: number[]; ground: boolean; closed?: boolean }[] = [];
   const done = { solids, draw: () => {} };
-  if (!G.gardens || cam.lod < 0.5) return done;
+  if (!G.gardens || !shows(cam, LOD.garden)) return done;
   const [frontKind, sideKind] = BOUNDS[style.id];
   const garden = (x: number, y: number) => {
     const sx = cam.sx(x, y);
@@ -248,7 +249,7 @@ function yard(B: Build, b: Building, cx: number, cy: number, ok: (x: number, y: 
         marks.push({ pts: [ax, ay, 0, bx, by, 0], ground: true });
       }
       const [x, y] = P(front + 3, lane);
-      if (len >= 6 && B.set.cars > 0 && h(2) < 0.55 && ok(x, y)) solids.push(car(B, x, y, tx, ty, h(3)));
+      if (len >= 6 && B.set.cars > 0 && h(2) < 0.55 && ok(x, y) && shows(B.cam, LOD.car, 4.4, h(9104))) solids.push(car(B, x, y, tx, ty, h(3)));
     }
   }
 
@@ -329,7 +330,7 @@ export function hedgerows(B: Build, paper: Paper, G: Ground, M: Masks): Tree[] {
   const { cam, set, style } = B;
   const out: Tree[] = [];
   const chance = HEDGEROWS[style.id];
-  if (set.trees <= 0 || !chance || cam.lod < 0.25) return out;
+  if (set.trees <= 0 || !chance || !shows(cam, LOD.hedgerow)) return out;
   const seen = new Set<string>();
   const clear = (x: number, y: number) => {
     const sx = cam.sx(x, y);

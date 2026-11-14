@@ -10,6 +10,7 @@ import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
 import { walk } from './streets';
+import { LOD, shows } from './lod';
 
 /**
  * Things that belong to particular places: parasols on beaches, tents at campsites, swings
@@ -74,7 +75,7 @@ function parasol(x: number, y: number, h: (k: number) => number): Solid {
 /** Parasols over beaches, each with a towel spread beside it. */
 export function beaches(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const list = town.cover.filter((c) => c.cls === 'beach');
-  if (!list.length || !B.set.ground || B.cam.lod < 0.4) return { solids: [], draw: () => {} };
+  if (!list.length || !B.set.ground || !shows(B.cam, LOD.beach)) return { solids: [], draw: () => {} };
   const solids: Solid[] = [];
   const towels: number[][] = [];
   for (const a of list) {
@@ -123,7 +124,7 @@ function tent(x: number, y: number, ux: number, uy: number, big: boolean): Solid
 /** Tents and caravans round campsites. */
 export function campsites(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const camps = town.pois.filter((p) => p.cls === 'campsite');
-  if (!camps.length || B.cam.lod < 0.3) return { solids: [], draw: () => {} };
+  if (!camps.length || !shows(B.cam, LOD.tent)) return { solids: [], draw: () => {} };
   const solids: Solid[] = [];
   for (const c of camps) {
     grid(B, { cx: c.x, cy: c.y, ux: 1, uy: 0, L: 90, w: 90 }, 8, 710, (x, y, h) => {
@@ -149,7 +150,7 @@ export function campsites(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 
 /** A swing frame and a slide on each playground. */
 export function playgrounds(B: Build, paper: Paper, town: Town, M: Masks): Extra {
-  if (B.cam.lod < 0.45) return { solids: [], draw: () => {} };
+  if (!shows(B.cam, LOD.playground)) return { solids: [], draw: () => {} };
   const lines: number[][] = [];
   for (const a of town.landuse) {
     if (a.cls !== 'playground' || Math.abs(ringArea(a.shape[0].pts)) < 60) continue;
@@ -187,7 +188,7 @@ export function farmyards(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
   const fields = town.cover.filter((c) => c.cls === 'farmland' || c.cls === 'meadow');
   const towns = town.landuse.filter((a) => a.cls === 'residential' || a.cls === 'industrial' || a.cls === 'commercial' || a.cls === 'retail');
-  if (!fields.length || B.cam.lod < 0.2) return { solids, draw: () => {} };
+  if (!fields.length || !shows(B.cam, LOD.farmyard)) return { solids, draw: () => {} };
   for (const b of town.buildings) {
     if (b.min > 0 || b.info?.kind === 'worship' || b.info?.kind === 'civic') continue;
     const area = Math.abs(ringArea(b.shape[0].pts));
@@ -238,7 +239,7 @@ export function farmyards(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 /** Where industrial land meets open water: quayside cranes, with stacks of containers behind them. */
 export function ports(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const works = town.landuse.filter((a) => a.cls === 'industrial');
-  if (!works.length || !town.water.length || B.cam.lod < 0.12) return { solids: [], draw: () => {} };
+  if (!works.length || !town.water.length || !shows(B.cam, LOD.port)) return { solids: [], draw: () => {} };
   const solids: Solid[] = [];
   const lines: number[][] = [];
   const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y);
@@ -347,7 +348,7 @@ export function quarries(_B: Build, paper: Paper, town: Town, M: Masks): Extra {
 export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
   const lines: { pen: number; pts: number[] }[] = [];
-  if (B.cam.lod < 0.3) return { solids, draw: () => {} };
+  if (!shows(B.cam, LOD.fountain)) return { solids, draw: () => {} };
   for (const sq of town.plazas) {
     const outer = sq[0].pts;
     const area = Math.abs(ringArea(outer));
@@ -424,7 +425,7 @@ function nearestRoad(town: Town, x: number, y: number, max: number): { px: numbe
 /** Bus shelters at bus stops: a back panel, a roof on posts, and the stop sign at the kerb. */
 export function busStops(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
-  if (B.cam.lod < 0.4) return { solids, draw: () => {} };
+  if (!shows(B.cam, LOD.busStop)) return { solids, draw: () => {} };
   for (const stop of town.pois) {
     if (stop.cls !== 'bus' || stop.sub !== 'bus_stop') continue;
     const [k0, k1] = B.key(stop.x, stop.y);
@@ -470,7 +471,7 @@ export function busStops(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 /** Petrol stations: a canopy on columns over two pump islands. */
 export function fuel(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
-  if (B.cam.lod < 0.25) return { solids, draw: () => {} };
+  if (!shows(B.cam, LOD.fuel)) return { solids, draw: () => {} };
   for (const f of town.pois) {
     if (f.cls !== 'fuel' || f.sub !== 'fuel') continue;
     const r = nearestRoad(town, f.x, f.y, 40);
@@ -515,7 +516,7 @@ export function fuel(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 /** A tall chimney stack beside some of the big works. */
 export function chimneys(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
-  if (B.cam.lod < 0.12 || !B.set.details) return { solids, draw: () => {} };
+  if (!shows(B.cam, LOD.stack) || !B.set.details) return { solids, draw: () => {} };
   for (const b of town.buildings) {
     if (b.info?.kind !== 'industrial') continue;
     const area = Math.abs(ringArea(b.shape[0].pts));
@@ -548,7 +549,7 @@ export function chimneys(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 
 /** A summit cross on each mountain top, with its height lettered beside it. */
 export function peaks(B: Build, town: Town): Extra {
-  if (!town.peaks.length || B.cam.lod < 0.08) return { solids: [], draw: () => {} };
+  if (!town.peaks.length || !shows(B.cam, LOD.summit)) return { solids: [], draw: () => {} };
   return {
     solids: [],
     draw: (paper) => {
@@ -565,11 +566,13 @@ export function peaks(B: Build, town: Town): Extra {
         const sx = cam.sx(x, y) + 1.2;
         const sy = cam.sy(x, y, 0) + 0.2;
         const d = cam.depth(x, y, 0);
-        for (const l of letter(`${Math.round(pk.ele)} M`, sx, sy, { h: 1.6 })) {
-          const pts: number[] = [];
-          for (let i = 0; i < l.length; i += 2) pts.push(l[i], l[i + 1], d);
-          paper.sheet(LINEWORK, pts);
-        }
+        paper.fine(() => {
+          for (const l of letter(`${Math.round(pk.ele)} M`, sx, sy, { h: 1.6 })) {
+            const pts: number[] = [];
+            for (let i = 0; i < l.length; i += 2) pts.push(l[i], l[i + 1], d);
+            paper.sheet(LINEWORK, pts);
+          }
+        });
       }
     },
   };
@@ -580,7 +583,7 @@ export function peaks(B: Build, town: Town): Extra {
 /** A few people standing about on squares, pedestrian streets and beaches. */
 export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const { cam, set } = B;
-  if (cam.lod < 0.9 || !set.life) return { solids: [], draw: () => {} };
+  if (!shows(cam, LOD.person) || !set.life) return { solids: [], draw: () => {} };
   const spots: { pts: number[]; area: number; chance: number }[] = [];
   for (const sq of town.plazas) spots.push({ pts: sq[0].pts, area: Math.abs(ringArea(sq[0].pts)), chance: 0.1 });
   for (const c of town.cover) if (c.cls === 'beach') spots.push({ pts: c.shape[0].pts, area: Math.abs(ringArea(c.shape[0].pts)), chance: 0.05 });

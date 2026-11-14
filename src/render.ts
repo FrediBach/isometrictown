@@ -7,7 +7,8 @@ import { airfields, crossings, motorways, platforms, bridges, ferries, sailing, 
 import { Camera } from './camera';
 import { ringArea, type Frame } from './geo';
 import type { StageProgress } from './app/stages';
-import { placeTrees, regionalTrees, treeSprite, type Masks } from './nature';
+import { atLeast, LOD, shows, showsAt } from './lod';
+import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
@@ -53,21 +54,25 @@ export function reachHeight(set: Settings): number {
 /** Reports where the drawing has got to; called often, so keep it cheap. */
 export type OnStage = (p: StageProgress) => void;
 
-export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false): Drawing {
+/** `tally`, when given, collects every stroke by the feature that drew it (see `Paper.tally`). */
+export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null): Drawing {
   const cam = new Camera(set);
   const paper = new Paper(cam);
+  paper.tally = tally;
   const tag = <T extends Solid[]>(layer: LayerId, solids: T): T => {
     for (const solid of solids) solid.layer = layer;
     return solids;
   };
-  const extra = <T extends { solids: Solid[]; draw: (paper: Paper) => void }>(layer: LayerId, e: T): T => {
-    tag(layer, e.solids);
+  /** Wire up an extra: its solids and its ground lines go to `layer`; `part` names it within the layer for the LOD lab. */
+  const extra = <T extends { solids: Solid[]; draw: (paper: Paper) => void }>(layer: LayerId, part: string, e: T): T => {
+    for (const s of tag(layer, e.solids)) s.part = part;
     const draw = e.draw;
-    return { ...e, draw: (p: Paper) => withPen(layer, () => draw(p)) };
+    return { ...e, draw: (p: Paper) => withPen(layer, () => draw(p), part) };
   };
-  const withPen = (layer: LayerId, draw: () => void): void => {
+  const withPen = (layer: LayerId, draw: () => void, part?: string): void => {
     paper.penOverride = set.customLayerPens ? set.layerPens[layer] : undefined;
-    try { draw(); } finally { paper.penOverride = undefined; }
+    paper.layer = part ? `${layer}:${part}` : layer;
+    try { draw(); } finally { paper.penOverride = undefined; paper.layer = ''; }
   };
   const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
   const sun: [number, number] = [Math.sin(A), Math.cos(A)];
@@ -94,7 +99,11 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
-  const water = [...town.water, ...streamShapes(town.streams)];
+  // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.
+  for (const w of town.ways) if (w.kind === 'road') w.width = atLeast(cam, LOD.road, w.width);
+  // Streams too narrow for two banks are a single line.
+  const brooks = town.streams.filter((s) => !shows(cam, LOD.stream, s.width));
+  const water = [...town.water, ...streamShapes(town.streams.filter((s) => shows(cam, LOD.stream, s.width)))];
   const rounds = roundabouts(town);
   town.green.push(...rounds.islands);
 
@@ -133,6 +142,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     }
     if (sx1 < rx0 || sx0 > rx1 || syBot < ry0 || syTop > ry1) continue;
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
+    if (!legible(B, b)) continue;
     const made = building(B, b);
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
@@ -156,17 +166,18 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     const sy = cam.sy(t.x, t.y, 0);
     return paper.on(M.wood, sx, sy) || (!!G && !G.inTown(t.x, t.y, sx, sy));
   });
+  trees = legibleTrees(B, trees);
   counts.trees = trees.length;
   const cars = tag('cars', traffic(B, paper, town, M));
-  const bays = extra('markings', parking(B, paper, town.ways, M));
+  const bays = extra('markings', 'parking', parking(B, paper, town.ways, M));
   tag('cars', bays.solids);
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars, ...tag('life', trains(B, paper, town, M)));
-  const extras = [bays, extra('rails', lifts(B, town)), extra('life', ferries(B, paper, town, M)), extra('life', moorings(B, paper, town, M)), extra('streets', bridges(B, paper, town, M)), extra('streets', platforms(B, town)), extra('streets', portals(B, town)), extra('streets', airfields(B, paper, town, M)), extra('life', aviation(B, paper, town, M)), extra('power', powerLines(B, paper, town, M, box, toAbs, fromAbs))];
-  if (set.ground) extras.push(extra('ground', beaches(B, paper, town, M)), extra('ground', campsites(B, paper, town, M)), extra('ground', playgrounds(B, paper, town, M)), extra('ground', farmyards(B, paper, town, M)), extra('ground', quarries(B, paper, town, M)));
-  if (set.water) extras.push(extra('water', ports(B, paper, town, M)));
-  extras.push(extra('streets', squares(B, paper, town, M)), extra('streets', busStops(B, paper, town, M)), extra('streets', fuel(B, paper, town, M)), extra('streets', chimneys(B, paper, town, M)), extra('streets', peaks(B, town)));
-  extras.push(extra('life', sailing(B, paper, town, M)), extra('markings', crossings(B, paper, town, M)), extra('life', people(B, paper, town, M)), extra('streets', motorways(B, paper, town, M)));
+  const extras = [bays, extra('rails', 'lifts', lifts(B, town)), extra('life', 'ferries', ferries(B, paper, town, M)), extra('life', 'moorings', moorings(B, paper, town, M)), extra('streets', 'bridges', bridges(B, paper, town, M)), extra('streets', 'platforms', platforms(B, town)), extra('streets', 'portals', portals(B, town)), extra('streets', 'airfields', airfields(B, paper, town, M)), extra('life', 'aviation', aviation(B, paper, town, M)), extra('power', 'powerLines', powerLines(B, paper, town, M, box, toAbs, fromAbs))];
+  if (set.ground) extras.push(extra('ground', 'beaches', beaches(B, paper, town, M)), extra('ground', 'campsites', campsites(B, paper, town, M)), extra('ground', 'playgrounds', playgrounds(B, paper, town, M)), extra('ground', 'farmyards', farmyards(B, paper, town, M)), extra('ground', 'quarries', quarries(B, paper, town, M)));
+  if (set.water) extras.push(extra('water', 'ports', ports(B, paper, town, M)));
+  extras.push(extra('streets', 'squares', squares(B, paper, town, M)), extra('streets', 'busStops', busStops(B, paper, town, M)), extra('streets', 'fuel', fuel(B, paper, town, M)), extra('streets', 'chimneys', chimneys(B, paper, town, M)), extra('streets', 'peaks', peaks(B, town)));
+  extras.push(extra('life', 'sailing', sailing(B, paper, town, M)), extra('markings', 'crossings', crossings(B, paper, town, M)), extra('life', 'people', people(B, paper, town, M)), extra('streets', 'motorways', motorways(B, paper, town, M)));
   for (const e of extras) solids.push(...e.solids);
   if (G) solids.push(...tag('ground', allotmentSheds(B, paper, G, M)), ...tag('ground', bales(B, paper, G, M)), ...tag('life', livestock(B, paper, G, M, box, toAbs, fromAbs)));
   const fences = G ? plots(B, paper, town, G, M) : null;
@@ -186,6 +197,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     const oy = -sun[1] * len;
     for (const s of solids) {
       for (const c of s.casts) {
+        // A shadow too short to hatch would only be a scrap of tone.
+        if (!shows(cam, LOD.shadow, c.h * len)) continue;
         const r = c.ring;
         const dx = ox * c.h;
         const dy = oy * c.h;
@@ -220,6 +233,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.water) withPen('water', () => {
     waves(paper, M, set.seed);
     outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.under, x, y));
+    for (const s of brooks) paper.line3(WATER, s.pts.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d));
     pools(paper, M, town.pools);
   });
   if (set.parks) withPen('parks', () => {
@@ -230,27 +244,44 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
     outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
   });
-  if (set.shadows) withPen('shadows', () => { paper.hatchGround(SHADOWS, 62, 0.85, (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y)); });
+  if (set.shadows) withPen('shadows', () => { paper.hatchGround(SHADOWS, 62, cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y)); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs); });
-  withPen('streets', () => { curbs(paper, town.ways, M); });
-  withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); });
+  withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
+  withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');
   if (set.rails) withPen('rails', () => { railways(B, paper, town.ways); });
   if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M); });
-  if (set.lamps) withPen('lamps', () => { counts.lamps = lamps(B, paper, town.ways, M); });
-  withPen('streets', () => { railings(paper, town.ways); });
+  if (set.lamps && shows(cam, LOD.lamp)) withPen('lamps', () => { counts.lamps = lamps(B, paper, town.ways, M); });
+  withPen('streets', () => { railings(paper, town.ways); }, 'railings');
   withPen('markings', () => { markings(B, paper, town.ways, M); });
   for (const e of extras) e.draw(paper);
   withPen('ground', () => { fences?.draw(); });
 
   // Solids and trees
   onStage({ stage: 'lines', note: 'Buildings and trees' });
-  for (const s of solids) for (const l of s.lines) paper.line3(layerPen(set, s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings'), l.pen), l.pts, paper.seen, l.closed);
+  for (const s of solids) {
+    for (const l of s.lines) {
+      const layer = s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings');
+      paper.layer = s.part ? `${layer}:${s.part}` : layer;
+      paper.line3(layerPen(set, layer, l.pen), l.pts, paper.seen, l.closed);
+    }
+  }
+  paper.layer = '';
   withPen('trees', () => { for (const sp of sprites) sp.draw(); });
 
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
   const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys };
   return { pens: paper.pens, counts, picks };
+}
+
+/** Kinds of building that stay however small they are on paper: a terrace would show a gap, a landmark is wanted. */
+const KEEP = new Set(['terrace', 'worship', 'civic', 'tall']);
+
+/** Whether a building is big enough on paper to draw; small huts and houses drop out one by one as the scale coarsens. */
+function legible(B: Build, b: Town['buildings'][number]): boolean {
+  const i = b.info;
+  if (!i || KEEP.has(i.kind) || i.castle || i.townHall) return true;
+  return showsAt(B.cam, LOD.building, Math.sqrt(Math.abs(ringArea(b.shape[0].pts))), i.seed, B.set.seed, 9106);
 }
 
 /** Short wavy strokes over open water. */

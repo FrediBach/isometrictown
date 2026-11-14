@@ -3,6 +3,7 @@ import type { Camera } from './camera';
 import type { Info } from './classify';
 import { facadeLines, PLAIN, type Facade, type Wall } from './facades';
 import { pointInRing, ringArea } from './geo';
+import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
 import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
@@ -14,6 +15,8 @@ export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: Laye
 /** Something solid: faces for the depth buffer, lines to draw, and outlines that cast shadows. */
 export type Solid = {
   layer?: LayerId;
+  /** Which feature within the layer made it, for the LOD lab's tally. */
+  part?: string;
   faces: number[][][];
   lines: Line3[];
   casts: { ring: number[]; h: number }[];
@@ -127,7 +130,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       if (zb >= z1 - 0.3) continue;
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
-      const shop = !!o.shop && cam.lod >= 0.5 && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
+      const shop = !!o.shop && shows(cam, LOD.shopfront) && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
       if (shop) shopfront(B, ax, ay, bx, by, len, out);
       if (o.windows && set.windows && len >= 2.4) {
         // French balconies run along the street front only.
@@ -138,7 +141,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       }
       if (set.shadeWalls && (by - ay) * B.sun[0] - (bx - ax) * B.sun[1] < 0) {
         const ext = Math.abs((bx - ax) * cam.cb - (by - ay) * cam.sb) * s;
-        const m = Math.floor(ext / SHADE_MM);
+        const m = Math.floor(ext / cam.tone(SHADE_MM));
         for (let k = 1; k < m; k++) {
           const t = k / m;
           const x = ax + (bx - ax) * t;
@@ -161,7 +164,9 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       const e2x = p[j * 2] - p[i * 2];
       const e2y = p[j * 2 + 1] - p[i * 2 + 1];
       const cos = (e1x * e2x + e1y * e2y) / (Math.hypot(e1x, e1y) * Math.hypot(e2x, e2y) || 1);
-      if (cos < CREASE || front[i] !== front[h]) out.lines.push({ pen: o.pen, pts: [p[i * 2], p[i * 2 + 1], zb, p[i * 2], p[i * 2 + 1], z1] });
+      // The outline's ends always stand; a fold between two walls in view only while both are long enough to tell apart.
+      const fold = cos < CREASE && shows(cam, LOD.crease, Math.min(Math.hypot(e1x, e1y), Math.hypot(e2x, e2y)));
+      if (fold || front[i] !== front[h]) out.lines.push({ pen: o.pen, pts: [p[i * 2], p[i * 2 + 1], zb, p[i * 2], p[i * 2 + 1], z1] });
     }
   });
   if (o.roof) {
@@ -182,8 +187,6 @@ function windows(B: Build, w: Wall, fa: Facade, out: Solid): void {
 
 /** A shop front along a wall: wide windows, and striped awnings over most of them. */
 function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len: number, out: Solid): void {
-  const lod = B.cam.lod;
-  if (lod < 0.5) return;
   const cols = Math.max(1, Math.floor(len / 4.2));
   const bay = len / cols;
   const dx = (bx - ax) / len;
@@ -198,7 +201,7 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const hw = bay * 0.36;
     out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
-    if (hash(k0, k1, B.seed, 340) < 0.25 || lod < 0.45) continue;
+    if (hash(k0, k1, B.seed, 340) < 0.25 || !showsAt(B.cam, LOD.awning, 1.3, [k0, k1], B.seed, 9100)) continue;
     // The awning: a sloping canvas with a short valance, striped in the roof pen.
     const aw = bay * 0.42;
     const deep = 1.3;
@@ -289,7 +292,8 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
     const eave = (side: number) => (party[side] || !outside[side] ? 0 : style.overhang);
     const ends: [End, End] = [end(3), end(1)];
     let front: { end: 0 | 1; kind: 1 | 2 } | undefined;
-    if (i === 0 && info.gableFront && info.toStreet) {
+    // Stepped and shaped gables only while their steps can be told apart; a plain gable reads better than a zigzag blot.
+    if (i === 0 && info.gableFront && info.toStreet && shows(B.cam, LOD.gable, 0.8, hash(info.seed[0], info.seed[1], B.seed, 9108))) {
       const d = r.ux * info.toStreet[0] + r.uy * info.toStreet[1];
       const k = d > 0 ? 1 : 0;
       if (Math.abs(d) > 0.6 && ends[k] === 'gable') front = { end: k, kind: info.gableFront };
@@ -318,14 +322,15 @@ function roofDetailsLines(B: Build, info: Info, main: Part, P: Pitched, He: numb
     if (party[1] || party[3]) {
       // Terraces share stacks on the party walls.
       const sk = party[1] ? 1 : -1;
-      chimney(B, P, sk * (r.L / 2 - 0.35), 0, 0.35, 0.85, He, P.Hr + 0.9, out);
-    } else {
+      if (shows(B.cam, LOD.chimney, 1.7, rnd(9102))) chimney(B, P, sk * (r.L / 2 - 0.35), 0, 0.35, 0.85, He, P.Hr + 0.9, out);
+    } else if (shows(B.cam, LOD.chimney, 0.64, mine(9102))) {
       const u = P.a0 + (P.a1 - P.a0) * (0.2 + 0.6 * mine(1));
       const v = (rnd(2) < 0.5 ? -1 : 1) * hw * 0.35;
       chimney(B, P, u, v, 0.32, 0.32, He, He + (hw - Math.abs(v) + 0.4) * tan + 0.7, out);
     }
   }
-  if (!info.dormers || hw * tan < 2.6 || tan < 0.55) return;
+  // Terraces keep or lose their dormers together.
+  if (!info.dormers || hw * tan < 2.6 || tan < 0.55 || !shows(B.cam, LOD.dormer, 1.5, rnd(9103))) return;
   const zFront = He + 1.0 * tan;
   if (zFront + 2.1 > P.Hr - 0.2) return;
   const [upx, upy] = B.cam.up;
@@ -367,8 +372,9 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   const solid = out[0];
   prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid);
   solid.casts.push({ ring: rings[0].pts, h: H });
-  if (info?.castle && set.details) battlements(B, rings[0], b.shape.slice(1), H, out);
-  else if (info?.parapet && set.details) parapet(B, rings, H, solid);
+  // Too small to tell merlon from gap, battlements close up into a black band: a parapet reads better.
+  if (info?.castle && set.details && shows(B.cam, LOD.battlements, 0.7)) battlements(B, rings[0], b.shape.slice(1), H, out);
+  else if ((info?.parapet || info?.castle) && set.details) parapet(B, rings, H, solid);
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
   if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
@@ -482,7 +488,7 @@ function flag(B: Build, b: Building, out: Solid[]): void {
 function flagLines(B: Build, b: Building, out: Solid[]): void {
   const p = b.shape[0].pts;
   const { rect } = bestRect(p);
-  if (!rect || B.cam.lod < 0.3) return;
+  if (!rect || !shows(B.cam, LOD.flag)) return;
   const z = b.h * B.set.heightScale;
   const s = newSolid();
   const { cx: x, cy: y } = rect;
@@ -556,7 +562,6 @@ function battlements(B: Build, ring: WallRing, holes: Ring[], z: number, out: So
 }
 
 function battlementsLines(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
-  if (B.cam.lod < 0.3) return;
   const s = newSolid();
   const p = ring.pts;
   const n = p.length / 2;
@@ -651,7 +656,7 @@ function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
 function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
   const p = b.shape[0].pts;
   const { rect } = bestRect(p);
-  if (!rect || B.cam.lod < 0.3 || Math.abs(ringArea(p)) < 600) return false;
+  if (!rect || !shows(B.cam, LOD.helipad) || Math.abs(ringArea(p)) < 600) return false;
   const R = Math.min(5.5, rect.w / 2 - 1.5, rect.L / 2 - 1.5);
   if (R < 3 || !pointInRing(rect.cx, rect.cy, p)) return false;
   const zz = z + 0.02;
@@ -702,7 +707,7 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   const area = Math.abs(ringArea(outer));
   if (TANKS.has(B.style.id) && v < 0.4) {
     if (tanks(B, rect, z, k, inside, out)) return;
-  } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && B.cam.lod >= 0.6) {
+  } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && shows(B.cam, LOD.solar)) {
     if (solar(B, rect, z, inside, out)) return;
   }
   const count = 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);
@@ -721,6 +726,7 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
       [cx - ux * a + -uy * bw, cy - uy * a + ux * bw],
     ];
     if (!corners.every(([x, y]) => inside(x, y))) continue;
+    if (!shows(B.cam, LOD.rooftop, 2 * Math.min(a, bw), r(5))) continue;
     const s = newSolid();
     prism(B, [{ pts: corners.flat(), seam: new Uint8Array(4) }], z, z + h, { roof: true, windows: false, pen: LINEWORK }, s);
     out.push(s);
@@ -745,6 +751,7 @@ function tanks(B: Build, rect: Rect, z: number, k: [number, number], inside: (x:
     const x = rect.cx + rect.ux * a - rect.uy * c;
     const y = rect.cy + rect.uy * a + rect.ux * c;
     if (![0, 1, 2, 3].every((q) => inside(x + Math.cos((q * Math.PI) / 2) * (R + 0.3), y + Math.sin((q * Math.PI) / 2) * (R + 0.3)))) continue;
+    if (!shows(B.cam, LOD.rooftop, 2 * R, r(5))) continue;
     const s = newSolid();
     const legs = tower ? 2.6 : 0.4;
     const H = tower ? 3.4 + r(3) * 1.2 : 1.4;

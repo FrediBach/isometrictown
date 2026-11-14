@@ -7,6 +7,7 @@ import { hash } from './rng';
 import { LINEWORK } from './settings';
 import { bestRect } from './shape';
 import type { Airport, Town } from './tiles';
+import { LOD, shows } from './lod';
 
 /*
  * Aircraft: airliners at the big airports' stands, light aircraft parked on small airfields'
@@ -310,7 +311,7 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     return sx > paper.x0 - 10 && sx < paper.x1 + 10 && sy > paper.y0 - 10 && sy < paper.y1 + 15;
   };
   const clear = (x: number, y: number) => onSheet(x, y) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
-  const life = set.life && cam.lod >= 0.12;
+  const life = set.life && shows(cam, LOD.aircraft);
 
   const pads = town.helipads.map((h) => bestRect(h[0].pts).rect).filter((R) => !!R);
   const nearPad = (x: number, y: number) => pads.some((R) => Math.hypot(R!.cx - x, R!.cy - y) < 20);

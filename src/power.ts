@@ -1,4 +1,5 @@
 import type { Build } from './buildings';
+import type { Camera } from './camera';
 import { measure, at, onMask, type Extra } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
@@ -6,6 +7,7 @@ import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { Town, Way } from './tiles';
 import { urbanity } from './traffic';
+import { LOD, shows } from './lod';
 
 /*
  * Power lines. OpenMapTiles carries none, so they're made up, in two kinds:
@@ -68,8 +70,16 @@ function conductors(t: Tower): [number, number][] {
   return out;
 }
 
-/** A lattice pylon: four tapering legs, cross-bracing, arms with hanging insulators, and the peak. */
-function pylon(t: Tower, detail: boolean, out: Line[]): void {
+/**
+ * A lattice pylon: four tapering legs, cross-bracing, arms with hanging insulators, and the
+ * peak. Too small on paper for its legs to stand apart, it is drawn flat, as the A-frame you'd
+ * see side on, so the legs don't close up into a black wedge.
+ */
+function pylon(cam: Camera, t: Tower, detail: boolean, out: Line[]): void {
+  if (!shows(cam, LOD.pylonLegs)) {
+    flatPylon(cam, t, out);
+    return;
+  }
   const { x, y, dx, dy, H, big } = t;
   const nx = -dy;
   const ny = dx;
@@ -116,6 +126,17 @@ function pylon(t: Tower, detail: boolean, out: Line[]): void {
   for (const [b, z] of conductors(t)) out.push({ pen: LINEWORK, pts: [...P(0, b, z), ...P(0, b, z + drop(t))] });
 }
 
+/** A pylon as a flat A-frame across the line: two legs, a peak and one chord out to each arm tip. */
+function flatPylon(cam: Camera, t: Tower, out: Line[]): void {
+  const { x, y, dx, dy, H, big } = t;
+  const P = (b: number, z: number) => [x - dy * b, y + dx * b, z];
+  const b0 = big ? 4.5 : 3;
+  const waist = H * (big ? 0.58 : 0.66);
+  for (const s of [-1, 1]) out.push({ pen: LINEWORK, pts: [...P(s * b0, 0), ...P(s * 1.1, waist), ...P(s * 0.6, H * 0.95), ...P(0, H)] });
+  for (const [z, reach] of arms(t)) out.push({ pen: LINEWORK, pts: [...P(-reach, z), ...P(reach, z)] });
+  if (shows(cam, LOD.insulator, drop(t))) for (const [b, z] of conductors(t)) out.push({ pen: LINEWORK, pts: [...P(b, z), ...P(b, z + drop(t))] });
+}
+
 /** Transmission lines from the grid cells around the view, as pylons and the spans between them. */
 function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], out: Line[]): void {
   const { set, cam } = B;
@@ -128,7 +149,7 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
   const j1 = Math.floor(Math.max(Y0, Y1) / CELL) + 2;
   const inBox = (x: number, y: number, m: number) => x > box[0] - m && x < box[2] + m && y > box[1] - m && y < box[3] + m;
   // Lattice bracing only where it can read as lattice; smaller, it closes up into a black mass.
-  const detail = cam.lod >= 0.9;
+  const detail = shows(cam, LOD.lattice);
   // No pylons across airfields: their runways and aprons keep a wide berth.
   const field: number[] = [];
   for (const w of town.runways) for (let k = 0; k < w.pts.length; k += 2) field.push(w.pts[k], w.pts[k + 1]);
@@ -181,7 +202,7 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
           break;
         }
         if (!tower) continue;
-        pylon(tower, detail, out);
+        pylon(cam, tower, detail, out);
         if (prev && Math.hypot(prev.x - tower.x, prev.y - tower.y) < span * 2.3) {
           const sag = Math.hypot(prev.x - tower.x, prev.y - tower.y) * 0.025;
           const P = (tw: Tower, b: number, z: number) => [tw.x - tw.dy * b, tw.y + tw.dx * b, z];
@@ -278,8 +299,8 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
 /** Overhead power lines: transmission pylons across the country, and poles along roads. */
 export function powerLines(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Extra {
   const out: Line[] = [];
-  if (!B.set.power || B.cam.lod < 0.1) return { solids: [], draw: () => {} };
+  if (!B.set.power || !shows(B.cam, LOD.pylon)) return { solids: [], draw: () => {} };
   transmission(B, paper, town, M, box, toAbs, fromAbs, out);
-  if (B.cam.lod >= 0.3) distribution(B, paper, town, M, out);
+  if (shows(B.cam, LOD.pole)) distribution(B, paper, town, M, out);
   return { solids: [], draw: (p) => out.forEach((l) => p.line3(l.pen, l.pts)) };
 }

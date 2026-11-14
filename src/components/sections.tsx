@@ -320,7 +320,7 @@ export function PensSection({ onPalette, onPen, onPenCommit }: PensSectionProps)
       </div>
       <Hint className="-mt-2 mb-4">Lock the pens you like; Harmonise matches the rest to them. A colour you pick yourself is locked for you.</Hint>
       <LayerPens />
-      <NumberSetting name="penWidth" label="Pen width" min={0.1} max={1} step={0.05} />
+      <NumberSetting name="penWidth" label="Pen width" min={0.1} max={1} step={0.05} hint="A broader pen spaces hatching wider and leaves out small detail sooner, so lines don't run together." />
       <NumberSetting name="speed" label="Plot speed" min={10} max={120} step={5} />
       <KeyGrid>
         <BoolSetting name="mono" label="One black pen" />

@@ -2,6 +2,7 @@ import { car, newSolid, prism, type Build, type Solid } from './buildings';
 import { at, measure } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
+import { LOD, showsAt } from './lod';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import { SHOP_POIS, type Town, type Way } from './tiles';
@@ -246,7 +247,10 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   };
   const crossing = roadSurfaces(town.ways, degree, key);
   const put = (w: Way, x: number, y: number, ux: number, uy: number, kind: Kind, k: number, parked = false) => {
-    if (fits(w, x, y) && !crossing(w, x, y, parked)) out.push(vehicle(B, x, y, ux, uy, kind, k));
+    if (!fits(w, x, y) || crossing(w, x, y, parked)) return;
+    // Cars go before buses and lorries as the scale coarsens: each one only while it reads as a vehicle.
+    const [ka, kb] = B.key(x, y);
+    if (showsAt(cam, LOD.car, length(kind, k), [ka, kb], set.seed, 9104)) out.push(vehicle(B, x, y, ux, uy, kind, k));
   };
 
   for (const w of town.ways) {

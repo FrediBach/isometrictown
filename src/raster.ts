@@ -72,8 +72,15 @@ export class Paper {
   /** Pen override for the current feature's line pass. */
   penOverride: number | undefined;
   readonly pens: number[][][] = Array.from({ length: PEN_COUNT }, () => []);
+  /** The feature now drawing, for `tally`. */
+  layer = '';
+  /** When set, every stroke is also filed under the feature that drew it. Only the LOD lab uses it. */
+  tally: Map<string, number[][]> | null = null;
   private run: number[] | null = null;
   private runPen = 0;
+  private runLayer = '';
+  /** Strokes shorter than this, mm, are dropped: two pen widths or less, a pen only makes a dot of them. */
+  private minRun: number;
   readonly seen: Test;
 
   constructor(readonly cam: Camera, maxPixels = 7e6) {
@@ -87,6 +94,7 @@ export class Paper {
     this.ids = new Int32Array(this.W * this.H).fill(-1);
     this.far = this.z;
     this.seen = (x, y, d) => d <= this.far[this.index(x, y)] + EPS;
+    this.minRun = Math.max(MIN_RUN, cam.nib * 2);
   }
 
   mask(): Uint8Array {
@@ -342,6 +350,7 @@ export class Paper {
         if (!this.run) {
           this.run = [x, y];
           this.runPen = pen;
+          this.runLayer = this.layer;
         }
       } else if (this.run) {
         this.run.push(lx, ly);
@@ -366,7 +375,13 @@ export class Paper {
       len += l;
       out.push(r[i], r[i + 1]);
     }
-    if (len >= MIN_RUN && out.length >= 4) this.pens[this.runPen].push(out);
+    if (len < this.minRun || out.length < 4) return;
+    this.pens[this.runPen].push(out);
+    if (this.tally) {
+      const list = this.tally.get(this.runLayer);
+      if (list) list.push(out);
+      else this.tally.set(this.runLayer, [out]);
+    }
   }
 
   /**
@@ -400,6 +415,17 @@ export class Paper {
       const by = ny * t + uy * uMax;
       this.seg(pen, ax, ay, cam.groundDepth(ay), bx, by, cam.groundDepth(by), test);
       this.end();
+    }
+  }
+
+  /** Draw marks meant to be small, such as lettering, without dropping their short strokes. */
+  fine(draw: () => void): void {
+    const min = this.minRun;
+    this.minRun = MIN_RUN;
+    try {
+      draw();
+    } finally {
+      this.minRun = min;
     }
   }
 }

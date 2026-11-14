@@ -5,6 +5,7 @@ import type { Paper } from './raster';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { Town, Way } from './tiles';
+import { LOD, shows } from './lod';
 
 /*
  * A few trains on the railways in view. Rail pieces are joined into continuous tracks, sorted by
@@ -169,8 +170,8 @@ function facing(B: Build, ax: number, ay: number, bx: number, by: number): boole
 /** Draw one car centred at x, y heading ux, uy. */
 function drawCar(B: Build, s: Solid, car: Car, train: Train, x: number, y: number, ux: number, uy: number, front: boolean, back: boolean): void {
   const { cam } = B;
-  const detail = cam.lod >= 0.5;
-  const fine = cam.lod >= 0.9;
+  const detail = shows(cam, LOD.bogies);
+  const fine = shows(cam, LOD.trainFine);
   const hw = train.width / 2;
   const h = car.len / 2;
   // Millimetres on paper per metre along the car: a car running away from the viewer is
@@ -224,7 +225,7 @@ function drawCar(B: Build, s: Solid, car: Car, train: Train, x: number, y: numbe
     for (const a of [-h + 2.6, h - 2.6]) box(a - 1.3, a + 1.3, hw - 0.4, 0.15, z);
   };
   const pantograph = (a: number, roof: number) => {
-    if (!train.electric || cam.lod < 0.3) return;
+    if (!train.electric || !shows(cam, LOD.pantograph)) return;
     const top = 5.5;
     s.lines.push({ pen: LINEWORK, pts: [...P(a - 0.9, 0, roof), ...P(a, 0, top - 0.4), ...P(a + 0.9, 0, roof)] });
     s.lines.push({ pen: LINEWORK, pts: [...P(a, -0.8, top), ...P(a, 0.8, top)] });
@@ -384,7 +385,7 @@ function tube(B: Build, s: Solid, x: number, y: number, ux: number, uy: number, 
 export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   const { set, cam } = B;
   const out: Solid[] = [];
-  if (!set.rails || !set.life || cam.lod < 0.25) return out;
+  if (!set.rails || !set.life || !shows(cam, LOD.train)) return out;
   const all = tracks(town.ways);
   if (!all.length) return out;
   const visible = (x: number, y: number, bridge: boolean) => {

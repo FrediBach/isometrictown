@@ -34,13 +34,15 @@ cam.depth(x, y, z)  // metres, larger = farther
 cam.ground(sx, sy)  // sheet → ground point at z = 0
 cam.up              // ground unit vector pointing up the sheet (away from viewer)
 cam.s               // mm per metre (1000 / scale)
-cam.lod             // cam.s times the Detail setting, for level-of-detail thresholds
-cam.gap(mm)         // a hatch or texture spacing on paper, mm, scaled by the Detail setting
+cam.lod             // cam.s × Detail × 0.35 / pen width, for level of detail
+cam.size(m)         // m metres on paper as level of detail sees it, mm
+cam.gap(mm)         // a hatch or texture spacing on paper, mm, scaled by Detail and pen width
+cam.tone(mm)        // a tone hatch or dash spacing, mm, scaled by pen width only
 cam.rect            // drawing area on the sheet, [x0, y0, x1, y1] mm, inside margins
 cam.region(h)       // local bounding box of all ground that can show, incl. buildings of height h in front
 ```
 
-`cam.lod` is the level-of-detail switch: features check thresholds like `cam.lod < 0.25` (scale coarser than 1:4000 at normal detail) and skip themselves. It is `cam.s` times the Detail setting, so a higher Detail keeps small things at coarser scales. Use `cam.s` itself only for converting between metres and millimetres. Hatch and texture spacings on paper go through `cam.gap()`, so Detail closes them up or opens them out. Tone hatching (shadows, shaded walls), dash patterns and object counts that have their own slider (trees, traffic) don't use it.
+`cam.lod` drives level of detail: it is `cam.s` scaled up by the Detail setting and down by a pen broader than 0.35 mm. Don't compare it with bare numbers; ask the rules in `src/lod.ts` with the thing's size (`shows(cam, LOD.chimney, width)`), as [lod.md](lod.md) explains. Use `cam.s` itself only for converting between metres and millimetres. Hatch and texture spacings on paper go through `cam.gap()`, so Detail closes them up and a broad pen opens them out. Tone hatching (shadows, shaded walls) and dash patterns use `cam.tone()`, which follows the pen but not Detail. Object counts that have their own slider (trees, traffic) use neither.
 
 `reachHeight(set)` in `render.ts` is the tallest building expected to poke in from below; the worker passes it to `cam.region()` when choosing tiles.
 

@@ -11,9 +11,10 @@ npm install
 npm run dev      # dev server
 npm run build    # tsc type check + vite build: run this to verify every change
 npm run doctor   # React Doctor; run after changing React code
+npm run lod      # LOD lab: draws test places at 1:500–1:8000 and scores wasted ink (docs/lod.md)
 ```
 
-There is no test suite. `npm run build` passing is the minimum bar. For drawing changes, say what you could not check by eye.
+There is no test suite. `npm run build` passing is the minimum bar. For drawing changes, compare LOD lab runs before and after (`--name`, `--compare`), look at its close-ups, and say what you could not check by eye.
 
 ## Map of the code
 
@@ -22,6 +23,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 - `src/raster.ts`: `Paper` holds the depth buffer, masks, hidden-line tracing and per-pen output.
 - `src/tiles.ts`: vector tiles → `Town` in local metres. `src/osm.ts`: Overpass tags, best effort.
 - `src/classify.ts`: infers building kind, height and roof. `src/styles.ts`: regional styles.
+- `src/lod.ts`: level-of-detail rules, one per kind of thing. `lab/`: the LOD lab.
 - Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `power`, `marginalia`.
 - UI: `src/App.tsx`, `src/app/` (state, renderer, persistence), `src/components/`. Visual rules are in [DESIGN.md](DESIGN.md).
 
@@ -31,7 +33,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 2. **Keep it deterministic.** Never use `Math.random()`. Placed things use `hash(k0, k1, B.set.seed, SALT)` with `[k0, k1] = B.key(x, y)`. Each decision gets its own salt, so grep for a salt before you use it. Made-up detail must not move when the view pans.
 3. **Respect the pass order in `render()`.** Fill masks before anything reads them. Call every `fillFace`/`fillSprite` before `finishDepth()`, and every `line3`/`sheet` after it.
 4. **Emit linework only.** A feature returns `Solid`s: `faces` go to the depth buffer, `lines` to pens and `casts` to shadows. Flat ground marks go in an `Extra`'s `draw()`. Use the pen constants (`SHADOWS`, `WATER`, `GREENERY`, `ROOFS`, `LINEWORK`), never raw numbers.
-5. **Gate features.** Check the relevant setting (`B.set.life`, `.ground`, `.markings`, …) and a level-of-detail threshold on `B.cam.lod` (mm per metre times the Detail setting; keep `B.cam.s` for unit conversion). Space hatching and textures with `B.cam.gap(mm)`. Use masks (`M.road`, `M.water`, `M.foot`) to keep objects off roads, water and buildings.
+5. **Gate features.** Check the relevant setting (`B.set.life`, `.ground`, `.markings`, …) and a level-of-detail rule from `src/lod.ts`: `shows(B.cam, LOD.thing, actualSize, hash)`. Never compare `B.cam.lod` with a bare number, and keep `B.cam.s` for unit conversion. Space hatching and textures with `B.cam.gap(mm)` and tone hatching with `B.cam.tone(mm)`. Use masks (`M.road`, `M.water`, `M.foot`) to keep objects off roads, water and buildings.
 6. **Pen colours never trigger a redraw.** They go through `recolor()` on the finished SVG. Don't send colours to the worker.
 7. **Be gentle with the network.** Tiles go through `netcache.cached()`. Overpass is optional and time-boxed, and Nominatim is limited to 1 request per second. Don't add blocking dependencies on flaky services. Keep OSM attribution.
 8. **Infer from OSM, don't rely on it.** Most tags are missing. Use real tags when they exist and fall back to inference from footprint, neighbours, POIs, land use and region.

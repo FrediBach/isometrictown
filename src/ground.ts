@@ -1,4 +1,5 @@
 import { newSolid, prism, type Build, type Solid } from './buildings';
+import { REF_NIB } from './camera';
 import { pointInRing, ringArea } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
@@ -7,6 +8,7 @@ import { GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
 import { bestRect, turn, type Rect } from './shape';
 import { outline } from './streets';
 import type { Shape, Town } from './tiles';
+import { LOD, shows, thin } from './lod';
 
 /**
  * Ground textures for land with a character of its own: furrowed fields, vineyard rows,
@@ -94,7 +96,6 @@ function mmPer(B: Build, vx: number, vy: number): number {
 
 /** Work out where each texture goes and paint the land mask. Call before the trees are placed. */
 export function planGround(B: Build, paper: Paper, town: Town): Ground {
-  const lod = B.cam.lod;
   const G: Ground = { land: paper.mask(), farms: paper.mask(), farmShapes: [], covers: [], cemeteries: [], pitches: [], gardens: false, inTown: townTest(paper, town) };
   // First, so anything mapped explicitly paints over it.
   if (B.style.id !== 'arid') G.gardens = paintGardens(paper, town, G.land);
@@ -116,10 +117,10 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
     const { rect, fill } = bestRect(a.shape[0].pts);
     if (!rect) continue;
     const rings = a.shape.map((r) => r.pts);
-    if (a.cls === 'cemetery' && lod >= 0.6) {
+    if (a.cls === 'cemetery' && shows(B.cam, LOD.cemetery)) {
       paper.fillMask(G.land, rings, CEMETERY);
       G.cemeteries.push({ shape: a.shape, rect });
-    } else if ((a.cls === 'pitch' || a.cls === 'track') && rect.L * lod >= 10) {
+    } else if ((a.cls === 'pitch' || a.cls === 'track') && shows(B.cam, LOD.pitch, rect.L)) {
       // Only roughly rectangular pitches get markings, and not a big lawn that holds smaller pitches.
       const holdsOthers = sporty.some((b, k) => b !== a && centres[k] && centres[k]!.L * centres[k]!.w < rect.L * rect.w && pointInRing(centres[k]!.cx, centres[k]!.cy, a.shape[0].pts));
       if (holdsOthers || fill < (a.cls === 'track' ? 0.6 : 0.75)) continue;
@@ -217,6 +218,7 @@ function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: numb
   const box = cam.region(0);
   const metre = toAbs(1, 0)[0] - toAbs(0, 0)[0];
   const step = (cam.gap(TUFT_MM * 1.7) / cam.s) * metre;
+  const k = Math.max(1, cam.nib / REF_NIB);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   const i0 = Math.floor(A0x / step);
@@ -234,8 +236,8 @@ function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: numb
       if (!wild(G, M, paper, x, y, sx, sy) || paper.on(M.shadow, sx, sy)) continue;
       const d = cam.depth(x, y, 0);
       const u = r(3);
-      if (u < w.tuft) paper.sheet(GREENERY, (r(4) < 0.5 ? TUFT : SMALL_TUFT).flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep);
-      else if (u < w.tuft + w.dot) paper.sheet(LINEWORK, DOT.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep);
+      if (u < w.tuft) paper.sheet(GREENERY, (r(4) < 0.5 ? TUFT : SMALL_TUFT).flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
+      else if (u < w.tuft + w.dot) paper.fine(() => paper.sheet(LINEWORK, DOT.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep));
     }
 }
 
@@ -246,6 +248,8 @@ export function wildTrees(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
   if (set.trees <= 0) return out;
   const w = WILD[B.style.id] ?? WILD_DEFAULT;
   const step = 16 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  // Packed closer than reads on paper, they're thinned out.
+  const spread = thin(cam, LOD.treeSpacing, 16);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   const i0 = Math.floor(A0x / step);
@@ -256,6 +260,7 @@ export function wildTrees(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
   for (let i = i0; i <= i1; i++)
     for (let j = j0; j <= j1; j++) {
       const h = (k: number) => hash(i, j, set.seed, 190 + k);
+      if (hash(i, j, set.seed, 9107) >= spread) continue;
       const u = h(0);
       if (u >= (w.trees + w.bush) * set.trees * 1.4) continue;
       const [x, y] = fromAbs((i + 0.15 + 0.7 * h(1)) * step, (j + 0.15 + 0.7 * h(2)) * step);
@@ -321,6 +326,8 @@ export function gardenTrees(B: Build, paper: Paper, G: Ground, M: Masks, box: [n
   const out: Tree[] = [];
   if (!G.gardens || set.trees <= 0) return out;
   const step = 13 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  // Packed closer than reads on paper, they're thinned out.
+  const spread = thin(cam, LOD.treeSpacing, 13);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   const i0 = Math.floor(A0x / step);
@@ -336,6 +343,7 @@ export function gardenTrees(B: Build, paper: Paper, G: Ground, M: Masks, box: [n
   for (let i = i0; i <= i1; i++)
     for (let j = j0; j <= j1; j++) {
       const h = (k: number) => hash(i, j, set.seed, 90 + k);
+      if (hash(i, j, set.seed, 9107) >= spread) continue;
       if (h(0) >= 0.32 * set.trees) continue;
       const [x, y] = fromAbs((i + 0.15 + 0.7 * h(1)) * step, (j + 0.15 + 0.7 * h(2)) * step);
       const r = 1.6 + h(3) * 1.4;
@@ -405,7 +413,7 @@ function rows(shape: Shape, r: Rect, spacing: number, fn: (ax: number, ay: numbe
 
 /** Orchards are drawn as little trees when they're big enough on paper and trees are on. */
 function orchardsAsTrees(B: Build): boolean {
-  return B.set.trees > 0 && B.cam.lod >= 0.2;
+  return B.set.trees > 0 && shows(B.cam, LOD.orchard);
 }
 
 /** Little fruit trees in rows over orchards. */
@@ -499,7 +507,7 @@ function vineyard(B: Build, paper: Paper, c: Cover, ground: Test, standing: Test
   const { ux, uy } = c.rect;
   const across = mmPer(B, -uy, ux);
   const spacing = Math.max(2.4, B.cam.gap(2.2) / across);
-  const tall = B.cam.lod >= 0.35;
+  const tall = shows(B.cam, LOD.vines);
   rows(c.shape, c.rect, spacing, (ax, ay, bx, by) => {
     const len = Math.hypot(bx - ax, by - ay);
     if (len < 3) return;
@@ -527,12 +535,14 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
   const box = cam.region(0);
   const has = new Set<number>(G.covers.map((c) => c.code));
   const keep: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
-  const mark = (pen: number, sx: number, sy: number, d: number, shape: number[][]) =>
-    paper.sheet(
-      pen,
-      shape.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]),
-      keep,
-    );
+  // Symbols grow with a broad pen, as their spacing does, so they still read as what they are.
+  const k = Math.max(1, cam.nib / REF_NIB);
+  const mark = (pen: number, sx: number, sy: number, d: number, shape: number[][]) => {
+    const draw = () => paper.sheet(pen, shape.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
+    // Stipple is meant to be dots.
+    if (shape === DOT) paper.fine(draw);
+    else draw();
+  };
   const passes: [number, number, number[]][] = [];
   if (has.has(MEADOW) || has.has(WETLAND) || G.gardens) passes.push([TUFT_MM, 11, [MEADOW, WETLAND, GARDEN]]);
   if (has.has(SAND) || has.has(BEACH)) passes.push([SAND_MM, 12, [SAND, BEACH]]);
@@ -854,6 +864,8 @@ export function scrubBushes(B: Build, paper: Paper, G: Ground, M: Masks, box: [n
   const out: Tree[] = [];
   if (set.trees <= 0 || !G.covers.some((c) => c.code === SCRUB)) return out;
   const step = 5.5 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  // Packed closer than reads on paper, they're thinned out.
+  const spread = thin(cam, LOD.treeSpacing, 5.5);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   const i0 = Math.floor(A0x / step);
@@ -864,6 +876,7 @@ export function scrubBushes(B: Build, paper: Paper, G: Ground, M: Masks, box: [n
   for (let i = i0; i <= i1; i++)
     for (let j = j0; j <= j1; j++) {
       const h = (k: number) => hash(i, j, set.seed, 150 + k);
+      if (hash(i, j, set.seed, 9107) >= spread) continue;
       if (h(0) >= 0.5 + 0.3 * set.trees) continue;
       const [x, y] = fromAbs((i + 0.1 + 0.8 * h(1)) * step, (j + 0.1 + 0.8 * h(2)) * step);
       const sx = cam.sx(x, y);
@@ -929,7 +942,7 @@ export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Sol
 export function bales(B: Build, paper: Paper, G: Ground, M: Masks): Solid[] {
   const out: Solid[] = [];
   const { cam, set } = B;
-  if (cam.lod < 0.3) return out;
+  if (!shows(cam, LOD.bale)) return out;
   for (const c of G.covers) {
     if (c.code !== FIELD) continue;
     const { ux, uy } = c.rect;
@@ -968,7 +981,7 @@ export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
   const out: Solid[] = [];
   const { cam, set, style } = B;
   const cows = COWS.has(style.id);
-  if (cam.lod < 0.6 || !set.life || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
+  if (!shows(cam, LOD.livestock) || !set.life || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
   const step = 70 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);

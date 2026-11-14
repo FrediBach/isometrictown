@@ -84,6 +84,8 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |
 | `src/render.ts` | Runs the passes in order |
+| `src/lod.ts` | Level of detail: how small each kind of thing may get on paper before it's left out |
+| `lab/` | The LOD lab: draws test places at several scales and scores wasted ink (`npm run lod`) |
 | `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/worker.ts` | Runs all of the above off the main thread |
@@ -96,6 +98,7 @@ More on how it fits together is in [docs/](docs/README.md).
 ```bash
 npm install
 npm run dev
+npm run lod   # optional: the LOD lab, see docs/lod.md
 ```
 
 ## Credits

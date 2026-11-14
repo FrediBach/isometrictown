@@ -8,7 +8,7 @@
    ```ts
    export function windmills(B: Build, paper: Paper, town: Town, M: Masks): Extra {
      const none = { solids: [], draw: () => {} };
-     if (!B.set.ground || B.cam.lod < 0.3) return none;   // gate on settings and level of detail
+     if (!B.set.ground || !shows(B.cam, LOD.windmill)) return none;   // gate on settings and level of detail
      const solids: Solid[] = [];
      for (const p of town.pois) {
        if (p.cls !== 'windmill') continue;
@@ -24,11 +24,12 @@
    }
    ```
 
-3. Call it from `render()` in `src/render.ts`, in the `extras` list, next to its relatives.
-4. If it needs new map data, see [data-sources.md](data-sources.md#vector-tiles-tilests).
-5. Draw hatching and textures at a spacing of `B.cam.gap(mm)`, so the Detail slider reaches them.
-6. Keep it deterministic (`hash()` with `B.key` and a fresh salt) and keep it off roads, water and buildings with the masks.
-7. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
+3. Add a rule for it to `LOD` in `src/lod.ts` (`windmill: { m: 12, mm: 2, what: 'Windmills: height' }`) and, where you know each one's size, pass it: `shows(B.cam, LOD.windmill, height, hash(k0, k1, B.set.seed, SALT))`. See [lod.md](lod.md).
+4. Call it from `render()` in `src/render.ts`, in the `extras` list, next to its relatives, with a part name: `extra('ground', 'windmills', windmills(B, paper, town, M))`.
+5. If it needs new map data, see [data-sources.md](data-sources.md#vector-tiles-tilests).
+6. Draw hatching and textures at a spacing of `B.cam.gap(mm)`, so the Detail slider and the pen width reach them.
+7. Keep it deterministic (`hash()` with `B.key` and a fresh salt) and keep it off roads, water and buildings with the masks.
+8. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
 
 ## Add a setting
 
@@ -56,5 +57,6 @@ Read [render-pipeline.md](render-pipeline.md) first. Rules: masks something read
 
 - `npm run build` must pass (type check + bundle). There are no unit tests.
 - Look at the result in `npm run dev` with a few presets (Amsterdam, Nördlingen, Hallstatt, Shirakawa-go) and at both coarse (1:8000) and fine (1:500) scales.
+- For anything drawn, run `npm run lod -- --name before` first and `npm run lod -- --name after --compare before` after, and look at the close-ups (see [lod.md](lod.md#the-lod-lab)).
 - Pan a little and check that made-up detail stays put.
 - Run `npm run doctor` after React changes.

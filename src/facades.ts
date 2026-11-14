@@ -1,5 +1,6 @@
 import type { Build, Solid } from './buildings';
 import type { Kind, Roof } from './classify';
+import { LOD, shows } from './lod';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { StyleId } from './styles';
@@ -83,8 +84,6 @@ const HOME: Record<StyleId, Partial<Record<Pattern, number>>> = {
 };
 /** Regions whose older windows are mostly divided by glazing bars. */
 const BARS = new Set<StyleId>(['british', 'dutch', 'french', 'central', 'nordic', 'american', 'alpine']);
-/** Level of detail (mm per metre) from which glazing bars are drawn. */
-const BARS_LOD = 1.4;
 const OFFICE_USE = new Set(['office', 'commercial', 'retail']);
 
 function pickPattern(w: Partial<Record<Pattern, number>>, u: number): Pattern {
@@ -204,19 +203,22 @@ type Opening = {
 };
 type Balcony = { m: number; hw: number; zf: number; d: number };
 /** `f0` is how squarely the wall faces the equator, scaled by the façade's bias; `f` damps it on street fronts. */
-type Ctx = { B: Build; w: Wall; fa: Facade; dx: number; dy: number; f0: number; f: number; ops: Opening[]; bals: Balcony[] };
+type Ctx = { B: Build; w: Wall; fa: Facade; dx: number; dy: number; f0: number; f: number; ops: Opening[]; bals: Balcony[]; along: number };
 
 /** Windows, doors and balconies for one wall. */
 export function facadeLines(B: Build, w: Wall, fa: Facade, out: Solid): void {
-  const lod = B.cam.lod;
-  const full = lod * 1.2 >= 0.85;
-  if (!full && lod * 1.5 < 0.5) return;
+  const { cam } = B;
+  // How much of a metre along the wall shows on paper: a wall seen edge-on squeezes its windows.
+  const along = Math.hypot(cam.sx(w.bx, w.by) - cam.sx(w.ax, w.ay), cam.sy(w.bx, w.by, 0) - cam.sy(w.ax, w.ay, 0)) / (w.len * cam.s);
+  const full = shows(cam, LOD.window, LOD.window.m * along);
+  // Not even a tall window would make a stroke that reads as more than a dot.
+  if (!full && !shows(cam, LOD.windowTick, 2.2 * cam.ca)) return;
   const dx = (w.bx - w.ax) / w.len;
   const dy = (w.by - w.ay) / w.len;
   // Outward normal (dy, -dx) against the equator: positive on the sunny side. Street fronts
   // keep most of their rhythm whichever way they face.
   const f0 = (dy * B.equator[0] - dx * B.equator[1]) * fa.bias;
-  const c: Ctx = { B, w, fa, dx, dy, f0, f: w.street ? f0 * 0.3 : f0, ops: [], bals: [] };
+  const c: Ctx = { B, w, fa, dx, dy, f0, f: w.street ? f0 * 0.3 : f0, ops: [], bals: [], along };
   switch (fa.pattern) {
     case 'blank':
       break;
@@ -445,12 +447,15 @@ function bigDoors(c: Ctx): void {
   ops.push(...doors);
 }
 
-/** Draw the openings and balconies on the wall. Below full detail, windows are single ticks. */
+/**
+ * Draw the openings and balconies on the wall. Each window is drawn as big as it shows on
+ * paper: framed, with glazing bars when there's room, as a single upright stroke when it's
+ * too narrow for a frame, and not at all when even that would only make a dot.
+ */
 function draw(c: Ctx, full: boolean, out: Solid): void {
-  const { B, w, dx, dy } = c;
+  const { B, w, dx, dy, along } = c;
   const { ax, ay } = w;
-  const lod = B.cam.lod;
-  const bars = c.fa.bars && lod >= BARS_LOD;
+  const { cam } = B;
   const P = (u: number, n: number, z: number) => [ax + dx * u + dy * n, ay + dy * u - dx * n, z];
   const L = (pen: number, pts: number[], closed?: boolean) => out.lines.push(closed ? { pen, pts, closed } : { pen, pts });
   const rect = (pen: number, u0: number, u1: number, z0: number, z1: number) => L(pen, [...P(u0, 0, z0), ...P(u1, 0, z0), ...P(u1, 0, z1), ...P(u0, 0, z1)], true);
@@ -461,10 +466,11 @@ function draw(c: Ctx, full: boolean, out: Solid): void {
     const um = (u0 + u1) / 2;
     switch (o.kind) {
       case 'window': {
-        if (!full) {
-          L(LINEWORK, [...P(um, 0, z0), ...P(um, 0, z1)]);
+        if (!full || !shows(cam, LOD.window, (u1 - u0) * along)) {
+          if (shows(cam, LOD.windowTick, (z1 - z0) * cam.ca)) L(LINEWORK, [...P(um, 0, z0), ...P(um, 0, z1)]);
           break;
         }
+        const bars = c.fa.bars && shows(cam, LOD.glazingBars, (u1 - u0) * along);
         const pen = o.shutters ?? -1;
         if (pen >= 0 && o.closed) {
           // Shutters closed against the sun: a pair of panels meeting in the middle.
@@ -539,11 +545,11 @@ function draw(c: Ctx, full: boolean, out: Solid): void {
       }
     }
   }
-  if (full) for (const b of c.bals) balcony(out, ax, ay, dx, dy, b.m, b.hw, b.zf, b.d);
+  if (full) for (const b of c.bals) balcony(out, ax, ay, dx, dy, b.m, b.hw, b.zf, b.d, open(0.7, 0.7));
 }
 
-/** A balcony in front of a window: a slab with a railing round it. (dx, dy) runs along the wall. */
-function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: number, hw: number, zf: number, d: number): void {
+/** A balcony in front of a window: a slab with a railing round it, balusters `bar` apart. (dx, dy) runs along the wall. */
+function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: number, hw: number, zf: number, d: number, bar: number): void {
   // Outward from the wall (rings run counter-clockwise).
   const nx = dy;
   const ny = -dx;
@@ -557,7 +563,7 @@ function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: 
   out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, top), ...P(m - hw, d, top)] }, { pen: LINEWORK, pts: [...P(m + hw, 0, top), ...P(m + hw, d, top)] });
   out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, bot), ...P(m - hw, d, bot)] }, { pen: LINEWORK, pts: [...P(m + hw, 0, bot), ...P(m + hw, d, bot)] });
   out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, d, zf), ...P(m + hw, d, zf)] });
-  const n = Math.max(2, Math.round((hw * 2) / 0.7));
+  const n = Math.max(2, Math.round((hw * 2) / bar));
   for (let k = 1; k < n; k++) {
     const u = m - hw + (2 * hw * k) / n;
     out.lines.push({ pen: LINEWORK, pts: [...P(u, d, zf), ...P(u, d, top)] });

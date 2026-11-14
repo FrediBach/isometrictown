@@ -2,6 +2,9 @@ import { mmPerMetre, sheetSize, type Settings } from './settings';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+/** The pen width level-of-detail sizes are tuned for, mm. A broader pen sheds detail sooner. */
+export const REF_NIB = 0.35;
+
 /**
  * An orthographic camera looking down at the ground.
  * World: metres, x east, y north, z up. Sheet: millimetres, y down.
@@ -14,17 +17,23 @@ export class Camera {
   readonly ca: number;
   /** mm per metre */
   readonly s: number;
-  /** mm per metre scaled by the detail setting: compare level-of-detail thresholds against this, not `s`. */
+  /**
+   * mm per metre as level of detail sees it: scaled up by the Detail setting and down by a pen
+   * broader than `REF_NIB`. Compare level-of-detail thresholds against this (or use `size()`
+   * and `src/lod.ts`), never against `s`.
+   */
   readonly lod: number;
   /** The detail setting: above 1 draws hatching closer and keeps smaller things. */
   readonly detail: number;
+  /** Pen width, mm. */
+  readonly nib: number;
   readonly cx: number;
   readonly cy: number;
   /** Drawing area on the sheet, [x0, y0, x1, y1] in mm. */
   readonly rect: [number, number, number, number];
   readonly sheet: [number, number];
 
-  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail'>>) {
+  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail' | 'penWidth'>>) {
     const b = (set.bearing * Math.PI) / 180;
     const a = (set.tilt * Math.PI) / 180;
     this.sb = Math.sin(b);
@@ -33,7 +42,8 @@ export class Camera {
     this.ca = Math.cos(a);
     this.s = mmPerMetre(set);
     this.detail = clamp(set.detail ?? 1, 0.25, 2);
-    this.lod = this.s * this.detail;
+    this.nib = clamp(set.penWidth ?? REF_NIB, 0.1, 2);
+    this.lod = (this.s * this.detail * REF_NIB) / this.nib;
     this.sheet = sheetSize(set);
     const [w, h] = this.sheet;
     const m = Math.min(set.margin, w / 2 - 10, h / 2 - 10);
@@ -44,9 +54,22 @@ export class Camera {
     this.cy = (this.rect[1] + this.rect[3]) / 2;
   }
 
-  /** A hatch or texture spacing on paper, mm, closed up or opened out by the detail setting. */
+  /**
+   * A hatch or texture spacing on paper, mm, closed up or opened out by the detail setting and
+   * opened out for a broad pen, so the tone stays the same whatever pen draws it.
+   */
   gap(mm: number): number {
-    return mm / this.detail;
+    return (mm * this.nib) / (REF_NIB * this.detail);
+  }
+
+  /** A tone hatch spacing on paper (shadows, shaded walls), mm: opened out for a broad pen, but not changed by Detail. */
+  tone(mm: number): number {
+    return (mm * this.nib) / REF_NIB;
+  }
+
+  /** How big `m` metres is on paper for level of detail: mm at Detail 1 with the reference pen. */
+  size(m: number): number {
+    return m * this.lod;
   }
 
   sx(x: number, y: number): number {

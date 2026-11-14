@@ -1,5 +1,6 @@
 import { tagLines, prism, type Build, type Line3, type Solid } from './buildings';
 import { ringArea } from './geo';
+import { LOD, shows } from './lod';
 import { LINEWORK, ROOFS } from './settings';
 import { corners, offsetRing, type Rect } from './shape';
 
@@ -52,10 +53,27 @@ function face(out: Solid, pts: number[][]): void {
   if (flat.length >= 9) out.faces.push([flat]);
 }
 
-/** How many hatch strokes fit between two ground points on paper. */
-function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number): number {
+/**
+ * How many hatch strokes fit along an eave from a to b (at height z) on paper. The strokes run
+ * like p to q (local 3D points), and the gap is kept square to them, so strokes that cross the
+ * eave at a slant on paper don't crowd into a solid tone.
+ */
+function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number, p: number[], q: number[]): number {
   const c = B.cam;
-  return Math.max(1, Math.round(Math.hypot(c.sx(bx, by) - c.sx(ax, ay), c.sy(bx, by, z) - c.sy(ax, ay, z)) / c.gap(ROOF_HATCH_MM)));
+  const ex = c.sx(bx, by) - c.sx(ax, ay);
+  const ey = c.sy(bx, by, z) - c.sy(ax, ay, z);
+  const hx = c.sx(q[0], q[1]) - c.sx(p[0], p[1]);
+  const hy = c.sy(q[0], q[1], q[2]) - c.sy(p[0], p[1], p[2]);
+  const hl = Math.hypot(hx, hy);
+  const across = hl > 1e-9 ? Math.abs(ex * hy - ey * hx) / hl : Math.hypot(ex, ey);
+  return Math.max(1, Math.round(across / c.gap(ROOF_HATCH_MM)));
+}
+
+/** Whether hatch strokes running from a to b (local 3D points) are long enough on paper to read as strokes. */
+function hatchable(B: Build, a: number[], b: number[]): boolean {
+  const c = B.cam;
+  const len = Math.hypot(c.sx(b[0], b[1]) - c.sx(a[0], a[1]), c.sy(b[0], b[1], b[2]) - c.sy(a[0], a[1], a[2]));
+  return shows(c, LOD.roofHatch, len / c.s);
 }
 
 /** Outline of a decorated gable across the end wall, from v = -hw to v = +hw, as [v, z] pairs. */
@@ -151,10 +169,13 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
 
   if (S.hatch) {
     for (const s of [0, 1]) {
+      const p = at(0, sv[s] * (hw + sides[s]), eaveZ(s));
+      const q = at(0, 0, Hr);
+      if (!hatchable(B, p, q)) continue;
       const [x0, y0] = C(0, s);
       const [x1, y1] = C(1, s);
       const span = ue[0] + ue[1];
-      const count = strokes(B, x0, y0, x1, y1, eaveZ(s));
+      const count = strokes(B, x0, y0, x1, y1, eaveZ(s), p, q);
       const step = span / count;
       const outer = hw + sides[s];
       for (let t = step / 2; t < span; t += step) {
@@ -169,9 +190,12 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
       const hip = ends[k] === 'hip';
       const reach = hip ? hw + S.o : d[k];
       const z0 = hip ? He - S.o * tan : He + (hw - d[k]) * tan;
+      const p = at(sk[k] * ue[k], 0, z0);
+      const q = at(sk[k] * (ue[k] - reach), 0, z0 + reach * tan);
+      if (!hatchable(B, p, q)) continue;
       const [x0, y0] = at(sk[k] * ue[k], -reach, z0);
       const [x1, y1] = at(sk[k] * ue[k], reach, z0);
-      const count = strokes(B, x0, y0, x1, y1, z0);
+      const count = strokes(B, x0, y0, x1, y1, z0, p, q);
       const step = (2 * reach) / count;
       for (let t = step / 2; t < 2 * reach; t += step) {
         const v = -reach + t;
@@ -264,8 +288,8 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
       const len = Math.hypot(ex, ey);
       // Outward normal (to the right of a counter-clockwise edge) faces the viewer?
       const front = ey * upx - ex * upy < 0;
-      if (B.set.roofHatch && front) {
-        const count = strokes(B, A[0], A[1], Bv[0], Bv[1], He);
+      if (B.set.roofHatch && front && hatchable(B, [A[0], A[1], He], [A2[0], A2[1], Ht])) {
+        const count = strokes(B, A[0], A[1], Bv[0], Bv[1], He, [A[0], A[1], He], A2);
         for (let k = 0; k < count; k++) {
           const t = (k + 0.5) / count;
           out.lines.push({ pen, layer: 'roofHatch', pts: [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht] });
@@ -296,7 +320,7 @@ export function parapet(B: Build, rings: { pts: number[]; seam: Uint8Array; part
 
 function parapetLines(B: Build, rings: { pts: number[]; seam: Uint8Array; party?: Float32Array }[], z: number, out: Solid): void {
   const s = B.cam.s;
-  if (B.cam.lod < 0.4) return;
+  if (!shows(B.cam, LOD.parapet)) return;
   const d = Math.min(1.2, Math.max(0.4, 0.6 / s));
   for (const r of rings) {
     const skip = (i: number) => !!(r.seam[i] || (r.party && r.party[i] > 0));
@@ -338,8 +362,8 @@ export function shedRoof(B: Build, rect: Rect, He: number, tan: number, out: Sol
   poly(out.lines, ROOFS, [lo0, lo1, hi1, hi0], true);
   poly(out.lines, LINEWORK, [at(-a, b, He), hi0]);
   poly(out.lines, LINEWORK, [at(a, b, He), hi1]);
-  if (B.set.roofHatch) {
-    const count = strokes(B, lo0[0], lo0[1], lo1[0], lo1[1], He);
+  if (B.set.roofHatch && hatchable(B, at(0, -b, He), at(0, b, Hh))) {
+    const count = strokes(B, lo0[0], lo0[1], lo1[0], lo1[1], He, at(0, -b, He), at(0, b, Hh));
     for (let k = 0; k < count; k++) {
       const u = -a + ((k + 0.5) / count) * L;
       out.lines.push({ pen: ROOFS, layer: 'roofHatch', pts: [...at(u, -b, He), ...at(u, b, Hh)] });
