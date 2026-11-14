@@ -41,6 +41,14 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <a href="https://maplibre.org" target="_blank" rel="noopener">
               MapLibre
             </a>
+            . Inspired by{' '}
+            <a href="https://plotropolis.app/" target="_blank" rel="noopener">
+              Plotropolis
+            </a>{' '}
+            and{' '}
+            <a href="https://roughmaps.pages.dev/" target="_blank" rel="noopener">
+              roughMaps
+            </a>
             .
           </p>
           <a className="readout shrink-0 text-[11px]" href="https://isometrictown.com">
