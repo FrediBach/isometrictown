@@ -9,6 +9,7 @@ import { LINEWORK, ROOFS, WATER } from './settings';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
+import { walk } from './streets';
 
 /**
  * Things that belong to particular places: parasols on beaches, tents at campsites, swings
@@ -569,6 +570,60 @@ export function peaks(B: Build, town: Town): Extra {
           for (let i = 0; i < l.length; i += 2) pts.push(l[i], l[i + 1], d);
           paper.sheet(LINEWORK, pts);
         }
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------- People
+
+/** A few people standing about on squares, pedestrian streets and beaches. */
+export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const { cam, set } = B;
+  if (cam.s < 0.6) return { solids: [], draw: () => {} };
+  const spots: { pts: number[]; area: number; chance: number }[] = [];
+  for (const sq of town.plazas) spots.push({ pts: sq[0].pts, area: Math.abs(ringArea(sq[0].pts)), chance: 0.1 });
+  for (const c of town.cover) if (c.cls === 'beach') spots.push({ pts: c.shape[0].pts, area: Math.abs(ringArea(c.shape[0].pts)), chance: 0.05 });
+  const figures: [number, number, number][] = [];
+  for (const sp of spots) {
+    if (sp.area < 150 || sp.area > 60000) continue;
+    const { rect: r } = bestRect(sp.pts);
+    if (!r) continue;
+    grid(B, r, 4, 790, (x, y, h) => {
+      if (h(0) > sp.chance || !pointInRing(x, y, sp.pts)) return;
+      if (onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) return;
+      figures.push([x, y, h(1)]);
+    });
+  }
+  // Pedestrian streets.
+  for (const w of town.ways) {
+    if (w.kind !== 'path' || w.sub !== 'pedestrian') continue;
+    walk(w.pts, 2, 3.5, 2, (x, y, ux, uy) => {
+      const [k0, k1] = B.key(x, y);
+      const h = (k: number) => hash(k0, k1, set.seed, 795 + k);
+      if (h(0) > 0.3) return;
+      const o = (h(1) - 0.5) * 3;
+      const px = x - uy * o;
+      const py = y + ux * o;
+      if (!onMask(paper, M.foot, px, py)) figures.push([px, py, h(2)]);
+    });
+  }
+  return {
+    solids: [],
+    draw: (paper) => {
+      for (const [x, y, v] of figures) {
+        const H = 1.55 + v * 0.3;
+        const [dx, dy] = [cam.cb * 0.14, -cam.sb * 0.14];
+        // Legs, body and a round head.
+        paper.line3(LINEWORK, [x - dx, y - dy, 0, x, y, H * 0.5, x + dx, y + dy, 0]);
+        paper.line3(LINEWORK, [x, y, H * 0.5, x, y, H * 0.85]);
+        const hx = cam.sx(x, y);
+        const hy = cam.sy(x, y, H * 0.93);
+        const d = cam.depth(x, y, H);
+        const R = 0.11 * cam.s;
+        const head: number[] = [];
+        for (let q = 0; q <= 8; q++) head.push(hx + Math.cos((q / 8) * Math.PI * 2) * R, hy + Math.sin((q / 8) * Math.PI * 2) * R, d);
+        paper.sheet(LINEWORK, head);
       }
     },
   };

@@ -446,6 +446,108 @@ export function platforms(B: Build, town: Town): Extra {
   return { solids, draw: () => {} };
 }
 
+// ---------------------------------------------------------------- Sailing
+
+/**
+ * Sailing boats out on open water, well clear of the shore. They all lean to the same
+ * wind, which is the seed's.
+ */
+export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  const { cam, set } = B;
+  if (!set.water || cam.s < 0.15 || !town.water.length) return { solids, draw: () => {} };
+  const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y) && !onMask(paper, M.road, x, y);
+  const wind = hash(set.seed, 7, 0, 470) * Math.PI * 2;
+  const [x0, y0, x1, y1] = cam.region(0);
+  const step = 70;
+  for (let i = Math.floor(x0 / step); i <= Math.ceil(x1 / step); i++)
+    for (let j = Math.floor(y0 / step); j <= Math.ceil(y1 / step); j++) {
+      const [k0, k1] = B.key(i * step, j * step);
+      const h = (k: number) => hash(k0, k1, set.seed, 480 + k);
+      if (h(0) > 0.2) continue;
+      const x = (i + 0.2 + 0.6 * h(1)) * step;
+      const y = (j + 0.2 + 0.6 * h(2)) * step;
+      // Open water all round.
+      if (![0, 1, 2, 3, 4, 5, 6, 7].every((q) => water(x + Math.cos(q) * 22, y + Math.sin(q) * 22)) || !water(x, y)) continue;
+      // Heading across the wind, either way.
+      const head = wind + (h(3) < 0.5 ? 1 : -1) * (Math.PI / 2 + (h(4) - 0.5) * 0.8);
+      const ux = Math.cos(head);
+      const uy = Math.sin(head);
+      const len = 6 + h(5) * 4;
+      const s = boat(B, x, y, ux, uy, len, len * 0.33);
+      // Mast, mainsail and jib, all bellied out to leeward.
+      const lee = Math.sign(Math.sin(wind - head)) || 1;
+      const mx = x + ux * len * 0.1;
+      const my = y + uy * len * 0.1;
+      const top = len * 1.3;
+      const sx = -uy * lee * len * 0.12;
+      const sy = ux * lee * len * 0.12;
+      const main = [mx, my, top, mx, my, 1.4, mx - ux * len * 0.45 + sx, my - uy * len * 0.45 + sy, 1.4];
+      const jib = [mx, my, top * 0.85, mx + ux * len * 0.45, my + uy * len * 0.45, 0.9, mx + sx * 0.6, my + sy * 0.6, 1.2];
+      s.faces.push([main], [jib]);
+      s.lines.push({ pen: LINEWORK, pts: main, closed: true }, { pen: LINEWORK, pts: jib, closed: true });
+      solids.push(s);
+    }
+  return { solids, draw: () => {} };
+}
+
+// ---------------------------------------------------------------- Level crossings
+
+/** Where a road crosses a railway on the level: barriers on both sides and a crossbuck sign. */
+export function crossings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const lines: { pen: number; pts: number[] }[] = [];
+  if (!B.set.rails || B.cam.s < 0.35) return { solids: [], draw: () => {} };
+  const rails = town.ways.filter((w) => w.kind === 'rail' && !w.bridge && w.sub !== 'tram' && w.sub !== 'subway');
+  if (!rails.length) return { solids: [], draw: () => {} };
+  const rs: number[] = [];
+  for (const w of rails) for (let i = 0; i + 3 < w.pts.length; i += 2) rs.push(w.pts[i], w.pts[i + 1], w.pts[i + 2], w.pts[i + 3]);
+  const done: [number, number][] = [];
+  for (const w of town.ways) {
+    if (w.kind !== 'road' || w.bridge || w.cls === 'motorway' || w.cls === 'trunk') continue;
+    const p = w.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const [ax, ay, bx, by] = [p[i], p[i + 1], p[i + 2], p[i + 3]];
+      for (let k = 0; k < rs.length; k += 4) {
+        const [cx, cy, dx, dy] = [rs[k], rs[k + 1], rs[k + 2], rs[k + 3]];
+        const den = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+        if (Math.abs(den) < 1e-9) continue;
+        const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / den;
+        const u = ((cx - ax) * (by - ay) - (cy - ay) * (bx - ax)) / den;
+        // Level crossings share a node, so both segments may just end there: allow for rounding.
+        if (t < -0.02 || t > 1.02 || u < -0.02 || u > 1.02) continue;
+        const x = ax + (bx - ax) * t;
+        const y = ay + (by - ay) * t;
+        // Several tracks at one crossing get one set of barriers.
+        if (done.some(([qx, qy]) => Math.hypot(qx - x, qy - y) < 15)) continue;
+        done.push([x, y]);
+        const l = Math.hypot(bx - ax, by - ay);
+        const ux = (bx - ax) / l;
+        const uy = (by - ay) / l;
+        const hw = w.width / 2;
+        for (const side of [1, -1]) {
+          // The barrier stands at the kerb before the tracks, its boom lowered across its half of the road.
+          const back = 5.5;
+          const px = x - ux * side * back - uy * side * (hw + 0.6);
+          const py = y - uy * side * back + ux * side * (hw + 0.6);
+          if (onMask(paper, M.foot, px, py)) continue;
+          lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, 1.3] });
+          const ex = px + uy * side * (hw + 0.4);
+          const ey = py - ux * side * (hw + 0.4);
+          lines.push({ pen: LINEWORK, pts: [px, py, 1.0, ex, ey, 1.0] });
+          for (let f = 0.1; f < 0.95; f += 0.2) lines.push({ pen: ROOFS, pts: [px + (ex - px) * f, py + (ey - py) * f, 1.0, px + (ex - px) * (f + 0.1), py + (ey - py) * (f + 0.1), 1.0] });
+          // The crossbuck on its own post.
+          const sx = px - ux * side * 1.2;
+          const sy = py - uy * side * 1.2;
+          lines.push({ pen: LINEWORK, pts: [sx, sy, 0, sx, sy, 2.6] });
+          const a = 0.5;
+          lines.push({ pen: LINEWORK, pts: [sx - uy * a, sy + ux * a, 2.1, sx + uy * a, sy - ux * a, 2.9] }, { pen: LINEWORK, pts: [sx - uy * a, sy + ux * a, 2.9, sx + uy * a, sy - ux * a, 2.1] });
+        }
+      }
+    }
+  }
+  return { solids: [], draw: (paper) => lines.forEach((l) => paper.line3(l.pen, l.pts)) };
+}
+
 // ---------------------------------------------------------------- Tunnel portals
 
 /** Where a road or railway goes underground: a portal wall with an arch, the mouth hatched dark. */
@@ -636,6 +738,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
     for (const k of [key(w.pts[0], w.pts[1]), key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])]) degree.set(k, (degree.get(k) ?? 0) + 1);
   }
   const junction = (x: number, y: number) => (degree.get(key(x, y)) ?? 0) >= 3;
+  const zebras: [number, number][] = [];
   const test: Test = (x, y, d) => paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
     if (w.kind !== 'road' || !MARKED.has(w.cls) || w.width < 10) continue;
@@ -681,9 +784,11 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       if (!isJ || L < 16) continue;
       const [x, y, ux, uy] = at(p, cum, t);
       const [k0, k1] = B.key(x, y);
-      if (hash(k0, k1, B.set.seed, 430) > 0.6) continue;
+      // One zebra per spot, even where a road is split into pieces or carriageways.
+      if (hash(k0, k1, B.set.seed, 430) > 0.6 || zebras.some(([zx, zy]) => Math.hypot(zx - x, zy - y) < 14)) continue;
+      zebras.push([x, y]);
       // One stroke per stripe, so the crossing stays light on paper.
-      for (let v = -hw + 1.0; v <= hw - 1.0; v += 1.1) {
+      for (let v = -hw + 1.0; v <= hw - 1.0; v += 1.3) {
         const [ax, ay, bx, by] = place(x, y, ux, uy, [
           [-1.5, v],
           [1.5, v],
