@@ -185,7 +185,15 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   // Depth
   onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
-  for (const s of solids) for (const f of s.faces) paper.fillFace(f, s.pick);
+  // Faces are numbered as they go in, so lines drawn on one can show only where it does.
+  const faceNo = new Map<number[][], number>();
+  for (const s of solids) {
+    for (const f of s.faces) {
+      const n = faceNo.size;
+      faceNo.set(f, n);
+      paper.fillFace(f, s.pick, n);
+    }
+  }
   const sprites = trees.map((t) => treeSprite(B, paper, t));
   for (const sp of sprites) paper.fillSprite(sp.ring, sp.depth);
   paper.finishDepth();
@@ -262,7 +270,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     for (const l of s.lines) {
       const layer = s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings');
       paper.layer = s.part ? `${layer}:${s.part}` : layer;
-      paper.line3(layerPen(set, layer, l.pen), l.pts, paper.seen, l.closed);
+      const on = l.on && faceNo.get(l.on);
+      paper.line3(layerPen(set, layer, l.pen), l.pts, on === undefined ? paper.seen : paper.onFace(on), l.closed);
     }
   }
   paper.layer = '';

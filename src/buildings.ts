@@ -11,7 +11,8 @@ import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './sha
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
-export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId };
+/** A 3D polyline. `on` is the face it is drawn on (one of its solid's `faces`), if it must show only where that face does. */
+export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][] };
 /** Something solid: faces for the depth buffer, lines to draw, and outlines that cast shadows. */
 export type Solid = {
   layer?: LayerId;

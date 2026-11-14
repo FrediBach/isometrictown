@@ -68,6 +68,8 @@ export class Paper {
   readonly z: Float32Array;
   /** Which pickable object is nearest at each pixel, or -1. */
   readonly ids: Int32Array;
+  /** Which face is nearest at each pixel (the number `fillFace` was given), or -1. */
+  readonly owner: Int32Array;
   far: Float32Array;
   /** Pen override for the current feature's line pass. */
   penOverride: number | undefined;
@@ -92,6 +94,7 @@ export class Paper {
     this.H = Math.ceil(h * this.ppm);
     this.z = new Float32Array(this.W * this.H).fill(Infinity);
     this.ids = new Int32Array(this.W * this.H).fill(-1);
+    this.owner = new Int32Array(this.W * this.H).fill(-1);
     this.far = this.z;
     this.seen = (x, y, d) => d <= this.far[this.index(x, y)] + EPS;
     this.minRun = Math.max(MIN_RUN, cam.nib * 2);
@@ -124,8 +127,8 @@ export class Paper {
     return (y - this.y0) * this.ppm;
   }
 
-  /** Rasterise a planar 3D polygon (flat x,y,z rings, the first is the outline) into the depth buffer, tagged with a pick id. */
-  fillFace(rings: number[][], id = -1): void {
+  /** Rasterise a planar 3D polygon (flat x,y,z rings, the first is the outline) into the depth buffer, tagged with a pick id and a face number. */
+  fillFace(rings: number[][], id = -1, face = -1): void {
     const cam = this.cam;
     const outer = rings[0];
     const m = outer.length / 3;
@@ -166,15 +169,19 @@ export class Paper {
     const a = (ad * by - bd * ay) / det;
     const b = (ax * bd - bx * ad) / det;
     const c = d0 - a * x0 - b * y0;
-    const { z, ids, W } = this;
+    const { z, ids, owner, W } = this;
     scan(P, W, this.H, (y, xa, xb) => {
       const row = y * W;
       const base = b * (y + 0.5) + c;
       for (let x = xa; x <= xb; x++) {
         const d = a * (x + 0.5) + base;
-        if (d < z[row + x]) {
+        const prev = z[row + x];
+        if (d < prev) {
           z[row + x] = d;
           ids[row + x] = id;
+          // Faces that all but coincide (overlapping parts of one roof) would trade pixels back and
+          // forth; the first keeps them, so only one face's hatching shows there.
+          if (d < prev - EPS) owner[row + x] = face;
         }
       }
     });
@@ -183,13 +190,14 @@ export class Paper {
   /** Rasterise a flat sprite (sheet mm ring) at one depth. */
   fillSprite(ring: number[], depth: number): void {
     const P = ring.map((v, i) => (i % 2 ? this.py(v) : this.px(v)));
-    const { z, ids, W } = this;
+    const { z, ids, owner, W } = this;
     scan([P], W, this.H, (y, xa, xb) => {
       const row = y * W;
       for (let x = xa; x <= xb; x++) {
         if (depth < z[row + x]) {
           z[row + x] = depth;
           ids[row + x] = -1;
+          owner[row + x] = -1;
         }
       }
     });
@@ -416,6 +424,29 @@ export class Paper {
       this.seg(pen, ax, ay, cam.groundDepth(ay), bx, by, cam.groundDepth(by), test);
       this.end();
     }
+  }
+
+  /**
+   * A visibility test for lines drawn on one face, such as roof hatching: seen, and that face
+   * (or a pixel beside it) is the nearest there. Two roofs that nearly coincide would otherwise
+   * both show their hatching through each other, in a dark crossed patch.
+   */
+  onFace(face: number): Test {
+    const { owner, W, H } = this;
+    return (x, y, d) => {
+      if (!this.seen(x, y, d)) return false;
+      const px = Math.floor((x - this.x0) * this.ppm);
+      const py = Math.floor((y - this.y0) * this.ppm);
+      for (let dy = -1; dy <= 1; dy++) {
+        const yy = py + dy;
+        if (yy < 0 || yy >= H) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = px + dx;
+          if (xx >= 0 && xx < W && owner[yy * W + xx] === face) return true;
+        }
+      }
+      return false;
+    };
   }
 
   /** Draw marks meant to be small, such as lettering, without dropping their short strokes. */

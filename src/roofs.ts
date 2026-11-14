@@ -43,20 +43,24 @@ function poly(out: Line3[], pen: number, pts: number[][], closed = false): void 
   if (flat.length >= 6) out.push({ pen, pts: flat, closed });
 }
 
-function face(out: Solid, pts: number[][]): void {
+/** Add a face from corner points; returns it, for lines that must show only where it does, or undefined if it is degenerate. */
+function face(out: Solid, pts: number[][]): number[][] | undefined {
   const flat: number[] = [];
   for (const p of pts) {
     const n = flat.length;
     if (n && Math.abs(flat[n - 3] - p[0]) < 1e-6 && Math.abs(flat[n - 2] - p[1]) < 1e-6 && Math.abs(flat[n - 1] - p[2]) < 1e-6) continue;
     flat.push(p[0], p[1], p[2]);
   }
-  if (flat.length >= 9) out.faces.push([flat]);
+  if (flat.length < 9) return undefined;
+  const f = [flat];
+  out.faces.push(f);
+  return f;
 }
 
 /**
  * How many hatch strokes fit along an eave from a to b (at height z) on paper. The strokes run
- * like p to q (local 3D points), and the gap is kept square to them, so strokes that cross the
- * eave at a slant on paper don't crowd into a solid tone.
+ * like p to q (local 3D points), and the gap is kept square to them and never under the set
+ * spacing, so no roof face is hatched darker than another.
  */
 function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number, p: number[], q: number[]): number {
   const c = B.cam;
@@ -66,7 +70,8 @@ function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: nu
   const hy = c.sy(q[0], q[1], q[2]) - c.sy(p[0], p[1], p[2]);
   const hl = Math.hypot(hx, hy);
   const across = hl > 1e-9 ? Math.abs(ex * hy - ey * hx) / hl : Math.hypot(ex, ey);
-  return Math.max(1, Math.round(across / c.gap(ROOF_HATCH_MM)));
+  // Rounded down: a short slope rounded up would be hatched closer than the rest and read darker.
+  return Math.max(1, Math.floor(across / c.gap(ROOF_HATCH_MM)));
 }
 
 /** Whether hatch strokes running from a to b (local 3D points) are long enough on paper to read as strokes. */
@@ -143,9 +148,10 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
     return at(sk[k] * ue[k], sv[s] * d[k], He + (hw - d[k]) * tan);
   };
 
-  for (const s of [0, 1]) face(out, [C(0, s), C(1, s), E(1, s), R[1], R[0], E(0, s)]);
+  const slope = [0, 1].map((s) => face(out, [C(0, s), C(1, s), E(1, s), R[1], R[0], E(0, s)]));
+  const hipFace: (number[][] | undefined)[] = [undefined, undefined];
   for (const k of [0, 1]) {
-    if (d[k] > 0) face(out, [E(k, 0), E(k, 1), R[k]]);
+    if (d[k] > 0) hipFace[k] = face(out, [E(k, 0), E(k, 1), R[k]]);
     const e = ends[k];
     if (e === 'hip') continue;
     const u = sk[k] * (L / 2);
@@ -182,7 +188,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
         const u = -ue[0] + t;
         const inner = Math.max(0, d[0] - (u + ue[0]), d[1] - (ue[1] - u));
         if (outer - inner < 0.08) continue;
-        out.lines.push({ pen, layer: 'roofHatch', pts: [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)] });
+        out.lines.push({ pen, layer: 'roofHatch', on: slope[s], pts: [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)] });
       }
     }
     for (const k of [0, 1]) {
@@ -201,7 +207,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
         const v = -reach + t;
         const depth = reach - Math.abs(v);
         if (depth < 0.08) continue;
-        out.lines.push({ pen, layer: 'roofHatch', pts: [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)] });
+        out.lines.push({ pen, layer: 'roofHatch', on: hipFace[k], pts: [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)] });
       }
     }
   }
@@ -272,7 +278,7 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
       const Bv = [p[j * 2], p[j * 2 + 1], He];
       const A2 = [q[i * 2], q[i * 2 + 1], Ht];
       const B2 = [q[j * 2], q[j * 2 + 1], Ht];
-      face(out, [A, Bv, B2, A2]);
+      const side = face(out, [A, Bv, B2, A2]);
       if (r.seam[i]) continue;
       poly(out.lines, flat(i) ? LINEWORK : pen, [A2, B2]);
       if (flat(i)) continue;
@@ -292,7 +298,7 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
         const count = strokes(B, A[0], A[1], Bv[0], Bv[1], He, [A[0], A[1], He], A2);
         for (let k = 0; k < count; k++) {
           const t = (k + 0.5) / count;
-          out.lines.push({ pen, layer: 'roofHatch', pts: [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht] });
+          out.lines.push({ pen, layer: 'roofHatch', on: side, pts: [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht] });
         }
       }
       if (dormers && front && tan > 1.5 && ri === 0 && len >= 3.4) {
@@ -355,7 +361,7 @@ export function shedRoof(B: Build, rect: Rect, He: number, tan: number, out: Sol
   const lo1 = at(a, -b, He);
   const hi0 = at(-a, b, Hh);
   const hi1 = at(a, b, Hh);
-  face(out, [lo0, lo1, hi1, hi0]);
+  const top = face(out, [lo0, lo1, hi1, hi0]);
   face(out, [at(-a, b, He), at(a, b, He), hi1, hi0]);
   face(out, [lo0, at(-a, b, He), hi0]);
   face(out, [lo1, at(a, b, He), hi1]);
@@ -366,7 +372,7 @@ export function shedRoof(B: Build, rect: Rect, He: number, tan: number, out: Sol
     const count = strokes(B, lo0[0], lo0[1], lo1[0], lo1[1], He, at(0, -b, He), at(0, b, Hh));
     for (let k = 0; k < count; k++) {
       const u = -a + ((k + 0.5) / count) * L;
-      out.lines.push({ pen: ROOFS, layer: 'roofHatch', pts: [...at(u, -b, He), ...at(u, b, Hh)] });
+      out.lines.push({ pen: ROOFS, layer: 'roofHatch', on: top, pts: [...at(u, -b, He), ...at(u, b, Hh)] });
     }
   }
 }

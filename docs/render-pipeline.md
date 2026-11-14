@@ -33,7 +33,8 @@ type Build = { cam; set; style; sun; left; key };
 
 The drawing surface over `cam.rect`, at up to 7 px/mm (capped at ~7 M pixels).
 
-- **Depth**: `fillFace(rings3d)` rasterises planar 3D polygons; `fillSprite(ring, depth)` a flat sprite. `finishDepth()` builds a 3×3 max buffer (`far`) used for line visibility. Lines are only traced after this.
+- **Depth**: `fillFace(rings3d, pick, face)` rasterises planar 3D polygons and records which face is nearest at each pixel (`owner`); where two faces all but coincide, the first keeps the pixel. A line given `on: face` in its `Line3` (roof hatching does this) is traced with `paper.onFace()`, so it shows only where its own face does, and overlapping parts of one roof don't show two hatchings at once.
+  `fillSprite(ring, depth)` rasterises a flat sprite. `finishDepth()` builds a 3×3 max buffer (`far`) used for line visibility. Lines are only traced after this.
 - **Masks**: `paper.mask()` returns a `Uint8Array` the size of the raster. `fillMask(mask, rings)` fills ground rings (local metres, z = 0); `fillMask3` fills 3D polygons. Read with `paper.on(mask, sx, sy)` (sheet mm) or `onMask(paper, mask, x, y)` from `infra.ts` (local metres).
 - **Lines**: `line3(pen, pts3d, test?, closed?)` projects and traces a 3D polyline, keeping only the parts that pass `test` (default `paper.seen`: not hidden behind depth). `sheet(pen, pts, test)` for polylines already on the sheet with depth; `hatchGround(pen, angle, spacing, keep)` for parallel hatching on the ground.
 - **Output**: `paper.pens[pen]` is an array of sheet-mm polylines. Strokes shorter than two pen widths are dropped as they finish; draw marks meant to be that small inside `paper.fine(() => …)`.
