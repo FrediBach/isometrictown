@@ -2,7 +2,8 @@ import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
 import { allotmentSheds, drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
-import { airfields, ferries, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
+import { beaches, campsites, farmyards, playgrounds, ports, quarries } from './sites';
+import { airfields, bridges, ferries, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
 import type { Frame } from './geo';
 import type { StageProgress } from './app/stages';
@@ -43,7 +44,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       return [Math.round(X), Math.round(Y)];
     },
   };
-  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask() };
+  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
   onStage({ stage: 'ground' });
@@ -104,7 +105,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const bays = parking(B, paper, town.ways, M);
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars);
-  const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), portals(B, town), airfields(B, paper, town, M)];
+  const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), bridges(B, paper, town, M), portals(B, town), airfields(B, paper, town, M)];
+  if (set.ground) extras.push(beaches(B, paper, town, M), campsites(B, paper, town, M), playgrounds(B, paper, town, M), farmyards(B, paper, town, M), quarries(B, paper, town, M));
+  if (set.water) extras.push(ports(B, paper, town, M));
   for (const e of extras) solids.push(...e.solids);
   if (G) solids.push(...allotmentSheds(B, paper, G, M));
   const fences = G ? plots(B, paper, town, G, M) : null;
@@ -153,7 +156,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   onStage({ stage: 'lines', note: 'Ground and streets' });
   if (set.water) {
     waves(paper, M, set.seed);
-    outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y));
+    outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.under, x, y));
     pools(paper, M, town.pools);
   }
   if (set.parks) {
@@ -190,7 +193,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 function waves(paper: Paper, M: Masks, seed: number): void {
   const rnd = sequence(seed * 7919 + 13);
   const cam = paper.cam;
-  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && paper.seen(x, y, d);
+  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && paper.seen(x, y, d);
   for (let y = paper.y0 + 0.8; y < paper.y1; y += 1.7 + rnd() * 0.5) {
     let x = paper.x0 - rnd() * 8;
     while (x < paper.x1) {
@@ -248,7 +251,7 @@ function railings(paper: Paper, ways: Town['ways']): void {
   const z = 1.1;
   for (const w of ways) {
     if (!w.bridge || w.kind === 'rail') continue;
-    const hw = Math.max(1.2, w.width / 2);
+    const hw = w.kind === 'path' ? 2 : Math.max(1.2, w.width / 2);
     const p = w.pts;
     for (const side of [-1, 1]) {
       const pts: number[] = [];

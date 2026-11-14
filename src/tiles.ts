@@ -55,6 +55,8 @@ export type Town = {
 const ZOOM = 14;
 /** OpenMapTiles' render_height for buildings with no height or levels tagged. */
 const DEFAULT_H = 5;
+/** Extra margin (m) for buildings around the area drawn; more than the classifier's density radius. */
+const BUILDING_PAD = 60;
 const TILEJSON = 'https://tiles.openfreemap.org/planet';
 const MAX_TILES = 36;
 const MAX_CACHED = 64;
@@ -74,11 +76,11 @@ const PATHS = new Set(['path', 'track', 'bridleway', 'cycleway', 'footway', 'ste
 const GREEN_LANDUSE = new Set(['cemetery', 'pitch', 'playground', 'grass', 'park', 'garden', 'recreation_ground', 'village_green']);
 const GREEN_COVER = new Set(['grass', 'wetland']);
 /** Land uses that say something about the buildings standing on them. */
-const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retail', 'railway', 'school', 'university', 'college', 'hospital', 'military', 'garages', 'farmyard', 'cemetery', 'pitch', 'track', 'stadium']);
+const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retail', 'railway', 'school', 'university', 'college', 'hospital', 'military', 'garages', 'cemetery', 'pitch', 'track', 'stadium', 'playground', 'quarry']);
 /** Shops, cafés and the like: a street of them gets shop fronts. */
 export const SHOP_POIS = new Set(['shop', 'grocery', 'clothing_store', 'bakery', 'cafe', 'restaurant', 'bar', 'fast_food', 'beer', 'ice_cream', 'alcohol_shop', 'jewelry', 'bank', 'pharmacy', 'hairdresser', 'florist', 'butcher', 'optician', 'books', 'gift', 'shoes', 'music', 'mobile_phone', 'laundry']);
 /** Points of interest that tell us what a building is, or what stands nearby. */
-const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch', 'aerialway', 'harbor', 'fuel', ...SHOP_POIS]);
+const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch', 'aerialway', 'harbor', 'fuel', 'campsite', ...SHOP_POIS]);
 const AERO_WIDTH: Record<string, number> = { runway: 45, taxiway: 18 };
 const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, drain: 1.6, ditch: 1.4 };
 
@@ -307,7 +309,7 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     if (f.type === 2 && cls === 'ferry') return lines((pts) => town.ferries.push(pts));
     if (cls === 'ferry' || cls === 'aerialway') return;
     const tunnel = p.brunnel === 'tunnel';
-    const bridge = p.brunnel === 'bridge' || undefined;
+    const bridge = p.brunnel === 'bridge' || cls === 'pier' || undefined;
     if (f.type === 3) {
       if (cls === 'bridge' || tunnel) return;
       for (const s of polygons(f, ext)) town.plazas.push(scaleShape(s, ext));
@@ -318,13 +320,14 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     let width = 0;
     // Trams and light rail come as 'transit'; monorails would need pillars, so they're left out.
     if (cls === 'rail' || (cls === 'transit' && p.subclass !== 'monorail')) kind = 'rail';
+    else if (cls === 'pier') kind = 'path';
     else if (PATHS.has(cls) || PATHS.has(String(p.subclass))) kind = 'path';
     else if (ROAD_WIDTH[cls]) {
       kind = 'road';
       width = ROAD_WIDTH[cls];
       if (p.ramp) width *= 0.7;
     } else return;
-    const sub = p.subclass ? String(p.subclass) : undefined;
+    const sub = cls === 'pier' ? 'pier' : p.subclass ? String(p.subclass) : undefined;
     const service = p.service ? String(p.service) : undefined;
     const unpaved = p.surface === 'unpaved' || undefined;
     lines((pts) => (tunnel ? town.tunnels : town.ways).push({ pts, kind, width, cls, sub, service, unpaved, bridge }));
@@ -335,12 +338,13 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
 /** Land cover that gets its own ground texture, by OpenMapTiles class and subclass. */
 function coverKind(cls: string, sub: string): string | null {
-  if (cls === 'farmland') return sub === 'vineyard' ? 'vineyard' : sub === 'orchard' ? 'orchard' : 'farmland';
+  // Farmyards come as farmland of subclass 'farm': yards round the barns, not ploughed fields.
+  if (cls === 'farmland') return sub === 'vineyard' ? 'vineyard' : sub === 'orchard' ? 'orchard' : sub === 'farm' ? 'farmyard' : 'farmland';
   if (cls === 'grass' && (sub === 'meadow' || sub === 'grassland' || sub === 'heath' || sub === 'fell')) return 'meadow';
   if (cls === 'grass' && (sub === 'scrub' || sub === 'shrubbery')) return 'scrub';
   if (cls === 'grass' && sub === 'allotments') return 'allotments';
   if (cls === 'wetland') return 'wetland';
-  if (cls === 'sand') return 'sand';
+  if (cls === 'sand') return sub === 'beach' ? 'beach' : 'sand';
   if (cls === 'rock') return 'rock';
   if (cls === 'ice') return 'ice';
   return null;
@@ -429,7 +433,7 @@ function clipLine(line: { x: number; y: number }[], ext: number): { x: number; y
 function assemble(tiles: Town[], frame: Frame, box: [number, number, number, number]): Town {
   const town = empty();
   const [bx0, by0, bx1, by1] = box;
-  const local = (pts: number[]): number[] | null => {
+  const local = (pts: number[], pad = 0): number[] | null => {
     const out = new Array<number>(pts.length);
     let minX = Infinity;
     let minY = Infinity;
@@ -445,10 +449,10 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
     }
-    return maxX < bx0 || minX > bx1 || maxY < by0 || minY > by1 ? null : out;
+    return maxX < bx0 - pad || minX > bx1 + pad || maxY < by0 - pad || minY > by1 + pad ? null : out;
   };
-  const shape = (s: Shape): Shape | null => {
-    const outer = local(s[0].pts);
+  const shape = (s: Shape, pad = 0): Shape | null => {
+    const outer = local(s[0].pts, pad);
     if (!outer) return null;
     const rings: Shape = [];
     for (let k = 0; k < s.length; k++) {
@@ -459,7 +463,9 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   };
   for (const t of tiles) {
     for (const b of t.buildings) {
-      const s = shape(b.shape);
+      // A wider margin than the rest, so every building in view has all its neighbours
+      // for the density that sets guessed heights, and panning doesn't change them.
+      const s = shape(b.shape, BUILDING_PAD);
       if (s) town.buildings.push({ shape: s, h: b.h, min: b.min, guess: b.guess });
     }
     for (const key of ['landuse', 'cover'] as const) {

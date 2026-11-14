@@ -5,7 +5,8 @@ import { GREENERY } from './settings';
 
 /** A bush is a low dome sitting on the ground, with no trunk. */
 export type Tree = { x: number; y: number; r: number; h: number; conifer: boolean; bush?: boolean };
-export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool', Uint8Array>;
+/** `under` is the sheet area hidden by the sides and arches of bridges over water. */
+export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under', Uint8Array>;
 
 /**
  * Scatter trees over parks and woods on a grid fixed to the map,

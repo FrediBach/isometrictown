@@ -37,7 +37,9 @@ const ALLOTMENT = 12;
 const ROCK = 13;
 /** Glaciers: crevasses. */
 const ICE = 14;
-const CODES: Record<string, number> = { farmland: FIELD, meadow: MEADOW, wetland: WETLAND, sand: SAND, orchard: ORCHARD, vineyard: VINEYARD, scrub: SCRUB, allotments: ALLOTMENT, rock: ROCK, ice: ICE };
+/** Beaches: sand, stippled more lightly so the parasols on them read. */
+const BEACH = 15;
+const CODES: Record<string, number> = { farmland: FIELD, meadow: MEADOW, wetland: WETLAND, sand: SAND, orchard: ORCHARD, vineyard: VINEYARD, scrub: SCRUB, allotments: ALLOTMENT, rock: ROCK, ice: ICE, beach: BEACH };
 /** Allotment plot size in metres, across and along the rows. */
 const PLOT: [number, number] = [9, 16];
 
@@ -394,7 +396,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
     );
   const passes: [number, number, number[]][] = [];
   if (has.has(MEADOW) || has.has(WETLAND) || G.gardens) passes.push([TUFT_MM, 11, [MEADOW, WETLAND, GARDEN]]);
-  if (has.has(SAND)) passes.push([SAND_MM, 12, [SAND]]);
+  if (has.has(SAND) || has.has(BEACH)) passes.push([SAND_MM, 12, [SAND, BEACH]]);
   if (has.has(ROCK) || has.has(ICE)) passes.push([ROCK_MM, 13, [ROCK, ICE]]);
   const metre = toAbs(1, 0)[0] - toAbs(0, 0)[0];
   const [A0x, A0y] = toAbs(box[0], box[1]);
@@ -431,6 +433,8 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
           if (r(5) < 0.6) mark(LINEWORK, sx + 1.1 * (r(6) - 0.5), sy + 0.8 * (r(7) - 0.5), d, DOT);
         } else if (code === ICE) {
           if (r(3) < 0.55) mark(WATER, sx, sy, d, r(4) < 0.5 ? CREVASSE : CREVASSE.map(([x, y]) => [x * 0.6, y]));
+        } else if (code === BEACH) {
+          if (r(3) < 0.55) mark(LINEWORK, sx, sy, d, DOT);
         } else if (code === SAND) {
           mark(LINEWORK, sx, sy, d, DOT);
           if (r(3) < 0.5) mark(LINEWORK, sx + 0.9 * (r(4) - 0.5), sy + 0.9 * (r(5) - 0.5), d, DOT);

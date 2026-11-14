@@ -18,7 +18,7 @@ export type Extra = { solids: Solid[]; draw: (paper: Paper) => void };
 const none: Extra = { solids: [], draw: () => {} };
 
 /** Cumulative lengths along a polyline. */
-function measure(p: number[]): Float64Array {
+export function measure(p: number[]): Float64Array {
   const n = p.length / 2;
   const cum = new Float64Array(n);
   for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(p[i * 2] - p[i * 2 - 2], p[i * 2 + 1] - p[i * 2 - 1]);
@@ -26,7 +26,7 @@ function measure(p: number[]): Float64Array {
 }
 
 /** Position and direction at distance t along a polyline. */
-function at(p: number[], cum: Float64Array, t: number): [number, number, number, number] {
+export function at(p: number[], cum: Float64Array, t: number): [number, number, number, number] {
   const n = cum.length;
   let i = 1;
   while (i < n - 1 && cum[i] < t) i++;
@@ -38,13 +38,13 @@ function at(p: number[], cum: Float64Array, t: number): [number, number, number,
 }
 
 /** A polygon given in a local frame (a along u, b across it) as a world ring. */
-function place(x: number, y: number, ux: number, uy: number, local: number[][]): number[] {
+export function place(x: number, y: number, ux: number, uy: number, local: number[][]): number[] {
   const vx = -uy;
   const vy = ux;
   return local.flatMap(([a, b]) => [x + ux * a + vx * b, y + uy * a + vy * b]);
 }
 
-function slab(B: Build, out: Solid, ring: number[], z0: number, z1: number, pen = LINEWORK): void {
+export function slab(B: Build, out: Solid, ring: number[], z0: number, z1: number, pen = LINEWORK): void {
   // prism wants counter-clockwise rings.
   const pts = ringArea(ring) < 0 ? reverse(ring) : ring;
   prism(B, [{ pts, seam: new Uint8Array(pts.length / 2) }], z0, z1, { roof: true, windows: false, pen }, out);
@@ -56,7 +56,7 @@ function reverse(ring: number[]): number[] {
   return out;
 }
 
-function rect(a0: number, a1: number, b0: number, b1: number): number[][] {
+export function rect(a0: number, a1: number, b0: number, b1: number): number[][] {
   return [
     [a0, b0],
     [a1, b0],
@@ -66,7 +66,7 @@ function rect(a0: number, a1: number, b0: number, b1: number): number[][] {
 }
 
 /** Is a ground point on a mask? Points are in local metres. */
-function onMask(paper: Paper, mask: Uint8Array, x: number, y: number): boolean {
+export function onMask(paper: Paper, mask: Uint8Array, x: number, y: number): boolean {
   return paper.on(mask, paper.cam.sx(x, y), paper.cam.sy(x, y, 0));
 }
 
@@ -314,6 +314,94 @@ export function roundabouts(town: Town): { islands: Town['green']; centres: [num
     }
   }
   return { islands, centres };
+}
+
+// ---------------------------------------------------------------- Bridges
+
+/** How far below the deck the water is drawn, and the deck's thickness, in metres. */
+const WATER_DROP = 5;
+const DECK = 0.9;
+const BEAM_ROADS = new Set(['motorway', 'trunk', 'primary']);
+
+/**
+ * Bridges over water: the side of the deck facing the viewer, carried on arches (short
+ * bridges) or on piers (long ones). The water sits notionally below the deck, so the arches
+ * hang down over it; waves keep out from behind them.
+ */
+export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  if (B.cam.s < 0.25) return none;
+  const [upx, upy] = B.cam.up;
+  const lines: number[][] = [];
+  for (const w of town.ways) {
+    if (!w.bridge) continue;
+    const p = w.pts;
+    const cum = measure(p);
+    const L = cum[cum.length - 1];
+    const hw = (w.kind === 'path' ? 2 : w.kind === 'rail' ? 2.5 : w.width / 2) + 0.3;
+    // Railways and big roads cross on beams and piers; everything else on masonry arches.
+    const beams = w.kind === 'rail' || BEAM_ROADS.has(w.cls) || w.sub === 'pier';
+    // Runs of the bridge that cross water.
+    const runs: [number, number][] = [];
+    let start = -1;
+    for (let t = 0; t <= L + 1e-6; t += 1) {
+      const [x, y] = at(p, cum, Math.min(t, L));
+      const wet = onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y);
+      if (wet && start < 0) start = t;
+      if ((!wet || t + 1 > L) && start >= 0) {
+        if (t - start >= 6) runs.push([Math.max(0, start - 1), Math.min(L, t + 1)]);
+        start = -1;
+      }
+    }
+    for (const [t0, t1] of runs) {
+      const len = t1 - t0;
+      const [, , mux, muy] = at(p, cum, (t0 + t1) / 2);
+      // The side facing the viewer.
+      const side = -muy * upx + mux * upy < 0 ? 1 : -1;
+      const edge = (t: number, z: number) => {
+        const [x, y, ux, uy] = at(p, cum, t);
+        return [x - uy * hw * side, y + ux * hw * side, z];
+      };
+      const arched = w.sub !== 'pier' && (!beams || len <= 60);
+      const n = Math.max(1, Math.round(len / (arched ? 16 : w.sub === 'pier' ? 4 : 32)));
+      const span = len / n;
+      const pier = arched ? 1.6 : w.sub === 'pier' ? 0.3 : 2.2;
+      const under = (t: number) => {
+        if (!arched) return -DECK - 0.6;
+        const k = Math.min(n - 1, Math.floor((t - t0) / span));
+        const a = t0 + k * span + (k > 0 ? pier / 2 : 0);
+        const b = t0 + (k + 1) * span - (k < n - 1 ? pier / 2 : 0);
+        if (t <= a || t >= b) return -WATER_DROP;
+        const u = Math.sin((Math.PI * (t - a)) / (b - a));
+        return -WATER_DROP + (WATER_DROP - DECK) * Math.pow(u, 0.6);
+      };
+      const top: number[] = [];
+      const soffit: number[] = [];
+      const fascia: number[] = [];
+      for (let t = t0; t <= t1 + 1e-6; t += 0.5) {
+        const tt = Math.min(t, t1);
+        top.push(...edge(tt, 0));
+        fascia.push(...edge(tt, -DECK));
+        soffit.push(...edge(tt, under(tt)));
+      }
+      const back: number[] = [];
+      for (let i = soffit.length - 3; i >= 0; i -= 3) back.push(soffit[i], soffit[i + 1], soffit[i + 2]);
+      paper.fillMask3(M.under, [[...top, ...back]]);
+      lines.push(fascia);
+      if (arched) lines.push(soffit);
+      // Piers standing in the water.
+      for (let k = 1; k < n; k++) {
+        const t = t0 + k * span;
+        for (const d of [-pier / 2, pier / 2]) lines.push([...edge(t + d, arched ? -WATER_DROP : -DECK - 0.6), ...edge(t + d, -WATER_DROP - (arched ? 0 : 0.4))]);
+        lines.push([...edge(t - pier / 2, -WATER_DROP), ...edge(t + pier / 2, -WATER_DROP)]);
+      }
+      if (!arched) {
+        const beam: number[] = [];
+        for (let t = t0; t <= t1 + 1e-6; t += 0.5) beam.push(...edge(Math.min(t, t1), -DECK - 0.6));
+        lines.push(beam);
+      }
+    }
+  }
+  return { solids: [], draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y) => paper.on(M.under, x, y) || paper.on(M.water, x, y))) };
 }
 
 // ---------------------------------------------------------------- Tunnel portals

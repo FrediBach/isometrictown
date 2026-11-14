@@ -21,7 +21,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 - **Railways** get rails and sleepers; narrow gauge sits closer, and trams run under a contact wire hung from poles. Where a road or railway goes underground there's a portal with an arch. Footpaths are dashed, farm tracks are two wheel ruts, and steps have treads.
 - **Cable cars, gondolas, chair lifts and drag lifts** hang from pylons, with cabins, chairs or bars along the cable and stations where they end.
 - **Airfields** get runway markings, taxiway lines and planes parked on the aprons.
-- **Water** is drawn as wavy strokes, with boats moored along quays and in harbours, and ferries on dotted routes. Swimming pools get a hard edge and level ripples. Parks are hatched, and parks and woods get trees.
+- **Water** is drawn as wavy strokes, with boats moored along quays and in harbours, and ferries on dotted routes. Bridges over water show their side: masonry arches for most, beams on piers for railways and big roads, and piers stand on rows of posts. Where industrial land meets the water there are quayside cranes and stacks of containers. Swimming pools get a hard edge and level ripples. Parks are hatched, and parks and woods get trees.
 - **Fields and pitches** each get their own texture:
   - Fields are furrowed along their length, and some are dashed stubble.
   - Vineyards get trellis rows on stakes, and orchards get rows of fruit trees.
@@ -29,6 +29,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
   - Villages and suburbs often map only "residential" round their houses, with no gardens drawn. Where buildings cover less than 30% of such an area, the open ground is drawn as lawn with a few garden trees, and each house gets a plot fenced the local way: hedges, walls, fences or picket fences.
   - Field edges get hedgerows with the odd tree, most of all in Britain and France.
   - Scrub gets bushes, allotments get plots and sheds, bare rock gets boulders and glaciers get crevasses.
+  - Beaches get parasols and towels, campsites get tents and caravans, playgrounds get swings and a slide, and quarries are cut into benches.
+  - Big barns out among the fields get a silo or two.
   - Cemeteries get rows of headstones and crosses.
   - Sports pitches get their markings for football, tennis, basketball or a running track, with goals, nets and hoops.
 - **Shadows** are hatched on the ground, from a sun you can move.
@@ -57,8 +59,9 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/buildings.ts` | Walls, windows and the choice of roof per building, rooftop boxes, cars |
 | `src/roofs.ts` | Pitched, mansard, shed and sawtooth roofs, gables, chimneys, dormers, spires, domes |
 | `src/streets.ts` | Road surfaces, kerbs, lamps, rails and trams, footpaths, tracks and steps |
-| `src/infra.ts` | Lifts, ferries and moored boats, tunnel portals, airfields, road markings, parking bays, roundabouts |
+| `src/infra.ts` | Lifts, ferries and moored boats, bridges, tunnel portals, airfields, road markings, parking bays, roundabouts |
 | `src/gardens.ts` | Garden plots and their hedges and fences, field hedgerows, street trees |
+| `src/sites.ts` | Beaches, campsites, playgrounds, farm silos, ports, quarries |
 | `src/ground.ts` | Field furrows, vineyards, orchards, meadow and marsh symbols, sand, inferred gardens, headstones, pitch markings |
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |

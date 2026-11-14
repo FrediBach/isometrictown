@@ -111,7 +111,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
   const solids: Solid[] = [];
   const fences: { pts: number[]; picket: boolean }[] = [];
   const done = { solids, draw: () => {} };
-  if (!G.gardens || cam.s < 0.3) return done;
+  if (!G.gardens || cam.s < 0.5) return done;
   const [frontKind, sideKind] = BOUNDS[style.id];
   const garden = (x: number, y: number) => {
     const sx = cam.sx(x, y);
@@ -119,7 +119,9 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
     return paper.at(G.land, sx, sy) === GARDEN && !paper.on(M.road, sx, sy) && !paper.on(M.water, sx, sy) && !paper.on(M.foot, sx, sy) && !paper.on(M.green, sx, sy);
   };
 
-  type Site = { x: number; y: number; i: number };
+  // Every house cuts its neighbours' plots, even off the sheet, so plots don't change as the
+  // view moves; only those standing in gardens get boundaries drawn.
+  type Site = { x: number; y: number; i: number; drawn: boolean };
   const sites: Site[] = [];
   town.buildings.forEach((b, i) => {
     if (b.info?.kind !== 'house') return;
@@ -132,9 +134,9 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
     }
     x /= p.length / 2;
     y /= p.length / 2;
-    if (paper.at(G.land, cam.sx(x, y), cam.sy(x, y, 0)) === GARDEN) sites.push({ x, y, i });
+    sites.push({ x, y, i, drawn: paper.at(G.land, cam.sx(x, y), cam.sy(x, y, 0)) === GARDEN });
   });
-  if (!sites.length) return done;
+  if (!sites.some((s) => s.drawn)) return done;
 
   // Neighbour lookup on a coarse grid.
   const CELL = PLOT_R * 2;
@@ -145,6 +147,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
   });
 
   sites.forEach((s, k) => {
+    if (!s.drawn) return;
     const b = town.buildings[s.i];
     const info = b.info!;
     let c: Cell = { pts: [s.x - PLOT_R, s.y - PLOT_R, s.x + PLOT_R, s.y - PLOT_R, s.x + PLOT_R, s.y + PLOT_R, s.x - PLOT_R, s.y + PLOT_R], lab: [BOX, BOX, BOX, BOX] };
@@ -175,7 +178,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
     for (let e = 0; e < n; e++) {
       const lab = c.lab[e];
       // Each shared edge once, from the lower-numbered side; the open box edges stay open.
-      if (lab === BOX || (lab >= 0 && lab < k)) continue;
+      if (lab === BOX || (lab >= 0 && lab < k && sites[lab].drawn)) continue;
       const kind = lab === FRONT ? frontKind : sideKind;
       if (kind === 'none') continue;
       const f = (e + 1) % n;

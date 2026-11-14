@@ -183,6 +183,18 @@ export class Paper {
   }
 
   /** Mark ground rings (flat x,y local metres at z = 0) in a mask, with 1 or another code. */
+  /** Fill a mask with polygons given in 3D (flat x, y, z), where they show on the sheet. */
+  fillMask3(mask: Uint8Array, rings: number[][], value = 1): void {
+    const cam = this.cam;
+    const P = rings.map((r) => {
+      const out: number[] = [];
+      for (let i = 0; i < r.length; i += 3) out.push(this.px(cam.sx(r[i], r[i + 1])), this.py(cam.sy(r[i], r[i + 1], r[i + 2])));
+      return out;
+    });
+    const W = this.W;
+    scan(P, W, this.H, (y, xa, xb) => mask.fill(value, y * W + xa, y * W + xb + 1));
+  }
+
   fillMask(mask: Uint8Array, rings: ArrayLike<number>[], value = 1): void {
     const cam = this.cam;
     const P = rings.map((r) => {
