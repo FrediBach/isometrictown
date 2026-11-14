@@ -3,7 +3,7 @@ import { pointInRing, ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
-import { LINEWORK, ROOFS, SHADOWS } from './settings';
+import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { bestRect } from './shape';
 import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
@@ -548,6 +548,44 @@ export function crossings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   return { solids: [], draw: (paper) => lines.forEach((l) => paper.line3(l.pen, l.pts)) };
 }
 
+// ---------------------------------------------------------------- Motorways
+
+/** Crash barriers along motorways, and now and then a gantry of signs across the carriageway. */
+export function motorways(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const lines: { pen: number; pts: number[] }[] = [];
+  if (B.cam.s < 0.25) return { solids: [], draw: () => {} };
+  for (const w of town.ways) {
+    if (w.kind !== 'road' || w.cls !== 'motorway') continue;
+    const hw = w.width / 2;
+    const p = w.pts;
+    for (const side of [1, -1]) {
+      const o = side * (hw - 0.4);
+      lines.push({ pen: LINEWORK, pts: shifted(p, o, 0.75) });
+      walk(p, 2, 8, 2, (x, y, ux, uy) => {
+        const px = x - uy * o;
+        const py = y + ux * o;
+        lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, 0.75] });
+      });
+    }
+    // Gantries on a fixed spacing along the way, keyed to where they stand.
+    walk(p, 150, 600, 50, (x, y, ux, uy) => {
+      const [k0, k1] = B.key(Math.round(x / 50) * 50, Math.round(y / 50) * 50);
+      if (hash(k0, k1, B.set.seed, 490) > 0.7 || onMask(paper, M.water, x, y)) return;
+      const P = (c: number, z: number) => [x - uy * c, y + ux * c, z];
+      const e = hw + 1.2;
+      lines.push({ pen: LINEWORK, pts: [...P(-e, 0), ...P(-e, 7)] }, { pen: LINEWORK, pts: [...P(e, 0), ...P(e, 7)] });
+      lines.push({ pen: LINEWORK, pts: [...P(-e, 7), ...P(e, 7)] }, { pen: LINEWORK, pts: [...P(-e, 6.4), ...P(e, 6.4)] });
+      // A sign over each half of the road.
+      for (const c of [-hw / 2, hw / 2]) {
+        const sw = Math.min(3.2, hw * 0.45);
+        lines.push({ pen: WATER, pts: [...P(c - sw, 4.4), ...P(c + sw, 4.4), ...P(c + sw, 6.6), ...P(c - sw, 6.6), ...P(c - sw, 4.4)] });
+        lines.push({ pen: WATER, pts: [...P(c - sw * 0.6, 5.9), ...P(c + sw * 0.4, 5.9)] }, { pen: WATER, pts: [...P(c - sw * 0.6, 5.2), ...P(c + sw * 0.2, 5.2)] });
+      }
+    });
+  }
+  return { solids: [], draw: (paper) => lines.forEach((l) => paper.line3(l.pen, l.pts)) };
+}
+
 // ---------------------------------------------------------------- Tunnel portals
 
 /** Where a road or railway goes underground: a portal wall with an arch, the mouth hatched dark. */
@@ -829,7 +867,7 @@ export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
   }
   const solids: Solid[] = [];
   // Packed bays turn into a dark mass on paper at small scales, so fewer cars there.
-  const full = Math.min(0.85, set.cars * 1.9) * (cam.s >= 0.5 ? 1 : 0.4);
+  const full = Math.min(0.6, set.cars * 1.4) * (cam.s >= 1 ? 1 : cam.s >= 0.5 ? 0.5 : 0.25);
   if (set.cars > 0)
     for (const b of bays) {
       const cx = b.x + b.ux * (W / 2) + b.nx * (b.v0 + D / 2);

@@ -580,7 +580,7 @@ export function peaks(B: Build, town: Town): Extra {
 /** A few people standing about on squares, pedestrian streets and beaches. */
 export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const { cam, set } = B;
-  if (cam.s < 0.6) return { solids: [], draw: () => {} };
+  if (cam.s < 0.9) return { solids: [], draw: () => {} };
   const spots: { pts: number[]; area: number; chance: number }[] = [];
   for (const sq of town.plazas) spots.push({ pts: sq[0].pts, area: Math.abs(ringArea(sq[0].pts)), chance: 0.1 });
   for (const c of town.cover) if (c.cls === 'beach') spots.push({ pts: c.shape[0].pts, area: Math.abs(ringArea(c.shape[0].pts)), chance: 0.05 });
@@ -601,7 +601,7 @@ export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     walk(w.pts, 2, 3.5, 2, (x, y, ux, uy) => {
       const [k0, k1] = B.key(x, y);
       const h = (k: number) => hash(k0, k1, set.seed, 795 + k);
-      if (h(0) > 0.3) return;
+      if (h(0) > 0.15) return;
       const o = (h(1) - 0.5) * 3;
       const px = x - uy * o;
       const py = y + ux * o;

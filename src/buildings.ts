@@ -455,7 +455,9 @@ function church(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   const y = r.cy + r.uy * sk * (r.L / 2 - s / 2);
   const ridge = made.P.Hr;
   const h = H > ridge + 6 ? Math.min(H, 90) : ridge + 4 + s * 0.8;
-  tower(B, x, y, r.ux, r.uy, s, h, out);
+  // Onion domes in the east and round the Alps, spires elsewhere.
+  const onions = ONIONS[B.style.id] ?? 0;
+  tower(B, x, y, r.ux, r.uy, s, h, out, hash(info.seed[0], info.seed[1], B.set.seed, 9) < onions ? 'onion' : 'spire');
   return true;
 }
 
@@ -690,6 +692,9 @@ function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
   out.lines.push({ pen: ROOFS, pts: [...P(-h, -h * 0.7), ...P(h, -h * 0.7)] }, { pen: ROOFS, pts: [...P(-h, h * 0.7), ...P(h, h * 0.7)] }, { pen: ROOFS, pts: [...P(0, -h * 0.7), ...P(0, h * 0.7)] });
   return true;
 }
+
+/** Share of church towers topped with an onion dome, by region. */
+const ONIONS: Partial<Record<string, number>> = { eastern: 0.65, alpine: 0.4, central: 0.3 };
 
 /** Regions where castles carry pointed corner turrets. */
 const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordic', 'eastern', 'dutch', 'generic']);

@@ -1,9 +1,9 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
-import { allotmentSheds, bales, drawGround, livestock, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
+import { allotmentSheds, bales, drawGround, livestock, wildTrees, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares } from './sites';
-import { airfields, crossings, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
+import { airfields, crossings, motorways, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
 import type { Frame } from './geo';
 import type { StageProgress } from './app/stages';
@@ -97,10 +97,15 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   onStage({ stage: 'life', note: `${counts.buildings.toLocaleString('en')} buildings standing` });
   const box = cam.region(0);
   let trees = placeTrees(B, paper, M, box, toAbs, fromAbs);
-  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs), ...scrubBushes(B, paper, G, M, box, toAbs, fromAbs), ...hedgerows(B, paper, G, M)];
+  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs), ...scrubBushes(B, paper, G, M, box, toAbs, fromAbs), ...hedgerows(B, paper, G, M), ...wildTrees(B, paper, G, M, box, toAbs, fromAbs)];
   trees.push(...streetTrees(B, paper, town.ways, M));
   if (set.trees > 0) for (const [x, y] of rounds.centres) trees.push({ x, y, r: 2.4, h: 6.5, conifer: false });
-  trees = regionalTrees(B, trees, (t) => paper.on(M.wood, cam.sx(t.x, t.y), cam.sy(t.x, t.y, 0)));
+  // Palms are planted in town; out in the woods and the open country they don't belong.
+  trees = regionalTrees(B, trees, (t) => {
+    const sx = cam.sx(t.x, t.y);
+    const sy = cam.sy(t.x, t.y, 0);
+    return paper.on(M.wood, sx, sy) || (!!G && !paper.on(G.town, sx, sy));
+  });
   counts.trees = trees.length;
   const cars = parkCars(B, paper, town.ways, M);
   const bays = parking(B, paper, town.ways, M);
@@ -110,7 +115,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.ground) extras.push(beaches(B, paper, town, M), campsites(B, paper, town, M), playgrounds(B, paper, town, M), farmyards(B, paper, town, M), quarries(B, paper, town, M));
   if (set.water) extras.push(ports(B, paper, town, M));
   extras.push(squares(B, paper, town, M), busStops(B, paper, town, M), fuel(B, paper, town, M), chimneys(B, paper, town, M), peaks(B, town));
-  extras.push(sailing(B, paper, town, M), crossings(B, paper, town, M), people(B, paper, town, M));
+  extras.push(sailing(B, paper, town, M), crossings(B, paper, town, M), people(B, paper, town, M), motorways(B, paper, town, M));
   for (const e of extras) solids.push(...e.solids);
   if (G) solids.push(...allotmentSheds(B, paper, G, M), ...bales(B, paper, G, M), ...livestock(B, paper, G, M, box, toAbs, fromAbs));
   const fences = G ? plots(B, paper, town, G, M) : null;

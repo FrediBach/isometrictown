@@ -435,7 +435,7 @@ export function minaret(B: Build, x: number, y: number, h: number, out: Solid): 
 }
 
 /** A church tower with belfry openings and a spire, square on its side s. */
-export function tower(B: Build, x: number, y: number, ux: number, uy: number, s: number, h: number, out: Solid): void {
+export function tower(B: Build, x: number, y: number, ux: number, uy: number, s: number, h: number, out: Solid, top: 'spire' | 'onion' = 'spire'): void {
   const vx = -uy;
   const vy = ux;
   const a = s / 2;
@@ -453,5 +453,64 @@ export function tower(B: Build, x: number, y: number, ux: number, uy: number, s:
     const hy = ey * 0.17;
     out.lines.push({ pen: LINEWORK, pts: [mx - hx, my - hy, h - 3.4, mx + hx, my + hy, h - 3.4, mx + hx, my + hy, h - 1.2, mx - hx, my - hy, h - 1.2], closed: true });
   }
-  spire(ring, h, [x, y, h + s * 2.4], out);
+  if (top === 'onion') onion(B, x, y, s * 0.42, h, out);
+  else spire(ring, h, [x, y, h + s * 2.4], out);
+}
+
+/** The bulb profile of an onion dome: (height, radius) as fractions of its size. */
+const ONION: [number, number][] = [
+  [0, 0.7],
+  [0.12, 0.95],
+  [0.3, 1.12],
+  [0.48, 1.0],
+  [0.66, 0.62],
+  [0.82, 0.28],
+  [1, 0],
+];
+
+/** An onion dome on a short drum, with a spike on top. */
+export function onion(B: Build, x: number, y: number, R: number, z: number, out: Solid): void {
+  const drum = ngon(x, y, R * 0.8, 12);
+  box(B, drum, z, z + R * 0.6, out, LINEWORK);
+  const z0 = z + R * 0.6;
+  const H = R * 2.6;
+  const n = 14;
+  const rings = ONION.map(([t, f]) => ({ z: z0 + t * H, pts: ngon(x, y, Math.max(1e-3, R * f), n) }));
+  for (let k = 0; k + 1 < rings.length; k++) {
+    const a = rings[k];
+    const b = rings[k + 1];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      face(out, [
+        [a.pts[i * 2], a.pts[i * 2 + 1], a.z],
+        [a.pts[j * 2], a.pts[j * 2 + 1], a.z],
+        [b.pts[j * 2], b.pts[j * 2 + 1], b.z],
+        [b.pts[i * 2], b.pts[i * 2 + 1], b.z],
+      ]);
+    }
+  }
+  // The outline: each ring's leftmost and rightmost point on the sheet, joined up the bulb.
+  const left: number[][] = [];
+  const right: number[][] = [];
+  for (const r of rings) {
+    let lo = 0;
+    let hi = 0;
+    for (let i = 0; i < n; i++) {
+      const sx = B.cam.sx(r.pts[i * 2], r.pts[i * 2 + 1]);
+      if (sx < B.cam.sx(r.pts[lo * 2], r.pts[lo * 2 + 1])) lo = i;
+      if (sx > B.cam.sx(r.pts[hi * 2], r.pts[hi * 2 + 1])) hi = i;
+    }
+    left.push([r.pts[lo * 2], r.pts[lo * 2 + 1], r.z]);
+    right.push([r.pts[hi * 2], r.pts[hi * 2 + 1], r.z]);
+  }
+  poly(out.lines, ROOFS, [...left, ...right.reverse()]);
+  // The waist, where the bulb is widest.
+  const w = rings[2];
+  const waist: number[][] = [];
+  for (let i = 0; i <= n; i++) waist.push([w.pts[(i % n) * 2], w.pts[(i % n) * 2 + 1], w.z]);
+  poly(out.lines, ROOFS, waist);
+  poly(out.lines, LINEWORK, [
+    [x, y, z0 + H],
+    [x, y, z0 + H + R * 1.2],
+  ]);
 }

@@ -12,7 +12,7 @@ const PALMS: Partial<Record<string, number>> = { tropical: 0.65, arid: 0.45, med
 const CYPRESSES: Partial<Record<string, number>> = { mediterranean: 0.55, arid: 0.3 };
 
 /** Turn some trees into the region's own kinds, keyed to where they stand. */
-export function regionalTrees(B: Build, trees: Tree[], inWood: (t: Tree) => boolean): Tree[] {
+export function regionalTrees(B: Build, trees: Tree[], wild: (t: Tree) => boolean): Tree[] {
   // Palms also grow with warmth: in the tropics anywhere, and in the warm south of the US and Australia.
   const lat = Math.abs(B.set.center[1]);
   const warm = lat < 24 ? 0.5 : lat < 33 && (B.style.id === 'american' || B.style.id === 'antipodean') ? 0.3 : 0;
@@ -25,8 +25,8 @@ export function regionalTrees(B: Build, trees: Tree[], inWood: (t: Tree) => bool
     const [k0, k1] = B.key(t.x, t.y);
     const u = hash(k0, k1, B.set.seed, 64);
     const v = hash(k0, k1, B.set.seed, 65);
-    // Palms are planted in town, not grown in the woods.
-    if (!t.conifer && u < palm && !inWood(t)) return { ...t, form: 'palm', r: 2.4 + v * 0.8, h: 7 + v * 5 };
+    // Palms are planted in town, not grown in the woods or out in the country.
+    if (!t.conifer && u < palm && !wild(t)) return { ...t, form: 'palm', r: 2.4 + v * 0.8, h: 7 + v * 5 };
     if (t.conifer && u < cypress) return { ...t, form: 'cypress', r: 1.0 + v * 0.4, h: 9 + v * 6 };
     return t;
   });
