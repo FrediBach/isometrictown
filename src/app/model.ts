@@ -36,6 +36,7 @@ export function loadSettings(): Settings {
     if (h.length >= 5 && h[4] > 0) s.seed = Math.round(h[4]);
     s.place = decodeURIComponent(parts[5] ?? '') || 'Somewhere';
   }
+  if (!Number.isFinite(s.detail) || s.detail <= 0) s.detail = DEFAULT_SETTINGS.detail;
   s.pens = migratePens(s.pens);
   s.layerPens = Object.fromEntries(Object.entries(s.layerPens ?? {}).filter(([key, value]) =>
     Object.hasOwn(LAYERS, key) && Number.isInteger(value) && value >= 0 && value < PEN_COUNT));
@@ -85,7 +86,7 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
+export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
 export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customBackground';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
@@ -93,6 +94,7 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   tilt: (v) => `${Math.round(v)}°`,
   scale: (v) => `1:${Math.round(v).toLocaleString('en')}`,
   heightScale: (v) => `${v.toFixed(2)}×`,
+  detail: (v) => `${v.toFixed(2)}×`,
   pitched: (v) => v.toFixed(2),
   trees: (v) => v.toFixed(2),
   cars: (v) => v.toFixed(2),

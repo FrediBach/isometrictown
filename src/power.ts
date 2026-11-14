@@ -128,7 +128,7 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
   const j1 = Math.floor(Math.max(Y0, Y1) / CELL) + 2;
   const inBox = (x: number, y: number, m: number) => x > box[0] - m && x < box[2] + m && y > box[1] - m && y < box[3] + m;
   // Lattice bracing only where it can read as lattice; smaller, it closes up into a black mass.
-  const detail = cam.s >= 0.9;
+  const detail = cam.lod >= 0.9;
   // No pylons across airfields: their runways and aprons keep a wide berth.
   const field: number[] = [];
   for (const w of town.runways) for (let k = 0; k < w.pts.length; k += 2) field.push(w.pts[k], w.pts[k + 1]);
@@ -278,8 +278,8 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
 /** Overhead power lines: transmission pylons across the country, and poles along roads. */
 export function powerLines(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Extra {
   const out: Line[] = [];
-  if (!B.set.power || B.cam.s < 0.1) return { solids: [], draw: () => {} };
+  if (!B.set.power || B.cam.lod < 0.1) return { solids: [], draw: () => {} };
   transmission(B, paper, town, M, box, toAbs, fromAbs, out);
-  if (B.cam.s >= 0.3) distribution(B, paper, town, M, out);
+  if (B.cam.lod >= 0.3) distribution(B, paper, town, M, out);
   return { solids: [], draw: (p) => out.forEach((l) => p.line3(l.pen, l.pts)) };
 }

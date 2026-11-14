@@ -11,6 +11,8 @@ export type Settings = {
   /** Map scale as 1:N. */
   scale: number;
   heightScale: number;
+  /** How finely things are drawn: hatch and texture spacing, and how small a thing can be before it is left out. 1 is normal. */
+  detail: number;
 
   sheet: SheetId;
   landscape: boolean;
@@ -102,6 +104,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tilt: 32,
   scale: 1000,
   heightScale: 1,
+  detail: 1,
 
   sheet: 'a3',
   landscape: true,

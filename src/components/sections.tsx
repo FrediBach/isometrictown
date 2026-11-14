@@ -67,6 +67,7 @@ export function ViewSection() {
       <NumberSetting name="tilt" label="Tilt" min={20} max={60} step={1} hint="How high you look from. 30° is the classic isometric look." />
       <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint="Bigger towns need a smaller scale. Small scales skip windows." />
       <NumberSetting name="heightScale" label="Building height" min={0.5} max={3} step={0.05} />
+      <NumberSetting name="detail" label="Detail" min={0.25} max={2} step={0.05} hint="How close the hatching and textures are, and how small a thing can be before it is left out." />
     </FoldingSection>
   );
 }

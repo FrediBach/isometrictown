@@ -220,9 +220,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   });
   if (set.parks) withPen('parks', () => {
     const grass = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y);
-    paper.hatchGround(GREENERY, -27, 1.1, (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
+    paper.hatchGround(GREENERY, -27, cam.gap(1.1), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
     // Every other line of the same hatch, so it runs on unbroken from the plain grass around.
-    if (G) paper.hatchGround(GREENERY, -27, 2.2, (x, y) => grass(x, y) && lightly(G, paper, x, y));
+    if (G) paper.hatchGround(GREENERY, -27, cam.gap(2.2), (x, y) => grass(x, y) && lightly(G, paper, x, y));
     outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
     outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
   });
@@ -254,7 +254,7 @@ function waves(paper: Paper, M: Masks, seed: number): void {
   const rnd = sequence(seed * 7919 + 13);
   const cam = paper.cam;
   const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && paper.seen(x, y, d);
-  for (let y = paper.y0 + 0.8; y < paper.y1; y += 1.7 + rnd() * 0.5) {
+  for (let y = paper.y0 + 0.8; y < paper.y1; y += cam.gap(1.7 + rnd() * 0.5)) {
     let x = paper.x0 - rnd() * 8;
     while (x < paper.x1) {
       const len = 2.5 + rnd() * 7;
@@ -267,7 +267,7 @@ function waves(paper: Paper, M: Masks, seed: number): void {
         pts.push(x + t, yy, cam.groundDepth(yy));
       }
       if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(WATER, pts, keep);
-      x += len + 1 + rnd() * 5.5;
+      x += len + cam.gap(1 + rnd() * 5.5);
     }
   }
 }
@@ -276,7 +276,7 @@ function waves(paper: Paper, M: Masks, seed: number): void {
 function pools(paper: Paper, M: Masks, shapes: Shape[]): void {
   if (!shapes.length) return;
   outline(paper, LINEWORK, shapes, M.pool);
-  paper.hatchGround(WATER, 0, 0.75, (x, y) => paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.shadow, x, y));
+  paper.hatchGround(WATER, 0, paper.cam.gap(0.75), (x, y) => paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.shadow, x, y));
 }
 
 /** Waterway centre lines as water shapes: a strip per segment and a disc per joint. */

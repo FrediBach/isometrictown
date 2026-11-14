@@ -55,7 +55,7 @@ function face(out: Solid, pts: number[][]): void {
 /** How many hatch strokes fit between two ground points on paper. */
 function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number): number {
   const c = B.cam;
-  return Math.max(1, Math.round(Math.hypot(c.sx(bx, by) - c.sx(ax, ay), c.sy(bx, by, z) - c.sy(ax, ay, z)) / ROOF_HATCH_MM));
+  return Math.max(1, Math.round(Math.hypot(c.sx(bx, by) - c.sx(ax, ay), c.sy(bx, by, z) - c.sy(ax, ay, z)) / c.gap(ROOF_HATCH_MM)));
 }
 
 /** Outline of a decorated gable across the end wall, from v = -hw to v = +hw, as [v, z] pairs. */
@@ -296,7 +296,7 @@ export function parapet(B: Build, rings: { pts: number[]; seam: Uint8Array; part
 
 function parapetLines(B: Build, rings: { pts: number[]; seam: Uint8Array; party?: Float32Array }[], z: number, out: Solid): void {
   const s = B.cam.s;
-  if (s < 0.4) return;
+  if (B.cam.lod < 0.4) return;
   const d = Math.min(1.2, Math.max(0.4, 0.6 / s));
   for (const r of rings) {
     const skip = (i: number) => !!(r.seam[i] || (r.party && r.party[i] > 0));

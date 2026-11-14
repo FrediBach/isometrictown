@@ -34,11 +34,13 @@ cam.depth(x, y, z)  // metres, larger = farther
 cam.ground(sx, sy)  // sheet → ground point at z = 0
 cam.up              // ground unit vector pointing up the sheet (away from viewer)
 cam.s               // mm per metre (1000 / scale)
+cam.lod             // cam.s times the Detail setting, for level-of-detail thresholds
+cam.gap(mm)         // a hatch or texture spacing on paper, mm, scaled by the Detail setting
 cam.rect            // drawing area on the sheet, [x0, y0, x1, y1] mm, inside margins
 cam.region(h)       // local bounding box of all ground that can show, incl. buildings of height h in front
 ```
 
-`cam.s` is the usual level-of-detail switch: features check thresholds like `cam.s < 0.25` (scale coarser than 1:4000) and skip themselves.
+`cam.lod` is the level-of-detail switch: features check thresholds like `cam.lod < 0.25` (scale coarser than 1:4000 at normal detail) and skip themselves. It is `cam.s` times the Detail setting, so a higher Detail keeps small things at coarser scales. Use `cam.s` itself only for converting between metres and millimetres. Hatch and texture spacings on paper go through `cam.gap()`, so Detail closes them up or opens them out. Tone hatching (shadows, shaded walls), dash patterns and object counts that have their own slider (trees, traffic) don't use it.
 
 `reachHeight(set)` in `render.ts` is the tallest building expected to poke in from below; the worker passes it to `cam.region()` when choosing tiles.
 

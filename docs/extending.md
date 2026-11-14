@@ -8,7 +8,7 @@
    ```ts
    export function windmills(B: Build, paper: Paper, town: Town, M: Masks): Extra {
      const none = { solids: [], draw: () => {} };
-     if (!B.set.ground || B.cam.s < 0.3) return none;   // gate on settings and level of detail
+     if (!B.set.ground || B.cam.lod < 0.3) return none;   // gate on settings and level of detail
      const solids: Solid[] = [];
      for (const p of town.pois) {
        if (p.cls !== 'windmill') continue;
@@ -26,8 +26,9 @@
 
 3. Call it from `render()` in `src/render.ts`, in the `extras` list, next to its relatives.
 4. If it needs new map data, see [data-sources.md](data-sources.md#vector-tiles-tilests).
-5. Keep it deterministic (`hash()` with `B.key` and a fresh salt) and keep it off roads, water and buildings with the masks.
-6. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
+5. Draw hatching and textures at a spacing of `B.cam.gap(mm)`, so the Detail slider reaches them.
+6. Keep it deterministic (`hash()` with `B.key` and a fresh salt) and keep it off roads, water and buildings with the masks.
+7. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
 
 ## Add a setting
 

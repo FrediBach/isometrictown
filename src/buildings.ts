@@ -125,7 +125,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       if (zb >= z1 - 0.3) continue;
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
-      const shop = !!o.shop && cam.s >= 0.5 && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
+      const shop = !!o.shop && cam.lod >= 0.5 && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
       if (shop) shopfront(B, ax, ay, bx, by, len, out);
       if (o.windows && set.windows && len >= 2.4) {
         // French balconies run along the street front only.
@@ -180,9 +180,9 @@ function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: 
 
 function windowsLines(B: Build, ax: number, ay: number, bx: number, by: number, len: number, z0: number, z1: number, out: Solid, wo: WindowOptions = { balconies: 0, door: false, shutters: -1 }): void {
   const { balconies } = wo;
-  const s = B.cam.s;
-  const full = s * 1.2 >= 0.85;
-  if (!full && s * 1.5 < 0.5) return;
+  const lod = B.cam.lod;
+  const full = lod * 1.2 >= 0.85;
+  if (!full && lod * 1.5 < 0.5) return;
   const cols = Math.max(1, Math.floor(len / BAY));
   const bay = len / cols;
   const half = Math.min(0.62, bay * 0.3);
@@ -251,8 +251,8 @@ function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: 
 
 /** A shop front along a wall: wide windows, and striped awnings over most of them. */
 function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len: number, out: Solid): void {
-  const s = B.cam.s;
-  if (s < 0.5) return;
+  const lod = B.cam.lod;
+  if (lod < 0.5) return;
   const cols = Math.max(1, Math.floor(len / 4.2));
   const bay = len / cols;
   const dx = (bx - ax) / len;
@@ -267,7 +267,7 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const hw = bay * 0.36;
     out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
-    if (hash(k0, k1, B.seed, 340) < 0.25 || s < 0.45) continue;
+    if (hash(k0, k1, B.seed, 340) < 0.25 || lod < 0.45) continue;
     // The awning: a sloping canvas with a short valance, striped in the roof pen.
     const aw = bay * 0.42;
     const deep = 1.3;
@@ -545,7 +545,7 @@ function flag(B: Build, b: Building, out: Solid[]): void {
 function flagLines(B: Build, b: Building, out: Solid[]): void {
   const p = b.shape[0].pts;
   const { rect } = bestRect(p);
-  if (!rect || B.cam.s < 0.3) return;
+  if (!rect || B.cam.lod < 0.3) return;
   const z = b.h * B.set.heightScale;
   const s = newSolid();
   const { cx: x, cy: y } = rect;
@@ -619,7 +619,7 @@ function battlements(B: Build, ring: WallRing, holes: Ring[], z: number, out: So
 }
 
 function battlementsLines(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
-  if (B.cam.s < 0.3) return;
+  if (B.cam.lod < 0.3) return;
   const s = newSolid();
   const p = ring.pts;
   const n = p.length / 2;
@@ -714,7 +714,7 @@ function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
 function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
   const p = b.shape[0].pts;
   const { rect } = bestRect(p);
-  if (!rect || B.cam.s < 0.3 || Math.abs(ringArea(p)) < 600) return false;
+  if (!rect || B.cam.lod < 0.3 || Math.abs(ringArea(p)) < 600) return false;
   const R = Math.min(5.5, rect.w / 2 - 1.5, rect.L / 2 - 1.5);
   if (R < 3 || !pointInRing(rect.cx, rect.cy, p)) return false;
   const zz = z + 0.02;
@@ -765,7 +765,7 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   const area = Math.abs(ringArea(outer));
   if (TANKS.has(B.style.id) && v < 0.4) {
     if (tanks(B, rect, z, k, inside, out)) return;
-  } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && B.cam.s >= 0.6) {
+  } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && B.cam.lod >= 0.6) {
     if (solar(B, rect, z, inside, out)) return;
   }
   const count = 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);

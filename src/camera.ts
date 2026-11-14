@@ -14,13 +14,17 @@ export class Camera {
   readonly ca: number;
   /** mm per metre */
   readonly s: number;
+  /** mm per metre scaled by the detail setting: compare level-of-detail thresholds against this, not `s`. */
+  readonly lod: number;
+  /** The detail setting: above 1 draws hatching closer and keeps smaller things. */
+  readonly detail: number;
   readonly cx: number;
   readonly cy: number;
   /** Drawing area on the sheet, [x0, y0, x1, y1] in mm. */
   readonly rect: [number, number, number, number];
   readonly sheet: [number, number];
 
-  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'>) {
+  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail'>>) {
     const b = (set.bearing * Math.PI) / 180;
     const a = (set.tilt * Math.PI) / 180;
     this.sb = Math.sin(b);
@@ -28,6 +32,8 @@ export class Camera {
     this.sa = Math.sin(a);
     this.ca = Math.cos(a);
     this.s = mmPerMetre(set);
+    this.detail = clamp(set.detail ?? 1, 0.25, 2);
+    this.lod = this.s * this.detail;
     this.sheet = sheetSize(set);
     const [w, h] = this.sheet;
     const m = Math.min(set.margin, w / 2 - 10, h / 2 - 10);
@@ -36,6 +42,11 @@ export class Camera {
     this.rect = [m, m, w - m, h - m - Math.max(0, foot)];
     this.cx = w / 2;
     this.cy = (this.rect[1] + this.rect[3]) / 2;
+  }
+
+  /** A hatch or texture spacing on paper, mm, closed up or opened out by the detail setting. */
+  gap(mm: number): number {
+    return mm / this.detail;
   }
 
   sx(x: number, y: number): number {

@@ -185,13 +185,13 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
   const cy = cam.sy(t.x, t.y, t.h);
   const R = t.r * s;
   const depth = cam.depth(t.x, t.y, t.h) - t.r;
-  const ring = circle(sx, cy, R, R > 2 ? 22 : 14);
+  const ring = circle(sx, cy, R, R * cam.detail > 2 ? 22 : 14);
   return {
     ring,
     depth,
     draw: () => {
       paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true);
-      if (R > 0.9) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
+      if (R * cam.detail > 0.9) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
       paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, t.h]);
     },
   };

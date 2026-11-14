@@ -112,7 +112,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
   const fences: { pts: number[]; picket: boolean }[] = [];
   const marks: { pts: number[]; ground: boolean; closed?: boolean }[] = [];
   const done = { solids, draw: () => {} };
-  if (!G.gardens || cam.s < 0.5) return done;
+  if (!G.gardens || cam.lod < 0.5) return done;
   const [frontKind, sideKind] = BOUNDS[style.id];
   const garden = (x: number, y: number) => {
     const sx = cam.sx(x, y);
@@ -329,7 +329,7 @@ export function hedgerows(B: Build, paper: Paper, G: Ground, M: Masks): Tree[] {
   const { cam, set, style } = B;
   const out: Tree[] = [];
   const chance = HEDGEROWS[style.id];
-  if (set.trees <= 0 || !chance || cam.s < 0.25) return out;
+  if (set.trees <= 0 || !chance || cam.lod < 0.25) return out;
   const seen = new Set<string>();
   const clear = (x: number, y: number) => {
     const sx = cam.sx(x, y);

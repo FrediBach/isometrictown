@@ -94,7 +94,7 @@ function mmPer(B: Build, vx: number, vy: number): number {
 
 /** Work out where each texture goes and paint the land mask. Call before the trees are placed. */
 export function planGround(B: Build, paper: Paper, town: Town): Ground {
-  const s = B.cam.s;
+  const lod = B.cam.lod;
   const G: Ground = { land: paper.mask(), farms: paper.mask(), farmShapes: [], covers: [], cemeteries: [], pitches: [], gardens: false, inTown: townTest(paper, town) };
   // First, so anything mapped explicitly paints over it.
   if (B.style.id !== 'arid') G.gardens = paintGardens(paper, town, G.land);
@@ -116,10 +116,10 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
     const { rect, fill } = bestRect(a.shape[0].pts);
     if (!rect) continue;
     const rings = a.shape.map((r) => r.pts);
-    if (a.cls === 'cemetery' && s >= 0.6) {
+    if (a.cls === 'cemetery' && lod >= 0.6) {
       paper.fillMask(G.land, rings, CEMETERY);
       G.cemeteries.push({ shape: a.shape, rect });
-    } else if ((a.cls === 'pitch' || a.cls === 'track') && rect.L * s >= 10) {
+    } else if ((a.cls === 'pitch' || a.cls === 'track') && rect.L * lod >= 10) {
       // Only roughly rectangular pitches get markings, and not a big lawn that holds smaller pitches.
       const holdsOthers = sporty.some((b, k) => b !== a && centres[k] && centres[k]!.L * centres[k]!.w < rect.L * rect.w && pointInRing(centres[k]!.cx, centres[k]!.cy, a.shape[0].pts));
       if (holdsOthers || fill < (a.cls === 'track' ? 0.6 : 0.75)) continue;
@@ -216,7 +216,7 @@ function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: numb
   const w = WILD[B.style.id] ?? WILD_DEFAULT;
   const box = cam.region(0);
   const metre = toAbs(1, 0)[0] - toAbs(0, 0)[0];
-  const step = ((TUFT_MM * 1.7) / cam.s) * metre;
+  const step = (cam.gap(TUFT_MM * 1.7) / cam.s) * metre;
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   const i0 = Math.floor(A0x / step);
@@ -405,7 +405,7 @@ function rows(shape: Shape, r: Rect, spacing: number, fn: (ax: number, ay: numbe
 
 /** Orchards are drawn as little trees when they're big enough on paper and trees are on. */
 function orchardsAsTrees(B: Build): boolean {
-  return B.set.trees > 0 && B.cam.s >= 0.2;
+  return B.set.trees > 0 && B.cam.lod >= 0.2;
 }
 
 /** Little fruit trees in rows over orchards. */
@@ -459,7 +459,7 @@ function field(B: Build, paper: Paper, c: Cover, test: Test): void {
   const { ux, uy } = c.rect;
   const [k0, k1] = B.key(c.rect.cx, c.rect.cy);
   const r = (salt: number) => hash(k0, k1, B.set.seed, 50 + salt);
-  const spacing = (FURROW_MM[0] + (FURROW_MM[1] - FURROW_MM[0]) * r(1)) / mmPer(B, -uy, ux);
+  const spacing = B.cam.gap(FURROW_MM[0] + (FURROW_MM[1] - FURROW_MM[0]) * r(1)) / mmPer(B, -uy, ux);
   const along = mmPer(B, ux, uy);
   const stubble = r(2) < 0.3 && along > 0;
   rows(c.shape, c.rect, spacing, (ax, ay, bx, by, row) => {
@@ -483,7 +483,7 @@ function dotted(B: Build, paper: Paper, c: Cover, test: Test): void {
   const { ux, uy } = c.rect;
   const along = mmPer(B, ux, uy);
   if (along <= 0) return;
-  const spacing = Math.max(6, 1.8 / mmPer(B, -uy, ux));
+  const spacing = Math.max(6, B.cam.gap(1.8) / mmPer(B, -uy, ux));
   const dot = 0.35 / along;
   const period = Math.max(5, 1.2 / along);
   rows(c.shape, c.rect, spacing, (ax, ay, bx, by, row) => {
@@ -498,8 +498,8 @@ function dotted(B: Build, paper: Paper, c: Cover, test: Test): void {
 function vineyard(B: Build, paper: Paper, c: Cover, ground: Test, standing: Test): void {
   const { ux, uy } = c.rect;
   const across = mmPer(B, -uy, ux);
-  const spacing = Math.max(2.4, 2.2 / across);
-  const tall = B.cam.s >= 0.35;
+  const spacing = Math.max(2.4, B.cam.gap(2.2) / across);
+  const tall = B.cam.lod >= 0.35;
   rows(c.shape, c.rect, spacing, (ax, ay, bx, by) => {
     const len = Math.hypot(bx - ax, by - ay);
     if (len < 3) return;
@@ -541,7 +541,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
   for (const [mm, salt, codes] of passes) {
-    const step = (mm / cam.s) * metre;
+    const step = (cam.gap(mm) / cam.s) * metre;
     const i0 = Math.floor(A0x / step);
     const i1 = Math.ceil(A1x / step);
     const j0 = Math.floor(A0y / step);
@@ -929,7 +929,7 @@ export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Sol
 export function bales(B: Build, paper: Paper, G: Ground, M: Masks): Solid[] {
   const out: Solid[] = [];
   const { cam, set } = B;
-  if (cam.s < 0.3) return out;
+  if (cam.lod < 0.3) return out;
   for (const c of G.covers) {
     if (c.code !== FIELD) continue;
     const { ux, uy } = c.rect;
@@ -968,7 +968,7 @@ export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
   const out: Solid[] = [];
   const { cam, set, style } = B;
   const cows = COWS.has(style.id);
-  if (cam.s < 0.6 || !set.life || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
+  if (cam.lod < 0.6 || !set.life || (!cows && !SHEEP.has(style.id)) || !G.covers.some((c) => c.code === MEADOW)) return out;
   const step = 70 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);

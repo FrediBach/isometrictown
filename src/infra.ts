@@ -242,7 +242,7 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
  * the water's edge near a harbour.
  */
 export function moorings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
-  if (!B.set.water || !B.set.life || B.cam.s < 0.25) return none;
+  if (!B.set.water || !B.set.life || B.cam.lod < 0.25) return none;
   const harbours = town.pois.filter((p) => p.cls === 'harbor');
   const solids: Solid[] = [];
   const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y);
@@ -328,7 +328,7 @@ const BEAM_ROADS = new Set(['motorway', 'trunk', 'primary']);
  * hang down over it; waves keep out from behind them.
  */
 export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
-  if (B.cam.s < 0.25) return none;
+  if (B.cam.lod < 0.25) return none;
   const [upx, upy] = B.cam.up;
   const lines: number[][] = [];
   for (const w of town.ways) {
@@ -408,7 +408,7 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 /** Station platforms: a raised slab along the track, with a canopy on columns over the middle. */
 export function platforms(B: Build, town: Town): Extra {
   const solids: Solid[] = [];
-  if (!B.set.rails || B.cam.s < 0.2) return { solids, draw: () => {} };
+  if (!B.set.rails || B.cam.lod < 0.2) return { solids, draw: () => {} };
   for (const w of town.ways) {
     if (w.kind !== 'path' || w.sub !== 'platform' || w.bridge) continue;
     const p = w.pts;
@@ -454,7 +454,7 @@ export function platforms(B: Build, town: Town): Extra {
 export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
   const { cam, set } = B;
-  if (!set.water || !set.life || cam.s < 0.15 || !town.water.length) return { solids, draw: () => {} };
+  if (!set.water || !set.life || cam.lod < 0.15 || !town.water.length) return { solids, draw: () => {} };
   const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y) && !onMask(paper, M.road, x, y);
   const wind = hash(set.seed, 7, 0, 470) * Math.PI * 2;
   const [x0, y0, x1, y1] = cam.region(0);
@@ -495,7 +495,7 @@ export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 /** Where a road crosses a railway on the level: barriers on both sides and a crossbuck sign. */
 export function crossings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const lines: { pen: number; pts: number[] }[] = [];
-  if (!B.set.rails || B.cam.s < 0.35) return { solids: [], draw: () => {} };
+  if (!B.set.rails || B.cam.lod < 0.35) return { solids: [], draw: () => {} };
   const rails = town.ways.filter((w) => w.kind === 'rail' && !w.bridge && w.sub !== 'tram' && w.sub !== 'subway');
   if (!rails.length) return { solids: [], draw: () => {} };
   const rs: number[] = [];
@@ -552,7 +552,7 @@ export function crossings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 /** Crash barriers along motorways, and now and then a gantry of signs across the carriageway. */
 export function motorways(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const lines: { pen: number; pts: number[] }[] = [];
-  if (B.cam.s < 0.25) return { solids: [], draw: () => {} };
+  if (B.cam.lod < 0.25) return { solids: [], draw: () => {} };
   for (const w of town.ways) {
     if (w.kind !== 'road' || w.cls !== 'motorway') continue;
     const hw = w.width / 2;
@@ -660,13 +660,13 @@ const MARKED = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']
 export function airfields(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   if (!town.runways.length && !town.aprons.length) return none;
   const solids: Solid[] = [];
-  const s = B.cam.s;
+  const lod = B.cam.lod;
   return {
     solids,
     draw: () => {
       curbs(paper, town.runways, M);
       outline(paper, LINEWORK, town.aprons, M.road);
-      if (!B.set.markings || s < 0.12) return;
+      if (!B.set.markings || lod < 0.12) return;
       const test: Test = (x, y, d) => paper.on(M.road, x, y) && paper.seen(x, y, d);
       for (const w of town.runways) {
         if (w.cls === 'taxiway') {
@@ -698,8 +698,8 @@ export function airfields(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 
 /** Centre dashes on main roads and zebra crossings near busy junctions. */
 export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
-  const s = B.cam.s;
-  if (!B.set.markings || s < 0.3) return;
+  const lod = B.cam.lod;
+  if (!B.set.markings || lod < 0.3) return;
   const key = (x: number, y: number) => `${Math.round(x * 2)},${Math.round(y * 2)}`;
   const degree = new Map<string, number>();
   for (const w of ways) {
@@ -723,7 +723,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       paper.end();
     });
     // Zebras a little way in from junctions, and traffic lights at the busier ones.
-    if (s < 0.6) continue;
+    if (lod < 0.6) continue;
     if (w.cls !== 'tertiary') {
       for (const [isJ, t, dir] of [
         [j0, 2, 1],
@@ -809,7 +809,7 @@ export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
   return {
     solids,
     draw: () => {
-      if (!set.markings || cam.s < 0.5) return;
+      if (!set.markings || cam.lod < 0.5) return;
       const test: Test = (x, y, d) => !paper.on(M.foot, x, y) && paper.seen(x, y, d);
       for (const b of bays)
         for (const u of [0, W]) {

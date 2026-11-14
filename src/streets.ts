@@ -182,8 +182,8 @@ export function shifted(p: number[], o: number, z = 0): number[] {
  * closer; trams run on bare rails under a contact wire hung from poles.
  */
 export function railways(B: Build, paper: Paper, ways: Way[]): void {
-  const s = B.cam.s;
-  const twin = s * 1.5 >= 0.55;
+  const lod = B.cam.lod;
+  const twin = lod * 1.5 >= 0.55;
   for (const w of ways) {
     if (w.kind !== 'rail') continue;
     const p = w.pts;
@@ -191,7 +191,7 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
     const g = tram ? 0.72 : w.sub === 'narrow_gauge' ? 0.5 : 0.75;
     for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
     if (tram) {
-      if (s < 0.3) continue;
+      if (lod < 0.3) continue;
       paper.line3(LINEWORK, shifted(p, 0, 5.6));
       walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
         const side = k % 2 ? 1 : -1;
@@ -202,7 +202,7 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
       continue;
     }
     // Overhead line: masts beside the track with an arm out over it, and the contact wire.
-    if (ELECTRIC.has(B.style.id) && s >= 0.3 && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
+    if (ELECTRIC.has(B.style.id) && lod >= 0.3 && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
       paper.line3(LINEWORK, shifted(p, 0, 5.6));
       walk(p, 20, 55, 10, (x, y, ux, uy) => {
         const px = x - uy * 3;
@@ -211,7 +211,7 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
         paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
       });
     }
-    if (twin && s * 2.6 >= 1) {
+    if (twin && lod * 2.6 >= 1) {
       const sl = g + 0.55;
       walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
     }
@@ -226,7 +226,7 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
     if (w.kind !== 'path' || w.sub === 'platform') continue;
-    if (w.sub === 'steps' && s >= 0.5) {
+    if (w.sub === 'steps' && B.cam.lod >= 0.5) {
       // Steps: treads across the path.
       walk(w.pts, 0.2, 0.55, 0.2, (x, y, ux, uy) => {
         groundSeg(paper, LINEWORK, x + uy * 0.9, y - ux * 0.9, x - uy * 0.9, y + ux * 0.9, test);
@@ -235,7 +235,7 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       continue;
     }
     // Farm tracks: two wheel ruts.
-    if (w.cls === 'track' && s >= 0.35) {
+    if (w.cls === 'track' && B.cam.lod >= 0.35) {
       for (const o of [0.8, -0.8]) dashed(paper, shifted(w.pts, o).filter((_, i) => i % 3 !== 2), dash, gap, test);
       continue;
     }
