@@ -12,16 +12,23 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 ## What it draws
 
-- **Buildings** use their real footprints and heights from the map data. Windows are set by floor.
+- **Buildings** use their real footprints and heights from the map data. Windows are set by floor. Most buildings have no height in the map, so their storeys are worked out from what they are, the region and how densely built the town is round them: low houses in suburbs, taller rows and blocks in town centres.
+- **Shop fronts** with wide windows and striped awnings line the ground floors where the map has shops, and along busy and pedestrian streets in town centres.
+- **Flat roofs** carry boxes, water tanks (on legs in North America) or rows of solar panels, depending on the region.
 - **Roofs** follow what each building is and where it stands. Houses get gabled, hipped, half-hipped or mansard roofs, and L- and T-shaped houses get cross gables. Terraced rows share party walls, with chimney stacks on them. Paris blocks get mansards with dormers. Dutch canal houses turn stepped or neck gables to the street. Factories get sawtooth roofs, churches get a tower and spire, mosques get a dome and minaret, and temples get tiered roofs.
 - **Regional style** is picked from the country: Alpine, Dutch, British, French, Mediterranean, East Asian, North American and more. Each style sets roof shapes, pitches, overhangs, which way ridges run and how many chimneys and dormers there are. You can override it.
-- **Streets** get kerb lines, parked cars and street lamps. Railways get rails and sleepers. Footpaths are dashed.
-- **Water** is drawn as wavy strokes. Parks are hatched, and parks and woods get trees.
+- **Streets** get kerb lines, parked cars and street lamps, centre dashes and zebra crossings near busy junctions. Main roads may be lined with trees, and roundabouts get a planted island. Parking aisles get painted bays with cars in them.
+- **Railways** get rails and sleepers; narrow gauge sits closer, and trams run under a contact wire hung from poles. Where a road or railway goes underground there's a portal with an arch. Footpaths are dashed, farm tracks are two wheel ruts, and steps have treads.
+- **Cable cars, gondolas, chair lifts and drag lifts** hang from pylons, with cabins, chairs or bars along the cable and stations where they end.
+- **Airfields** get runway markings, taxiway lines and planes parked on the aprons.
+- **Water** is drawn as wavy strokes, with boats moored along quays and in harbours, and ferries on dotted routes. Swimming pools get a hard edge and level ripples. Parks are hatched, and parks and woods get trees.
 - **Fields and pitches** each get their own texture:
   - Fields are furrowed along their length, and some are dashed stubble.
   - Vineyards get trellis rows on stakes, and orchards get rows of fruit trees.
   - Meadows get grass tufts, marshes get blue dashes with tufts, and sand is stippled.
-  - Villages and suburbs often map only "residential" round their houses, with no gardens drawn. Where buildings cover less than 30% of such an area, the open ground is drawn as lawn with a few garden trees.
+  - Villages and suburbs often map only "residential" round their houses, with no gardens drawn. Where buildings cover less than 30% of such an area, the open ground is drawn as lawn with a few garden trees, and each house gets a plot fenced the local way: hedges, walls, fences or picket fences.
+  - Field edges get hedgerows with the odd tree, most of all in Britain and France.
+  - Scrub gets bushes, allotments get plots and sheds, bare rock gets boulders and glaciers get crevasses.
   - Cemeteries get rows of headstones and crosses.
   - Sports pitches get their markings for football, tennis, basketball or a running track, with goals, nets and hoops.
 - **Shadows** are hatched on the ground, from a sun you can move.
@@ -44,12 +51,14 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/tiles.ts` | Loads OpenFreeMap vector tiles (z14), clips them to tile edges and marks seams |
 | `src/osm.ts` | Fetches tagged roof shapes and building types from Overpass, best effort |
 | `src/styles.ts` | Regional building styles and offline country detection |
-| `src/classify.ts` | Works out each building's kind, party walls, street side and roof |
+| `src/classify.ts` | Works out each building's kind, height where the map has none, party walls, street side, shop fronts and roof |
 | `src/camera.ts` | Orthographic isometric camera: rotation, tilt, scale |
 | `src/shape.ts` | Footprint geometry: best-fit rectangles, splitting into rectangles, inset outlines |
 | `src/buildings.ts` | Walls, windows and the choice of roof per building, rooftop boxes, cars |
 | `src/roofs.ts` | Pitched, mansard, shed and sawtooth roofs, gables, chimneys, dormers, spires, domes |
-| `src/streets.ts` | Road surfaces, kerbs, lamps, rails, footpaths |
+| `src/streets.ts` | Road surfaces, kerbs, lamps, rails and trams, footpaths, tracks and steps |
+| `src/infra.ts` | Lifts, ferries and moored boats, tunnel portals, airfields, road markings, parking bays, roundabouts |
+| `src/gardens.ts` | Garden plots and their hedges and fences, field hedgerows, street trees |
 | `src/ground.ts` | Field furrows, vineyards, orchards, meadow and marsh symbols, sand, inferred gardens, headstones, pitch markings |
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |

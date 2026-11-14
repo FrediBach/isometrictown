@@ -1,10 +1,10 @@
-import type { Build } from './buildings';
+import { newSolid, prism, type Build, type Solid } from './buildings';
 import { pointInRing, ringArea } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
-import { GREENERY, LINEWORK, SHADOWS } from './settings';
-import { bestRect, type Rect } from './shape';
+import { GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
+import { bestRect, turn, type Rect } from './shape';
 import { outline } from './streets';
 import type { Shape, Town } from './tiles';
 
@@ -15,8 +15,8 @@ import type { Shape, Town } from './tiles';
  * (stakes, headstones, goals, nets) are small 3D line objects like the street lamps.
  */
 
-const FIELD = 1;
-const MEADOW = 2;
+export const FIELD = 1;
+export const MEADOW = 2;
 const WETLAND = 3;
 const SAND = 4;
 const ORCHARD = 5;
@@ -26,10 +26,20 @@ const CEMETERY = 7;
 const PITCH = 8;
 const COURT = 9;
 /** Open ground in leafy residential areas, where the map has no gardens drawn: lawns and garden trees. */
-const GARDEN = 10;
+export const GARDEN = 10;
 /** Residential areas whose buildings cover less than this share of the land count as gardens. */
 const GARDEN_COVERAGE = 0.3;
-const CODES: Record<string, number> = { farmland: FIELD, meadow: MEADOW, wetland: WETLAND, sand: SAND, orchard: ORCHARD, vineyard: VINEYARD };
+/** Scrub: bushes over the grass. */
+const SCRUB = 11;
+/** Allotments: a grid of little plots with sheds. */
+const ALLOTMENT = 12;
+/** Bare rock and scree: boulders. */
+const ROCK = 13;
+/** Glaciers: crevasses. */
+const ICE = 14;
+const CODES: Record<string, number> = { farmland: FIELD, meadow: MEADOW, wetland: WETLAND, sand: SAND, orchard: ORCHARD, vineyard: VINEYARD, scrub: SCRUB, allotments: ALLOTMENT, rock: ROCK, ice: ICE };
+/** Allotment plot size in metres, across and along the rows. */
+const PLOT: [number, number] = [9, 16];
 
 /** Furrow spacing on paper, mm, varied per field. */
 const FURROW_MM: [number, number] = [1.8, 2.6];
@@ -41,7 +51,7 @@ const SAND_MM = 2.4;
 
 type Sport = 'soccer' | 'tennis' | 'basketball' | 'track' | 'multi';
 type Pitch = { rect: Rect; sport: Sport };
-type Cover = { shape: Shape; code: number; rect: Rect };
+export type Cover = { shape: Shape; code: number; rect: Rect };
 
 export type Ground = {
   /** Per pixel: which texture the ground gets, 0 for none. */
@@ -200,7 +210,7 @@ export function gardenTrees(B: Build, paper: Paper, G: Ground, M: Masks, box: [n
 /** Where the plain park hatching should give way to a texture. */
 export function textured(G: Ground, paper: Paper, x: number, y: number): boolean {
   const c = paper.at(G.land, x, y);
-  return c === MEADOW || c === WETLAND || c === CEMETERY || c === PITCH || c === COURT;
+  return c === MEADOW || c === WETLAND || c === CEMETERY || c === PITCH || c === COURT || c === ALLOTMENT;
 }
 
 /** Grass under headstones and pitch markings: the park hatch at half density, so the detail on top still reads. */
@@ -213,7 +223,7 @@ export function lightly(G: Ground, paper: Paper, x: number, y: number): boolean 
 export function keepTree(B: Build, G: Ground, paper: Paper, t: Tree): boolean {
   const c = paper.cam;
   const code = paper.at(G.land, c.sx(t.x, t.y), c.sy(t.x, t.y, 0));
-  if (code === PITCH || code === COURT) return false;
+  if (code === PITCH || code === COURT || code === ALLOTMENT) return false;
   if (code !== MEADOW && code !== WETLAND) return true;
   const [k0, k1] = B.key(t.x, t.y);
   return hash(k0, k1, B.set.seed, 62) < 0.12;
@@ -292,6 +302,7 @@ export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (
   outline(paper, GREENERY, G.farmShapes, G.farms, open);
 
   for (const c of G.covers) {
+    if (c.code === ALLOTMENT) allotment(B, paper, c, flat(ALLOTMENT));
     if (c.code === FIELD) field(B, paper, c, flat(FIELD));
     else if (c.code === VINEYARD) vineyard(B, paper, c, flat(VINEYARD), standing);
     else if (c.code === ORCHARD && !orchardsAsTrees(B)) dotted(B, paper, c, flat(ORCHARD));
@@ -384,6 +395,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
   const passes: [number, number, number[]][] = [];
   if (has.has(MEADOW) || has.has(WETLAND) || G.gardens) passes.push([TUFT_MM, 11, [MEADOW, WETLAND, GARDEN]]);
   if (has.has(SAND)) passes.push([SAND_MM, 12, [SAND]]);
+  if (has.has(ROCK) || has.has(ICE)) passes.push([ROCK_MM, 13, [ROCK, ICE]]);
   const metre = toAbs(1, 0)[0] - toAbs(0, 0)[0];
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
@@ -414,6 +426,11 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
             [0.8, 0],
           ]);
           if (r(3) < 0.6) mark(GREENERY, sx, sy - 0.15, d, SMALL_TUFT);
+        } else if (code === ROCK) {
+          if (r(3) < 0.7) mark(LINEWORK, sx, sy, d, r(4) < 0.5 ? BOULDER : BOULDER.map(([x, y]) => [-x * 0.7, y * 0.7]));
+          if (r(5) < 0.6) mark(LINEWORK, sx + 1.1 * (r(6) - 0.5), sy + 0.8 * (r(7) - 0.5), d, DOT);
+        } else if (code === ICE) {
+          if (r(3) < 0.55) mark(WATER, sx, sy, d, r(4) < 0.5 ? CREVASSE : CREVASSE.map(([x, y]) => [x * 0.6, y]));
         } else if (code === SAND) {
           mark(LINEWORK, sx, sy, d, DOT);
           if (r(3) < 0.5) mark(LINEWORK, sx + 0.9 * (r(4) - 0.5), sy + 0.9 * (r(5) - 0.5), d, DOT);
@@ -429,6 +446,23 @@ const TUFT = [
   [0.22, 0],
   [0.45, -0.42],
 ];
+const BOULDER = [
+  [-0.5, 0],
+  [-0.38, -0.36],
+  [-0.05, -0.5],
+  [0.34, -0.3],
+  [0.5, 0],
+  [-0.5, 0],
+];
+const CREVASSE = [
+  [-1.0, 0.1],
+  [-0.5, -0.05],
+  [0, 0.08],
+  [0.5, -0.06],
+  [1.0, 0.1],
+];
+/** Symbol grid for boulders and crevasses, mm on paper. */
+const ROCK_MM = 3.6;
 const SMALL_TUFT = TUFT.map(([x, y]) => [x * 0.7, y * 0.7]);
 const DOT = [
   [-0.12, 0],
@@ -669,4 +703,81 @@ function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean):
       arc(0, 0, Math.min(w / 5, 3), 0, Math.PI * 2);
     }
   }
+}
+
+/** Bushes scattered over scrub, on a grid fixed to the map. */
+export function scrubBushes(B: Build, paper: Paper, G: Ground, M: Masks, box: [number, number, number, number], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Tree[] {
+  const { set, cam } = B;
+  const out: Tree[] = [];
+  if (set.trees <= 0 || !G.covers.some((c) => c.code === SCRUB)) return out;
+  const step = 5.5 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  const [A0x, A0y] = toAbs(box[0], box[1]);
+  const [A1x, A1y] = toAbs(box[2], box[3]);
+  const i0 = Math.floor(A0x / step);
+  const i1 = Math.ceil(A1x / step);
+  const j0 = Math.floor(A0y / step);
+  const j1 = Math.ceil(A1y / step);
+  if ((i1 - i0) * (j1 - j0) > 600000) return out;
+  for (let i = i0; i <= i1; i++)
+    for (let j = j0; j <= j1; j++) {
+      const h = (k: number) => hash(i, j, set.seed, 150 + k);
+      if (h(0) >= 0.5 + 0.3 * set.trees) continue;
+      const [x, y] = fromAbs((i + 0.1 + 0.8 * h(1)) * step, (j + 0.1 + 0.8 * h(2)) * step);
+      const sx = cam.sx(x, y);
+      const sy = cam.sy(x, y, 0);
+      if (paper.at(G.land, sx, sy) !== SCRUB || paper.on(M.foot, sx, sy) || paper.on(M.road, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.wood, sx, sy)) continue;
+      const r = 0.8 + h(3) * 0.9;
+      out.push({ x, y, r, h: r, conifer: false, bush: true });
+    }
+  return out;
+}
+
+/** Plot boundaries and rows of vegetables over allotments. */
+function allotment(B: Build, paper: Paper, c: Cover, test: Test): void {
+  const r = c.rect;
+  rows(c.shape, r, PLOT[0], (ax, ay, bx, by) => paper.line3(GREENERY, [ax, ay, 0, bx, by, 0], test));
+  rows(c.shape, turn(r), PLOT[1], (ax, ay, bx, by) => paper.line3(GREENERY, [ax, ay, 0, bx, by, 0], test));
+  if (mmPer(B, -r.uy, r.ux) * 1.3 < 0.45) return;
+  // Vegetable rows, dashed, kept back from the plot edges.
+  const { ux, uy } = r;
+  const v0 = r.cx * -uy + r.cy * ux;
+  rows(c.shape, r, 1.3, (ax, ay, bx, by) => {
+    const v = ((((ax * -uy + ay * ux - v0) % PLOT[0]) + PLOT[0] * 1.5) % PLOT[0]);
+    if (v < 1.2 || v > PLOT[0] - 1.2) return;
+    const len = Math.hypot(bx - ax, by - ay);
+    for (let t = 1; t < len - 1; t += 2.4) {
+      const t1 = Math.min(len - 1, t + 1.5);
+      paper.line3(GREENERY, [ax + ux * t, ay + uy * t, 0, ax + ux * t1, ay + uy * t1, 0], test);
+    }
+  });
+}
+
+/** A garden shed in some allotment plots. */
+export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Solid[] {
+  const out: Solid[] = [];
+  const { cam, set } = B;
+  for (const c of G.covers) {
+    if (c.code !== ALLOTMENT) continue;
+    const r = c.rect;
+    const vx = -r.uy;
+    const vy = r.ux;
+    for (let a = -r.L / 2 + PLOT[1] / 2; a < r.L / 2; a += PLOT[1])
+      for (let b = -r.w / 2 + PLOT[0] / 2; b < r.w / 2; b += PLOT[0]) {
+        const x = r.cx + r.ux * (a + PLOT[1] / 2 - 2.2) + vx * (b + PLOT[0] / 2 - 2);
+        const y = r.cy + r.uy * (a + PLOT[1] / 2 - 2.2) + vy * (b + PLOT[0] / 2 - 2);
+        const [k0, k1] = B.key(x, y);
+        if (hash(k0, k1, set.seed, 160) > 0.45) continue;
+        const sx = cam.sx(x, y);
+        const sy = cam.sy(x, y, 0);
+        if (paper.at(G.land, sx, sy) !== ALLOTMENT || paper.on(M.foot, sx, sy) || paper.on(M.road, sx, sy)) continue;
+        const hl = 1.0 + hash(k0, k1, set.seed, 161) * 0.4;
+        const hw = 0.8 + hash(k0, k1, set.seed, 162) * 0.3;
+        const pts = [x - r.ux * hl - vx * hw, y - r.uy * hl - vy * hw, x + r.ux * hl - vx * hw, y + r.uy * hl - vy * hw, x + r.ux * hl + vx * hw, y + r.uy * hl + vy * hw, x - r.ux * hl + vx * hw, y - r.uy * hl + vy * hw];
+        const s = newSolid();
+        prism(B, [{ pts, seam: new Uint8Array(4) }], 0, 2.2, { roof: true, windows: false, pen: LINEWORK }, s);
+        s.casts.push({ ring: pts, h: 2.2 });
+        out.push(s);
+      }
+  }
+  return out;
 }

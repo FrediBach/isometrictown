@@ -1,6 +1,8 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
-import { drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, textured } from './ground';
+import { allotmentSheds, drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
+import { hedgerows, plots, streetTrees } from './gardens';
+import { airfields, ferries, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
 import type { Frame } from './geo';
 import type { StageProgress } from './app/stages';
@@ -41,18 +43,25 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       return [Math.round(X), Math.round(Y)];
     },
   };
-  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask() };
+  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
   const water = [...town.water, ...streamShapes(town.streams)];
+  const rounds = roundabouts(town);
+  town.green.push(...rounds.islands);
 
   // Ground
   for (const s of water) paper.fillMask(M.water, s.map((r) => r.pts));
+  for (const s of town.pools) {
+    paper.fillMask(M.water, s.map((r) => r.pts));
+    paper.fillMask(M.pool, s.map((r) => r.pts));
+  }
   for (const s of town.green) paper.fillMask(M.green, s.map((r) => r.pts));
   for (const s of town.wood) paper.fillMask(M.wood, s.map((r) => r.pts));
   fillRoads(paper, town.ways, town.plazas, M.road);
+  fillRoads(paper, town.runways, town.aprons, M.road);
   const G = set.ground ? planGround(B, paper, town) : null;
 
   // Buildings, only those that can show inside the drawing area
@@ -87,11 +96,19 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   onStage({ stage: 'life', note: `${counts.buildings.toLocaleString('en')} buildings standing` });
   const box = cam.region(0);
   let trees = placeTrees(B, paper, M, box, toAbs, fromAbs);
-  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs)];
+  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs), ...scrubBushes(B, paper, G, M, box, toAbs, fromAbs), ...hedgerows(B, paper, G, M)];
+  trees.push(...streetTrees(B, paper, town.ways, M));
+  if (set.trees > 0) for (const [x, y] of rounds.centres) trees.push({ x, y, r: 2.4, h: 6.5, conifer: false });
   counts.trees = trees.length;
   const cars = parkCars(B, paper, town.ways, M);
-  counts.cars = cars.length;
+  const bays = parking(B, paper, town.ways, M);
+  counts.cars = cars.length + bays.solids.length;
   solids.push(...cars);
+  const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), portals(B, town), airfields(B, paper, town, M)];
+  for (const e of extras) solids.push(...e.solids);
+  if (G) solids.push(...allotmentSheds(B, paper, G, M));
+  const fences = G ? plots(B, paper, town, G, M) : null;
+  if (fences) solids.push(...fences.solids);
 
   // Depth
   onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
@@ -137,6 +154,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.water) {
     waves(paper, M, set.seed);
     outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y));
+    pools(paper, M, town.pools);
   }
   if (set.parks) {
     const grass = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y);
@@ -154,6 +172,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.paths) footpaths(B, paper, town.ways, M);
   if (set.lamps) counts.lamps = lamps(B, paper, town.ways, M);
   railings(paper, town.ways);
+  markings(B, paper, town.ways, M);
+  for (const e of extras) e.draw(paper);
+  fences?.draw();
 
   // Solids and trees
   onStage({ stage: 'lines', note: 'Buildings and trees' });
@@ -169,7 +190,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 function waves(paper: Paper, M: Masks, seed: number): void {
   const rnd = sequence(seed * 7919 + 13);
   const cam = paper.cam;
-  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.road, x, y) && paper.seen(x, y, d);
+  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && paper.seen(x, y, d);
   for (let y = paper.y0 + 0.8; y < paper.y1; y += 1.7 + rnd() * 0.5) {
     let x = paper.x0 - rnd() * 8;
     while (x < paper.x1) {
@@ -186,6 +207,13 @@ function waves(paper: Paper, M: Masks, seed: number): void {
       x += len + 1 + rnd() * 5.5;
     }
   }
+}
+
+/** Swimming pools: a hard edge and close, level ripples instead of open-water waves. */
+function pools(paper: Paper, M: Masks, shapes: Shape[]): void {
+  if (!shapes.length) return;
+  outline(paper, LINEWORK, shapes, M.pool);
+  paper.hatchGround(WATER, 0, 0.75, (x, y) => paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.shadow, x, y));
 }
 
 /** Waterway centre lines as water shapes: a strip per segment and a disc per joint. */

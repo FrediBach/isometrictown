@@ -1,8 +1,9 @@
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
+import { bestRect } from './shape';
 import type { Settings } from './settings';
 import type { HouseRoof, Style } from './styles';
-import type { Town } from './tiles';
+import { SHOP_POIS, type Town, type Way } from './tiles';
 
 export type Kind = 'house' | 'terrace' | 'apartment' | 'shed' | 'industrial' | 'civic' | 'worship' | 'tall';
 export type Roof = HouseRoof | 'skirt' | 'shed' | 'sawtooth' | 'church' | 'mosque' | 'temple';
@@ -18,6 +19,10 @@ export type Info = {
   /** Direction of the nearest street, and the unit vector from the building towards it. */
   street?: [number, number];
   toStreet?: [number, number];
+  /** Distance from the building's centre to the edge of that street. */
+  streetGap?: number;
+  /** Shops on the ground floor, on the street side. */
+  shop: boolean;
   /** OSM says the ridge runs across the building, not along it. */
   across?: boolean;
   chimney: boolean;
@@ -38,6 +43,10 @@ const PARTY_TOL = 0.9;
 const CIVIC_POIS = new Set(['school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'theatre', 'police', 'fire_station', 'post', 'railway', 'castle']);
 const CIVIC_LAND = new Set(['school', 'university', 'college', 'hospital']);
 const WORK_LAND = new Set(['industrial', 'railway', 'garages', 'military']);
+/** Radius (m) over which we measure how densely built the ground is. */
+const DENSITY_R = 45;
+/** Streets busy enough to have shops along them in a town centre. */
+const HIGH_STREETS = new Set(['primary', 'secondary', 'tertiary']);
 
 /** Buckets of item indices over a square grid, for neighbour lookups. */
 class Grid {
@@ -190,9 +199,11 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
   }
   const poi: (string | undefined)[] = new Array(N);
   const religion: (string | undefined)[] = new Array(N);
+  const shops = new Uint8Array(N);
   for (const p of town.pois) {
     const i = containing(p.x, p.y);
     if (i < 0) continue;
+    if (SHOP_POIS.has(p.cls)) shops[i] = 1;
     if (p.cls === 'place_of_worship') {
       poi[i] = 'worship';
       religion[i] = p.sub;
@@ -226,6 +237,8 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
 
   // Party walls: an edge that runs back-to-back along a neighbour's edge.
   const party = bs.map((b) => new Float32Array(b.shape[0].pts.length / 2));
+  /** Per building: [edge, neighbour] pairs, turned into neighbour heights once every height is known. */
+  const partyNb: number[][] = bs.map(() => []);
   const parent = Int32Array.from({ length: N }, (_, i) => i);
   const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])));
   for (let i = 0; i < N; i++) {
@@ -245,7 +258,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       const tx = dx / len;
       const ty = dy / len;
       let cover = 0;
-      let next = 0;
+      const next: number[] = [];
       const ex0 = Math.min(ax, ax + dx) - PARTY_TOL;
       const ey0 = Math.min(ay, ay + dy) - PARTY_TOL;
       const ex1 = Math.max(ax, ax + dx) + PARTY_TOL;
@@ -273,23 +286,41 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
           const overlap = Math.min(len, Math.max(s0, s1)) - Math.max(0, Math.min(s0, s1));
           if (overlap > 0.5) {
             cover += overlap;
-            next = Math.max(next, bs[j].h);
+            next.push(j);
             parent[root(i)] = root(j);
           }
         }
       });
-      if (cover > 0.6 * len) party[i][e] = next;
+      if (cover > 0.6 * len) for (const j of next) partyNb[i].push(e, j);
     }
   }
 
   // Streets, for which way ridges and gables face.
   const segs: number[] = [];
+  const segWay: Way[] = [];
   for (const w of town.ways) {
     if (w.kind === 'rail' || w.bridge) continue;
-    for (let k = 0; k + 3 < w.pts.length; k += 2) segs.push(w.pts[k], w.pts[k + 1], w.pts[k + 2], w.pts[k + 3]);
+    for (let k = 0; k + 3 < w.pts.length; k += 2) {
+      segs.push(w.pts[k], w.pts[k + 1], w.pts[k + 2], w.pts[k + 3]);
+      segWay.push(w);
+    }
   }
   const segGrid = new Grid(segs.length / 4);
   for (let s = 0; s < segs.length; s += 4) segGrid.add(s / 4, Math.min(segs[s], segs[s + 2]), Math.min(segs[s + 1], segs[s + 3]), Math.max(segs[s], segs[s + 2]), Math.max(segs[s + 1], segs[s + 3]));
+
+  // How much of the ground round each building is built on: town centre or suburb.
+  const areas = bs.map((b) => Math.abs(ringArea(b.shape[0].pts)));
+  const density = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const [cx, cy] = centre[i];
+    let built = 0;
+    grid.near(cx - DENSITY_R, cy - DENSITY_R, cx + DENSITY_R, cy + DENSITY_R, (j) => {
+      const dx = centre[j][0] - cx;
+      const dy = centre[j][1] - cy;
+      if (dx * dx + dy * dy <= DENSITY_R * DENSITY_R && bs[j].min === 0) built += areas[j];
+    });
+    density[i] = built / (Math.PI * DENSITY_R * DENSITY_R);
+  }
 
   // Terraces share one seed, taken from the member with the smallest position key.
   const groupSeed = new Map<number, [number, number]>();
@@ -305,11 +336,12 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
   for (let i = 0; i < N; i++) {
     const b = bs[i];
     const p = b.shape[0].pts;
-    const area = Math.abs(ringArea(p));
-    const H = b.h;
+    const area = areas[i];
+    let H = b.h;
+    const guess = !!b.guess;
     const k = keys[i];
     const r = (salt: number) => hash(k[0], k[1], set.seed, 100 + salt);
-    const hasParty = party[i].some((v) => v);
+    const hasParty = partyNb[i].length > 0;
     const seed = hasParty ? groupSeed.get(root(i))! : k;
     const g = (salt: number) => hash(seed[0], seed[1], set.seed, 200 + salt);
     // Rows share their roof shape and details only where that's the local habit.
@@ -323,17 +355,21 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       faith ??= OSM_RELIGION[t.building];
     } else if (poi[i] === 'worship') kind = 'worship';
     else if (poi[i] === 'civic' || CIVIC_LAND.has(land[i] ?? '')) kind = 'civic';
-    else if (area < 30 && H <= 4.5 && !numbers[i] && !hasParty) kind = 'shed';
+    else if (area < 30 && (H <= 4.5 || guess) && !numbers[i] && !hasParty) kind = 'shed';
     else if (WORK_LAND.has(land[i] ?? '') || (area > 1500 && H <= 15 && !numbers[i] && land[i] !== 'residential')) kind = 'industrial';
     else if (H > 40) kind = 'tall';
     else if (hasParty && area < 500 && H <= style.pitchedMaxH) kind = 'terrace';
     else if (area > style.pitchedMaxArea || H > style.pitchedMaxH || numbers[i] >= 4) kind = 'apartment';
     else kind = 'house';
     if (kind === 'worship' && area < 30) kind = 'shed';
+    const storeys = guess ? guessStoreys(kind, area, density[i], style, r, row) : 0;
+    if (guess) H = storeys ? storeys * style.floor + 0.5 : guessHeight(kind, area, r);
 
     // Street direction and side.
     let street: [number, number] | undefined;
     let toStreet: [number, number] | undefined;
+    let way: Way | undefined;
+    let dist = Infinity;
     {
       const [cx, cy] = centre[i];
       const bx = boxes[i];
@@ -357,6 +393,8 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
           street = [dx / l, dy / l];
           const dl = Math.sqrt(d2);
           toStreet = [px / dl, py / dl];
+          way = segWay[s];
+          dist = dl;
         }
       });
     }
@@ -399,8 +437,19 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     if (kind === 'industrial') pitch = 10 + r(6) * 8;
     if (roof === 'shed') pitch = 8 + r(6) * 8;
     if (kind === 'shed' && roof === 'gabled') pitch = Math.min(pitch, 30);
+    // A guessed height is the wall height; the roof goes on top.
+    if (storeys) H += roofAllowance(p, roof, pitch);
+    b.h = H;
 
     const isHome = kind === 'house' || kind === 'terrace' || kind === 'apartment';
+    // Shop fronts: where the map has shops in the building, or a busy or pedestrian street
+    // runs past a solidly built block, as long as the building fronts onto it.
+    const streetGap = way ? dist - way.width / 2 : undefined;
+    const half = Math.min(boxes[i][2] - boxes[i][0], boxes[i][3] - boxes[i][1]) / 2;
+    const fronts = streetGap !== undefined && streetGap - half < 7;
+    const busy = !!way && (HIGH_STREETS.has(way.cls) || way.sub === 'pedestrian');
+    const urban = density[i] > 0.4 || land[i] === 'retail' || land[i] === 'commercial';
+    const shop = fronts && (kind === 'terrace' || kind === 'apartment' || kind === 'civic') && (shops[i] > 0 || (busy && urban && r(12) < 0.55));
     const pick2 = (prob: number, salt: number) => (kind === 'terrace' ? row(salt) : r(salt)) < prob;
     b.info = {
       kind,
@@ -409,6 +458,8 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       party: party[i],
       street,
       toStreet,
+      streetGap,
+      shop,
       across: t?.across,
       chimney: isHome && pick2(style.chimney, 7),
       dormers: (isHome || kind === 'civic') && pick2(style.dormer, 8),
@@ -418,4 +469,50 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       tagged: !!tagRoof,
     };
   }
+
+  for (let i = 0; i < N; i++) {
+    const nb = partyNb[i];
+    for (let k = 0; k < nb.length; k += 2) party[i][nb[k]] = Math.max(party[i][nb[k]], bs[nb[k + 1]].h);
+  }
+}
+
+/** Storeys for a building the map gives no height for, or 0 where storeys don't apply. */
+function guessStoreys(kind: Kind, area: number, density: number, style: Style, r: (salt: number) => number, row: (salt: number) => number): number {
+  const [lo, hi] = style.storeys;
+  const between = (u: number) => lo + Math.min(hi - lo, Math.floor(u * (hi - lo + 1)));
+  // 0 in suburbs, 1 in a solidly built town centre.
+  const urban = Math.max(0, Math.min(1, (density - 0.2) / 0.32));
+  const lift = (u: number, share: number) => Math.round(urban * style.urban * share * (0.6 + 0.8 * u));
+  switch (kind) {
+    case 'house':
+      return between(r(40)) + (r(41) < urban * 0.5 ? 1 : 0);
+    case 'terrace':
+      return between(row(40)) + lift(row(41), 0.8);
+    case 'apartment':
+      return Math.min(10, Math.max(3, hi) + Math.floor(r(40) * 2) + lift(r(41), 1) + Math.max(0, Math.min(3, Math.floor(Math.log2(area / 500)))));
+    case 'civic':
+      return 2 + Math.floor(r(40) * 2) + lift(r(41), 0.5);
+    default:
+      return 0;
+  }
+}
+
+/** Height for buildings that aren't counted in storeys: sheds, halls, places of worship. */
+function guessHeight(kind: Kind, area: number, r: (salt: number) => number): number {
+  if (kind === 'shed') return 2.5 + r(40) * 0.9;
+  if (kind === 'industrial') return 6 + r(40) * 5 + (area > 3000 ? 2 : 0);
+  if (kind === 'worship') return 10 + Math.min(10, area / 80);
+  return 5;
+}
+
+/** How much a roof adds over the walls, matching how the roof builders take it back off. */
+function roofAllowance(p: number[], roof: Roof, pitch: number): number {
+  const tan = Math.tan((pitch * Math.PI) / 180);
+  if (roof === 'gabled' || roof === 'hipped' || roof === 'halfHipped') {
+    const w = bestRect(p).rect?.w ?? 8;
+    return Math.min((w / 2) * tan, 13) * 0.45;
+  }
+  if (roof === 'mansard') return 1.3 * Math.tan((72 * Math.PI) / 180) * 0.75;
+  if (roof === 'skirt') return 3.2 * tan * 0.5;
+  return 0;
 }

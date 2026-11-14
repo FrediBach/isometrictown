@@ -35,6 +35,10 @@ export type Style = {
   floor: number;
   /** Terraced rows share one roof shape, as in British or American row houses; otherwise each house picks its own. */
   rows: boolean;
+  /** Storeys of an ordinary house, where the map gives no height. */
+  storeys: [number, number];
+  /** Storeys added to rows and blocks in a densely built town centre. */
+  urban: number;
 };
 
 const base: Omit<Style, 'id' | 'label'> = {
@@ -52,24 +56,26 @@ const base: Omit<Style, 'id' | 'label'> = {
   parapet: 0.2,
   floor: 3.2,
   rows: true,
+  storeys: [1, 2],
+  urban: 2,
 };
 
 const make = (id: StyleId, label: string, o: Partial<Style>): Style => ({ ...base, ...o, id, label });
 
 export const STYLES: Record<StyleId, Style> = {
-  alpine: make('alpine', 'Alpine', { rows: false, roofs: { gabled: 0.8, halfHipped: 0.12, hipped: 0.08 }, pitch: [22, 32], overhang: 1.1, ridge: 'long', pitchedShare: 0.92, pitchedMaxH: 26, pitchedMaxArea: 1400, blocks: 'skirt', chimney: 0.3, dormer: 0.25, parapet: 0.05, floor: 2.9 }),
-  dutch: make('dutch', 'Dutch and Flemish', { rows: false, roofs: { gabled: 0.85, hipped: 0.1, mansard: 0.05 }, pitch: [48, 60], overhang: 0.15, ridge: 'gableToStreet', pitchedShare: 0.85, pitchedMaxH: 24, pitchedMaxArea: 700, blocks: 'flat', chimney: 0.1, dormer: 0.25, gableFront: 0.55, parapet: 0.15 }),
-  central: make('central', 'Central European', { rows: false, roofs: { gabled: 0.55, hipped: 0.2, halfHipped: 0.15, mansard: 0.1 }, pitch: [38, 50], overhang: 0.45, ridge: 'street', pitchedShare: 0.88, pitchedMaxH: 24, pitchedMaxArea: 1200, blocks: 'skirt', chimney: 0.4, dormer: 0.4, parapet: 0.1 }),
-  nordic: make('nordic', 'Nordic', { roofs: { gabled: 0.8, hipped: 0.15, halfHipped: 0.05 }, pitch: [35, 45], overhang: 0.4, ridge: 'long', pitchedShare: 0.85, pitchedMaxH: 22, pitchedMaxArea: 1000, blocks: 'skirt', chimney: 0.35, dormer: 0.15, parapet: 0.1 }),
-  british: make('british', 'British and Irish', { roofs: { gabled: 0.55, hipped: 0.45 }, pitch: [35, 45], overhang: 0.2, ridge: 'street', pitchedShare: 0.85, pitchedMaxH: 20, pitchedMaxArea: 700, blocks: 'flat', chimney: 0.8, dormer: 0.15, parapet: 0.3 }),
-  french: make('french', 'French', { rows: false, roofs: { gabled: 0.4, hipped: 0.45, mansard: 0.15 }, pitch: [30, 45], overhang: 0.3, ridge: 'street', pitchedShare: 0.8, pitchedMaxH: 18, pitchedMaxArea: 700, blocks: 'mansard', chimney: 0.5, dormer: 0.5, parapet: 0.1 }),
-  mediterranean: make('mediterranean', 'Mediterranean', { rows: false, roofs: { hipped: 0.45, gabled: 0.3, flat: 0.25 }, pitch: [17, 25], overhang: 0.3, ridge: 'street', pitchedShare: 0.75, pitchedMaxH: 24, pitchedMaxArea: 1100, blocks: 'skirt', chimney: 0.12, dormer: 0.02, parapet: 0.35 }),
-  eastern: make('eastern', 'Eastern European', { roofs: { hipped: 0.5, gabled: 0.4, halfHipped: 0.1 }, pitch: [25, 35], overhang: 0.4, ridge: 'street', pitchedShare: 0.8, pitchedMaxH: 18, pitchedMaxArea: 800, blocks: 'flat', chimney: 0.25, dormer: 0.08, parapet: 0.15 }),
-  arid: make('arid', 'North African and Middle Eastern', { rows: false, roofs: { flat: 1 }, pitch: [15, 20], overhang: 0, ridge: 'long', pitchedShare: 0.04, blocks: 'flat', chimney: 0, dormer: 0, parapet: 0.75 }),
-  eastAsian: make('eastAsian', 'East Asian', { rows: false, roofs: { hipped: 0.45, gabled: 0.4, halfHipped: 0.15 }, pitch: [22, 32], overhang: 0.7, ridge: 'long', pitchedShare: 0.7, pitchedMaxH: 13, pitchedMaxArea: 500, blocks: 'flat', chimney: 0, dormer: 0, parapet: 0.25 }),
-  tropical: make('tropical', 'Tropical', { rows: false, roofs: { flat: 0.45, hipped: 0.35, gabled: 0.2 }, pitch: [18, 28], overhang: 0.6, ridge: 'long', pitchedShare: 0.6, pitchedMaxH: 12, pitchedMaxArea: 500, blocks: 'flat', chimney: 0, dormer: 0, parapet: 0.4 }),
-  american: make('american', 'North American', { roofs: { gabled: 0.5, hipped: 0.4, halfHipped: 0.05, mansard: 0.05 }, pitch: [25, 38], overhang: 0.45, ridge: 'street', pitchedShare: 0.85, pitchedMaxH: 14, pitchedMaxArea: 600, blocks: 'flat', chimney: 0.35, dormer: 0.15, parapet: 0.35 }),
-  antipodean: make('antipodean', 'Australian and New Zealand', { roofs: { hipped: 0.65, gabled: 0.35 }, pitch: [20, 27], overhang: 0.55, ridge: 'street', pitchedShare: 0.85, pitchedMaxH: 12, pitchedMaxArea: 600, blocks: 'flat', chimney: 0.12, dormer: 0, parapet: 0.3 }),
+  alpine: make('alpine', 'Alpine', { rows: false, roofs: { gabled: 0.8, halfHipped: 0.12, hipped: 0.08 }, pitch: [22, 32], overhang: 1.1, ridge: 'long', pitchedShare: 0.92, pitchedMaxH: 26, pitchedMaxArea: 1400, blocks: 'skirt', chimney: 0.3, dormer: 0.25, parapet: 0.05, floor: 2.9, storeys: [2, 3], urban: 1.5 }),
+  dutch: make('dutch', 'Dutch and Flemish', { rows: false, roofs: { gabled: 0.85, hipped: 0.1, mansard: 0.05 }, pitch: [48, 60], overhang: 0.15, ridge: 'gableToStreet', pitchedShare: 0.85, pitchedMaxH: 24, pitchedMaxArea: 700, blocks: 'flat', chimney: 0.1, dormer: 0.25, gableFront: 0.55, parapet: 0.15, storeys: [2, 3], urban: 1.5 }),
+  central: make('central', 'Central European', { rows: false, roofs: { gabled: 0.55, hipped: 0.2, halfHipped: 0.15, mansard: 0.1 }, pitch: [38, 50], overhang: 0.45, ridge: 'street', pitchedShare: 0.88, pitchedMaxH: 24, pitchedMaxArea: 1200, blocks: 'skirt', chimney: 0.4, dormer: 0.4, parapet: 0.1, storeys: [2, 3], urban: 3 }),
+  nordic: make('nordic', 'Nordic', { roofs: { gabled: 0.8, hipped: 0.15, halfHipped: 0.05 }, pitch: [35, 45], overhang: 0.4, ridge: 'long', pitchedShare: 0.85, pitchedMaxH: 22, pitchedMaxArea: 1000, blocks: 'skirt', chimney: 0.35, dormer: 0.15, parapet: 0.1, storeys: [1, 2], urban: 2.5 }),
+  british: make('british', 'British and Irish', { roofs: { gabled: 0.55, hipped: 0.45 }, pitch: [35, 45], overhang: 0.2, ridge: 'street', pitchedShare: 0.85, pitchedMaxH: 20, pitchedMaxArea: 700, blocks: 'flat', chimney: 0.8, dormer: 0.15, parapet: 0.3, storeys: [2, 2], urban: 1.5 }),
+  french: make('french', 'French', { rows: false, roofs: { gabled: 0.4, hipped: 0.45, mansard: 0.15 }, pitch: [30, 45], overhang: 0.3, ridge: 'street', pitchedShare: 0.8, pitchedMaxH: 18, pitchedMaxArea: 700, blocks: 'mansard', chimney: 0.5, dormer: 0.5, parapet: 0.1, storeys: [2, 3], urban: 3.5 }),
+  mediterranean: make('mediterranean', 'Mediterranean', { rows: false, roofs: { hipped: 0.45, gabled: 0.3, flat: 0.25 }, pitch: [17, 25], overhang: 0.3, ridge: 'street', pitchedShare: 0.75, pitchedMaxH: 24, pitchedMaxArea: 1100, blocks: 'skirt', chimney: 0.12, dormer: 0.02, parapet: 0.35, storeys: [2, 3], urban: 3 }),
+  eastern: make('eastern', 'Eastern European', { roofs: { hipped: 0.5, gabled: 0.4, halfHipped: 0.1 }, pitch: [25, 35], overhang: 0.4, ridge: 'street', pitchedShare: 0.8, pitchedMaxH: 18, pitchedMaxArea: 800, blocks: 'flat', chimney: 0.25, dormer: 0.08, parapet: 0.15, storeys: [1, 2], urban: 3 }),
+  arid: make('arid', 'North African and Middle Eastern', { rows: false, roofs: { flat: 1 }, pitch: [15, 20], overhang: 0, ridge: 'long', pitchedShare: 0.04, blocks: 'flat', chimney: 0, dormer: 0, parapet: 0.75, storeys: [1, 3], urban: 2 }),
+  eastAsian: make('eastAsian', 'East Asian', { rows: false, roofs: { hipped: 0.45, gabled: 0.4, halfHipped: 0.15 }, pitch: [22, 32], overhang: 0.7, ridge: 'long', pitchedShare: 0.7, pitchedMaxH: 13, pitchedMaxArea: 500, blocks: 'flat', chimney: 0, dormer: 0, parapet: 0.25, storeys: [1, 2], urban: 2 }),
+  tropical: make('tropical', 'Tropical', { rows: false, roofs: { flat: 0.45, hipped: 0.35, gabled: 0.2 }, pitch: [18, 28], overhang: 0.6, ridge: 'long', pitchedShare: 0.6, pitchedMaxH: 12, pitchedMaxArea: 500, blocks: 'flat', chimney: 0, dormer: 0, parapet: 0.4, storeys: [1, 2], urban: 2 }),
+  american: make('american', 'North American', { roofs: { gabled: 0.5, hipped: 0.4, halfHipped: 0.05, mansard: 0.05 }, pitch: [25, 38], overhang: 0.45, ridge: 'street', pitchedShare: 0.85, pitchedMaxH: 14, pitchedMaxArea: 600, blocks: 'flat', chimney: 0.35, dormer: 0.15, parapet: 0.35, storeys: [1, 2], urban: 1.5 }),
+  antipodean: make('antipodean', 'Australian and New Zealand', { roofs: { hipped: 0.65, gabled: 0.35 }, pitch: [20, 27], overhang: 0.55, ridge: 'street', pitchedShare: 0.85, pitchedMaxH: 12, pitchedMaxArea: 600, blocks: 'flat', chimney: 0.12, dormer: 0, parapet: 0.3, storeys: [1, 1], urban: 1.5 }),
   generic: make('generic', 'Generic', {}),
 };
 

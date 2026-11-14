@@ -3,8 +3,8 @@ import type { Info } from './classify';
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
-import { LINEWORK, SHADOWS, type Settings } from './settings';
-import { bestRect, corners, orthoParts, turn, type Part } from './shape';
+import { LINEWORK, ROOFS, SHADOWS, type Settings } from './settings';
+import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
@@ -33,6 +33,8 @@ export type WallRing = Ring & { party?: Float32Array };
 const CREASE = Math.cos((24 * Math.PI) / 180);
 const BAY = 3.4;
 const SHADE_MM = 0.75;
+/** Height of a shop's ground floor; the upper floors' windows start above it. */
+const SHOP_H = 3.6;
 
 export function newSolid(): Solid {
   return { faces: [], lines: [], casts: [] };
@@ -75,7 +77,8 @@ function runs(ring: Ring, z: number, keep: (i: number) => boolean, pen: number, 
   }
 }
 
-type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number };
+/** `shop` is the direction of the street: walls facing it get shop fronts on the ground floor. */
+type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number; shop?: [number, number] };
 
 /**
  * Walls and an optional flat roof over footprint rings, from z0 to z1. Where a wall is a
@@ -99,7 +102,9 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       if (zb >= z1 - 0.3) continue;
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
-      if (o.windows && set.windows && len >= 2.4) windows(B, ax, ay, bx, by, len, zb, z1, out);
+      const shop = !!o.shop && cam.s >= 0.5 && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
+      if (shop) shopfront(B, ax, ay, bx, by, len, out);
+      if (o.windows && set.windows && len >= 2.4) windows(B, ax, ay, bx, by, len, shop ? SHOP_H : zb, z1, out);
       if (set.shadeWalls && (by - ay) * B.sun[0] - (bx - ax) * B.sun[1] < 0) {
         const ext = Math.abs((bx - ax) * cam.cb - (by - ay) * cam.sb) * s;
         const m = Math.floor(ext / SHADE_MM);
@@ -163,6 +168,40 @@ function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: 
       const qx = ax + dx * (m + half);
       const qy = ay + dy * (m + half);
       out.lines.push({ pen: LINEWORK, pts: [px, py, zb, qx, qy, zb, qx, qy, zt, px, py, zt], closed: true });
+    }
+  }
+}
+
+/** A shop front along a wall: wide windows, and striped awnings over most of them. */
+function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len: number, out: Solid): void {
+  const s = B.cam.s;
+  if (s < 0.5) return;
+  const cols = Math.max(1, Math.floor(len / 4.2));
+  const bay = len / cols;
+  const dx = (bx - ax) / len;
+  const dy = (by - ay) / len;
+  // Outward, away from the building (rings run counter-clockwise).
+  const nx = dy;
+  const ny = -dx;
+  const P = (u: number, n: number, z: number) => [ax + dx * u + nx * n, ay + dy * u + ny * n, z];
+  out.lines.push({ pen: LINEWORK, pts: [...P(0, 0, SHOP_H - 0.25), ...P(len, 0, SHOP_H - 0.25)] });
+  for (let c = 0; c < cols; c++) {
+    const m = (c + 0.5) * bay;
+    const hw = bay * 0.36;
+    out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
+    const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
+    if (hash(k0, k1, B.set.seed, 340) < 0.25 || s < 0.45) continue;
+    // The awning: a sloping canvas with a short valance, striped in the roof pen.
+    const aw = bay * 0.42;
+    const deep = 1.3;
+    const top = [P(m - aw, 0, 3.1), P(m + aw, 0, 3.1), P(m + aw, deep, 2.55), P(m - aw, deep, 2.55)];
+    const val = [P(m - aw, deep, 2.55), P(m + aw, deep, 2.55), P(m + aw, deep, 2.25), P(m - aw, deep, 2.25)];
+    out.faces.push([top.flat()], [val.flat()]);
+    out.lines.push({ pen: LINEWORK, pts: top.flat(), closed: true }, { pen: LINEWORK, pts: val.flat(), closed: true });
+    const n = Math.max(2, Math.round((aw * 2) / 0.45));
+    for (let k = 1; k < n; k++) {
+      const u = m - aw + (aw * 2 * k) / n;
+      if (k % 2) out.lines.push({ pen: ROOFS, pts: [...P(u, 0, 3.1), ...P(u, deep, 2.55), ...P(u, deep, 2.25)] });
     }
   }
 }
@@ -232,7 +271,7 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   let He = Math.max(2.8, H - rise * 0.45);
   if (o.maxHe) He = Math.min(He, o.maxHe);
 
-  prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK }, out);
+  prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK, shop: shopSide(info) }, out);
 
   const endKind: End = o.roof === 'hipped' ? 'hip' : o.roof === 'halfHipped' ? 'half' : 'gable';
   let P: Pitched | null = null;
@@ -303,7 +342,7 @@ function skirtBlock(B: Build, rings: WallRing[], H: number, info: Info, steep: b
     const rise = inset * tan;
     const He = Math.max(3, steep ? H - rise * 0.75 : H - rise * 0.5);
     if (!skirtRoof(B, rings, He, inset, tan, steep && info.dormers && B.set.details, out)) continue;
-    prism(B, rings, 0, He, { roof: false, windows: true, pen: LINEWORK }, out);
+    prism(B, rings, 0, He, { roof: false, windows: true, pen: LINEWORK, shop: shopSide(info) }, out);
     out.casts.push({ ring: rings[0].pts, h: He + rise * 0.7 });
     return true;
   }
@@ -314,7 +353,7 @@ function skirtBlock(B: Build, rings: WallRing[], H: number, info: Info, steep: b
 function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, z0: number, H: number, k: [number, number], out: Solid[]): void {
   const { set } = B;
   const solid = out[0];
-  prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK }, solid);
+  prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, shop: z0 === 0 ? shopSide(info) : undefined }, solid);
   solid.casts.push({ ring: rings[0].pts, h: H });
   if (info?.parapet && set.details) parapet(B, rings, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
@@ -392,6 +431,10 @@ function temple(B: Build, b: Building, H: number, out: Solid): boolean {
   return true;
 }
 
+function shopSide(info: Info | undefined): [number, number] | undefined {
+  return info?.shop ? info.toStreet : undefined;
+}
+
 /** All the solids for one building: the building itself and anything on its roof. */
 export function building(B: Build, b: Building): Solid[] {
   const { set } = B;
@@ -464,6 +507,14 @@ function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Sol
   }
   const { rect } = bestRect(outer);
   if (!rect) return;
+  const inside = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts));
+  const v = hash(k[0], k[1], B.set.seed, 21);
+  const area = Math.abs(ringArea(outer));
+  if (TANKS.has(B.style.id) && v < 0.4) {
+    if (tanks(B, rect, z, k, inside, out)) return;
+  } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && B.cam.s >= 0.6) {
+    if (solar(B, rect, z, inside, out)) return;
+  }
   const count = 1 + Math.floor(hash(k[0], k[1], B.set.seed, 20) * 2.2);
   for (let tries = 0, made = 0; tries < 8 && made < count; tries++) {
     const r = (salt: number) => hash(k[0], k[1], B.set.seed, 30 + tries * 7 + salt);
@@ -479,8 +530,7 @@ function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Sol
       [cx + ux * a + -uy * bw, cy + uy * a + ux * bw],
       [cx - ux * a + -uy * bw, cy - uy * a + ux * bw],
     ];
-    const inside = corners.every(([x, y]) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts)));
-    if (!inside) continue;
+    if (!corners.every(([x, y]) => inside(x, y))) continue;
     const s = newSolid();
     prism(B, [{ pts: corners.flat(), seam: new Uint8Array(4) }], z, z + h, { roof: true, windows: false, pen: LINEWORK }, s);
     out.push(s);
@@ -488,6 +538,87 @@ function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Sol
   }
 }
 
+/** Regions where flat roofs carry water tanks, and where they carry solar panels. */
+const TANKS = new Set(['american', 'eastAsian', 'arid', 'tropical', 'mediterranean']);
+const SOLAR = new Set(['central', 'nordic', 'alpine', 'dutch', 'british', 'antipodean', 'american', 'generic']);
+
+/** One or two round water tanks: on legs with a conical lid in North America, squat drums elsewhere. */
+function tanks(B: Build, rect: Rect, z: number, k: [number, number], inside: (x: number, y: number) => boolean, out: Solid[]): boolean {
+  const tower = B.style.id === 'american';
+  const count = tower ? 1 : 1 + Math.floor(hash(k[0], k[1], B.set.seed, 22) * 3);
+  let made = 0;
+  for (let i = 0; i < 8 && made < count; i++) {
+    const r = (salt: number) => hash(k[0], k[1], B.set.seed, 600 + i * 7 + salt);
+    const R = tower ? 1.8 + r(0) * 0.8 : 0.7 + r(0) * 0.4;
+    const a = (r(1) - 0.5) * (rect.L - 2 * R - 1);
+    const c = (r(2) - 0.5) * (rect.w - 2 * R - 1);
+    const x = rect.cx + rect.ux * a - rect.uy * c;
+    const y = rect.cy + rect.uy * a + rect.ux * c;
+    if (![0, 1, 2, 3].every((q) => inside(x + Math.cos((q * Math.PI) / 2) * (R + 0.3), y + Math.sin((q * Math.PI) / 2) * (R + 0.3)))) continue;
+    const s = newSolid();
+    const legs = tower ? 2.6 : 0.4;
+    const H = tower ? 3.4 + r(3) * 1.2 : 1.4;
+    const ring: number[] = [];
+    for (let q = 0; q < 16; q++) ring.push(x + Math.cos((q / 16) * Math.PI * 2) * R, y + Math.sin((q / 16) * Math.PI * 2) * R);
+    prism(B, [{ pts: ring, seam: new Uint8Array(16) }], z + legs, z + legs + H, { roof: true, windows: false, pen: LINEWORK }, s);
+    for (let q = 0; q < 4; q++) {
+      const ang = ((q + 0.5) / 4) * Math.PI * 2;
+      const lx = x + Math.cos(ang) * R * 0.75;
+      const ly = y + Math.sin(ang) * R * 0.75;
+      s.lines.push({ pen: LINEWORK, pts: [lx, ly, z, lx, ly, z + legs] });
+    }
+    if (tower) {
+      // The conical lid: faces for the depth buffer, outline from the rim's sheet-space extremes.
+      const top = z + legs + H;
+      const apex = [x, y, top + R * 0.55];
+      let lo = 0;
+      let hi = 0;
+      for (let q = 0; q < 16; q++) {
+        const sx = B.cam.sx(ring[q * 2], ring[q * 2 + 1]);
+        if (sx < B.cam.sx(ring[lo * 2], ring[lo * 2 + 1])) lo = q;
+        if (sx > B.cam.sx(ring[hi * 2], ring[hi * 2 + 1])) hi = q;
+        const n = (q + 1) % 16;
+        s.faces.push([[ring[q * 2], ring[q * 2 + 1], top, ring[n * 2], ring[n * 2 + 1], top, ...apex]]);
+      }
+      s.lines.push({ pen: ROOFS, pts: [ring[lo * 2], ring[lo * 2 + 1], top, ...apex, ring[hi * 2], ring[hi * 2 + 1], top] });
+    }
+    out.push(s);
+    made++;
+  }
+  return made > 0;
+}
+
+/** Rows of tilted solar panels across a flat roof. */
+function solar(B: Build, rect: Rect, z: number, inside: (x: number, y: number) => boolean, out: Solid[]): boolean {
+  // Panels run along whichever roof axis faces the sun best.
+  const [sx, sy] = B.sun;
+  const along = Math.abs(rect.ux * sx + rect.uy * sy) < Math.abs(-rect.uy * sx + rect.ux * sy);
+  const r = along ? rect : { ...rect, ux: -rect.uy, uy: rect.ux, L: rect.w, w: rect.L };
+  let vx = -r.uy;
+  let vy = r.ux;
+  if (vx * sx + vy * sy > 0) {
+    vx = -vx;
+    vy = -vy;
+  }
+  const s = newSolid();
+  let rows = 0;
+  for (let c = -r.w / 2 + 1.2; c + 1.4 < r.w / 2 - 0.8; c += 3.4) {
+    let half = r.L / 2 - 1.0;
+    const P = (a: number, d: number) => [r.cx + r.ux * a + vx * d, r.cy + r.uy * a + vy * d];
+    while (half > 1.5 && ![P(-half, c), P(half, c), P(-half, c + 1.4), P(half, c + 1.4)].every(([x, y]) => inside(x, y))) half -= 1;
+    if (half <= 1.5) continue;
+    const [a0x, a0y] = P(-half, c);
+    const [a1x, a1y] = P(half, c);
+    const [b1x, b1y] = P(half, c + 1.4);
+    const [b0x, b0y] = P(-half, c + 1.4);
+    const quad = [a0x, a0y, z + 1.0, a1x, a1y, z + 1.0, b1x, b1y, z + 0.3, b0x, b0y, z + 0.3];
+    s.faces.push([quad]);
+    s.lines.push({ pen: LINEWORK, pts: quad, closed: true });
+    rows++;
+  }
+  if (rows) out.push(s);
+  return rows > 0;
+}
 
 /** A parked car: a body and a cabin. */
 export function car(B: Build, x: number, y: number, ux: number, uy: number, k: number): Solid {

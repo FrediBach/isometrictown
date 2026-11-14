@@ -49,13 +49,13 @@ function across(paper: Paper, nx: number, ny: number): [number, number] {
   return [(ox / l) * d, (oy / l) * d];
 }
 
-function edgeTest(paper: Paper, mask: Uint8Array, nx: number, ny: number, extra?: (x: number, y: number) => boolean): Test {
+export function edgeTest(paper: Paper, mask: Uint8Array, nx: number, ny: number, extra?: (x: number, y: number) => boolean): Test {
   const [ox, oy] = across(paper, nx, ny);
   return (x, y, d) => paper.on(mask, x + ox, y + oy) !== paper.on(mask, x - ox, y - oy) && (!extra || extra(x, y)) && paper.seen(x, y, d);
 }
 
 /** Trace a ground segment in local metres. */
-function groundSeg(paper: Paper, pen: number, ax: number, ay: number, bx: number, by: number, test: Test): void {
+export function groundSeg(paper: Paper, pen: number, ax: number, ay: number, bx: number, by: number, test: Test): void {
   const c = paper.cam;
   paper.seg(pen, c.sx(ax, ay), c.sy(ax, ay, 0), c.depth(ax, ay, 0), c.sx(bx, by), c.sy(bx, by, 0), c.depth(bx, by, 0), test);
 }
@@ -119,7 +119,7 @@ export function curbs(paper: Paper, ways: Way[], M: Masks): void {
 }
 
 /** Walk a polyline, calling fn at regular distances with the position and direction. */
-function walk(p: number[], start: number, step: number, stopBefore: number, fn: (x: number, y: number, ux: number, uy: number, k: number) => void): void {
+export function walk(p: number[], start: number, step: number, stopBefore: number, fn: (x: number, y: number, ux: number, uy: number, k: number) => void): void {
   let total = 0;
   for (let i = 0; i + 3 < p.length; i += 2) total += Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
   let at = start;
@@ -190,26 +190,45 @@ export function lamps(B: Build, paper: Paper, ways: Way[], M: Masks): number {
   return count;
 }
 
-/** Railway: two rails and sleepers when there's room, else one line. */
+/** A polyline shifted sideways by o metres, at height z, as flat x, y, z. */
+export function shifted(p: number[], o: number, z = 0): number[] {
+  const pts: number[] = [];
+  for (let i = 0; i < p.length; i += 2) {
+    const a = Math.max(0, i - 2);
+    const b = Math.min(p.length - 2, i + 2);
+    const l = Math.hypot(p[b] - p[a], p[b + 1] - p[a + 1]) || 1;
+    pts.push(p[i] - ((p[b + 1] - p[a + 1]) / l) * o, p[i + 1] + ((p[b] - p[a]) / l) * o, z);
+  }
+  return pts;
+}
+
+/**
+ * Railway: two rails and sleepers when there's room, else one line. Narrow gauge sits
+ * closer; trams run on bare rails under a contact wire hung from poles.
+ */
 export function railways(B: Build, paper: Paper, ways: Way[]): void {
   const s = B.cam.s;
   const twin = s * 1.5 >= 0.55;
   for (const w of ways) {
     if (w.kind !== 'rail') continue;
     const p = w.pts;
-    const offsets = twin ? [0.75, -0.75] : [0];
-    for (const o of offsets) {
-      const pts: number[] = [];
-      for (let i = 0; i < p.length; i += 2) {
-        const a = Math.max(0, i - 2);
-        const b = Math.min(p.length - 2, i + 2);
-        const l = Math.hypot(p[b] - p[a], p[b + 1] - p[a + 1]) || 1;
-        pts.push(p[i] - ((p[b + 1] - p[a + 1]) / l) * o, p[i + 1] + ((p[b] - p[a]) / l) * o, 0);
-      }
-      paper.line3(LINEWORK, pts);
+    const tram = w.sub === 'tram';
+    const g = tram ? 0.72 : w.sub === 'narrow_gauge' ? 0.5 : 0.75;
+    for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
+    if (tram) {
+      if (s < 0.3) continue;
+      paper.line3(LINEWORK, shifted(p, 0, 5.6));
+      walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
+        const side = k % 2 ? 1 : -1;
+        const px = x - uy * 3.4 * side;
+        const py = y + ux * 3.4 * side;
+        paper.line3(LINEWORK, [px, py, 0, px, py, 6.4, x, y, 5.9]);
+      });
+      continue;
     }
     if (twin && s * 2.6 >= 1) {
-      walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * 1.3, y - ux * 1.3, 0, x - uy * 1.3, y + ux * 1.3, 0));
+      const sl = g + 0.55;
+      walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
     }
   }
 }
@@ -222,24 +241,41 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
     if (w.kind !== 'path') continue;
-    const p = w.pts;
-    let phase = 0;
-    for (let i = 0; i + 3 < p.length; i += 2) {
-      const l = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
-      if (l < 1e-6) continue;
-      const ux = (p[i + 2] - p[i]) / l;
-      const uy = (p[i + 3] - p[i + 1]) / l;
-      let t = 0;
-      while (t < l) {
-        const inDash = phase < dash;
-        const left = Math.max(1e-3, inDash ? dash - phase : dash + gap - phase);
-        const t1 = Math.min(l, t + left);
-        if (inDash) groundSeg(paper, LINEWORK, p[i] + ux * t, p[i + 1] + uy * t, p[i] + ux * t1, p[i + 1] + uy * t1, test);
-        else paper.end();
-        phase = (phase + (t1 - t)) % (dash + gap);
-        t = t1;
-      }
+    if (w.sub === 'steps' && s >= 0.5) {
+      // Steps: treads across the path.
+      walk(w.pts, 0.2, 0.55, 0.2, (x, y, ux, uy) => {
+        groundSeg(paper, LINEWORK, x + uy * 0.9, y - ux * 0.9, x - uy * 0.9, y + ux * 0.9, test);
+        paper.end();
+      });
+      continue;
     }
-    paper.end();
+    // Farm tracks: two wheel ruts.
+    if (w.cls === 'track' && s >= 0.35) {
+      for (const o of [0.8, -0.8]) dashed(paper, shifted(w.pts, o).filter((_, i) => i % 3 !== 2), dash, gap, test);
+      continue;
+    }
+    dashed(paper, w.pts, dash, gap, test);
   }
+}
+
+/** A dashed line on the ground. */
+function dashed(paper: Paper, p: number[], dash: number, gap: number, test: Test): void {
+  let phase = 0;
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const l = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
+    if (l < 1e-6) continue;
+    const ux = (p[i + 2] - p[i]) / l;
+    const uy = (p[i + 3] - p[i + 1]) / l;
+    let t = 0;
+    while (t < l) {
+      const inDash = phase < dash;
+      const left = Math.max(1e-3, inDash ? dash - phase : dash + gap - phase);
+      const t1 = Math.min(l, t + left);
+      if (inDash) groundSeg(paper, LINEWORK, p[i] + ux * t, p[i + 1] + uy * t, p[i] + ux * t1, p[i + 1] + uy * t1, test);
+      else paper.end();
+      phase = (phase + (t1 - t)) % (dash + gap);
+      t = t1;
+    }
+  }
+  paper.end();
 }

@@ -36,8 +36,10 @@ export type Settings = {
   rails: boolean;
   water: boolean;
   parks: boolean;
-  /** Furrowed fields, vineyards, orchards, meadows, marsh, sand, cemeteries and pitch markings. */
+  /** Furrowed fields, vineyards, orchards, meadows, marsh, sand, rock, ice, allotments, pools, cemeteries and pitch markings. */
   ground: boolean;
+  /** Road markings, zebra crossings, parking bays and runway markings. */
+  markings: boolean;
 
   shadows: boolean;
   /** Where the light comes from, relative to the view, in degrees clockwise from straight up the sheet. */
@@ -110,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   water: true,
   parks: true,
   ground: true,
+  markings: true,
 
   shadows: true,
   sunAngle: 55,

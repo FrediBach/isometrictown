@@ -79,10 +79,11 @@ const TOWN_KEYS: [BoolKey, string][] = [
   ['osmTags', 'OSM roof tags'],
   ['lamps', 'Street lamps'],
   ['paths', 'Footpaths'],
-  ['rails', 'Railways'],
+  ['rails', 'Railways and lifts'],
   ['water', 'Water'],
   ['parks', 'Parks'],
   ['ground', 'Fields and gardens'],
+  ['markings', 'Road markings'],
 ];
 
 export function TownSection({ region }: { region?: RenderResult['region'] }) {

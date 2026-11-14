@@ -8,11 +8,15 @@ export type Ring = { pts: number[]; seam: Uint8Array };
 /** Outer ring (counter-clockwise) followed by holes (clockwise). */
 export type Shape = Ring[];
 
-export type Building = { shape: Shape; h: number; min: number; info?: Info };
+/** `guess` marks a building whose height is OpenMapTiles' 5 m default, i.e. the map gives none. */
+export type Building = { shape: Shape; h: number; min: number; guess?: boolean; info?: Info };
 /** Building tags from OpenStreetMap, at the building's centre. */
 export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean };
 export type WayKind = 'road' | 'rail' | 'path';
-export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; bridge?: boolean };
+/** `sub` is the OpenMapTiles subclass (tram, narrow_gauge, steps…), `service` the kind of service road (parking_aisle, driveway…). */
+export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean };
+/** A cable car, gondola, chair lift or drag lift. */
+export type Lift = { pts: number[]; cls: string };
 /** A point of interest, e.g. a place of worship with its religion as `sub`. */
 export type Poi = { x: number; y: number; cls: string; sub: string };
 /** A land-use area such as residential or industrial. */
@@ -36,9 +40,21 @@ export type Town = {
   streams: Stream[];
   /** Buildings with real OSM roof or type tags, when they could be fetched. */
   tagged: Tagged[];
+  /** Roads and railways where they run underground, for portals where they come out. */
+  tunnels: Way[];
+  lifts: Lift[];
+  /** Ferry routes as flat [x, y, ...]. */
+  ferries: number[][];
+  /** Swimming pools, kept apart from open water. */
+  pools: Shape[];
+  /** Runways and taxiways, with their widths. */
+  runways: Way[];
+  aprons: Shape[];
 };
 
 const ZOOM = 14;
+/** OpenMapTiles' render_height for buildings with no height or levels tagged. */
+const DEFAULT_H = 5;
 const TILEJSON = 'https://tiles.openfreemap.org/planet';
 const MAX_TILES = 36;
 const MAX_CACHED = 64;
@@ -59,8 +75,11 @@ const GREEN_LANDUSE = new Set(['cemetery', 'pitch', 'playground', 'grass', 'park
 const GREEN_COVER = new Set(['grass', 'wetland']);
 /** Land uses that say something about the buildings standing on them. */
 const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retail', 'railway', 'school', 'university', 'college', 'hospital', 'military', 'garages', 'farmyard', 'cemetery', 'pitch', 'track', 'stadium']);
-/** Points of interest that tell us what a building is. */
-const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch']);
+/** Shops, cafés and the like: a street of them gets shop fronts. */
+export const SHOP_POIS = new Set(['shop', 'grocery', 'clothing_store', 'bakery', 'cafe', 'restaurant', 'bar', 'fast_food', 'beer', 'ice_cream', 'alcohol_shop', 'jewelry', 'bank', 'pharmacy', 'hairdresser', 'florist', 'butcher', 'optician', 'books', 'gift', 'shoes', 'music', 'mobile_phone', 'laundry']);
+/** Points of interest that tell us what a building is, or what stands nearby. */
+const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch', 'aerialway', 'harbor', 'fuel', ...SHOP_POIS]);
+const AERO_WIDTH: Record<string, number> = { runway: 45, taxiway: 18 };
 const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, drain: 1.6, ditch: 1.4 };
 
 let template: Promise<string> | null = null;
@@ -127,7 +146,7 @@ function readTile(url: string, x: number, y: number): Promise<Town> {
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [] };
+  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [] };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -191,9 +210,10 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
   each('building', (f, _m, ext) => {
     const p = f.properties;
     if (p.hide_3d) return;
-    const h = Number(p.render_height ?? 8) || 8;
+    const h = Number(p.render_height ?? DEFAULT_H) || DEFAULT_H;
     const min = Number(p.render_min_height ?? 0) || 0;
-    for (const s of polygons(f, ext)) town.buildings.push({ shape: scaleShape(s, ext), h, min });
+    const guess = (h === DEFAULT_H && min === 0) || undefined;
+    for (const s of polygons(f, ext)) town.buildings.push({ shape: scaleShape(s, ext), h, min, guess });
   });
 
   const point = (f: VectorTileFeature, ext: number, fn: (x: number, y: number) => void) => {
@@ -229,11 +249,32 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
   each('water', (f, _m, ext) => {
     if (f.properties.brunnel === 'tunnel') return;
-    for (const s of polygons(f, ext)) town.water.push(scaleShape(s, ext));
+    const target = f.properties.class === 'swimming_pool' ? town.pools : town.water;
+    for (const s of polygons(f, ext)) target.push(scaleShape(s, ext));
   });
 
+  // The park layer also holds national parks and protected areas, which can cover a whole town; only real parks count.
   each('park', (f, _m, ext) => {
+    if (f.properties.class !== 'park') return;
     for (const s of polygons(f, ext)) town.green.push(scaleShape(s, ext));
+  });
+
+  each('aeroway', (f, toMerc, ext) => {
+    const cls = String(f.properties.class);
+    if (f.type === 3) {
+      // Aprons get parked planes; runway and helipad areas are plain hard standing.
+      const target = cls === 'apron' ? town.aprons : cls === 'runway' || cls === 'helipad' ? town.plazas : null;
+      if (target) for (const s of polygons(f, ext)) target.push(scaleShape(s, ext));
+      return;
+    }
+    const width = AERO_WIDTH[cls];
+    if (!width || f.type !== 2) return;
+    for (const line of f.loadGeometry()) {
+      for (const piece of clipLine(line, ext)) {
+        const pts = toMerc(piece);
+        if (pts) town.runways.push({ pts, kind: 'road', width, cls });
+      }
+    }
   });
 
   each('landcover', (f, _m, ext) => {
@@ -255,29 +296,38 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
   each('transportation', (f, toMerc, ext) => {
     const p = f.properties;
     const cls = String(p.class);
-    if (p.brunnel === 'tunnel' || cls === 'ferry' || cls === 'aerialway') return;
+    const lines = (fn: (pts: number[]) => void) => {
+      for (const line of f.loadGeometry())
+        for (const piece of clipLine(line, ext)) {
+          const pts = toMerc(piece);
+          if (pts) fn(pts);
+        }
+    };
+    if (f.type === 2 && cls === 'aerialway') return lines((pts) => town.lifts.push({ pts, cls: String(p.subclass ?? '') }));
+    if (f.type === 2 && cls === 'ferry') return lines((pts) => town.ferries.push(pts));
+    if (cls === 'ferry' || cls === 'aerialway') return;
+    const tunnel = p.brunnel === 'tunnel';
     const bridge = p.brunnel === 'bridge' || undefined;
     if (f.type === 3) {
-      if (cls === 'bridge') return;
+      if (cls === 'bridge' || tunnel) return;
       for (const s of polygons(f, ext)) town.plazas.push(scaleShape(s, ext));
       return;
     }
     if (f.type !== 2) return;
     let kind: WayKind;
     let width = 0;
-    if (cls === 'rail') kind = 'rail';
+    // Trams and light rail come as 'transit'; monorails would need pillars, so they're left out.
+    if (cls === 'rail' || (cls === 'transit' && p.subclass !== 'monorail')) kind = 'rail';
     else if (PATHS.has(cls) || PATHS.has(String(p.subclass))) kind = 'path';
     else if (ROAD_WIDTH[cls]) {
       kind = 'road';
       width = ROAD_WIDTH[cls];
       if (p.ramp) width *= 0.7;
     } else return;
-    for (const line of f.loadGeometry()) {
-      for (const piece of clipLine(line, ext)) {
-        const pts = toMerc(piece);
-        if (pts) town.ways.push({ pts, kind, width, cls, bridge });
-      }
-    }
+    const sub = p.subclass ? String(p.subclass) : undefined;
+    const service = p.service ? String(p.service) : undefined;
+    const unpaved = p.surface === 'unpaved' || undefined;
+    lines((pts) => (tunnel ? town.tunnels : town.ways).push({ pts, kind, width, cls, sub, service, unpaved, bridge }));
   });
 
   return town;
@@ -287,8 +337,12 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 function coverKind(cls: string, sub: string): string | null {
   if (cls === 'farmland') return sub === 'vineyard' ? 'vineyard' : sub === 'orchard' ? 'orchard' : 'farmland';
   if (cls === 'grass' && (sub === 'meadow' || sub === 'grassland' || sub === 'heath' || sub === 'fell')) return 'meadow';
+  if (cls === 'grass' && (sub === 'scrub' || sub === 'shrubbery')) return 'scrub';
+  if (cls === 'grass' && sub === 'allotments') return 'allotments';
   if (cls === 'wetland') return 'wetland';
   if (cls === 'sand') return 'sand';
+  if (cls === 'rock') return 'rock';
+  if (cls === 'ice') return 'ice';
   return null;
 }
 
@@ -406,7 +460,7 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   for (const t of tiles) {
     for (const b of t.buildings) {
       const s = shape(b.shape);
-      if (s) town.buildings.push({ shape: s, h: b.h, min: b.min });
+      if (s) town.buildings.push({ shape: s, h: b.h, min: b.min, guess: b.guess });
     }
     for (const key of ['landuse', 'cover'] as const) {
       for (const a of t[key]) {
@@ -429,15 +483,21 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const pts = local(w.pts);
       if (pts) town.streams.push({ ...w, pts });
     }
-    for (const key of ['water', 'green', 'wood', 'plazas'] as const) {
+    for (const key of ['water', 'green', 'wood', 'plazas', 'pools', 'aprons'] as const) {
       for (const sh of t[key]) {
         const s = shape(sh);
         if (s) town[key].push(s);
       }
     }
-    for (const w of t.ways) {
-      const pts = local(w.pts);
-      if (pts) town.ways.push({ ...w, pts });
+    for (const key of ['ways', 'tunnels', 'runways', 'lifts'] as const) {
+      for (const w of t[key]) {
+        const pts = local(w.pts);
+        if (pts) (town[key] as { pts: number[] }[]).push({ ...w, pts });
+      }
+    }
+    for (const f of t.ferries) {
+      const pts = local(f);
+      if (pts) town.ferries.push(pts);
     }
   }
   return town;

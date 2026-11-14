@@ -3,8 +3,9 @@ import type { Paper } from './raster';
 import { hash } from './rng';
 import { GREENERY } from './settings';
 
-export type Tree = { x: number; y: number; r: number; h: number; conifer: boolean };
-export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow', Uint8Array>;
+/** A bush is a low dome sitting on the ground, with no trunk. */
+export type Tree = { x: number; y: number; r: number; h: number; conifer: boolean; bush?: boolean };
+export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool', Uint8Array>;
 
 /**
  * Scatter trees over parks and woods on a grid fixed to the map,
@@ -89,6 +90,13 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
         paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, zb]);
       },
     };
+  }
+  if (t.bush) {
+    const R = t.r * s;
+    const yb = cam.sy(t.x, t.y, 0);
+    const ring = circle(sx, yb, R, 9, Math.PI, Math.PI * 2);
+    const depth = cam.depth(t.x, t.y, t.r * 0.5) - t.r;
+    return { ring, depth, draw: () => paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true) };
   }
   const cy = cam.sy(t.x, t.y, t.h);
   const R = t.r * s;
