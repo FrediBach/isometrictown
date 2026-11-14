@@ -1,13 +1,13 @@
-import { newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, type Build, type Solid } from './buildings';
 import { FIELD, GARDEN, MEADOW, type Ground } from './ground';
 import { ringArea } from './geo';
 import type { Masks, Tree } from './nature';
-import type { Paper } from './raster';
+import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { GREENERY, LINEWORK } from './settings';
 import { walk } from './streets';
 import type { StyleId } from './styles';
-import type { Town, Way } from './tiles';
+import type { Building, Town, Way } from './tiles';
 
 /**
  * Made-up garden and field boundaries, and street trees. The map rarely draws plots,
@@ -110,6 +110,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
   const { cam, style } = B;
   const solids: Solid[] = [];
   const fences: { pts: number[]; picket: boolean }[] = [];
+  const marks: { pts: number[]; ground: boolean; closed?: boolean }[] = [];
   const done = { solids, draw: () => {} };
   if (!G.gardens || cam.s < 0.5) return done;
   const [frontKind, sideKind] = BOUNDS[style.id];
@@ -184,6 +185,7 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
       const f = (e + 1) % n;
       boundary(B, c.pts[e * 2], c.pts[e * 2 + 1], c.pts[f * 2], c.pts[f * 2 + 1], kind, garden, solids, fences);
     }
+    yard(B, b, s.x, s.y, garden, solids, marks);
   });
 
   return {
@@ -202,8 +204,82 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
           paper.line3(LINEWORK, [ax + ux * t, ay + uy * t, 0, ax + ux * t, ay + uy * t, f.picket ? 1.1 : 1.15]);
         }
       }
+      const flat: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && paper.seen(x, y, d);
+      for (const m of marks) paper.line3(LINEWORK, m.pts, m.ground ? flat : paper.seen, m.closed);
     },
   };
+}
+
+/** Regions where front gardens have a driveway, and where back gardens have trampolines. */
+const DRIVES = new Set<StyleId>(['american', 'antipodean', 'british', 'nordic', 'central', 'generic']);
+const TRAMPOLINES = new Set<StyleId>(['american', 'antipodean', 'british', 'nordic']);
+
+/** A house's own bits of garden: a driveway with a car on it, a shed at the back, maybe a trampoline. */
+function yard(B: Build, b: Building, cx: number, cy: number, ok: (x: number, y: number) => boolean, solids: Solid[], marks: { pts: number[]; ground: boolean; closed?: boolean }[]): void {
+  const info = b.info!;
+  if (!info.toStreet || !info.street || info.streetGap === undefined) return;
+  const [tx, ty] = info.toStreet;
+  const [sx, sy] = info.street;
+  const p = b.shape[0].pts;
+  let front = -Infinity;
+  let back = Infinity;
+  let left = Infinity;
+  let right = -Infinity;
+  for (let q = 0; q < p.length; q += 2) {
+    const a = (p[q] - cx) * tx + (p[q + 1] - cy) * ty;
+    const l = (p[q] - cx) * sx + (p[q + 1] - cy) * sy;
+    front = Math.max(front, a);
+    back = Math.min(back, a);
+    left = Math.min(left, l);
+    right = Math.max(right, l);
+  }
+  const [k0, k1] = B.key(cx, cy);
+  const h = (k: number) => hash(k0, k1, B.set.seed, 800 + k);
+  const P = (a: number, l: number): [number, number] => [cx + tx * a + sx * l, cy + ty * a + sy * l];
+
+  if (DRIVES.has(B.style.id) && h(0) < 0.7) {
+    const kerb = info.streetGap;
+    const len = kerb - front;
+    if (len >= 3 && len < 25) {
+      const lane = h(1) < 0.5 ? left + 1.6 : right - 1.6;
+      for (const d of [-1.4, 1.4]) {
+        const [ax, ay] = P(front, lane + d);
+        const [bx, by] = P(kerb, lane + d);
+        marks.push({ pts: [ax, ay, 0, bx, by, 0], ground: true });
+      }
+      const [x, y] = P(front + 3, lane);
+      if (len >= 6 && B.set.cars > 0 && h(2) < 0.55 && ok(x, y)) solids.push(car(B, x, y, tx, ty, h(3)));
+    }
+  }
+
+  // A shed at the bottom of the garden.
+  if (h(4) < 0.4) {
+    const a = back - 4 - h(5) * 4;
+    const l = left + (right - left) * h(6);
+    const ring = [P(a - 1.0, l - 1.2), P(a + 1.0, l - 1.2), P(a + 1.0, l + 1.2), P(a - 1.0, l + 1.2)];
+    if (ring.every(([x, y]) => ok(x, y))) {
+      const pts = ring.flat();
+      const s = newSolid();
+      prism(B, [{ pts: ringArea(pts) < 0 ? ring.reverse().flat() : pts, seam: new Uint8Array(4) }], 0, 2.2, { roof: true, windows: false, pen: LINEWORK }, s);
+      s.casts.push({ ring: pts, h: 2.2 });
+      solids.push(s);
+    }
+  }
+
+  // A trampoline on the lawn.
+  if (TRAMPOLINES.has(B.style.id) && h(7) < 0.15) {
+    const [x, y] = P(back - 5 - h(8) * 3, (left + right) / 2 + (h(9) - 0.5) * 6);
+    const R = 1.8;
+    if ([0, 1, 2, 3].every((q) => ok(x + Math.cos((q * Math.PI) / 2) * R, y + Math.sin((q * Math.PI) / 2) * R))) {
+      const rim: number[] = [];
+      for (let q = 0; q < 16; q++) rim.push(x + Math.cos((q / 16) * Math.PI * 2) * R, y + Math.sin((q / 16) * Math.PI * 2) * R, 0.9);
+      marks.push({ pts: rim, ground: false, closed: true });
+      for (let q = 0; q < 4; q++) {
+        const ang = ((q + 0.5) / 4) * Math.PI * 2;
+        marks.push({ pts: [x + Math.cos(ang) * R, y + Math.sin(ang) * R, 0, x + Math.cos(ang) * R, y + Math.sin(ang) * R, 0.9], ground: false });
+      }
+    }
+  }
 }
 
 /** One boundary edge, cut into the runs that lie in gardens. */

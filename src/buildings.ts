@@ -78,7 +78,7 @@ function runs(ring: Ring, z: number, keep: (i: number) => boolean, pen: number, 
 }
 
 /** `shop` is the direction of the street: walls facing it get shop fronts on the ground floor. */
-type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number; shop?: [number, number] };
+type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number; shop?: [number, number]; balconies?: 0 | 1 | 2; street?: [number, number] };
 
 /**
  * Walls and an optional flat roof over footprint rings, from z0 to z1. Where a wall is a
@@ -104,7 +104,12 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       const len = Math.hypot(bx - ax, by - ay);
       const shop = !!o.shop && cam.s >= 0.5 && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
       if (shop) shopfront(B, ax, ay, bx, by, len, out);
-      if (o.windows && set.windows && len >= 2.4) windows(B, ax, ay, bx, by, len, shop ? SHOP_H : zb, z1, out);
+      if (o.windows && set.windows && len >= 2.4) {
+        // French balconies run along the street front only.
+        const toStreet = o.street ? ((by - ay) * o.street[0] - (bx - ax) * o.street[1]) / len > 0.55 : false;
+        const bal = o.balconies === 2 && !toStreet ? 0 : (o.balconies ?? 0);
+        windows(B, ax, ay, bx, by, len, shop ? SHOP_H : zb, z1, out, bal);
+      }
       if (set.shadeWalls && (by - ay) * B.sun[0] - (bx - ax) * B.sun[1] < 0) {
         const ext = Math.abs((bx - ax) * cam.cb - (by - ay) * cam.sb) * s;
         const m = Math.floor(ext / SHADE_MM);
@@ -144,7 +149,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
   }
 }
 
-function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: number, z0: number, z1: number, out: Solid): void {
+function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: number, z0: number, z1: number, out: Solid, balconies: 0 | 1 | 2 = 0): void {
   const s = B.cam.s;
   const full = s * 1.2 >= 0.85;
   if (!full && s * 1.5 < 0.5) return;
@@ -153,8 +158,10 @@ function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: 
   const half = Math.min(0.62, bay * 0.3);
   const dx = (bx - ax) / len;
   const dy = (by - ay) / len;
-  for (let zb = z0 + 0.95; zb + 1.45 <= z1 - 0.35; zb += B.style.floor) {
+  for (let zb = z0 + 0.95, floor = 0; zb + 1.45 <= z1 - 0.35; zb += B.style.floor, floor++) {
     const zt = zb + 1.45;
+    // Haussmann fronts: one continuous railed balcony on the second floor and another on the fifth.
+    if (balconies === 2 && full && (floor === 2 || floor === 5) && zb > z0 + 1.5) balcony(out, ax, ay, dx, dy, len / 2, len / 2 - 0.3, zb - 0.95, 0.45);
     for (let c = 0; c < cols; c++) {
       const m = (c + 0.5) * bay;
       if (!full) {
@@ -168,7 +175,31 @@ function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: 
       const qx = ax + dx * (m + half);
       const qy = ay + dy * (m + half);
       out.lines.push({ pen: LINEWORK, pts: [px, py, zb, qx, qy, zb, qx, qy, zt, px, py, zt], closed: true });
+      // Balconies from the first floor up: deep ones on alternate bays, shallow ones at every window.
+      if (balconies === 1 && zb > z0 + 1.5 && c % 2 === 0 && bay >= 2.6) balcony(out, ax, ay, dx, dy, m, Math.min(bay * 0.42, 1.7), zb - 0.95, balconies === 1 ? 1.1 : 0.3);
     }
+  }
+}
+
+/** A balcony in front of a window: a slab with a railing round it. (dx, dy) runs along the wall. */
+function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: number, hw: number, zf: number, d: number): void {
+  // Outward from the wall (rings run counter-clockwise).
+  const nx = dy;
+  const ny = -dx;
+  const P = (u: number, n: number, z: number) => [ax + dx * u + nx * n, ay + dy * u + ny * n, z];
+  const top = zf + 1.0;
+  const bot = zf - 0.15;
+  const front = [P(m - hw, d, bot), P(m + hw, d, bot), P(m + hw, d, top), P(m - hw, d, top)];
+  out.faces.push([front.flat()]);
+  for (const u of [m - hw, m + hw]) out.faces.push([[...P(u, 0, bot), ...P(u, d, bot), ...P(u, d, top), ...P(u, 0, top)]]);
+  out.lines.push({ pen: LINEWORK, pts: front.flat(), closed: true });
+  out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, top), ...P(m - hw, d, top)] }, { pen: LINEWORK, pts: [...P(m + hw, 0, top), ...P(m + hw, d, top)] });
+  out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, bot), ...P(m - hw, d, bot)] }, { pen: LINEWORK, pts: [...P(m + hw, 0, bot), ...P(m + hw, d, bot)] });
+  out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, d, zf), ...P(m + hw, d, zf)] });
+  const n = Math.max(2, Math.round((hw * 2) / 0.7));
+  for (let k = 1; k < n; k++) {
+    const u = m - hw + (2 * hw * k) / n;
+    out.lines.push({ pen: LINEWORK, pts: [...P(u, d, zf), ...P(u, d, top)] });
   }
 }
 
@@ -271,7 +302,7 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   let He = Math.max(2.8, H - rise * 0.45);
   if (o.maxHe) He = Math.min(He, o.maxHe);
 
-  prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK, shop: shopSide(info) }, out);
+  prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK, shop: shopSide(info), balconies: info.balconies, street: info.toStreet }, out);
 
   const endKind: End = o.roof === 'hipped' ? 'hip' : o.roof === 'halfHipped' ? 'half' : 'gable';
   let P: Pitched | null = null;
@@ -342,7 +373,7 @@ function skirtBlock(B: Build, rings: WallRing[], H: number, info: Info, steep: b
     const rise = inset * tan;
     const He = Math.max(3, steep ? H - rise * 0.75 : H - rise * 0.5);
     if (!skirtRoof(B, rings, He, inset, tan, steep && info.dormers && B.set.details, out)) continue;
-    prism(B, rings, 0, He, { roof: false, windows: true, pen: LINEWORK, shop: shopSide(info) }, out);
+    prism(B, rings, 0, He, { roof: false, windows: true, pen: LINEWORK, shop: shopSide(info), balconies: info.balconies, street: info.toStreet }, out);
     out.casts.push({ ring: rings[0].pts, h: He + rise * 0.7 });
     return true;
   }
@@ -353,7 +384,7 @@ function skirtBlock(B: Build, rings: WallRing[], H: number, info: Info, steep: b
 function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, z0: number, H: number, k: [number, number], out: Solid[]): void {
   const { set } = B;
   const solid = out[0];
-  prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, shop: z0 === 0 ? shopSide(info) : undefined }, solid);
+  prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, shop: z0 === 0 ? shopSide(info) : undefined, balconies: info?.balconies, street: info?.toStreet }, solid);
   solid.casts.push({ ring: rings[0].pts, h: H });
   if (info?.parapet && set.details) parapet(B, rings, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));

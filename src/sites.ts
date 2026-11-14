@@ -5,7 +5,7 @@ import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { dome } from './roofs';
-import { LINEWORK, ROOFS } from './settings';
+import { LINEWORK, ROOFS, WATER } from './settings';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 
@@ -330,4 +330,57 @@ export function quarries(_B: Build, paper: Paper, town: Town, M: Masks): Extra {
       }
     },
   };
+}
+
+// ---------------------------------------------------------------- Squares
+
+/** A fountain or a statue in the middle of each town square big enough to hold one. */
+export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  const lines: { pen: number; pts: number[] }[] = [];
+  if (B.cam.s < 0.3) return { solids, draw: () => {} };
+  for (const sq of town.plazas) {
+    const outer = sq[0].pts;
+    const area = Math.abs(ringArea(outer));
+    if (area < 400 || area > 40000) continue;
+    // Runway and helipad areas share the list; they keep clear.
+    if (town.runways.some((w) => pointInRing(w.pts[0], w.pts[1], outer) || pointInRing(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1], outer))) continue;
+    const { rect: r } = bestRect(outer);
+    if (!r || r.w < 14 || !pointInRing(r.cx, r.cy, outer)) continue;
+    const [k0, k1] = B.key(r.cx, r.cy);
+    const h = (k: number) => hash(k0, k1, B.set.seed, 760 + k);
+    const { cx: x, cy: y } = r;
+    if (onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) continue;
+    const s = newSolid();
+    if (h(0) < 0.6) {
+      // A round basin, a column carrying a bowl, and water falling from it.
+      const R = Math.min(Math.max(2.5, Math.sqrt(area) * (0.05 + h(1) * 0.02)), 7, r.w * 0.2);
+      const ring = cylinder(B, s, x, y, R, 0, 0.55);
+      const inner: number[] = [];
+      for (let q = 0; q < 24; q++) inner.push(x + Math.cos((q / 24) * Math.PI * 2) * (R - 0.35), y + Math.sin((q / 24) * Math.PI * 2) * (R - 0.35), 0.55);
+      lines.push({ pen: WATER, pts: [...inner, inner[0], inner[1], inner[2]] });
+      cylinder(B, s, x, y, 0.25, 0.55, 1.9);
+      cylinder(B, s, x, y, 1.0, 1.75, 1.95);
+      for (let q = 0; q < 8; q++) {
+        const a = (q / 8) * Math.PI * 2;
+        const pts: number[] = [];
+        for (let t = 0; t <= 1.0001; t += 0.2) pts.push(x + Math.cos(a) * (0.2 + t * 1.1), y + Math.sin(a) * (0.2 + t * 1.1), 2.5 + 0.35 * t - 1.3 * t * t);
+        lines.push({ pen: WATER, pts });
+      }
+      s.casts.push({ ring, h: 0.55 });
+    } else {
+      // A statue on a plinth.
+      const a = h(2) * Math.PI;
+      const ux = Math.cos(a);
+      const uy = Math.sin(a);
+      const plinth = place(x, y, ux, uy, rect(-1.1, 1.1, -1.1, 1.1));
+      slab(B, s, plinth, 0, 2.4);
+      slab(B, s, place(x, y, ux, uy, rect(-1.3, 1.3, -1.3, 1.3)), 0, 0.4);
+      slab(B, s, place(x, y, ux, uy, rect(-0.3, 0.3, -0.22, 0.22)), 2.4, 4.0);
+      cylinder(B, s, x, y, 0.2, 4.0, 4.4);
+      s.casts.push({ ring: plinth, h: 4.2 });
+    }
+    solids.push(s);
+  }
+  return { solids, draw: (paper) => lines.forEach((l) => paper.line3(l.pen, l.pts)) };
 }

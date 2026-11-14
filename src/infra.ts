@@ -3,7 +3,7 @@ import { pointInRing, ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
-import { LINEWORK, SHADOWS } from './settings';
+import { LINEWORK, ROOFS, SHADOWS } from './settings';
 import { bestRect } from './shape';
 import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
@@ -402,6 +402,48 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     }
   }
   return { solids: [], draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y) => paper.on(M.under, x, y) || paper.on(M.water, x, y))) };
+}
+
+// ---------------------------------------------------------------- Station platforms
+
+/** Station platforms: a raised slab along the track, with a canopy on columns over the middle. */
+export function platforms(B: Build, town: Town): Extra {
+  const solids: Solid[] = [];
+  if (!B.set.rails || B.cam.s < 0.2) return { solids, draw: () => {} };
+  for (const w of town.ways) {
+    if (w.kind !== 'path' || w.sub !== 'platform' || w.bridge) continue;
+    const p = w.pts;
+    const cum = measure(p);
+    const L = cum[cum.length - 1];
+    if (L < 15) continue;
+    const s = newSolid();
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const l = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
+      if (l < 0.5) continue;
+      const ux = (p[i + 2] - p[i]) / l;
+      const uy = (p[i + 3] - p[i + 1]) / l;
+      slab(B, s, place(p[i], p[i + 1], ux, uy, rect(0, l, -1.8, 1.8)), 0, 0.8);
+    }
+    // The canopy over the middle stretch, segment by segment so it follows a curve.
+    const c0 = L * 0.25;
+    const c1 = L * 0.75;
+    for (let t = c0; t < c1; t += 10) {
+      const t1 = Math.min(c1, t + 10);
+      const [x0, y0] = at(p, cum, t);
+      const [x1, y1] = at(p, cum, t1);
+      const l = Math.hypot(x1 - x0, y1 - y0);
+      if (l < 1) continue;
+      const ux = (x1 - x0) / l;
+      const uy = (y1 - y0) / l;
+      slab(B, s, place(x0, y0, ux, uy, rect(0, l, -2.2, 2.2)), 3.6, 3.85, ROOFS);
+      s.lines.push({ pen: LINEWORK, pts: [x0, y0, 0.8, x0, y0, 3.6] });
+    }
+    const [ex, ey] = at(p, cum, c1);
+    s.lines.push({ pen: LINEWORK, pts: [ex, ey, 0.8, ex, ey, 3.6] });
+    s.casts.push({ ring: place(...(at(p, cum, c0).slice(0, 2) as [number, number]), ...(at(p, cum, (c0 + c1) / 2).slice(2) as [number, number]), rect(0, c1 - c0, -2.2, 2.2)), h: 3.8 });
+    solids.push(s);
+  }
+  return { solids, draw: () => {} };
 }
 
 // ---------------------------------------------------------------- Tunnel portals

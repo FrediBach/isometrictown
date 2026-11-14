@@ -23,6 +23,8 @@ export type Info = {
   streetGap?: number;
   /** Shops on the ground floor, on the street side. */
   shop: boolean;
+  /** Balconies on the upper floors: 0 none, 1 deep ones on alternate bays, 2 shallow railed ones at every window. */
+  balconies: 0 | 1 | 2;
   /** OSM says the ridge runs across the building, not along it. */
   across?: boolean;
   chimney: boolean;
@@ -47,6 +49,20 @@ const WORK_LAND = new Set(['industrial', 'railway', 'garages', 'military']);
 const DENSITY_R = 45;
 /** Streets busy enough to have shops along them in a town centre. */
 const HIGH_STREETS = new Set(['primary', 'secondary', 'tertiary']);
+/** Chance of balconies on flats, by region, and whether they're shallow French ones. */
+const BALCONIES: Partial<Record<Style['id'], [number, 1 | 2]>> = {
+  mediterranean: [0.65, 1],
+  eastern: [0.55, 1],
+  eastAsian: [0.45, 1],
+  tropical: [0.45, 1],
+  french: [0.7, 2],
+  central: [0.25, 1],
+  nordic: [0.3, 1],
+  alpine: [0.35, 1],
+  american: [0.15, 1],
+  antipodean: [0.2, 1],
+  generic: [0.2, 1],
+};
 
 /** Buckets of item indices over a square grid, for neighbour lookups. */
 class Grid {
@@ -460,6 +476,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       toStreet,
       streetGap,
       shop,
+      balconies: balconies(kind, H, style, r),
       across: t?.across,
       chimney: isHome && pick2(style.chimney, 7),
       dormers: (isHome || kind === 'civic') && pick2(style.dormer, 8),
@@ -474,6 +491,13 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     const nb = partyNb[i];
     for (let k = 0; k < nb.length; k += 2) party[i][nb[k]] = Math.max(party[i][nb[k]], bs[nb[k + 1]].h);
   }
+}
+
+function balconies(kind: Kind, H: number, style: Style, r: (salt: number) => number): 0 | 1 | 2 {
+  const b = BALCONIES[style.id];
+  const flats = kind === 'apartment' || (kind === 'terrace' && (style.id === 'french' || style.id === 'mediterranean'));
+  if (!b || !flats || H < 8 || r(13) >= b[0]) return 0;
+  return b[1];
 }
 
 /** Storeys for a building the map gives no height for, or 0 where storeys don't apply. */

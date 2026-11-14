@@ -6,6 +6,8 @@ import { LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
 
 const PARKING = new Set(['minor', 'tertiary', 'secondary', 'primary']);
+/** Regions where most railways run under overhead wires. */
+const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
 const LIT = new Set(['minor', 'tertiary', 'secondary', 'primary', 'trunk']);
 
 function polygon(cx: number, cy: number, r: number, n: number): number[] {
@@ -226,6 +228,16 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
       });
       continue;
     }
+    // Overhead line: masts beside the track with an arm out over it, and the contact wire.
+    if (ELECTRIC.has(B.style.id) && s >= 0.3 && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
+      paper.line3(LINEWORK, shifted(p, 0, 5.6));
+      walk(p, 20, 55, 10, (x, y, ux, uy) => {
+        const px = x - uy * 3;
+        const py = y + ux * 3;
+        paper.line3(LINEWORK, [px, py, 0, px, py, 7.4]);
+        paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
+      });
+    }
     if (twin && s * 2.6 >= 1) {
       const sl = g + 0.55;
       walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
@@ -240,7 +252,7 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const gap = 0.8 / s;
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
-    if (w.kind !== 'path') continue;
+    if (w.kind !== 'path' || w.sub === 'platform') continue;
     if (w.sub === 'steps' && s >= 0.5) {
       // Steps: treads across the path.
       walk(w.pts, 0.2, 0.55, 0.2, (x, y, ux, uy) => {
