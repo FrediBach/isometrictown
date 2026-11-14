@@ -386,9 +386,11 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   const solid = out[0];
   prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, shop: z0 === 0 ? shopSide(info) : undefined, balconies: info?.balconies, street: info?.toStreet }, solid);
   solid.casts.push({ ring: rings[0].pts, h: H });
-  if (info?.parapet && set.details) parapet(B, rings, H, solid);
+  if (info?.castle && set.details) battlements(B, rings[0], b.shape.slice(1), H, out);
+  else if (info?.parapet && set.details) parapet(B, rings, H, solid);
+  const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
-  if (set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], set.seed, 2) < 0.55) rooftop(B, b, H, k, out);
+  if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], set.seed, 2) < 0.55) rooftop(B, b, H, k, out);
 }
 
 /** A shed or sawtooth roof over a near-rectangular footprint. */
@@ -468,6 +470,28 @@ function shopSide(info: Info | undefined): [number, number] | undefined {
 
 /** All the solids for one building: the building itself and anything on its roof. */
 export function building(B: Build, b: Building): Solid[] {
+  const out = body(B, b);
+  if (b.info?.townHall && B.set.details) flag(B, b, out);
+  return out;
+}
+
+/** A flagpole on the roof with the flag out. */
+function flag(B: Build, b: Building, out: Solid[]): void {
+  const p = b.shape[0].pts;
+  const { rect } = bestRect(p);
+  if (!rect || B.cam.s < 0.3) return;
+  const z = b.h * B.set.heightScale;
+  const s = newSolid();
+  const { cx: x, cy: y } = rect;
+  s.lines.push({ pen: LINEWORK, pts: [x, y, z, x, y, z + 6] });
+  const [ux, uy] = B.sun;
+  const flagPts = [x, y, z + 6, x + ux * 2, y + uy * 2, z + 5.8, x + ux * 2, y + uy * 2, z + 4.6, x, y, z + 4.8];
+  s.faces.push([flagPts]);
+  s.lines.push({ pen: ROOFS, pts: flagPts, closed: true }, { pen: ROOFS, pts: [x + ux, y + uy, z + 5.9, x + ux, y + uy, z + 4.7] });
+  out.push(s);
+}
+
+function body(B: Build, b: Building): Solid[] {
   const { set } = B;
   const outer = b.shape[0];
   const p = outer.pts;
@@ -522,6 +546,115 @@ export function building(B: Build, b: Building): Solid[] {
   flat(B, b, rings, info, z0, H, k, out);
   return out;
 }
+
+/** Battlements along a castle's outer walls, and pointed turrets at its corners. */
+function battlements(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
+  if (B.cam.s < 0.3) return;
+  const s = newSolid();
+  const p = ring.pts;
+  const n = p.length / 2;
+  for (let i = 0; i < n; i++) {
+    if (ring.seam[i] || (ring.party && ring.party[i] > 0)) continue;
+    const j = (i + 1) % n;
+    const ax = p[i * 2];
+    const ay = p[i * 2 + 1];
+    const len = Math.hypot(p[j * 2] - ax, p[j * 2 + 1] - ay);
+    if (len < 2) continue;
+    const ux = (p[j * 2] - ax) / len;
+    const uy = (p[j * 2 + 1] - ay) / len;
+    // Inward, for counter-clockwise rings.
+    const nx = -uy * 0.5;
+    const ny = ux * 0.5;
+    for (let t = 0.35; t + 0.7 <= len - 0.2; t += 1.4) {
+      const x0 = ax + ux * t;
+      const y0 = ay + uy * t;
+      const x1 = x0 + ux * 0.7;
+      const y1 = y0 + uy * 0.7;
+      prism(B, [{ pts: [x0, y0, x1, y1, x1 + nx, y1 + ny, x0 + nx, y0 + ny], seam: new Uint8Array(4) }], z, z + 0.9, { roof: true, windows: false, pen: LINEWORK }, s);
+    }
+  }
+  out.push(s);
+  // Turrets with pointed roofs at the corners of the keep, where that's the castle style.
+  if (!TURRETS.has(B.style.id)) return;
+  const { rect } = bestRect(p);
+  if (!rect || rect.w < 12 || Math.abs(ringArea(p)) < 300) return;
+  for (const [cx, cy] of [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ]) {
+    const x = rect.cx + rect.ux * cx * (rect.L / 2 - 0.5) - rect.uy * cy * (rect.w / 2 - 0.5);
+    const y = rect.cy + rect.uy * cx * (rect.L / 2 - 0.5) + rect.ux * cy * (rect.w / 2 - 0.5);
+    const ix = rect.cx + (x - rect.cx) * 0.9;
+    const iy = rect.cy + (y - rect.cy) * 0.9;
+    if (!pointInRing(ix, iy, p) || holes.some((h) => pointInRing(ix, iy, h.pts))) continue;
+    const t = newSolid();
+    const R = Math.min(3, rect.w * 0.14);
+    const ring16: number[] = [];
+    for (let q = 0; q < 16; q++) ring16.push(x + Math.cos((q / 16) * Math.PI * 2) * R, y + Math.sin((q / 16) * Math.PI * 2) * R);
+    const top = z + 3.5;
+    prism(B, [{ pts: ring16, seam: new Uint8Array(16) }], 0, top, { roof: false, windows: true, pen: LINEWORK }, t);
+    cone(B, t, ring16, top, top + R * 2.2);
+    t.casts.push({ ring: ring16, h: top + R });
+    out.push(t);
+  }
+}
+
+/** A cone over a ring at height z: faces for the depth buffer, outline from its sheet-space extremes. */
+function cone(B: Build, s: Solid, ring: number[], z: number, apexZ: number, pen = ROOFS): void {
+  const n = ring.length / 2;
+  let cx = 0;
+  let cy = 0;
+  for (let q = 0; q < n; q++) {
+    cx += ring[q * 2] / n;
+    cy += ring[q * 2 + 1] / n;
+  }
+  const apex = [cx, cy, apexZ];
+  let lo = 0;
+  let hi = 0;
+  for (let q = 0; q < n; q++) {
+    const sx = B.cam.sx(ring[q * 2], ring[q * 2 + 1]);
+    if (sx < B.cam.sx(ring[lo * 2], ring[lo * 2 + 1])) lo = q;
+    if (sx > B.cam.sx(ring[hi * 2], ring[hi * 2 + 1])) hi = q;
+    const m = (q + 1) % n;
+    s.faces.push([[ring[q * 2], ring[q * 2 + 1], z, ring[m * 2], ring[m * 2 + 1], z, ...apex]]);
+  }
+  s.lines.push({ pen, pts: [ring[lo * 2], ring[lo * 2 + 1], z, ...apex, ring[hi * 2], ring[hi * 2 + 1], z] });
+  // The rim, front half only: from one extreme round the near side to the other.
+  const rim: number[] = [];
+  const near = (q: number) => B.cam.depth(ring[q * 2], ring[q * 2 + 1], z) <= B.cam.depth(cx, cy, z);
+  for (let k = 0; k <= n; k++) {
+    const q = (lo + k) % n;
+    if (!near(q) && q !== hi && q !== lo) {
+      if (rim.length) break;
+      continue;
+    }
+    rim.push(ring[q * 2], ring[q * 2 + 1], z);
+    if (q === hi) break;
+  }
+  if (rim.length >= 6) s.lines.push({ pen: LINEWORK, pts: rim });
+}
+
+/** A helipad on a hospital's flat roof: a ring with an H in it. */
+function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
+  const p = b.shape[0].pts;
+  const { rect } = bestRect(p);
+  if (!rect || B.cam.s < 0.3 || Math.abs(ringArea(p)) < 600) return false;
+  const R = Math.min(5.5, rect.w / 2 - 1.5, rect.L / 2 - 1.5);
+  if (R < 3 || !pointInRing(rect.cx, rect.cy, p)) return false;
+  const zz = z + 0.02;
+  const ring: number[] = [];
+  for (let q = 0; q < 28; q++) ring.push(rect.cx + Math.cos((q / 28) * Math.PI * 2) * R, rect.cy + Math.sin((q / 28) * Math.PI * 2) * R, zz);
+  out.lines.push({ pen: ROOFS, pts: ring, closed: true });
+  const P = (a: number, c: number) => [rect.cx + rect.ux * a - rect.uy * c, rect.cy + rect.uy * a + rect.ux * c, zz];
+  const h = R * 0.5;
+  out.lines.push({ pen: ROOFS, pts: [...P(-h, -h * 0.7), ...P(h, -h * 0.7)] }, { pen: ROOFS, pts: [...P(-h, h * 0.7), ...P(h, h * 0.7)] }, { pen: ROOFS, pts: [...P(0, -h * 0.7), ...P(0, h * 0.7)] });
+  return true;
+}
+
+/** Regions where castles carry pointed corner turrets. */
+const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordic', 'eastern', 'dutch', 'generic']);
 
 /** A small box on a flat roof: stair housing, plant room, water tank. */
 function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
@@ -591,7 +724,7 @@ function tanks(B: Build, rect: Rect, z: number, k: [number, number], inside: (x:
     const H = tower ? 3.4 + r(3) * 1.2 : 1.4;
     const ring: number[] = [];
     for (let q = 0; q < 16; q++) ring.push(x + Math.cos((q / 16) * Math.PI * 2) * R, y + Math.sin((q / 16) * Math.PI * 2) * R);
-    prism(B, [{ pts: ring, seam: new Uint8Array(16) }], z + legs, z + legs + H, { roof: true, windows: false, pen: LINEWORK }, s);
+    prism(B, [{ pts: ring, seam: new Uint8Array(16) }], z + legs, z + legs + H, { roof: !tower, windows: false, pen: LINEWORK }, s);
     for (let q = 0; q < 4; q++) {
       const ang = ((q + 0.5) / 4) * Math.PI * 2;
       const lx = x + Math.cos(ang) * R * 0.75;
@@ -599,19 +732,8 @@ function tanks(B: Build, rect: Rect, z: number, k: [number, number], inside: (x:
       s.lines.push({ pen: LINEWORK, pts: [lx, ly, z, lx, ly, z + legs] });
     }
     if (tower) {
-      // The conical lid: faces for the depth buffer, outline from the rim's sheet-space extremes.
       const top = z + legs + H;
-      const apex = [x, y, top + R * 0.55];
-      let lo = 0;
-      let hi = 0;
-      for (let q = 0; q < 16; q++) {
-        const sx = B.cam.sx(ring[q * 2], ring[q * 2 + 1]);
-        if (sx < B.cam.sx(ring[lo * 2], ring[lo * 2 + 1])) lo = q;
-        if (sx > B.cam.sx(ring[hi * 2], ring[hi * 2 + 1])) hi = q;
-        const n = (q + 1) % 16;
-        s.faces.push([[ring[q * 2], ring[q * 2 + 1], top, ring[n * 2], ring[n * 2 + 1], top, ...apex]]);
-      }
-      s.lines.push({ pen: ROOFS, pts: [ring[lo * 2], ring[lo * 2 + 1], top, ...apex, ring[hi * 2], ring[hi * 2 + 1], top] });
+      cone(B, s, ring, top, top + R * 0.55);
     }
     out.push(s);
     made++;

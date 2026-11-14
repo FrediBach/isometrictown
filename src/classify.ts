@@ -23,6 +23,10 @@ export type Info = {
   streetGap?: number;
   /** Shops on the ground floor, on the street side. */
   shop: boolean;
+  /** Landmarks the map names: battlements and turrets, a helipad on the roof, a flag. */
+  castle: boolean;
+  hospital: boolean;
+  townHall: boolean;
   /** Balconies on the upper floors: 0 none, 1 deep ones on alternate bays, 2 shallow railed ones at every window. */
   balconies: 0 | 1 | 2;
   /** OSM says the ridge runs across the building, not along it. */
@@ -216,10 +220,14 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
   const poi: (string | undefined)[] = new Array(N);
   const religion: (string | undefined)[] = new Array(N);
   const shops = new Uint8Array(N);
+  const marks = new Uint8Array(N);
   for (const p of town.pois) {
     const i = containing(p.x, p.y);
     if (i < 0) continue;
     if (SHOP_POIS.has(p.cls)) shops[i] = 1;
+    if (p.cls === 'castle') marks[i] |= 1;
+    if (p.cls === 'hospital' && p.sub !== 'clinic') marks[i] |= 2;
+    if (p.cls === 'town_hall' && p.sub === 'townhall') marks[i] |= 4;
     if (p.cls === 'place_of_worship') {
       poi[i] = 'worship';
       religion[i] = p.sub;
@@ -446,6 +454,8 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
         roof = 'flat';
     }
     if (tagRoof) roof = tagRoof === 'mosque' && kind !== 'worship' ? 'hipped' : tagRoof;
+    // Castles show their battlements.
+    if (marks[i] & 1 && !tagRoof && kind !== 'worship') roof = 'flat';
     if (b.min > 0 && roof !== 'flat') roof = 'flat';
 
     const [p0, p1] = style.pitch;
@@ -477,6 +487,9 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       streetGap,
       shop,
       balconies: balconies(kind, H, style, r),
+      castle: !!(marks[i] & 1) && area > 150,
+      hospital: !!(marks[i] & 2) || (land[i] === 'hospital' && area > 4000 && r(14) < 0.5),
+      townHall: !!(marks[i] & 4),
       across: t?.across,
       chimney: isHome && pick2(style.chimney, 7),
       dormers: (isHome || kind === 'civic') && pick2(style.dormer, 8),

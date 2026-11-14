@@ -50,6 +50,8 @@ export type Town = {
   /** Runways and taxiways, with their widths. */
   runways: Way[];
   aprons: Shape[];
+  /** Mountain summits, with their height in metres where known. */
+  peaks: { x: number; y: number; ele: number }[];
 };
 
 const ZOOM = 14;
@@ -80,7 +82,7 @@ const BUILT_LANDUSE = new Set(['residential', 'industrial', 'commercial', 'retai
 /** Shops, cafés and the like: a street of them gets shop fronts. */
 export const SHOP_POIS = new Set(['shop', 'grocery', 'clothing_store', 'bakery', 'cafe', 'restaurant', 'bar', 'fast_food', 'beer', 'ice_cream', 'alcohol_shop', 'jewelry', 'bank', 'pharmacy', 'hairdresser', 'florist', 'butcher', 'optician', 'books', 'gift', 'shoes', 'music', 'mobile_phone', 'laundry']);
 /** Points of interest that tell us what a building is, or what stands nearby. */
-const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch', 'aerialway', 'harbor', 'fuel', 'campsite', ...SHOP_POIS]);
+const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch', 'aerialway', 'harbor', 'fuel', 'campsite', 'bus', ...SHOP_POIS]);
 const AERO_WIDTH: Record<string, number> = { runway: 45, taxiway: 18 };
 const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, drain: 1.6, ditch: 1.4 };
 
@@ -148,7 +150,7 @@ function readTile(url: string, x: number, y: number): Promise<Town> {
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [] };
+  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [] };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -236,6 +238,13 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
   });
 
   each('housenumber', (f, _m, ext) => point(f, ext, (x, y) => town.numbers.push(x, y)));
+
+  each('mountain_peak', (f, _m, ext) => {
+    const cls = String(f.properties.class);
+    if (cls !== 'peak' && cls !== 'volcano') return;
+    const ele = Number(f.properties.ele) || 0;
+    point(f, ext, (x, y) => town.peaks.push({ x, y, ele }));
+  });
 
   each('waterway', (f, toMerc, ext) => {
     const p = f.properties;
@@ -479,6 +488,11 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const x = frame.x(p.x);
       const y = frame.y(p.y);
       if (inside(x, y)) town.pois.push({ ...p, x, y });
+    }
+    for (const p of t.peaks) {
+      const x = frame.x(p.x);
+      const y = frame.y(p.y);
+      if (inside(x, y)) town.peaks.push({ x, y, ele: p.ele });
     }
     for (let i = 0; i < t.numbers.length; i += 2) {
       const x = frame.x(t.numbers[i]);

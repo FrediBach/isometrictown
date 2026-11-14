@@ -17,6 +17,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 - **Flat roofs** carry boxes, water tanks (on legs in North America) or rows of solar panels, depending on the region.
 - **Balconies** hang off flats where that's the habit: deep ones in southern and eastern Europe and East Asia, and in Paris a continuous railing on the second and fifth floors of the street front.
 - **Squares** big enough get a fountain or a statue in the middle.
+- **Landmarks the map names**: castles get battlements, and in much of Europe pointed corner turrets; the main hospital buildings get a helipad on the roof; town halls fly a flag. Big works may have a tall chimney stack beside them.
+- **Street furniture**: bus stops get a shelter and a sign, petrol stations a canopy over the pumps, and busy junctions traffic lights. Mountain tops get a summit cross and their height.
 - **Roofs** follow what each building is and where it stands. Houses get gabled, hipped, half-hipped or mansard roofs, and L- and T-shaped houses get cross gables. Terraced rows share party walls, with chimney stacks on them. Paris blocks get mansards with dormers. Dutch canal houses turn stepped or neck gables to the street. Factories get sawtooth roofs, churches get a tower and spire, mosques get a dome and minaret, and temples get tiered roofs.
 - **Regional style** is picked from the country: Alpine, Dutch, British, French, Mediterranean, East Asian, North American and more. Each style sets roof shapes, pitches, overhangs, which way ridges run and how many chimneys and dormers there are. You can override it.
 - **Streets** get kerb lines, parked cars and street lamps, centre dashes and zebra crossings near busy junctions. Main roads may be lined with trees, and roundabouts get a planted island. Parking aisles get painted bays with cars in them.
@@ -63,7 +65,7 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/streets.ts` | Road surfaces, kerbs, lamps, rails and trams, footpaths, tracks and steps |
 | `src/infra.ts` | Lifts, ferries and moored boats, bridges, station platforms, tunnel portals, airfields, road markings, parking bays, roundabouts |
 | `src/gardens.ts` | Garden plots and their hedges and fences, driveways, sheds and trampolines, field hedgerows, street trees |
-| `src/sites.ts` | Beaches, campsites, playgrounds, farm silos, ports, quarries, fountains and statues on squares |
+| `src/sites.ts` | Beaches, campsites, playgrounds, farm silos, ports, quarries, fountains and statues, bus shelters, petrol stations, factory chimneys, summit crosses |
 | `src/ground.ts` | Field furrows, vineyards, orchards, meadow and marsh symbols, sand, inferred gardens, headstones, pitch markings |
 | `src/nature.ts` | Tree placement and tree sprites |
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |

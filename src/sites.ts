@@ -8,6 +8,7 @@ import { dome } from './roofs';
 import { LINEWORK, ROOFS, WATER } from './settings';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
+import { letter } from './lettering';
 
 /**
  * Things that belong to particular places: parasols on beaches, tents at campsites, swings
@@ -196,6 +197,13 @@ export function farmyards(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const h = (k: number) => hash(k0, k1, B.set.seed, 720 + k);
     if (h(0) > 0.4) continue;
     if (towns.some((a) => inside(a, r.cx, r.cy))) continue;
+    // Farms stand apart: few other buildings close by.
+    let close = 0;
+    for (const o of town.buildings) {
+      const q = o.shape[0].pts;
+      if (Math.abs(q[0] - r.cx) < 70 && Math.abs(q[1] - r.cy) < 70 && ++close > 8) break;
+    }
+    if (close > 8) continue;
     const near = [0, 1, 2, 3, 4, 5, 6, 7].some((q) => {
       const x = r.cx + Math.cos((q * Math.PI) / 4) * (r.L / 2 + 40);
       const y = r.cy + Math.sin((q * Math.PI) / 4) * (r.L / 2 + 40);
@@ -383,4 +391,185 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     solids.push(s);
   }
   return { solids, draw: (paper) => lines.forEach((l) => paper.line3(l.pen, l.pts)) };
+}
+
+// ---------------------------------------------------------------- Street furniture
+
+/** The nearest road to a point: where on it, which way it runs, and its half width. */
+function nearestRoad(town: Town, x: number, y: number, max: number): { px: number; py: number; ux: number; uy: number; hw: number; d: number } | null {
+  let best: { px: number; py: number; ux: number; uy: number; hw: number; d: number } | null = null;
+  for (const w of town.ways) {
+    if (w.kind !== 'road') continue;
+    const p = w.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = p[i];
+      const ay = p[i + 1];
+      const dx = p[i + 2] - ax;
+      const dy = p[i + 3] - ay;
+      const ll = dx * dx + dy * dy;
+      if (ll < 1e-6) continue;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / ll));
+      const px = ax + dx * t;
+      const py = ay + dy * t;
+      const d = Math.hypot(x - px, y - py);
+      if (d > max || (best && d >= best.d)) continue;
+      const l = Math.sqrt(ll);
+      best = { px, py, ux: dx / l, uy: dy / l, hw: w.width / 2, d };
+    }
+  }
+  return best;
+}
+
+/** Bus shelters at bus stops: a back panel, a roof on posts, and the stop sign at the kerb. */
+export function busStops(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  if (B.cam.s < 0.4) return { solids, draw: () => {} };
+  for (const stop of town.pois) {
+    if (stop.cls !== 'bus' || stop.sub !== 'bus_stop') continue;
+    const [k0, k1] = B.key(stop.x, stop.y);
+    if (hash(k0, k1, B.set.seed, 770) > 0.75) continue;
+    const r = nearestRoad(town, stop.x, stop.y, 20);
+    if (!r) continue;
+    // Stand on the pavement on the stop's side of the road, facing the road.
+    let nx = stop.x - r.px;
+    let ny = stop.y - r.py;
+    const l = Math.hypot(nx, ny);
+    if (l < 1e-3) {
+      nx = -r.uy;
+      ny = r.ux;
+    } else {
+      nx /= l;
+      ny /= l;
+    }
+    const x = r.px + nx * (r.hw + 2.0);
+    const y = r.py + ny * (r.hw + 2.0);
+    if (!free(paper, M, x, y) || !free(paper, M, x + nx * 0.9, y + ny * 0.9)) continue;
+    const s = newSolid();
+    const P = (a: number, c: number, z: number) => [x + r.ux * a + nx * c, y + r.uy * a + ny * c, z];
+    const back = [P(-1.8, 0.7, 0.1), P(1.8, 0.7, 0.1), P(1.8, 0.7, 2.3), P(-1.8, 0.7, 2.3)];
+    s.faces.push([back.flat()]);
+    s.lines.push({ pen: LINEWORK, pts: back.flat(), closed: true });
+    for (const a of [-1.8, 1.8]) {
+      const side = [P(a, 0.7, 0.1), P(a, -0.2, 0.1), P(a, -0.2, 2.3), P(a, 0.7, 2.3)];
+      s.faces.push([side.flat()]);
+      s.lines.push({ pen: LINEWORK, pts: side.flat(), closed: true });
+    }
+    slab(B, s, place(x, y, r.ux, r.uy, rect(-2, 2, -0.4, 0.9).map(([a, c]) => [a, c * 1])), 2.3, 2.45);
+    // The stop sign at the kerb end.
+    const [sx, sy] = P(2.6, -1.2, 0);
+    s.lines.push({ pen: LINEWORK, pts: [sx, sy, 0, sx, sy, 2.6] });
+    const disc: number[] = [];
+    for (let q = 0; q < 10; q++) disc.push(sx + r.ux * Math.cos((q / 10) * Math.PI * 2) * 0.35, sy + r.uy * Math.cos((q / 10) * Math.PI * 2) * 0.35, 2.6 + 0.35 + Math.sin((q / 10) * Math.PI * 2) * 0.35);
+    s.lines.push({ pen: ROOFS, pts: disc, closed: true });
+    solids.push(s);
+  }
+  return { solids, draw: () => {} };
+}
+
+/** Petrol stations: a canopy on columns over two pump islands. */
+export function fuel(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  if (B.cam.s < 0.25) return { solids, draw: () => {} };
+  for (const f of town.pois) {
+    if (f.cls !== 'fuel' || f.sub !== 'fuel') continue;
+    const r = nearestRoad(town, f.x, f.y, 40);
+    if (!r) continue;
+    // Set back from the road, wherever the station's forecourt is clear.
+    let nx = f.x - r.px;
+    let ny = f.y - r.py;
+    const l = Math.hypot(nx, ny) || 1;
+    nx /= l;
+    ny /= l;
+    let spot: [number, number] | null = null;
+    for (const back of [r.hw + 9, r.hw + 12, r.hw + 7]) {
+      const x = r.px + nx * back;
+      const y = r.py + ny * back;
+      const corners = place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5));
+      let ok = true;
+      for (let q = 0; q < 4 && ok; q++) ok = free(paper, M, corners[q * 2], corners[q * 2 + 1]);
+      if (ok && free(paper, M, x, y)) {
+        spot = [x, y];
+        break;
+      }
+    }
+    if (!spot) continue;
+    const [x, y] = spot;
+    const s = newSolid();
+    slab(B, s, place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), 4.6, 5.4, ROOFS);
+    for (const [a, c] of [
+      [-4.5, 0],
+      [4.5, 0],
+    ]) {
+      const [cx, cy] = [x + r.ux * a - r.uy * c, y + r.uy * a + r.ux * c];
+      s.lines.push({ pen: LINEWORK, pts: [cx, cy, 0, cx, cy, 4.6] });
+      slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.4, 0.4, -1.6, 1.6)), 0, 0.2);
+      slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.3, 0.3, -0.5, 0.5)), 0.2, 1.6);
+    }
+    s.casts.push({ ring: place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), h: 5.2 });
+    solids.push(s);
+  }
+  return { solids, draw: () => {} };
+}
+
+/** A tall chimney stack beside some of the big works. */
+export function chimneys(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  if (B.cam.s < 0.12 || !B.set.details) return { solids, draw: () => {} };
+  for (const b of town.buildings) {
+    if (b.info?.kind !== 'industrial') continue;
+    const area = Math.abs(ringArea(b.shape[0].pts));
+    if (area < 1500) continue;
+    const { rect: r } = bestRect(b.shape[0].pts);
+    if (!r) continue;
+    const [k0, k1] = B.key(r.cx, r.cy);
+    const h = (k: number) => hash(k0, k1, B.set.seed, 780 + k);
+    if (h(0) > 0.22) continue;
+    const R = 1.4 + h(1) * 0.8;
+    const end = h(2) < 0.5 ? 1 : -1;
+    const x = r.cx + r.ux * end * (r.L / 2 + R + 1.5);
+    const y = r.cy + r.uy * end * (r.L / 2 + R + 1.5);
+    if (![0, 1, 2, 3, 4, 5].every((q) => free(paper, M, x + Math.cos(q) * (R + 0.4), y + Math.sin(q) * (R + 0.4)))) continue;
+    const s = newSolid();
+    const H = Math.max(b.h * 2.5, 28 + h(3) * 22);
+    const ring = cylinder(B, s, x, y, R * 1.25, 0, H * 0.25, false);
+    cylinder(B, s, x, y, R, H * 0.25, H, true);
+    // Bands near the top.
+    for (const z of [H - 1.2, H - 2.4]) {
+      const band: number[] = [];
+      for (let q = 0; q <= 18; q++) band.push(x + Math.cos((q / 18) * Math.PI * 2) * R, y + Math.sin((q / 18) * Math.PI * 2) * R, z);
+      s.lines.push({ pen: ROOFS, pts: band });
+    }
+    s.casts.push({ ring, h: H });
+    solids.push(s);
+  }
+  return { solids, draw: () => {} };
+}
+
+/** A summit cross on each mountain top, with its height lettered beside it. */
+export function peaks(B: Build, town: Town): Extra {
+  if (!town.peaks.length || B.cam.s < 0.08) return { solids: [], draw: () => {} };
+  return {
+    solids: [],
+    draw: (paper) => {
+      const { cam } = B;
+      for (const pk of town.peaks) {
+        const { x, y } = pk;
+        // Sized on paper rather than on the ground, so the cross reads at any scale.
+        const k = Math.max(1, 1.2 / cam.s);
+        paper.line3(LINEWORK, [x, y, 0, x, y, 6 * k]);
+        paper.line3(LINEWORK, [x - cam.cb * 1.4 * k, y + cam.sb * 1.4 * k, 4.4 * k, x + cam.cb * 1.4 * k, y - cam.sb * 1.4 * k, 4.4 * k]);
+        // A cairn at its foot.
+        paper.line3(LINEWORK, [x - cam.cb * 1.2 * k, y + cam.sb * 1.2 * k, 0, x, y, 1.2 * k, x + cam.cb * 1.2 * k, y - cam.sb * 1.2 * k, 0]);
+        if (!pk.ele) continue;
+        const sx = cam.sx(x, y) + 1.2;
+        const sy = cam.sy(x, y, 0) + 0.2;
+        const d = cam.depth(x, y, 0);
+        for (const l of letter(`${Math.round(pk.ele)} M`, sx, sy, { h: 1.6 })) {
+          const pts: number[] = [];
+          for (let i = 0; i < l.length; i += 2) pts.push(l[i], l[i + 1], d);
+          paper.sheet(LINEWORK, pts);
+        }
+      }
+    },
+  };
 }

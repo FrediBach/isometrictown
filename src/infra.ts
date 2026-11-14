@@ -650,8 +650,29 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       groundSeg(paper, LINEWORK, x, y, x + ux * 3, y + uy * 3, test);
       paper.end();
     });
-    // Zebras a little way in from junctions.
+    // Zebras a little way in from junctions, and traffic lights at the busier ones.
     if (s < 0.6) continue;
+    if (w.cls !== 'tertiary') {
+      for (const [isJ, t, dir] of [
+        [j0, 2, 1],
+        [j1, L - 2, -1],
+      ] as const) {
+        if (!isJ || L < 12) continue;
+        const [x, y, ux, uy] = at(p, cum, t);
+        const [k0, k1] = B.key(Math.round(x), Math.round(y));
+        if (hash(k0, k1, B.set.seed, 435) > 0.6) continue;
+        // On the kerb to the right of traffic heading into the junction.
+        const side = -dir;
+        const px = x - uy * side * (w.width / 2 + 0.8);
+        const py = y + ux * side * (w.width / 2 + 0.8);
+        if (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py)) continue;
+        paper.line3(LINEWORK, [px, py, 0, px, py, 3.2]);
+        const fx = -ux * dir * 0.2;
+        const fy = -uy * dir * 0.2;
+        const box = [px + fx - uy * 0.2, py + fy + ux * 0.2, px + fx + uy * 0.2, py + fy - ux * 0.2];
+        paper.line3(LINEWORK, [box[0], box[1], 2.2, box[2], box[3], 2.2, box[2], box[3], 3.3, box[0], box[1], 3.3], paper.seen, true);
+      }
+    }
     const hw = w.width / 2;
     for (const [isJ, t] of [
       [j0, 5],

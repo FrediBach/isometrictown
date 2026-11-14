@@ -2,7 +2,7 @@ import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
 import { allotmentSheds, drawGround, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
-import { beaches, campsites, farmyards, playgrounds, ports, quarries, squares } from './sites';
+import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, playgrounds, ports, quarries, squares } from './sites';
 import { airfields, platforms, bridges, ferries, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
 import type { Frame } from './geo';
@@ -108,7 +108,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), bridges(B, paper, town, M), platforms(B, town), portals(B, town), airfields(B, paper, town, M)];
   if (set.ground) extras.push(beaches(B, paper, town, M), campsites(B, paper, town, M), playgrounds(B, paper, town, M), farmyards(B, paper, town, M), quarries(B, paper, town, M));
   if (set.water) extras.push(ports(B, paper, town, M));
-  extras.push(squares(B, paper, town, M));
+  extras.push(squares(B, paper, town, M), busStops(B, paper, town, M), fuel(B, paper, town, M), chimneys(B, paper, town, M), peaks(B, town));
   for (const e of extras) solids.push(...e.solids);
   if (G) solids.push(...allotmentSheds(B, paper, G, M));
   const fences = G ? plots(B, paper, town, G, M) : null;
