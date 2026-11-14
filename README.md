@@ -86,6 +86,8 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/worker.ts` | Runs all of the above off the main thread |
 | `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |
 
+More on how it fits together is in [docs/](docs/README.md).
+
 ## Run it locally
 
 ```bash
