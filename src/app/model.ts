@@ -1,6 +1,6 @@
 import type { LngLat } from '../geo';
 import { PALETTES } from '../palettes';
-import { DEFAULT_SETTINGS, PEN_COUNT, SHEETS, type Settings } from '../settings';
+import { DEFAULT_SETTINGS, LAYERS, PEN_COUNT, SHEETS, type Settings } from '../settings';
 import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
@@ -37,6 +37,11 @@ export function loadSettings(): Settings {
     s.place = decodeURIComponent(parts[5] ?? '') || 'Somewhere';
   }
   s.pens = migratePens(s.pens);
+  s.layerPens = Object.fromEntries(Object.entries(s.layerPens ?? {}).filter(([key, value]) =>
+    Object.hasOwn(LAYERS, key) && Number.isInteger(value) && value >= 0 && value < PEN_COUNT));
+  s.customLayerPens = s.customLayerPens === true;
+  s.customBackground = s.customBackground === true;
+  if (typeof s.background !== 'string' || !/^#[0-9a-f]{6}$/i.test(s.background)) s.background = DEFAULT_SETTINGS.background;
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   return s;
@@ -79,7 +84,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customBackground';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,

@@ -67,6 +67,8 @@ export class Paper {
   readonly y1: number;
   readonly z: Float32Array;
   far: Float32Array;
+  /** Pen override for the current feature's line pass. */
+  penOverride: number | undefined;
   readonly pens: number[][][] = Array.from({ length: PEN_COUNT }, () => []);
   private run: number[] | null = null;
   private runPen = 0;
@@ -287,6 +289,7 @@ export class Paper {
 
   /** Sample one sheet-space segment and extend or start visible runs. */
   seg(pen: number, ax: number, ay: number, ad: number, bx: number, by: number, bd: number, test: Test): void {
+    pen = this.penOverride ?? pen;
     const dx = bx - ax;
     const dy = by - ay;
     let t0 = 0;

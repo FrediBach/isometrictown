@@ -11,7 +11,7 @@ import { placeTrees, regionalTrees, treeSprite, type Masks } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
-import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, type Settings } from './settings';
+import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { trains } from './trains';
@@ -34,6 +34,19 @@ export type OnStage = (p: StageProgress) => void;
 export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false): Drawing {
   const cam = new Camera(set);
   const paper = new Paper(cam);
+  const tag = <T extends Solid[]>(layer: LayerId, solids: T): T => {
+    for (const solid of solids) solid.layer = layer;
+    return solids;
+  };
+  const extra = <T extends { solids: Solid[]; draw: (paper: Paper) => void }>(layer: LayerId, e: T): T => {
+    tag(layer, e.solids);
+    const draw = e.draw;
+    return { ...e, draw: (p: Paper) => withPen(layer, () => draw(p)) };
+  };
+  const withPen = (layer: LayerId, draw: () => void): void => {
+    paper.penOverride = set.customLayerPens ? set.layerPens[layer] : undefined;
+    try { draw(); } finally { paper.penOverride = undefined; }
+  };
   const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
   const sun: [number, number] = [Math.sin(A), Math.cos(A)];
   const toAbs = (x: number, y: number): [number, number] => [frame.mx0 + x / frame.k, frame.my0 + y / frame.k];
@@ -112,19 +125,20 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     return paper.on(M.wood, sx, sy) || (!!G && !G.inTown(t.x, t.y, sx, sy));
   });
   counts.trees = trees.length;
-  const cars = traffic(B, paper, town, M);
-  const bays = parking(B, paper, town.ways, M);
+  const cars = tag('cars', traffic(B, paper, town, M));
+  const bays = extra('markings', parking(B, paper, town.ways, M));
+  tag('cars', bays.solids);
   counts.cars = cars.length + bays.solids.length;
-  solids.push(...cars, ...trains(B, paper, town, M));
-  const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), bridges(B, paper, town, M), platforms(B, town), portals(B, town), airfields(B, paper, town, M), aviation(B, paper, town, M), powerLines(B, paper, town, M, box, toAbs, fromAbs)];
-  if (set.ground) extras.push(beaches(B, paper, town, M), campsites(B, paper, town, M), playgrounds(B, paper, town, M), farmyards(B, paper, town, M), quarries(B, paper, town, M));
-  if (set.water) extras.push(ports(B, paper, town, M));
-  extras.push(squares(B, paper, town, M), busStops(B, paper, town, M), fuel(B, paper, town, M), chimneys(B, paper, town, M), peaks(B, town));
-  extras.push(sailing(B, paper, town, M), crossings(B, paper, town, M), people(B, paper, town, M), motorways(B, paper, town, M));
+  solids.push(...cars, ...tag('life', trains(B, paper, town, M)));
+  const extras = [bays, extra('rails', lifts(B, town)), extra('life', ferries(B, paper, town, M)), extra('life', moorings(B, paper, town, M)), extra('streets', bridges(B, paper, town, M)), extra('streets', platforms(B, town)), extra('streets', portals(B, town)), extra('streets', airfields(B, paper, town, M)), extra('life', aviation(B, paper, town, M)), extra('power', powerLines(B, paper, town, M, box, toAbs, fromAbs))];
+  if (set.ground) extras.push(extra('ground', beaches(B, paper, town, M)), extra('ground', campsites(B, paper, town, M)), extra('ground', playgrounds(B, paper, town, M)), extra('ground', farmyards(B, paper, town, M)), extra('ground', quarries(B, paper, town, M)));
+  if (set.water) extras.push(extra('water', ports(B, paper, town, M)));
+  extras.push(extra('streets', squares(B, paper, town, M)), extra('streets', busStops(B, paper, town, M)), extra('streets', fuel(B, paper, town, M)), extra('streets', chimneys(B, paper, town, M)), extra('streets', peaks(B, town)));
+  extras.push(extra('life', sailing(B, paper, town, M)), extra('markings', crossings(B, paper, town, M)), extra('life', people(B, paper, town, M)), extra('streets', motorways(B, paper, town, M)));
   for (const e of extras) solids.push(...e.solids);
-  if (G) solids.push(...allotmentSheds(B, paper, G, M), ...bales(B, paper, G, M), ...livestock(B, paper, G, M, box, toAbs, fromAbs));
+  if (G) solids.push(...tag('ground', allotmentSheds(B, paper, G, M)), ...tag('ground', bales(B, paper, G, M)), ...tag('life', livestock(B, paper, G, M, box, toAbs, fromAbs)));
   const fences = G ? plots(B, paper, town, G, M) : null;
-  if (fences) solids.push(...fences.solids);
+  if (fences) solids.push(...tag('ground', fences.solids));
 
   // Depth
   onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
@@ -171,38 +185,38 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   // Lines, ground first
   onStage({ stage: 'lines', note: 'Ground and streets' });
-  if (set.water) {
+  if (set.water) withPen('water', () => {
     waves(paper, M, set.seed);
     outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.under, x, y));
     pools(paper, M, town.pools);
-  }
-  if (set.parks) {
+  });
+  if (set.parks) withPen('parks', () => {
     const grass = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y);
     paper.hatchGround(GREENERY, -27, 1.1, (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
     // Every other line of the same hatch, so it runs on unbroken from the plain grass around.
     if (G) paper.hatchGround(GREENERY, -27, 2.2, (x, y) => grass(x, y) && lightly(G, paper, x, y));
     outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
     outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
-  }
-  if (set.shadows) paper.hatchGround(SHADOWS, 62, 0.85, (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y));
-  if (G) drawGround(B, paper, M, G, toAbs, fromAbs);
-  curbs(paper, town.ways, M);
-  outline(paper, LINEWORK, town.plazas, M.road);
-  if (set.rails) railways(B, paper, town.ways);
-  if (set.paths) footpaths(B, paper, town.ways, M);
-  if (set.lamps) counts.lamps = lamps(B, paper, town.ways, M);
-  railings(paper, town.ways);
-  markings(B, paper, town.ways, M);
+  });
+  if (set.shadows) withPen('shadows', () => { paper.hatchGround(SHADOWS, 62, 0.85, (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y)); });
+  if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs); });
+  withPen('streets', () => { curbs(paper, town.ways, M); });
+  withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); });
+  if (set.rails) withPen('rails', () => { railways(B, paper, town.ways); });
+  if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M); });
+  if (set.lamps) withPen('lamps', () => { counts.lamps = lamps(B, paper, town.ways, M); });
+  withPen('streets', () => { railings(paper, town.ways); });
+  withPen('markings', () => { markings(B, paper, town.ways, M); });
   for (const e of extras) e.draw(paper);
-  fences?.draw();
+  withPen('ground', () => { fences?.draw(); });
 
   // Solids and trees
   onStage({ stage: 'lines', note: 'Buildings and trees' });
-  for (const s of solids) for (const l of s.lines) paper.line3(l.pen, l.pts, paper.seen, l.closed);
-  for (const sp of sprites) sp.draw();
+  for (const s of solids) for (const l of s.lines) paper.line3(layerPen(set, s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings'), l.pen), l.pts, paper.seen, l.closed);
+  withPen('trees', () => { for (const sp of sprites) sp.draw(); });
 
-  if (set.frame) paper.pens[LINEWORK].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
-  if (set.marginalia) paper.pens[LINEWORK].push(...marginalia(set, cam, frame));
+  if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
+  if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
   return { pens: paper.pens, counts };
 }
 

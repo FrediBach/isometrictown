@@ -11,7 +11,7 @@ import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, type Settings, type SheetId } from '../settings';
+import { LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, type LayerId, type Settings, type SheetId } from '../settings';
 import { STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -167,6 +167,16 @@ export function SheetSection() {
           ]}
         />
       </div>
+      <KeyGrid className="mb-3">
+        <BoolSetting name="customBackground" label="Custom background" />
+      </KeyGrid>
+      {set.customBackground && (
+        <label className="mb-3 flex items-center gap-3 text-[13px]">
+          <input type="color" className="swatch" aria-label="Background colour" value={set.background} onChange={(e) => change('background', e.currentTarget.value)} />
+          Background <span className="readout text-muted-foreground uppercase">{set.background}</span>
+        </label>
+      )}
+      <Hint>Background colour is saved as SVG presentation, with no filled shape for the plotter. Off keeps the SVG transparent.</Hint>
       <NumberSetting name="margin" label="Margin" min={5} max={60} step={1} />
       <KeyGrid>
         <BoolSetting name="frame" label="Frame line" />
@@ -308,6 +318,7 @@ export function PensSection({ onPalette, onPen, onPenCommit }: PensSectionProps)
         </div>
       </div>
       <Hint className="-mt-2 mb-4">Lock the pens you like; Harmonise matches the rest to them. A colour you pick yourself is locked for you.</Hint>
+      <LayerPens />
       <NumberSetting name="penWidth" label="Pen width" min={0.1} max={1} step={0.05} />
       <NumberSetting name="speed" label="Plot speed" min={10} max={120} step={5} />
       <KeyGrid>
@@ -421,5 +432,45 @@ export function SeedSection({ onSeed }: { onSeed: (seed: number) => void }) {
       </div>
       <Hint className="mt-2 mb-0">Picks which houses get pitched roofs and where trees and cars go.</Hint>
     </Section>
+  );
+}
+
+/** Optional assignments keep the five physical pens and their plot order. */
+function LayerPens() {
+  const { set, change } = useSettings();
+  return (
+    <div className="mb-4">
+      <KeyGrid>
+        <BoolSetting name="customLayerPens" label="Custom layer pens" />
+      </KeyGrid>
+      {set.customLayerPens && (
+        <>
+          <Hint>Choose a pen for each feature, or keep its default mix. Assignments redraw the scene. One black pen overrides all assignments.</Hint>
+          <fieldset disabled={set.mono} className="space-y-2 disabled:opacity-45">
+            <legend className="sr-only">Layer pen assignments</legend>
+            {(Object.entries(LAYERS) as [LayerId, string][]).map(([layer, label]) => (
+              <div key={layer} className="grid grid-cols-[1fr_150px] items-center gap-2">
+                <span className="text-[12px]">{label}</span>
+                <Select disabled={set.mono} value={String(set.layerPens[layer] ?? 'default')} onValueChange={(value) => {
+                  const next = { ...set.layerPens };
+                  if (value === 'default') delete next[layer];
+                  else next[layer] = Number(value);
+                  change('layerPens', next);
+                }}>
+                  <SelectTrigger aria-label={`${label} pen`} className="h-8 w-full bg-card"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default</SelectItem>
+                    {PEN_NAMES.map((name, i) => (
+                      <SelectItem key={name} value={String(i)}><PenDot color={set.pens[i]} size={9} />{i + 1} {name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+            <button type="button" className="text-[12px] underline underline-offset-4" onClick={() => change('layerPens', {})}>Reset assignments</button>
+          </fieldset>
+        </>
+      )}
+    </div>
   );
 }

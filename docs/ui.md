@@ -53,3 +53,9 @@ Worker messages (`Reply` in `worker.ts`): `progress` (a `StageProgress`), `done`
 ## Panel sections
 
 `components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
+
+## Optional drawing colours
+
+`customLayerPens` enables `layerPens`, a partial feature-to-pen mapping keyed by `LAYERS` in `settings.ts`. Missing entries retain the original mix of pens. Assignments redraw and replan so pen groups and statistics remain accurate. OSM roof tags are a data source, not a drawable feature, so they have no pen assignment. Disabling custom assignments keeps them saved; resetting clears them.
+
+`customBackground` and `background` use `recolor()` without scheduling the worker, including in monochrome mode. The SVG root receives a CSS background colour; no filled geometry is added. Disabling it removes the style and restores transparent export. SVG viewers that ignore CSS backgrounds will show their own paper colour.

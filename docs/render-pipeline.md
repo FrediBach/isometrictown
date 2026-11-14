@@ -87,3 +87,7 @@ With `set.mono`, `plan()` merges every pen into `LINEWORK`.
 - Masks and depth are flat typed arrays; hot loops avoid allocation. Keep it that way.
 - `onStage` is called often; the worker throttles counted progress to one message per 50 ms.
 - At most 36 tiles per drawing (`MAX_TILES`); beyond that the worker throws `TooBigError`, shown to the user as advice.
+
+### Feature pen overrides
+
+When enabled, `layerPens` routes feature linework into the five existing pens before planning. Solids can carry a `layer`, and individual building lines carry finer identities for windows, roof hatching, roof details and wall shading. A solid identity takes precedence for objects such as trains that reuse building helpers. `tagLines()` marks only appended lines. Ground passes temporarily set `Paper.penOverride`, restored after the pass. Masks, faces, visibility, placement and shadow casting are unchanged. Monochrome still merges all routed output in `plan()`.

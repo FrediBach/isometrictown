@@ -244,8 +244,10 @@ ${layers}
  * stats, so a palette change never needs the town fetched or drawn again.
  */
 export function recolor<T extends { svg: string; stats: PlotStats }>(drawn: T, set: Settings): T {
-  if (set.mono) return drawn;
-  const svg = drawn.svg.replace(/(id="pen-(\d+)" fill="none" stroke=")[^"]*"/g, (_, head: string, n: string) => `${head}${escape(set.pens[Number(n) - 1] ?? '#000000')}"`);
+  const background = set.customBackground && /^#[0-9a-f]{6}$/i.test(set.background) ? ` style="background-color:${set.background}"` : '';
+  const base = drawn.svg.replace(/(<svg\b[^>]*?)(?: style="[^"]*")?>/, (_, root: string) => `${root}${background}>`);
+  if (set.mono) return { ...drawn, svg: base };
+  const svg = base.replace(/(id="pen-(\d+)" fill="none" stroke=")[^"]*"/g, (_, head: string, n: string) => `${head}${escape(set.pens[Number(n) - 1] ?? '#000000')}"`);
   const pens = drawn.stats.pens.map((p, i) => ({ ...p, color: set.pens[i] }));
   return { ...drawn, svg, stats: { ...drawn.stats, pens } };
 }

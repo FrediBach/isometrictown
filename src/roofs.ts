@@ -1,4 +1,4 @@
-import { prism, type Build, type Line3, type Solid } from './buildings';
+import { tagLines, prism, type Build, type Line3, type Solid } from './buildings';
 import { ringArea } from './geo';
 import { LINEWORK, ROOFS } from './settings';
 import { corners, offsetRing, type Rect } from './shape';
@@ -161,7 +161,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
         const u = -ue[0] + t;
         const inner = Math.max(0, d[0] - (u + ue[0]), d[1] - (ue[1] - u));
         if (outer - inner < 0.08) continue;
-        out.lines.push({ pen, pts: [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)] });
+        out.lines.push({ pen, layer: 'roofHatch', pts: [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)] });
       }
     }
     for (const k of [0, 1]) {
@@ -177,7 +177,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
         const v = -reach + t;
         const depth = reach - Math.abs(v);
         if (depth < 0.08) continue;
-        out.lines.push({ pen, pts: [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)] });
+        out.lines.push({ pen, layer: 'roofHatch', pts: [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)] });
       }
     }
   }
@@ -200,6 +200,10 @@ export function chimney(B: Build, R: Pitched, u: number, v: number, du: number, 
  * eave and whose back runs into the roof. `axis` points out of the slope, level.
  */
 export function dormer(B: Build, x: number, y: number, ax: number, ay: number, depth: number, z0: number, zFront: number, out: Solid): void {
+  tagLines('details', out, () => dormerLines(B, x, y, ax, ay, depth, z0, zFront, out));
+}
+
+function dormerLines(B: Build, x: number, y: number, ax: number, ay: number, depth: number, z0: number, zFront: number, out: Solid): void {
   const dw = 0.75;
   const rect: Rect = { cx: x - (ax * depth) / 2, cy: y - (ay * depth) / 2, ux: ax, uy: ay, L: depth, w: dw * 2 };
   const Hd = zFront + 1.25;
@@ -264,7 +268,7 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
         const count = strokes(B, A[0], A[1], Bv[0], Bv[1], He);
         for (let k = 0; k < count; k++) {
           const t = (k + 0.5) / count;
-          out.lines.push({ pen, pts: [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht] });
+          out.lines.push({ pen, layer: 'roofHatch', pts: [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht] });
         }
       }
       if (dormers && front && tan > 1.5 && ri === 0 && len >= 3.4) {
@@ -287,6 +291,10 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
 
 /** A flat roof's parapet: a second outline just inside the edge. */
 export function parapet(B: Build, rings: { pts: number[]; seam: Uint8Array; party?: Float32Array }[], z: number, out: Solid): void {
+  tagLines('details', out, () => parapetLines(B, rings, z, out));
+}
+
+function parapetLines(B: Build, rings: { pts: number[]; seam: Uint8Array; party?: Float32Array }[], z: number, out: Solid): void {
   const s = B.cam.s;
   if (s < 0.4) return;
   const d = Math.min(1.2, Math.max(0.4, 0.6 / s));
@@ -334,7 +342,7 @@ export function shedRoof(B: Build, rect: Rect, He: number, tan: number, out: Sol
     const count = strokes(B, lo0[0], lo0[1], lo1[0], lo1[1], He);
     for (let k = 0; k < count; k++) {
       const u = -a + ((k + 0.5) / count) * L;
-      out.lines.push({ pen: ROOFS, pts: [...at(u, -b, He), ...at(u, b, Hh)] });
+      out.lines.push({ pen: ROOFS, layer: 'roofHatch', pts: [...at(u, -b, He), ...at(u, b, Hh)] });
     }
   }
 }

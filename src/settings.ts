@@ -52,6 +52,12 @@ export type Settings = {
   shadeWalls: boolean;
 
   pens: [string, string, string, string, string];
+  /** Use the optional feature-to-pen overrides. */
+  customLayerPens: boolean;
+  layerPens: Partial<Record<LayerId, number>>;
+  /** Paper colour for preview and SVG presentation, without a plotted fill. */
+  customBackground: boolean;
+  background: string;
   penWidth: number;
   mono: boolean;
   speed: number;
@@ -126,6 +132,10 @@ export const DEFAULT_SETTINGS: Settings = {
   shadeWalls: false,
 
   pens: ['#a6b9dd', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'],
+  customLayerPens: false,
+  layerPens: {},
+  customBackground: false,
+  background: '#f2f1eb',
   penWidth: 0.35,
   mono: false,
   speed: 40,
@@ -136,4 +146,20 @@ export const DEFAULT_SETTINGS: Settings = {
 /** Millimetres on paper per metre on the ground. */
 export function mmPerMetre(s: Pick<Settings, 'scale'>): number {
   return 1000 / s.scale;
+}
+
+/** Drawable features that can override their usual mix of pens. */
+export const LAYERS = {
+  buildings: 'Buildings', roofs: 'Roofs', windows: 'Windows', roofHatch: 'Roof hatching',
+  rooftops: 'Rooftop boxes', details: 'Roof details', trees: 'Trees', cars: 'Traffic',
+  streets: 'Streets and infrastructure', lamps: 'Street lamps', paths: 'Footpaths',
+  rails: 'Railways and lifts', water: 'Water', parks: 'Parks', ground: 'Fields and gardens',
+  markings: 'Road markings', power: 'Power lines', life: 'People, animals, boats, trains and aircraft',
+  shadows: 'Shadows', shadeWalls: 'Wall shading', margin: 'Frame and map notes',
+} as const;
+export type LayerId = keyof typeof LAYERS;
+
+/** Resolve an optional feature override, preserving its original pen by default. */
+export function layerPen(set: Settings, layer: LayerId, pen: number): number {
+  return set.customLayerPens ? (set.layerPens[layer] ?? pen) : pen;
 }

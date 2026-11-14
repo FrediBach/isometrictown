@@ -4,14 +4,15 @@ import type { Info } from './classify';
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
-import { LINEWORK, ROOFS, SHADOWS, type Settings } from './settings';
+import { LINEWORK, ROOFS, SHADOWS, type Settings, type LayerId } from './settings';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
-export type Line3 = { pen: number; pts: number[]; closed?: boolean };
+export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId };
 /** Something solid: faces for the depth buffer, lines to draw, and outlines that cast shadows. */
 export type Solid = {
+  layer?: LayerId;
   faces: number[][][];
   lines: Line3[];
   casts: { ring: number[]; h: number }[];
@@ -135,7 +136,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
           const t = k / m;
           const x = ax + (bx - ax) * t;
           const y = ay + (by - ay) * t;
-          out.lines.push({ pen: SHADOWS, pts: [x, y, zb, x, y, z1] });
+          out.lines.push({ pen: SHADOWS, layer: 'shadeWalls', pts: [x, y, zb, x, y, z1] });
         }
       }
     }
@@ -170,6 +171,10 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
 type WindowOptions = { balconies: 0 | 1 | 2; door: boolean; shutters: number };
 
 function windows(B: Build, ax: number, ay: number, bx: number, by: number, len: number, z0: number, z1: number, out: Solid, wo: WindowOptions = { balconies: 0, door: false, shutters: -1 }): void {
+  return tagLines('windows', out, () => windowsLines(B, ax, ay, bx, by, len, z0, z1, out, wo));
+}
+
+function windowsLines(B: Build, ax: number, ay: number, bx: number, by: number, len: number, z0: number, z1: number, out: Solid, wo: WindowOptions = { balconies: 0, door: false, shutters: -1 }): void {
   const { balconies } = wo;
   const s = B.cam.s;
   const full = s * 1.2 >= 0.85;
@@ -364,6 +369,10 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
 
 /** Chimneys and dormers on a house's main roof. */
 function roofDetails(B: Build, info: Info, main: Part, P: Pitched, He: number, tan: number, out: Solid): void {
+  return tagLines('details', out, () => roofDetailsLines(B, info, main, P, He, tan, out));
+}
+
+function roofDetailsLines(B: Build, info: Info, main: Part, P: Pitched, He: number, tan: number, out: Solid): void {
   const { rect: r, party } = main;
   const hw = r.w / 2;
   const [k0, k1] = info.seed;
@@ -520,6 +529,10 @@ export function building(B: Build, b: Building): Solid[] {
 
 /** A flagpole on the roof with the flag out. */
 function flag(B: Build, b: Building, out: Solid[]): void {
+  return tagLines('details', out, () => flagLines(B, b, out));
+}
+
+function flagLines(B: Build, b: Building, out: Solid[]): void {
   const p = b.shape[0].pts;
   const { rect } = bestRect(p);
   if (!rect || B.cam.s < 0.3) return;
@@ -592,6 +605,10 @@ function body(B: Build, b: Building): Solid[] {
 
 /** Battlements along a castle's outer walls, and pointed turrets at its corners. */
 function battlements(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
+  return tagLines('details', out, () => battlementsLines(B, ring, holes, z, out));
+}
+
+function battlementsLines(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
   if (B.cam.s < 0.3) return;
   const s = newSolid();
   const p = ring.pts;
@@ -681,6 +698,10 @@ function cone(B: Build, s: Solid, ring: number[], z: number, apexZ: number, pen 
 
 /** A helipad on a hospital's flat roof: a ring with an H in it. */
 function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
+  return tagLines('details', out, () => helipadLines(B, b, z, out));
+}
+
+function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
   const p = b.shape[0].pts;
   const { rect } = bestRect(p);
   if (!rect || B.cam.s < 0.3 || Math.abs(ringArea(p)) < 600) return false;
@@ -712,6 +733,10 @@ const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordic', 'ea
 
 /** A small box on a flat roof: stair housing, plant room, water tank. */
 function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
+  return tagLines('rooftops', out, () => rooftopLines(B, b, z, k, out));
+}
+
+function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
   const outer = b.shape[0].pts;
   let x0 = Infinity;
   let y0 = Infinity;
@@ -845,3 +870,13 @@ export function car(B: Build, x: number, y: number, ux: number, uy: number, k: n
   return s;
 }
 
+/** Keep feature identity on appended lines without changing faces or shadows. */
+export function tagLines<T>(layer: LayerId, out: Solid | Solid[], draw: () => T): T {
+  const solids = Array.isArray(out) ? out : [out];
+  const starts = solids.map((s) => s.lines.length);
+  const result = draw();
+  solids.forEach((s, i) => {
+    for (let j = starts[i] ?? 0; j < s.lines.length; j++) s.lines[j].layer ??= layer;
+  });
+  return result;
+}

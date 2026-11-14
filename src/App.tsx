@@ -50,6 +50,11 @@ export function App() {
   const change = useCallback<Change>(
     (key, value, fromSlider = false) => {
       commit({ ...live.current, [key]: value });
+      if (key === 'background' || key === 'customBackground') {
+        persist(live.current);
+        setResult((r) => r && recolor(r, live.current));
+        return;
+      }
       if (key === 'bearing') locator.current?.setView(live.current.center, live.current.bearing);
       if (VIEW_KEYS.has(key)) updateFootprint(REFIT_KEYS.has(key));
       schedule(fromSlider ? 220 : 0);
