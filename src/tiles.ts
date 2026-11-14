@@ -101,6 +101,8 @@ const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, 
 
 let template: Promise<string> | null = null;
 const cache = new Map<string, Promise<Town>>();
+/** Keep the last assembled map pristine: rendering mutates building classification. */
+let assembled: { key: string; town: Town } | null = null;
 
 function tileTemplate(): Promise<string> {
   // The index names the current planet build; it changes about weekly, so a day-old copy is fine.
@@ -121,7 +123,9 @@ function tileTemplate(): Promise<string> {
 export class TooBigError extends Error {}
 
 /** Load everything inside a local-metre bounding box, converted to local metres. */
-export async function loadTown(frame: Frame, box: [number, number, number, number], onProgress?: (done: number, total: number) => void): Promise<Town> {
+export async function loadTown(frame: Frame, box: [number, number, number, number], onProgress?: (done: number, total: number) => void, onDownload?: () => void): Promise<Town> {
+  const key = JSON.stringify([frame.mx0, frame.my0, frame.k, ...box]);
+  if (assembled?.key === key) return structuredClone(assembled.town);
   const n = 2 ** ZOOM;
   const toTileX = (x: number) => Math.floor(((frame.mx0 + x / frame.k) / EARTH + 0.5) * n);
   const toTileY = (y: number) => Math.floor((0.5 - (frame.my0 + y / frame.k) / EARTH) * n);
@@ -132,36 +136,43 @@ export async function loadTown(frame: Frame, box: [number, number, number, numbe
   const count = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
   if (count > MAX_TILES) throw new TooBigError(`That needs ${count} map tiles. Zoom in a little (a larger scale) or pick a smaller sheet.`);
 
-  const url = await tileTemplate();
   let done = 0;
   const jobs: Promise<Town>[] = [];
   for (let x = tx0; x <= tx1; x++) {
     for (let y = ty0; y <= ty1; y++) {
-      const job = readTile(url, ((x % n) + n) % n, y);
+      const job = readTile(((x % n) + n) % n, y, onDownload);
       job.then(() => onProgress?.(++done, count)).catch(() => {});
       jobs.push(job);
     }
   }
   const tiles = await Promise.all(jobs);
-  return assemble(tiles, frame, box);
+  const town = assemble(tiles, frame, box);
+  assembled = { key, town };
+  return structuredClone(town);
 }
 
-function readTile(url: string, x: number, y: number): Promise<Town> {
+function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> {
   const key = `${x}/${y}`;
   let job = cache.get(key);
   if (!job) {
     // Keyed by z/x/y rather than the full URL, so a new planet build doesn't throw away every tile we have.
     job = cached(TILES, `${LOCAL}tiles/${ZOOM}/${x}/${y}`, TTL.month, bytes, async () => {
+      onDownload?.();
+      const url = await tileTemplate();
       const r = await fetch(url.replace('{z}', String(ZOOM)).replace('{x}', String(x)).replace('{y}', String(y)));
       if (r.status === 204 || r.status === 404) return { body: null, value: null };
       if (!r.ok) throw new Error(`Map tile failed (${r.status})`);
       const buf = await r.arrayBuffer();
       return { body: buf, value: buf };
     }).then((buf) => decode(buf, x, y));
-    job.catch(() => cache.delete(key));
-    cache.set(key, job);
-    while (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
+    job.catch(() => {
+      if (cache.get(key) === job) cache.delete(key);
+    });
   }
+  // Refresh hits too, so moving around does not evict the tiles still in use.
+  cache.delete(key);
+  cache.set(key, job);
+  while (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
   return job;
 }
 

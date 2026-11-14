@@ -3,7 +3,7 @@ export const STAGES = ['map', 'ground', 'buildings', 'life', 'light', 'lines', '
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  map: 'Fetching the map',
+  map: 'Preparing the map',
   ground: 'Laying out the ground',
   buildings: 'Raising buildings',
   life: 'Planting trees, parking cars',

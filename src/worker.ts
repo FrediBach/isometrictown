@@ -45,9 +45,7 @@ self.onmessage = async (e: MessageEvent<Job>) => {
     const tags = set.osmTags ? loadTags(frame, box) : Promise.resolve([]);
     const [region, town] = await Promise.all([
       detectRegion(set.center),
-      loadTown(frame, box, (done, total) => {
-        if (done < total) report({ stage: 'map', done, total, note: 'Downloading OpenStreetMap tiles' });
-      }),
+      loadTown(frame, box, undefined, () => report({ stage: 'map', note: 'Downloading OpenStreetMap tiles' })),
     ]);
     if (set.osmTags) report({ stage: 'map', note: 'Reading roof tags' });
     town.tagged = (await Promise.race([tags, new Promise<Tagged[]>((r) => setTimeout(() => r([]), TAG_GRACE_MS))])) ?? [];
