@@ -1,10 +1,9 @@
 import { car, newSolid, prism, type Build, type Solid } from './buildings';
-import { pointInRing, ringArea } from './geo';
+import { ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
-import { bestRect } from './shape';
 import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
 
@@ -655,80 +654,12 @@ export function portals(B: Build, town: Town): Extra {
 
 // ---------------------------------------------------------------- Airfields
 
-/** An airliner: fuselage, swept wings, tailplane, fin and engines. */
-function plane(B: Build, x: number, y: number, ux: number, uy: number, scale: number): Solid {
-  const s = newSolid();
-  const S = (pts: number[][]) => pts.map(([a, b]) => [a * scale, b * scale]);
-  const P = (pts: number[][]) => place(x, y, ux, uy, S(pts));
-  const body = P([
-    [-17, -1.8],
-    [12, -1.8],
-    [17, 0],
-    [12, 1.8],
-    [-17, 1.8],
-  ]);
-  slab(B, s, body, 1.2 * scale, 4.8 * scale);
-  for (const f of [1, -1]) {
-    slab(
-      B,
-      s,
-      P([
-        [3, 1.8 * f],
-        [-6, 17 * f],
-        [-9, 17 * f],
-        [-5, 1.8 * f],
-      ]),
-      2.3 * scale,
-      2.7 * scale,
-    );
-    slab(
-      B,
-      s,
-      P([
-        [-13, 1.8 * f],
-        [-16, 6 * f],
-        [-17.5, 6 * f],
-        [-16.5, 1.8 * f],
-      ]),
-      4.0 * scale,
-      4.3 * scale,
-    );
-    slab(B, s, P(rect(-3.5, 0.5, 5 * f - 0.8, 5 * f + 0.8)), 1.0 * scale, 2.3 * scale);
-  }
-  const fin = [
-    [-17, 0, 4.8],
-    [-12, 0, 4.8],
-    [-15.5, 0, 10],
-    [-17.5, 0, 10],
-  ].flatMap(([a, b, zz]) => [x + (ux * a - uy * b) * scale, y + (uy * a + ux * b) * scale, zz * scale]);
-  s.faces.push([fin]);
-  s.lines.push({ pen: LINEWORK, pts: fin, closed: true });
-  s.casts.push({ ring: body, h: 4.8 * scale });
-  return s;
-}
-
 const MARKED = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary']);
 
-/** Runways, taxiways and aprons: surfaces, markings and a few parked planes. */
+/** Runways, taxiways and aprons: surfaces and markings. The aircraft on them are in aircraft.ts. */
 export function airfields(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   if (!town.runways.length && !town.aprons.length) return none;
   const solids: Solid[] = [];
-  for (const a of town.aprons) {
-    const outer = a[0].pts;
-    const area = Math.abs(ringArea(outer));
-    const { rect: r } = bestRect(outer);
-    if (!r || area < 4000 || r.w < 40) continue;
-    const count = Math.min(4, Math.floor(r.L / 48));
-    for (let k = 0; k < count; k++) {
-      const t = (k - (count - 1) / 2) * 48;
-      const x = r.cx + r.ux * t;
-      const y = r.cy + r.uy * t;
-      const [k0, k1] = B.key(x, y);
-      if (!pointInRing(x, y, outer) || hash(k0, k1, B.set.seed, 420) > 0.75) continue;
-      const f = hash(k0, k1, B.set.seed, 421) < 0.5 ? 1 : -1;
-      solids.push(plane(B, x, y, -r.uy * f, r.ux * f, 0.85 + 0.3 * hash(k0, k1, B.set.seed, 422)));
-    }
-  }
   const s = B.cam.s;
   return {
     solids,

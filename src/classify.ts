@@ -245,6 +245,18 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       religion[i] = p.sub;
     } else if (CIVIC_POIS.has(p.cls) && !poi[i]) poi[i] = 'civic';
   }
+  // A helipad mapped on a building means a flat roof to land on.
+  for (const h of town.helipads) {
+    const p = h[0].pts;
+    let cx = 0;
+    let cy = 0;
+    for (let k = 0; k < p.length; k += 2) {
+      cx += p[k];
+      cy += p[k + 1];
+    }
+    const i = containing(cx / (p.length / 2), cy / (p.length / 2));
+    if (i >= 0) marks[i] |= 8;
+  }
   const tags: (Town['tagged'][number] | undefined)[] = new Array(N);
   for (const t of town.tagged) {
     const i = containing(t.x, t.y);
@@ -468,6 +480,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     if (tagRoof) roof = tagRoof === 'mosque' && kind !== 'worship' ? 'hipped' : tagRoof;
     // Castles show their battlements.
     if (marks[i] & 1 && !tagRoof && kind !== 'worship') roof = 'flat';
+    if (marks[i] & 8) roof = 'flat';
     if (b.min > 0 && roof !== 'flat') roof = 'flat';
 
     const [p0, p1] = style.pitch;

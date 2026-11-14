@@ -15,6 +15,7 @@ import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, type Settings } from './sett
 import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { trains } from './trains';
+import { aviation } from './aircraft';
 import type { Style } from './styles';
 import type { Shape, Stream, Town } from './tiles';
 
@@ -114,7 +115,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const bays = parking(B, paper, town.ways, M);
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars, ...trains(B, paper, town, M));
-  const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), bridges(B, paper, town, M), platforms(B, town), portals(B, town), airfields(B, paper, town, M)];
+  const extras = [bays, lifts(B, town), ferries(B, paper, town, M), moorings(B, paper, town, M), bridges(B, paper, town, M), platforms(B, town), portals(B, town), airfields(B, paper, town, M), aviation(B, paper, town, M)];
   if (set.ground) extras.push(beaches(B, paper, town, M), campsites(B, paper, town, M), playgrounds(B, paper, town, M), farmyards(B, paper, town, M), quarries(B, paper, town, M));
   if (set.water) extras.push(ports(B, paper, town, M));
   extras.push(squares(B, paper, town, M), busStops(B, paper, town, M), fuel(B, paper, town, M), chimneys(B, paper, town, M), peaks(B, town));

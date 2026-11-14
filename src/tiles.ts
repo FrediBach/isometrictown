@@ -24,6 +24,9 @@ export type Area = { shape: Shape; cls: string };
 /** A waterway centre line: canal, stream, ditch. */
 export type Stream = { pts: number[]; width: number };
 
+/** An airfield's label point. */
+export type Airport = { x: number; y: number; cls: string; gliders: boolean; heli: boolean };
+
 export type Town = {
   buildings: Building[];
   water: Shape[];
@@ -52,6 +55,10 @@ export type Town = {
   aprons: Shape[];
   /** Mountain summits, with their height in metres where known. */
   peaks: { x: number; y: number; ele: number }[];
+  /** Helicopter landing pads drawn on the ground. */
+  helipads: Shape[];
+  /** Airfield labels: the class (international, regional, public, private, military, other), and whether the name says gliders or helicopters. */
+  airports: Airport[];
 };
 
 const ZOOM = 14;
@@ -84,6 +91,11 @@ export const SHOP_POIS = new Set(['shop', 'grocery', 'clothing_store', 'bakery',
 /** Points of interest that tell us what a building is, or what stands nearby. */
 const KEY_POIS = new Set(['place_of_worship', 'school', 'college', 'kindergarten', 'town_hall', 'hospital', 'library', 'museum', 'castle', 'theatre', 'police', 'fire_station', 'post', 'lodging', 'railway', 'pitch', 'aerialway', 'harbor', 'fuel', 'campsite', 'bus', ...SHOP_POIS]);
 const AERO_WIDTH: Record<string, number> = { runway: 45, taxiway: 18 };
+/** Runway width by the class of the airfield it belongs to; small strips are far narrower than airports' runways. */
+const RUNWAY_WIDTH: Record<string, number> = { international: 45, military: 45, regional: 40, public: 30, private: 22, other: 22 };
+/** Gliding clubs, in the languages of the places that have most of them. */
+const GLIDERS = /segelflug|gliding|glider|vol [àa] voile|zweefvlieg|szybowisk|planeur|volo a vela|vuelo sin motor|bezmotorov/i;
+const HELI = /heli/i;
 const STREAM_WIDTH: Record<string, number> = { river: 9, canal: 7, stream: 2.5, drain: 1.6, ditch: 1.4 };
 
 let template: Promise<string> | null = null;
@@ -150,7 +162,7 @@ function readTile(url: string, x: number, y: number): Promise<Town> {
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [] };
+  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [] };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -239,6 +251,14 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
   each('housenumber', (f, _m, ext) => point(f, ext, (x, y) => town.numbers.push(x, y)));
 
+  each('aerodrome_label', (f, _m, ext) => {
+    const cls = String(f.properties.class ?? 'other');
+    const name = String(f.properties.name ?? '');
+    const gliders = GLIDERS.test(name);
+    const heli = HELI.test(name);
+    point(f, ext, (x, y) => town.airports.push({ x, y, cls, gliders, heli }));
+  });
+
   each('mountain_peak', (f, _m, ext) => {
     const cls = String(f.properties.class);
     if (cls !== 'peak' && cls !== 'volcano') return;
@@ -275,7 +295,12 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     if (f.type === 3) {
       // Aprons get parked planes; runway and helipad areas are plain hard standing.
       const target = cls === 'apron' ? town.aprons : cls === 'runway' || cls === 'helipad' ? town.plazas : null;
-      if (target) for (const s of polygons(f, ext)) target.push(scaleShape(s, ext));
+      if (target)
+        for (const s of polygons(f, ext)) {
+          const shape = scaleShape(s, ext);
+          target.push(shape);
+          if (cls === 'helipad') town.helipads.push(shape);
+        }
       return;
     }
     const width = AERO_WIDTH[cls];
@@ -490,6 +515,8 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const y = frame.y(p.y);
       if (inside(x, y)) town.pois.push({ ...p, x, y });
     }
+    // Airfield labels can sit well away from the runways in view, so keep them all.
+    for (const a of t.airports) town.airports.push({ ...a, x: frame.x(a.x), y: frame.y(a.y) });
     for (const p of t.peaks) {
       const x = frame.x(p.x);
       const y = frame.y(p.y);
@@ -504,7 +531,7 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const pts = local(w.pts);
       if (pts) town.streams.push({ ...w, pts });
     }
-    for (const key of ['water', 'green', 'wood', 'plazas', 'pools', 'aprons'] as const) {
+    for (const key of ['water', 'green', 'wood', 'plazas', 'pools', 'aprons', 'helipads'] as const) {
       for (const sh of t[key]) {
         const s = shape(sh);
         if (s) town[key].push(s);
@@ -521,8 +548,23 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       if (pts) town.ferries.push(pts);
     }
   }
+  // Runways come without a width: take it from the nearest airfield's class.
+  for (const w of town.runways) {
+    if (w.cls !== 'runway') continue;
+    let best = 4000;
+    let cls = '';
+    for (const a of town.airports) {
+      const d = Math.hypot(a.x - w.pts[0], a.y - w.pts[1]);
+      if (d < best) {
+        best = d;
+        cls = a.cls;
+      }
+    }
+    w.width = RUNWAY_WIDTH[cls] ?? 30;
+  }
   return town;
 }
+
 
 /** Outer rings counter-clockwise, holes clockwise, seam flags following their edges. */
 function orient(r: Ring, outer: boolean): Ring {

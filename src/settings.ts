@@ -40,7 +40,7 @@ export type Settings = {
   ground: boolean;
   /** Road markings, zebra crossings, parking bays and runway markings. */
   markings: boolean;
-  /** Made-up life: people about town, herds on the meadows, sailing and moored boats, trains. */
+  /** Made-up life: people about town, herds on the meadows, sailing and moored boats, trains and aircraft. */
   life: boolean;
 
   shadows: boolean;

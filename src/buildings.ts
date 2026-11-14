@@ -1,3 +1,4 @@
+import { helicopter } from './aircraft';
 import type { Camera } from './camera';
 import type { Info } from './classify';
 import { pointInRing, ringArea } from './geo';
@@ -692,6 +693,14 @@ function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
   const P = (a: number, c: number) => [rect.cx + rect.ux * a - rect.uy * c, rect.cy + rect.uy * a + rect.ux * c, zz];
   const h = R * 0.5;
   out.lines.push({ pen: ROOFS, pts: [...P(-h, -h * 0.7), ...P(h, -h * 0.7)] }, { pen: ROOFS, pts: [...P(-h, h * 0.7), ...P(h, h * 0.7)] }, { pen: ROOFS, pts: [...P(0, -h * 0.7), ...P(0, h * 0.7)] });
+  // Now and then the air ambulance is in.
+  const [k0, k1] = B.key(rect.cx, rect.cy);
+  if (B.set.life && R >= 4.5 && hash(k0, k1, B.set.seed, 443) < 0.35) {
+    const t = hash(k0, k1, B.set.seed, 444) * Math.PI * 2;
+    const heli = helicopter(B, rect.cx, rect.cy, z, Math.cos(t), Math.sin(t), hash(k0, k1, B.set.seed, 445));
+    out.faces.push(...heli.faces);
+    out.lines.push(...heli.lines);
+  }
   return true;
 }
 
