@@ -54,6 +54,7 @@ The drawing surface over `cam.rect`, at up to 7 px/mm (capped at ~7 M pixels).
 | `foot` | building footprints in view | keep objects out of buildings |
 | `shadow` | swept cast shadows | shadow hatch |
 | `under` | bridge decks | hide water lines under bridges |
+| `calm` | ships, ferries and the V of their wakes | no waves there; sailing boats keep off |
 
 ## Solids and extras
 

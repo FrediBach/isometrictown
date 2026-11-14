@@ -2,7 +2,7 @@
 
 ## Draw a new kind of thing
 
-1. Pick the module by theme: `infra.ts` (transport), `sites.ts` (places and landmarks), `ground.ts` (land textures), `gardens.ts`, or a new file if it is big (as `trains.ts`, `aircraft.ts`, `power.ts` are).
+1. Pick the module by theme: `infra.ts` (transport), `sites.ts` (places and landmarks), `ground.ts` (land textures), `gardens.ts`, or a new file if it is big (as `trains.ts`, `aircraft.ts`, `ships.ts`, `power.ts` are).
 2. Write a function returning an `Extra`:
 
    ```ts

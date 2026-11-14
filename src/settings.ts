@@ -44,7 +44,7 @@ export type Settings = {
   markings: boolean;
   /** Overhead power lines: pylons across the country, poles along roads. Made up; the map carries none. */
   power: boolean;
-  /** Made-up life: people about town, herds on the meadows, sailing and moored boats, trains and aircraft. */
+  /** Made-up life: people about town, herds on the meadows, machines in the fields, sport on pitches and raceways, boats and ships, trains and aircraft. */
   life: boolean;
 
   shadows: boolean;

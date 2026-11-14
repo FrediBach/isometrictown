@@ -24,7 +24,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 - `src/tiles.ts`: vector tiles → `Town` in local metres. `src/osm.ts`: Overpass tags, best effort.
 - `src/classify.ts`: infers building kind, height and roof. `src/styles.ts`: regional styles.
 - `src/lod.ts`: level-of-detail rules, one per kind of thing. `lab/`: the LOD lab.
-- Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `power`, `marginalia`.
+- Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `ships`, `sport`, `vehicles`, `power`, `marginalia`.
 - UI: `src/App.tsx`, `src/app/` (state, renderer, persistence), `src/components/`. Visual rules are in [DESIGN.md](DESIGN.md).
 
 ## Rules that are easy to break

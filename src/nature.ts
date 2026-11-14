@@ -33,7 +33,8 @@ export function regionalTrees(B: Build, trees: Tree[], wild: (t: Tree) => boolea
   });
 }
 /** `under` is the sheet area hidden by the sides and arches of bridges over water. */
-export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under', Uint8Array>;
+/** `calm` is water a ship or its wake lies on: waves leave it clear, and small boats keep off it. */
+export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under' | 'calm', Uint8Array>;
 
 /**
  * Scatter trees over parks and woods on a grid fixed to the map,

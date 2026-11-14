@@ -85,6 +85,9 @@ export const LOD = {
   mooredBoat: { m: 6, mm: 1.5, what: 'Moored boats: length' },
   sailingBoat: { m: 8, mm: 1.2, what: 'Boats under way: length' },
   aircraft: { m: 30, mm: 3.6, what: 'Aircraft: wingspan' },
+  machine: { m: 6, mm: 1.8, what: 'Tractors, combines and other working vehicles: length' },
+  ship: { m: 60, mm: 3, what: 'Ships and barges under way: length' },
+  wake: { m: 30, mm: 3, what: 'Wakes behind ships: length' },
 
   // Sites and ground
   beach: { m: 2, mm: 0.8, what: 'Parasols and towels' },

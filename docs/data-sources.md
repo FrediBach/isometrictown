@@ -20,7 +20,7 @@ All data comes from public services, straight from the browser. Be a good citize
 
 Layer toggles, seed, style, lighting, detail and pen settings do not invalidate map data. Centre, bearing, tilt, scale, sheet size/orientation, margin, marginalia and height scale can change the geographic bounds: these reassemble the map but reuse overlapping cached tiles. OSM tag toggles only affect the separate Overpass cache. Download progress is reported only when a tile actually needs the network.
 
-Decoding is where OpenMapTiles classes become app concepts: `ROAD_WIDTH` per road class, path classes, green land uses, key POIs (`KEY_POIS`, `SHOP_POIS`), runway widths by airfield class, glider/helicopter detection from airfield names, stream widths. Buildings without a real height carry `guess: true` (OpenMapTiles' 5 m default), which tells `classify()` to infer storeys.
+Decoding is where OpenMapTiles classes become app concepts: `ROAD_WIDTH` per road class, path classes, green land uses, key POIs (`KEY_POIS`, `SHOP_POIS`), runway widths by airfield class, glider/helicopter detection from airfield names, stream widths. Water keeps its class (`waterCls`, in step with `water`) so ships can suit the sea, a lake or a river. Buildings without a real height carry `guess: true` (OpenMapTiles' 5 m default), which tells `classify()` to infer storeys.
 
 To use a new OpenMapTiles layer or attribute, decode it in `decode()`, add a field to `Town` (and `empty()`), and carry it through `assemble()`.
 

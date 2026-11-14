@@ -11,6 +11,7 @@ import type { Area, Town } from './tiles';
 import { letter } from './lettering';
 import { walk } from './streets';
 import { LOD, shows } from './lod';
+import { emergency, tractor } from './vehicles';
 
 /**
  * Things that belong to particular places: parasols on beaches, tents at campsites, swings
@@ -229,6 +230,18 @@ export function farmyards(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       dome(B, x, y, R, H, s);
       s.casts.push({ ring, h: H + R * 0.6 });
       solids.push(s);
+    }
+    // A tractor parked along the barn's other side, sometimes with its trailer.
+    if (B.set.life && shows(B.cam, LOD.machine) && hash(k0, k1, B.set.seed, 2120) < 0.5) {
+      const d = -side * (r.w / 2 + 2.2);
+      const dir = hash(k0, k1, B.set.seed, 2121) < 0.5 ? 1 : -1;
+      const tool = hash(k0, k1, B.set.seed, 2122) < 0.4 ? 'trailer' : 'none';
+      const a = dir * (tool === 'trailer' ? 3.5 : 0);
+      const x = r.cx + r.ux * a - r.uy * d;
+      const y = r.cy + r.uy * a + r.ux * d;
+      const reach = tool === 'trailer' ? 7.5 : 2.5;
+      const ok = [-reach, 0, 2.2].every((t) => [-1.3, 1.3].every((e) => free(paper, M, x + r.ux * dir * t - r.uy * e, y + r.uy * dir * t + r.ux * e)));
+      if (ok) solids.push(tractor(B, x, y, r.ux * dir, r.uy * dir, tool));
     }
   }
   return { solids, draw: () => {} };
@@ -614,20 +627,85 @@ export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   return {
     solids: [],
     draw: (paper) => {
-      for (const [x, y, v] of figures) {
-        const H = 1.55 + v * 0.3;
-        const [dx, dy] = [cam.cb * 0.14, -cam.sb * 0.14];
-        // Legs, body and a round head.
-        paper.line3(LINEWORK, [x - dx, y - dy, 0, x, y, H * 0.5, x + dx, y + dy, 0]);
-        paper.line3(LINEWORK, [x, y, H * 0.5, x, y, H * 0.85]);
-        const hx = cam.sx(x, y);
-        const hy = cam.sy(x, y, H * 0.93);
-        const d = cam.depth(x, y, H);
-        const R = 0.11 * cam.s;
-        const head: number[] = [];
-        for (let q = 0; q <= 8; q++) head.push(hx + Math.cos((q / 8) * Math.PI * 2) * R, hy + Math.sin((q / 8) * Math.PI * 2) * R, d);
-        paper.sheet(LINEWORK, head);
-      }
+      for (const [x, y, v] of figures) figure(paper, x, y, v);
     },
   };
+}
+
+/** A standing figure at (x, y), its height varied by v in [0, 1): legs, body and a round head. Stride spreads the legs, for runners. */
+export function figure(paper: Paper, x: number, y: number, v: number, stride = 0.14): void {
+  const cam = paper.cam;
+  const H = 1.55 + v * 0.3;
+  const [dx, dy] = [cam.cb * stride, -cam.sb * stride];
+  paper.line3(LINEWORK, [x - dx, y - dy, 0, x, y, H * 0.5, x + dx, y + dy, 0]);
+  paper.line3(LINEWORK, [x, y, H * 0.5, x, y, H * 0.85]);
+  const hx = cam.sx(x, y);
+  const hy = cam.sy(x, y, H * 0.93);
+  const d = cam.depth(x, y, H);
+  const R = 0.11 * cam.s;
+  const head: number[] = [];
+  for (let q = 0; q <= 8; q++) head.push(hx + Math.cos((q / 8) * Math.PI * 2) * R, hy + Math.sin((q / 8) * Math.PI * 2) * R, d);
+  paper.sheet(LINEWORK, head);
+}
+
+// ---------------------------------------------------------------- Fire stations and hospitals
+
+/**
+ * Fire engines on the apron in front of fire stations, and ambulances outside hospitals: on open
+ * ground beside the building, facing the nearest road, where the map has the station or hospital.
+ */
+export function stations(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  const { cam, set } = B;
+  if (set.cars <= 0 || !shows(cam, LOD.car, 9)) return { solids, draw: () => {} };
+  const placed: [number, number][] = [];
+  /** The direction in which a mask lies nearest within r metres, or -1 if it doesn't. */
+  const near = (mask: Uint8Array, x: number, y: number, r: number): number => {
+    let best = -1;
+    let bestD = Infinity;
+    for (let q = 0; q < 16; q++) {
+      const a = (q / 16) * Math.PI * 2;
+      for (let d = 2; d <= r; d += 2) {
+        if (!onMask(paper, mask, x + Math.cos(a) * d, y + Math.sin(a) * d)) continue;
+        if (d < bestD) {
+          bestD = d;
+          best = a;
+        }
+        break;
+      }
+    }
+    return best;
+  };
+  for (const p of town.pois) {
+    const fire = p.cls === 'fire_station';
+    if (!fire && p.cls !== 'hospital') continue;
+    if (placed.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 80)) continue;
+    const [k0, k1] = B.key(p.x, p.y);
+    const h = (k: number) => hash(k0, k1, set.seed, 2500 + k);
+    if (!fire && h(0) > 0.7) continue;
+    const len = fire ? 9 : 6;
+    if (!shows(cam, LOD.car, len, h(3))) continue;
+    const fits = (x: number, y: number, ux: number, uy: number) => [-len / 2, 0, len / 2].every((t) => [-1.4, 1.4].every((e) => free(paper, M, x + ux * t - uy * e, y + uy * t + ux * e)));
+    let spot: [number, number, number, number] | null = null;
+    search: for (let r = 6; r <= 45; r += 4)
+      for (let q = 0; q < 12; q++) {
+        const a = ((q + h(1)) / 12) * Math.PI * 2;
+        const x = p.x + Math.cos(a) * r;
+        const y = p.y + Math.sin(a) * r;
+        if (!free(paper, M, x, y) || near(M.foot, x, y, 10) < 0) continue;
+        const road = near(M.road, x, y, 14);
+        if (road < 0 || !fits(x, y, Math.cos(road), Math.sin(road))) continue;
+        spot = [x, y, Math.cos(road), Math.sin(road)];
+        break search;
+      }
+    if (!spot) continue;
+    const [x, y, ux, uy] = spot;
+    placed.push([p.x, p.y]);
+    solids.push(emergency(B, x, y, ux, uy, fire));
+    // Often a second one beside it.
+    const ox = x - uy * 3.6;
+    const oy = y + ux * 3.6;
+    if (h(2) < 0.5 && fits(ox, oy, ux, uy)) solids.push(emergency(B, ox, oy, ux, uy, fire));
+  }
+  return { solids, draw: () => {} };
 }

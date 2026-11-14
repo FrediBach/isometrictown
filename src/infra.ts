@@ -7,6 +7,7 @@ import { hash } from './rng';
 import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
+import { calm, wake } from './ships';
 
 /**
  * Things that come with the transport network: cable cars and ski lifts, ferries, tunnel
@@ -213,6 +214,7 @@ export function boat(B: Build, x: number, y: number, ux: number, uy: number, len
 export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   if (!B.set.water || !town.ferries.length) return none;
   const solids: Solid[] = [];
+  const wakes: [number, number, number, number][] = [];
   for (const f of town.ferries) {
     const cum = measure(f);
     const L = cum[cum.length - 1];
@@ -220,7 +222,13 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const [k0, k1] = B.key(f[0], f[1]);
     const [x, y, ux, uy] = at(f, cum, L * (0.3 + 0.4 * hash(k0, k1, B.set.seed, 410)));
     if (!onMask(paper, M.water, x, y)) continue;
-    solids.push(boat(B, x, y, ux, uy, 30, 9));
+    // Heading one way or the other along the route, leaving a wake.
+    const dir = hash(k0, k1, B.set.seed, 411) < 0.5 ? 1 : -1;
+    solids.push(boat(B, x, y, ux * dir, uy * dir, 30, 9));
+    if (B.set.life) {
+      wakes.push([x - ux * dir * 15, y - uy * dir * 15, ux * dir, uy * dir]);
+      calm(paper, M, x, y, ux * dir, uy * dir, 30, 9, 60);
+    }
   }
   const s = B.cam.s;
   const dash = 0.7 / s;
@@ -234,6 +242,7 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
           groundSeg(paper, LINEWORK, x, y, x + ux * dash, y + uy * dash, test);
           paper.end();
         });
+      for (const [x, y, ux, uy] of wakes) wake(B, paper, M, x, y, ux, uy, 60, 9);
     },
   };
 }
@@ -456,7 +465,7 @@ export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
   const { cam, set } = B;
   if (!set.water || !set.life || !shows(cam, LOD.sailingBoat) || !town.water.length) return { solids, draw: () => {} };
-  const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y) && !onMask(paper, M.road, x, y);
+  const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y) && !onMask(paper, M.road, x, y) && !onMask(paper, M.calm, x, y);
   const wind = hash(set.seed, 7, 0, 470) * Math.PI * 2;
   const [x0, y0, x1, y1] = cam.region(0);
   const step = 70;

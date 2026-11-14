@@ -31,6 +31,8 @@ export type Airport = { x: number; y: number; cls: string; gliders: boolean; hel
 export type Town = {
   buildings: Building[];
   water: Shape[];
+  /** The OpenMapTiles class of each water shape, in step with `water`: ocean, lake, river, pond and so on. */
+  waterCls: string[];
   green: Shape[];
   wood: Shape[];
   plazas: Shape[];
@@ -177,7 +179,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [] };
+  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [] };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -295,8 +297,14 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
   each('water', (f, _m, ext) => {
     if (f.properties.brunnel === 'tunnel') return;
-    const target = f.properties.class === 'swimming_pool' ? town.pools : town.water;
-    for (const s of polygons(f, ext)) target.push(scaleShape(s, ext));
+    const cls = String(f.properties.class ?? '');
+    for (const s of polygons(f, ext)) {
+      if (cls === 'swimming_pool') town.pools.push(scaleShape(s, ext));
+      else {
+        town.water.push(scaleShape(s, ext));
+        town.waterCls.push(cls);
+      }
+    }
   });
 
   // The park layer also holds national parks and protected areas, which can cover a whole town; only real parks count.
@@ -546,7 +554,13 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const pts = local(w.pts);
       if (pts) town.streams.push({ ...w, pts });
     }
-    for (const key of ['water', 'green', 'wood', 'plazas', 'pools', 'aprons', 'helipads'] as const) {
+    t.water.forEach((sh, i) => {
+      const s = shape(sh);
+      if (!s) return;
+      town.water.push(s);
+      town.waterCls.push(t.waterCls[i]);
+    });
+    for (const key of ['green', 'wood', 'plazas', 'pools', 'aprons', 'helipads'] as const) {
       for (const sh of t[key]) {
         const s = shape(sh);
         if (s) town[key].push(s);

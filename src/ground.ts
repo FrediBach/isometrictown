@@ -9,6 +9,7 @@ import { bestRect, turn, type Rect } from './shape';
 import { outline } from './streets';
 import type { Shape, Town } from './tiles';
 import { LOD, shows, thin } from './lod';
+import { combine, tractor } from './vehicles';
 
 /**
  * Ground textures for land with a character of its own: furrowed fields, vineyard rows,
@@ -53,8 +54,8 @@ const STUBBLE_MM: [number, number] = [1.2, 1.0];
 const TUFT_MM = 3.2;
 const SAND_MM = 2.4;
 
-type Sport = 'soccer' | 'tennis' | 'basketball' | 'track' | 'multi';
-type Pitch = { rect: Rect; sport: Sport };
+export type Sport = 'soccer' | 'tennis' | 'basketball' | 'track' | 'multi';
+export type Pitch = { rect: Rect; sport: Sport };
 export type Cover = { shape: Shape; code: number; rect: Rect };
 
 export type Ground = {
@@ -655,6 +656,53 @@ function cemetery(B: Build, paper: Paper, M: Masks, G: Ground, shape: Shape, r: 
   });
 }
 
+/** Width of a running lane, m. */
+export const LANE = 1.22;
+
+/** A running track's lanes: the outer lane's radius at the bends, half the length of the straights, and how many lanes. */
+export function trackLanes(r: Rect): { R: number; S: number; lanes: number } | null {
+  const R = r.w / 2 - 0.5;
+  const S = r.L / 2 - r.w / 2;
+  if (S < 5 || R < 12) return null;
+  return { R, S, lanes: Math.min(6, Math.floor((R - 10) / LANE) + 1) };
+}
+
+/** The football field marked on a pitch, or inside a track, as length and width; null when there's none. */
+export function soccerSize(p: Pitch): [number, number] | null {
+  if (p.sport === 'soccer') {
+    const FL = Math.min(p.rect.L - 3, 110);
+    const FW = Math.min(p.rect.w - 3, 75);
+    return FL >= 30 && FW >= 18 ? [FL, FW] : null;
+  }
+  if (p.sport !== 'track') return null;
+  const t = trackLanes(p.rect);
+  if (!t) return null;
+  const inner = t.R - t.lanes * LANE - 1;
+  const FW = Math.min(68, 2 * inner - 4);
+  const FL = Math.min(105, 2 * t.S + inner * 1.1);
+  return FL > 40 && FW > 25 ? [FL, FW] : null;
+}
+
+/** A tennis court in a pitch's frame: its centre, whether it runs along the pitch, and its scale (1 for full size). */
+export type Court = { cu: number; cv: number; alongU: boolean; k: number };
+
+/** Tennis courts with room to run round them, tiled whichever way fits more; none if they would be too cramped. */
+export function tennisCourts(r: Rect): Court[] {
+  const { L, w } = r;
+  const CL = 36.6;
+  const CW = 18.3;
+  const a = Math.floor(L / CL) * Math.floor(w / CW);
+  const b = Math.floor(L / CW) * Math.floor(w / CL);
+  const alongU = a >= b;
+  const nu = Math.max(1, alongU ? Math.floor(L / CL) : Math.floor(L / CW));
+  const nv = Math.max(1, alongU ? Math.floor(w / CW) : Math.floor(w / CL));
+  const k = Math.min(1, alongU ? (L - 1) / 23.77 : (L - 1) / 10.97, alongU ? (w - 1) / 10.97 : (w - 1) / 23.77);
+  const out: Court[] = [];
+  if (k < 0.5) return out;
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) out.push({ cu: -L / 2 + (L / nu) * (i + 0.5), cv: -w / 2 + (w / nv) * (j + 0.5), alongU, k });
+  return out;
+}
+
 /** Markings on a sports pitch, with goals, nets or hoops, fitted to the pitch. */
 function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean): void {
   const { cx, cy, ux, uy, L, w } = p.rect;
@@ -745,27 +793,15 @@ function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean):
 
   switch (p.sport) {
     case 'soccer': {
-      const FL = Math.min(L - 3, 110);
-      const FW = Math.min(w - 3, 75);
-      if (FL >= 30 && FW >= 18) soccer(FL, FW);
+      const f = soccerSize(p);
+      if (f) soccer(f[0], f[1]);
       else box(-L / 2 + 1, -w / 2 + 1, L / 2 - 1, w / 2 - 1);
       break;
     }
     case 'tennis': {
-      // Courts with room to run round them, tiled whichever way fits more.
-      const CL = 36.6;
-      const CW = 18.3;
-      const a = Math.floor(L / CL) * Math.floor(w / CW);
-      const b = Math.floor(L / CW) * Math.floor(w / CL);
-      const alongU = a >= b;
-      const nu = Math.max(1, alongU ? Math.floor(L / CL) : Math.floor(L / CW));
-      const nv = Math.max(1, alongU ? Math.floor(w / CW) : Math.floor(w / CL));
-      const k = Math.min(1, alongU ? (L - 1) / 23.77 : (L - 1) / 10.97, alongU ? (w - 1) / 10.97 : (w - 1) / 23.77);
-      if (k < 0.5) {
-        box(-L / 2 + 0.5, -w / 2 + 0.5, L / 2 - 0.5, w / 2 - 0.5);
-        break;
-      }
-      for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) court(-L / 2 + (L / nu) * (i + 0.5), -w / 2 + (w / nv) * (j + 0.5), alongU, k);
+      const courts = tennisCourts(p.rect);
+      if (!courts.length) box(-L / 2 + 0.5, -w / 2 + 0.5, L / 2 - 0.5, w / 2 - 0.5);
+      for (const c of courts) court(c.cu, c.cv, c.alongU, c.k);
       break;
     }
     case 'basketball': {
@@ -820,15 +856,14 @@ function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean):
       break;
     }
     case 'track': {
-      const R = w / 2 - 0.5;
-      const S = L / 2 - w / 2;
-      if (S < 5 || R < 12) {
+      const t = trackLanes(p.rect);
+      if (!t) {
         box(-L / 2 + 1, -w / 2 + 1, L / 2 - 1, w / 2 - 1);
         break;
       }
-      const lanes = Math.min(6, Math.floor((R - 10) / 1.22) + 1);
+      const { R, S, lanes } = t;
       for (let i = 0; i < lanes; i++) {
-        const r = R - i * 1.22;
+        const r = R - i * LANE;
         const pts: [number, number][] = [];
         for (let k = 0; k <= 16; k++) {
           const a = -Math.PI / 2 + (Math.PI * k) / 16;
@@ -840,10 +875,8 @@ function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean):
         }
         line(pts, true);
       }
-      const inner = R - lanes * 1.22 - 1;
-      const FW = Math.min(68, 2 * inner - 4);
-      const FL = Math.min(105, 2 * S + inner * 1.1);
-      if (FL > 40 && FW > 25) soccer(FL, FW);
+      const f = soccerSize(p);
+      if (f) soccer(f[0], f[1]);
       break;
     }
     default: {
@@ -1035,4 +1068,88 @@ function animal(B: Build, x: number, y: number, ux: number, uy: number, cow: boo
   }
   s.casts.push({ ring: body, h: z1 * 0.8 });
   return s;
+}
+
+/**
+ * Machines at work out in the fields, one now and then: a tractor ploughing or spreading on
+ * ploughed land; on stubble a combine (with a tractor and trailer under its auger) or a baler;
+ * on meadows without a herd a tractor mowing, with the cut grass lying in swaths behind it.
+ */
+export function farmWork(B: Build, paper: Paper, G: Ground, M: Masks, toAbs: (x: number, y: number) => [number, number]): { solids: Solid[]; draw: () => void } {
+  const solids: Solid[] = [];
+  const swaths: number[][] = [];
+  const { cam, set } = B;
+  const none = { solids, draw: () => {} };
+  if (!set.life || !shows(cam, LOD.machine)) return none;
+  const herdStep = 70 * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  /** Whether a herd from `livestock()` grazes within a cell of (x, y). */
+  const herd = (x: number, y: number) => {
+    const [X, Y] = toAbs(x, y);
+    const i = Math.floor(X / herdStep);
+    const j = Math.floor(Y / herdStep);
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if (hash(i + a, j + b, set.seed, 180) <= 0.25) return true;
+    return false;
+  };
+  for (const c of G.covers) {
+    if (c.code !== FIELD && c.code !== MEADOW) continue;
+    const { cx, cy, ux, uy, L, w } = c.rect;
+    if (L < 70 || w < 30) continue;
+    const [k0, k1] = B.key(cx, cy);
+    const h = (k: number) => hash(k0, k1, set.seed, 2100 + k);
+    if (h(0) > (c.code === FIELD ? 0.2 : 0.12)) continue;
+    const vx = -uy;
+    const vy = ux;
+    // Somewhere along a working line, heading up or down the field.
+    const pa = (h(1) - 0.5) * (L - 30);
+    const pb = (h(2) - 0.5) * (w - 24);
+    const dir = h(3) < 0.5 ? 1 : -1;
+    const at = (a: number, b: number): [number, number] => [cx + ux * a + vx * b, cy + uy * a + vy * b];
+    const onLand = (a: number, b: number) => {
+      const [x, y] = at(a, b);
+      const sx = cam.sx(x, y);
+      const sy = cam.sy(x, y, 0);
+      return paper.at(G.land, sx, sy) === c.code && !paper.on(M.road, sx, sy) && !paper.on(M.foot, sx, sy) && !paper.on(M.water, sx, sy);
+    };
+    /** The ground from 9 m ahead to `back` metres behind, `side` metres either way, all in the field. */
+    const clear = (a: number, b: number, back: number, side: number) => [-back, -back / 2, 0, 9].every((d) => [-side, 0, side].every((e) => onLand(a + dir * d, b + e)));
+    const [x, y] = at(pa, pb);
+    const hx = ux * dir;
+    const hy = uy * dir;
+    if (c.code === MEADOW) {
+      if (herd(x, y) || !clear(pa, pb, 8, 4)) continue;
+      solids.push(tractor(B, x, y, hx, hy, 'mower'));
+      // Swaths: this pass from where it came in, and the passes already mown beside it.
+      const passes = 2 + Math.floor(h(4) * 4);
+      const cut = 3.2;
+      for (let k = 0; k <= passes; k++) {
+        const b = pb - dir * (2.3 + k * cut);
+        const a1 = k === 0 ? pa - dir * 3 : dir * L;
+        swaths.push([...at(-dir * L, b), ...at(a1, b)]);
+      }
+      continue;
+    }
+    const stubble = hash(k0, k1, set.seed, 52) < 0.3 && mmPer(B, ux, uy) > 0;
+    if (!stubble) {
+      if (!clear(pa, pb, 8, 2)) continue;
+      solids.push(tractor(B, x, y, hx, hy, h(4) < 0.7 ? 'plough' : 'trailer'));
+    } else if (h(4) < 0.6) {
+      if (!clear(pa, pb, 5, 4)) continue;
+      solids.push(combine(B, x, y, hx, hy, h(5) < 0.6));
+      // The tractor and trailer that take the grain, alongside under the auger.
+      if (h(5) < 0.6) {
+        const [tx, ty] = at(pa + dir * 4.4, pb + dir * 5.6);
+        if (clear(pa + dir * 4.4, pb + dir * 5.6, 8, 1.5)) solids.push(tractor(B, tx, ty, hx, hy, 'trailer'));
+      }
+    } else {
+      if (!clear(pa, pb, 6, 2)) continue;
+      solids.push(tractor(B, x, y, hx, hy, 'baler'));
+    }
+  }
+  const test: Test = (x, y, d) => paper.at(G.land, x, y) === MEADOW && !paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && paper.seen(x, y, d);
+  return {
+    solids,
+    draw: () => {
+      for (const [ax, ay, bx, by] of swaths) paper.line3(GREENERY, [ax, ay, 0, bx, by, 0], test);
+    },
+  };
 }

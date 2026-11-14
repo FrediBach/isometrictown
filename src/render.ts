@@ -1,8 +1,10 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
-import { allotmentSheds, bales, drawGround, livestock, wildTrees, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
+import { allotmentSheds, bales, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
-import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares } from './sites';
+import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
+import { players, racing } from './sport';
+import { ships } from './ships';
 import { airfields, crossings, motorways, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
 import { ringArea, type Frame } from './geo';
@@ -94,7 +96,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       return [Math.round(X), Math.round(Y)];
     },
   };
-  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask() };
+  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
   onStage({ stage: 'ground' });
@@ -177,7 +179,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.ground) extras.push(extra('ground', 'beaches', beaches(B, paper, town, M)), extra('ground', 'campsites', campsites(B, paper, town, M)), extra('ground', 'playgrounds', playgrounds(B, paper, town, M)), extra('ground', 'farmyards', farmyards(B, paper, town, M)), extra('ground', 'quarries', quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', ports(B, paper, town, M)));
   extras.push(extra('streets', 'squares', squares(B, paper, town, M)), extra('streets', 'busStops', busStops(B, paper, town, M)), extra('streets', 'fuel', fuel(B, paper, town, M)), extra('streets', 'chimneys', chimneys(B, paper, town, M)), extra('streets', 'peaks', peaks(B, town)));
+  // Ships first: sailing boats keep off the water they and their wakes take up.
+  extras.push(extra('life', 'ships', ships(B, paper, town, M, toAbs, fromAbs)), extra('life', 'racing', racing(B, paper, town, M)), extra('cars', 'stations', stations(B, paper, town, M)));
   extras.push(extra('life', 'sailing', sailing(B, paper, town, M)), extra('markings', 'crossings', crossings(B, paper, town, M)), extra('life', 'people', people(B, paper, town, M)), extra('streets', 'motorways', motorways(B, paper, town, M)));
+  if (G) extras.push(extra('life', 'farmWork', farmWork(B, paper, G, M, toAbs)), extra('life', 'players', players(B, paper, G, M)));
   for (const e of extras) solids.push(...e.solids);
   if (G) solids.push(...tag('ground', allotmentSheds(B, paper, G, M)), ...tag('ground', bales(B, paper, G, M)), ...tag('life', livestock(B, paper, G, M, box, toAbs, fromAbs)));
   const fences = G ? plots(B, paper, town, G, M) : null;
@@ -297,7 +302,7 @@ function legible(B: Build, b: Town['buildings'][number]): boolean {
 function waves(paper: Paper, M: Masks, seed: number): void {
   const rnd = sequence(seed * 7919 + 13);
   const cam = paper.cam;
-  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && paper.seen(x, y, d);
+  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && !paper.on(M.calm, x, y) && paper.seen(x, y, d);
   for (let y = paper.y0 + 0.8; y < paper.y1; y += cam.gap(1.7 + rnd() * 0.5)) {
     let x = paper.x0 - rnd() * 8;
     while (x < paper.x1) {
