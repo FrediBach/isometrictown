@@ -200,7 +200,7 @@ function wild(G: Ground, M: Masks, paper: Paper, x: number, y: number, sx: numbe
 }
 
 /** What open country looks like by region: tuft and dot chances for the texture, and how many trees or bushes stand on it. */
-const WILD: Record<string, { tuft: number; dot: number; trees: number; bush: number; conifer: number }> = {
+export const WILD: Record<string, { tuft: number; dot: number; trees: number; bush: number; conifer: number }> = {
   arid: { tuft: 0.08, dot: 0.6, trees: 0.01, bush: 0.12, conifer: 0 },
   tropical: { tuft: 0.55, dot: 0, trees: 0.3, bush: 0.15, conifer: 0 },
   mediterranean: { tuft: 0.3, dot: 0.3, trees: 0.12, bush: 0.18, conifer: 0.4 },
@@ -210,7 +210,8 @@ const WILD: Record<string, { tuft: number; dot: number; trees: number; bush: num
   american: { tuft: 0.35, dot: 0.05, trees: 0.06, bush: 0.08, conifer: 0.3 },
   antipodean: { tuft: 0.3, dot: 0.15, trees: 0.08, bush: 0.1, conifer: 0 },
 };
-const WILD_DEFAULT = { tuft: 0.4, dot: 0, trees: 0.06, bush: 0.06, conifer: 0.2 };
+/** Open country in regions without a line of their own in `WILD`. */
+export const WILD_DEFAULT = { tuft: 0.4, dot: 0, trees: 0.06, bush: 0.06, conifer: 0.2 };
 
 /** A light texture of tufts and dots over open country the map leaves blank. */
 function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): void {
@@ -448,20 +449,25 @@ export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (
   const flat = (code: number): Test => (x, y, d) => paper.at(G.land, x, y) === code && open(x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, d);
   const standing: Test = (x, y, d) => open(x, y) && paper.seen(x, y, d);
 
-  outline(paper, GREENERY, G.farmShapes, G.farms, open);
+  paper.facet('farm-edges', () => outline(paper, GREENERY, G.farmShapes, G.farms, open));
 
   for (const c of G.covers) {
-    if (c.code === ALLOTMENT) allotment(B, paper, c, flat(ALLOTMENT));
-    if (c.code === FIELD) field(B, paper, c, flat(FIELD));
-    else if (c.code === VINEYARD) vineyard(B, paper, c, flat(VINEYARD), standing);
-    else if (c.code === ORCHARD && !orchardsAsTrees(B)) dotted(B, paper, c, flat(ORCHARD));
+    if (c.code === ALLOTMENT) paper.facet('allotments', () => allotment(B, paper, c, flat(ALLOTMENT)));
+    if (c.code === FIELD) paper.facet('fields', () => field(B, paper, c, flat(FIELD)));
+    else if (c.code === VINEYARD) paper.facet('vineyards', () => vineyard(B, paper, c, flat(VINEYARD), standing));
+    else if (c.code === ORCHARD && !orchardsAsTrees(B)) paper.facet('orchards', () => dotted(B, paper, c, flat(ORCHARD)));
   }
 
   symbols(B, paper, M, G, toAbs, fromAbs);
-  wildGround(B, paper, M, G, toAbs, fromAbs);
-  for (const c of G.cemeteries) cemetery(B, paper, M, G, c.shape, c.rect, standing);
-  for (const p of G.pitches) pitch(paper, p, open);
+  paper.facet('open-country', () => wildGround(B, paper, M, G, toAbs, fromAbs));
+  paper.facet('cemeteries', () => {
+    for (const c of G.cemeteries) cemetery(B, paper, M, G, c.shape, c.rect, standing);
+  });
+  for (const p of G.pitches) paper.facet(`pitches/${p.sport}`, () => pitch(paper, p, open));
 }
+
+/** Catalogue facets for the ground symbols, by land code. */
+const SYMBOL_FACET: Partial<Record<number, string>> = { [MEADOW]: 'meadows', [GARDEN]: 'lawns', [WETLAND]: 'marsh', [ROCK]: 'rock', [ICE]: 'ice', [BEACH]: 'beach-sand', [SAND]: 'sand' };
 
 /** A field: furrows along its length, solid when ploughed, dashed when it's stubble. */
 function field(B: Build, paper: Paper, c: Cover, test: Test): void {
@@ -548,6 +554,8 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
   if (has.has(MEADOW) || has.has(WETLAND) || G.gardens) passes.push([TUFT_MM, 11, [MEADOW, WETLAND, GARDEN]]);
   if (has.has(SAND) || has.has(BEACH)) passes.push([SAND_MM, 12, [SAND, BEACH]]);
   if (has.has(ROCK) || has.has(ICE)) passes.push([ROCK_MM, 13, [ROCK, ICE]]);
+  const base = paper.layer;
+  const facets = new Map(Object.entries(SYMBOL_FACET).map(([code, name]) => [Number(code), `${base}/${name}`]));
   const metre = toAbs(1, 0)[0] - toAbs(0, 0)[0];
   const [A0x, A0y] = toAbs(box[0], box[1]);
   const [A1x, A1y] = toAbs(box[2], box[3]);
@@ -567,6 +575,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
         const code = paper.at(G.land, sx, sy);
         if (!codes.includes(code) || paper.on(M.shadow, sx, sy) || paper.on(M.foot, sx, sy)) continue;
         const d = cam.depth(x, y, 0);
+        paper.layer = facets.get(code) ?? base;
         if (code === MEADOW) {
           if (r(3) < 0.85) mark(GREENERY, sx, sy, d, TUFT);
         } else if (code === GARDEN) {
@@ -591,6 +600,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
         }
       }
   }
+  paper.layer = base;
 }
 
 const TUFT = [
@@ -1006,8 +1016,8 @@ export function bales(B: Build, paper: Paper, G: Ground, M: Masks): Solid[] {
 }
 
 /** Where cows graze, and where sheep do. */
-const COWS = new Set(['alpine', 'central', 'dutch', 'french', 'eastern', 'american', 'generic']);
-const SHEEP = new Set(['british', 'nordic', 'antipodean', 'mediterranean', 'arid']);
+export const COWS = new Set(['alpine', 'central', 'dutch', 'french', 'eastern', 'american', 'generic']);
+export const SHEEP = new Set(['british', 'nordic', 'antipodean', 'mediterranean', 'arid']);
 
 /** Small herds of cows or sheep out on the meadows. */
 export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [number, number, number, number], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Solid[] {

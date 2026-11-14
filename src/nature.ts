@@ -5,12 +5,12 @@ import { hash } from './rng';
 import { GREENERY } from './settings';
 
 /** A bush is a low dome sitting on the ground, with no trunk. */
-/** `form` gives a few trees a regional shape: palms in hot places, cypresses round the Mediterranean. */
-export type Tree = { x: number; y: number; r: number; h: number; conifer: boolean; bush?: boolean; form?: 'palm' | 'cypress' };
+/** `form` gives a few trees a regional shape: palms in hot places, cypresses round the Mediterranean. `from` says what planted it, for the catalogue. */
+export type Tree = { x: number; y: number; r: number; h: number; conifer: boolean; bush?: boolean; form?: 'palm' | 'cypress'; from?: string };
 
 /** Share of broadleaf trees that are palms, and of conifers that are cypresses, by region. */
-const PALMS: Partial<Record<string, number>> = { tropical: 0.65, arid: 0.45, mediterranean: 0.18, antipodean: 0.08 };
-const CYPRESSES: Partial<Record<string, number>> = { mediterranean: 0.55, arid: 0.3 };
+export const PALMS: Partial<Record<string, number>> = { tropical: 0.65, arid: 0.45, mediterranean: 0.18, antipodean: 0.08 };
+export const CYPRESSES: Partial<Record<string, number>> = { mediterranean: 0.55, arid: 0.3 };
 
 /** Turn some trees into the region's own kinds, keyed to where they stand. */
 export function regionalTrees(B: Build, trees: Tree[], wild: (t: Tree) => boolean): Tree[] {

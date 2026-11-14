@@ -74,9 +74,12 @@ export class Paper {
   /** Pen override for the current feature's line pass. */
   penOverride: number | undefined;
   readonly pens: number[][][] = Array.from({ length: PEN_COUNT }, () => []);
-  /** The feature now drawing, for `tally`. */
+  /**
+   * The feature now drawing, for `tally`: `layer` or `layer:part`, then any facets the catalogue
+   * can single out, each after a slash (`ground/fields`, `roofs/house/gabled-roof`).
+   */
   layer = '';
-  /** When set, every stroke is also filed under the feature that drew it. Only the LOD lab uses it. */
+  /** When set, every stroke is also filed under the feature that drew it: the LOD lab scores them, the catalogue shows them. */
   tally: Map<string, number[][]> | null = null;
   private run: number[] | null = null;
   private runPen = 0;
@@ -369,6 +372,17 @@ export class Paper {
     }
     if (this.run) this.run.push(ex, ey);
     if (t1 < 1) this.end();
+  }
+
+  /** Draw with strokes filed under a facet of the feature now drawing, for the catalogue. */
+  facet<T>(name: string, draw: () => T): T {
+    const was = this.layer;
+    this.layer = `${was}/${name}`;
+    try {
+      return draw();
+    } finally {
+      this.layer = was;
+    }
   }
 
   end(): void {

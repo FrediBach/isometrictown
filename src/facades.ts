@@ -66,7 +66,7 @@ export type Wall = {
 };
 
 /** Window patterns for homes, by region. Terraces and flats leave out the irregular one. */
-const HOME: Record<StyleId, Partial<Record<Pattern, number>>> = {
+export const HOME: Record<StyleId, Partial<Record<Pattern, number>>> = {
   generic: { grid: 0.6, paired: 0.15, irregular: 0.25 },
   alpine: { small: 0.45, grid: 0.35, paired: 0.2 },
   dutch: { tall: 0.5, grid: 0.35, paired: 0.15 },
@@ -83,7 +83,7 @@ const HOME: Record<StyleId, Partial<Record<Pattern, number>>> = {
   antipodean: { grid: 0.4, irregular: 0.35, paired: 0.25 },
 };
 /** Regions whose older windows are mostly divided by glazing bars. */
-const BARS = new Set<StyleId>(['british', 'dutch', 'french', 'central', 'nordic', 'american', 'alpine']);
+export const BARS = new Set<StyleId>(['british', 'dutch', 'french', 'central', 'nordic', 'american', 'alpine']);
 const OFFICE_USE = new Set(['office', 'commercial', 'retail']);
 
 function pickPattern(w: Partial<Record<Pattern, number>>, u: number): Pattern {

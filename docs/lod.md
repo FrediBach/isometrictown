@@ -52,7 +52,7 @@ Some rules change *how* a thing is drawn rather than whether it is: narrow strea
 
 `npm run lod` draws a set of test places (`lab/places.ts`: an Alpine village, a canal city, a walled town, a lake village, a marsh town, an airport, Midtown Manhattan and farmland) at 1:500 to 1:8000 with the real renderer, headless, through Vite's module runner. Downloads are cached in `lab/.cache`, so reruns don't use the network. OSM tags are off unless you pass `--tags`, so runs are repeatable.
 
-Every stroke is filed under the feature that drew it (`Paper.tally`, with names such as `roofHatch` or `streets:kerbs`), then the lab stamps the strokes onto a 0.1 mm ink raster at the real pen width and scores each feature:
+Every stroke is filed under the feature that drew it (`Paper.tally`, with names such as `roofHatch` or `streets:kerbs`; the catalogue's facets after a slash are folded back into their feature), then the lab stamps the strokes onto a 0.1 mm ink raster at the real pen width and scores each feature:
 
 - **specks:** strokes less than two pen widths across, which plot as dots,
 - **drowned:** ink laid in 1 mm cells that are already 65% inked or more, so it adds nothing,

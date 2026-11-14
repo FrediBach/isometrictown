@@ -8,7 +8,7 @@ The interface is one React tree (`src/App.tsx`) with a settings panel on the lef
 
 - `set: Settings` — the one settings object. A ref, `live`, mirrors it so the renderer and map callbacks always read the latest value without waiting for a React render.
 - `status: RenderStatus` and `result: RenderResult | null` — from the `Renderer`.
-- `zoom`, `full` and `aboutOpen` — view-only state. `full` hides the settings panel and stats so the preview fills the window; Escape leaves it.
+- `zoom`, `full`, `aboutOpen` and `catalogueOpen` — view-only state. `full` hides the settings panel and stats so the preview fills the window; Escape leaves it.
 
 ## Changing a setting
 
@@ -33,11 +33,19 @@ Exceptions to the redraw:
 
 Owns the worker. `schedule(delay)` debounces; `dispatch()` sends a `Job` with a `structuredClone` of the latest settings only if the worker is idle. When a job finishes, the next queued one goes out. Results are recoloured with the current pens on arrival, since they may have changed during the job.
 
-Jobs (`Job` in `worker.ts`) are `draw` (settings) or `pick` (a sheet position in mm). Worker messages (`Reply`): `progress` (a `StageProgress`), `done` (svg, stats, counts, region, ms), `error` (with `tooBig`) or `picked` (the building's lock key, or null). `pick()` returns a promise and never touches the draw queue. The worker answers from the last finished drawing, which is the one on show.
+Jobs (`Job` in `worker.ts`) are `draw` (settings), `pick` (a sheet position in mm) or `strokes` (tally names). Worker messages (`Reply`): `progress` (a `StageProgress`), `done` (svg, stats, counts, census, features, region, ms), `error` (with `tooBig`), `picked` (the building's lock key, or null) or `strokes` (path data and the densest spot). `pick()` and `strokes()` return promises and never touch the draw queue. The worker answers from the last finished drawing, which is the one on show.
+
+`census` counts the buildings and trees in the drawing by facet (`house`, `gabled-roof`, `shutters`, `palm`, `street-trees`); `features` gives strokes and ink per tally name (see [render-pipeline.md](render-pipeline.md#paper-srcrasterts)).
 
 ## Progress
 
 `app/stages.ts` lists the seven stages and their labels. The worker reports them from inside `render()`; `DrawingProgress` shows the card, after a 350 ms delay so quick redraws don't flash. Adding a stage means adding it to `STAGES`, `STAGE_LABEL` and an icon in `components/drawing-progress.tsx`.
+
+## Catalogue
+
+`components/catalogue-dialog.tsx`, opened from the toolbar, lists every entry in `src/catalogue.ts`: what is drawn, how it is found or made up, what switches it, its level-of-detail rules (with the coarsest scale a typical one shows at, for the current Detail and pen), and for regional styles a reference card built from the tables that drive the drawing. Against the drawing on show it reports counts from `census` and strokes from `features`, matched by each entry's `strokes` patterns, and says why an entry is missing (switched off, too small at this scale, none in view). Selecting an entry asks the worker for its strokes and shows them in the signal colour over the faded drawing, as a close-up of the densest patch or the whole sheet.
+
+It is loaded lazily on first open, because it imports the regional tables from the drawing modules. Its survey only runs while it is open.
 
 ## Persistence
 

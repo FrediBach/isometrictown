@@ -52,6 +52,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it. Click a building in the preview to try another look for it (a terrace changes as a row). It keeps that look through shuffles until you unlock all in the Seed section.
 
+The **Catalogue** in the toolbar lists everything detected, inferred or made up: how each is found, which setting switches it, how small it may get before it is left out, and the regional habits behind the guesses. Against the drawing on show it counts each one and picks out its strokes, which makes it a quick way to review what the inference did.
+
 ## Made for pen plotters
 
 - Hidden lines are removed geometrically with a depth buffer before export, so nothing shows through a wall and nothing is drawn twice.
@@ -90,6 +92,7 @@ Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are wo
 | `src/raster.ts` | Depth buffer, screen-space ground masks, visibility tracing |
 | `src/render.ts` | Runs the passes in order |
 | `src/lod.ts` | Level of detail: how small each kind of thing may get on paper before it's left out |
+| `src/catalogue.ts` | Everything detected, inferred or made up, with how it's found and where its strokes are filed, for the Catalogue |
 | `lab/` | The LOD lab: draws test places at several scales and scores wasted ink (`npm run lod`) |
 | `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |

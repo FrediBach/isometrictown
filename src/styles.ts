@@ -81,7 +81,8 @@ export const STYLES: Record<StyleId, Style> = {
 
 export const STYLE_IDS = Object.keys(STYLES) as StyleId[];
 
-const BY_COUNTRY: Record<string, StyleId> = {
+/** The style for each country, by ISO 3166 code. */
+export const BY_COUNTRY: Record<string, StyleId> = {
   CH: 'alpine', AT: 'alpine', LI: 'alpine',
   NL: 'dutch', BE: 'dutch',
   DE: 'central', CZ: 'central', PL: 'central', LU: 'central', SK: 'central', SI: 'central', HU: 'central', DK: 'central',
@@ -96,7 +97,7 @@ const BY_COUNTRY: Record<string, StyleId> = {
 };
 
 /** UN M49 region codes to fall back on when a country isn't listed. */
-const BY_REGION: Record<string, StyleId> = {
+export const BY_REGION: Record<string, StyleId> = {
   '015': 'arid', // Northern Africa
   '145': 'arid', // Western Asia
   '143': 'arid', // Central Asia

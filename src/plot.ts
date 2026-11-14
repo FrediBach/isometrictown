@@ -203,7 +203,8 @@ export function plan(raw: number[][][], set: Settings): Plotted {
   };
 }
 
-function pathData(lines: number[][]): string {
+/** Lines as SVG path data, to 0.01 mm. */
+export function pathData(lines: number[][]): string {
   const parts: string[] = [];
   const f = (v: number) => (Math.round(v * 100) / 100).toString();
   for (const l of lines) {

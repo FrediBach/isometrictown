@@ -44,8 +44,21 @@ export type SheetStats = {
   marks?: { specks: number[][]; /** Top-left corners of solid cells, flat x, y. */ solid: number[] };
 };
 
+/** The tally with the catalogue's facets (`roofs/house/gabled-roof`) folded back into their feature (`roofs`). */
+function features(tally: Map<string, number[][]>): Map<string, number[][]> {
+  const out = new Map<string, number[][]>();
+  for (const [name, lines] of tally) {
+    const feature = name.split('/')[0];
+    const list = out.get(feature);
+    if (!list) out.set(feature, [...lines]);
+    else for (const l of lines) list.push(l);
+  }
+  return out;
+}
+
 /** Score the strokes of one drawing, keyed by the feature that drew them. */
-export function measure(tally: Map<string, number[][]>, rect: [number, number, number, number], nib: number, speed: number): SheetStats {
+export function measure(faceted: Map<string, number[][]>, rect: [number, number, number, number], nib: number, speed: number): SheetStats {
+  const tally = features(faceted);
   const [x0, y0, x1, y1] = rect;
   const W = Math.ceil((x1 - x0) * RES);
   const H = Math.ceil((y1 - y0) * RES);

@@ -24,6 +24,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 - `src/tiles.ts`: vector tiles → `Town` in local metres. `src/osm.ts`: Overpass tags, best effort.
 - `src/classify.ts`: infers building kind, height and roof. `src/styles.ts`: regional styles.
 - `src/lod.ts`: level-of-detail rules, one per kind of thing. `lab/`: the LOD lab.
+- `src/catalogue.ts`: every thing detected, inferred or made up, with how it is found and where its strokes are filed. The catalogue dialog shows it against the drawing.
 - Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `ships`, `sport`, `vehicles`, `power`, `marginalia`.
 - UI: `src/App.tsx`, `src/app/` (state, renderer, persistence), `src/components/`. Visual rules are in [DESIGN.md](DESIGN.md).
 
@@ -50,7 +51,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 
 Recipes are in [docs/extending.md](docs/extending.md):
 
-- **New drawn feature**: write an `Extra` in the right module and add it to `extras` in `render.ts`. Add a line to the README's "What it draws".
+- **New drawn feature**: write an `Extra` in the right module and add it to `extras` in `render.ts`. Add an entry to `src/catalogue.ts` and a line to the README's "What it draws".
 - **New setting**: add it to `Settings` and `DEFAULT_SETTINGS`, to `NumberKey`/`BoolKey` (plus `FORMAT` for numbers), and as a control in `sections.tsx`.
 - **New map data**: decode it in `tiles.ts` `decode()`, add it to `Town` and `empty()`, and carry it through `assemble()`.
 

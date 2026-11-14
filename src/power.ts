@@ -25,7 +25,7 @@ import { LOD, shows } from './lod';
 const CELL = 3000;
 const LINE_CHANCE = 0.6;
 /** Regions where wires run overhead on poles along town streets, not just country roads. */
-const OVERHEAD_TOWN = new Set(['american', 'eastAsian', 'antipodean', 'tropical', 'arid', 'eastern']);
+export const OVERHEAD_TOWN = new Set(['american', 'eastAsian', 'antipodean', 'tropical', 'arid', 'eastern']);
 const POLE_ROADS = new Set(['primary', 'secondary', 'tertiary', 'minor', 'service']);
 const PRIVATE = new Set(['driveway', 'parking_aisle', 'drive-through']);
 

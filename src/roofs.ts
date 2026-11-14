@@ -222,7 +222,7 @@ function box(B: Build, ring: number[], z0: number, z1: number, out: Solid, pen =
 /** A chimney standing on the roof: from inside the roof up past it. */
 export function chimney(B: Build, R: Pitched, u: number, v: number, du: number, dv: number, z0: number, top: number, out: Solid): void {
   const ring = [R.at(u - du, v - dv, 0), R.at(u + du, v - dv, 0), R.at(u + du, v + dv, 0), R.at(u - du, v + dv, 0)].flatMap((p) => [p[0], p[1]]);
-  box(B, ring, z0, top, out);
+  tagLines(undefined, out, () => box(B, ring, z0, top, out), 'chimney');
 }
 
 /**
@@ -230,7 +230,7 @@ export function chimney(B: Build, R: Pitched, u: number, v: number, du: number, 
  * eave and whose back runs into the roof. `axis` points out of the slope, level.
  */
 export function dormer(B: Build, x: number, y: number, ax: number, ay: number, depth: number, z0: number, zFront: number, out: Solid): void {
-  tagLines('details', out, () => dormerLines(B, x, y, ax, ay, depth, z0, zFront, out));
+  tagLines('details', out, () => dormerLines(B, x, y, ax, ay, depth, z0, zFront, out), 'dormer');
 }
 
 function dormerLines(B: Build, x: number, y: number, ax: number, ay: number, depth: number, z0: number, zFront: number, out: Solid): void {
@@ -321,7 +321,7 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
 
 /** A flat roof's parapet: a second outline just inside the edge. */
 export function parapet(B: Build, rings: { pts: number[]; seam: Uint8Array; party?: Float32Array }[], z: number, out: Solid): void {
-  tagLines('details', out, () => parapetLines(B, rings, z, out));
+  tagLines('details', out, () => parapetLines(B, rings, z, out), 'parapet');
 }
 
 function parapetLines(B: Build, rings: { pts: number[]; seam: Uint8Array; party?: Float32Array }[], z: number, out: Solid): void {

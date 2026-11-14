@@ -60,7 +60,7 @@ const DENSITY_R = 45;
 /** Streets busy enough to have shops along them in a town centre. */
 const HIGH_STREETS = new Set(['primary', 'secondary', 'tertiary']);
 /** Chance of shutters on homes, by region, and the pen they're painted in. */
-const SHUTTERS: Partial<Record<Style['id'], [number, number]>> = {
+export const SHUTTERS: Partial<Record<Style['id'], [number, number]>> = {
   mediterranean: [0.7, GREENERY],
   french: [0.55, GREENERY],
   alpine: [0.6, ROOFS],
@@ -69,7 +69,7 @@ const SHUTTERS: Partial<Record<Style['id'], [number, number]>> = {
   dutch: [0.3, ROOFS],
 };
 /** Chance of balconies on flats, by region, and whether they're shallow French ones. */
-const BALCONIES: Partial<Record<Style['id'], [number, 1 | 2]>> = {
+export const BALCONIES: Partial<Record<Style['id'], [number, 1 | 2]>> = {
   mediterranean: [0.65, 1],
   eastern: [0.55, 1],
   eastAsian: [0.45, 1],

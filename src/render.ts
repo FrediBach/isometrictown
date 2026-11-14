@@ -10,7 +10,7 @@ import { Camera } from './camera';
 import { ringArea, type Frame } from './geo';
 import type { StageProgress } from './app/stages';
 import { atLeast, LOD, shows, showsAt } from './lod';
-import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks } from './nature';
+import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
@@ -24,9 +24,11 @@ import type { Style } from './styles';
 import type { Shape, Stream, Town } from './tiles';
 
 export type Counts = { buildings: number; houses: number; trees: number; cars: number; lamps: number };
+/** How many buildings and trees in the drawing carry each catalogue facet (`house`, `gabled-roof`, `palm`). */
+export type Census = Record<string, number>;
 /** Which building shows at each pixel of the drawing area, for clicking in the preview. */
 export type Picks = { x0: number; y0: number; ppm: number; W: number; H: number; ids: Int32Array; keys: string[] };
-export type Drawing = { pens: number[][][]; counts: Counts; picks: Picks };
+export type Drawing = { pens: number[][][]; counts: Counts; census: Census; picks: Picks };
 
 /** The lock key of the building at a sheet position (mm), looking a little around it for a near miss. */
 export function pickAt(p: Picks, x: number, y: number): string | null {
@@ -61,9 +63,17 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const cam = new Camera(set);
   const paper = new Paper(cam);
   paper.tally = tally;
-  const tag = <T extends Solid[]>(layer: LayerId, solids: T): T => {
-    for (const solid of solids) solid.layer = layer;
+  /** File solids under a layer, and optionally a facet the catalogue can single them out by. */
+  const tag = <T extends Solid[]>(layer: LayerId, solids: T, facet?: string): T => {
+    for (const solid of solids) {
+      solid.layer = layer;
+      if (facet) solid.facet = facet;
+    }
     return solids;
+  };
+  const census: Census = {};
+  const tick = (facet: string) => {
+    census[facet] = (census[facet] ?? 0) + 1;
   };
   /** Wire up an extra: its solids and its ground lines go to `layer`; `part` names it within the layer for the LOD lab. */
   const extra = <T extends { solids: Solid[]; draw: (paper: Paper) => void }>(layer: LayerId, part: string, e: T): T => {
@@ -148,7 +158,13 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     const made = building(B, b);
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
-      for (const s of made) s.pick = id;
+      const facets = buildingFacets(b);
+      const facet = facets.join('/');
+      for (const s of made) {
+        s.pick = id;
+        s.facet = facet;
+      }
+      for (const f of facets) tick(f);
     }
     counts.buildings++;
     if (made[0].lines.some((l) => l.pen === ROOFS)) counts.houses++;
@@ -158,10 +174,14 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // Life on the ground
   onStage({ stage: 'life', note: `${counts.buildings.toLocaleString('en')} buildings standing` });
   const box = cam.region(0);
-  let trees = placeTrees(B, paper, M, box, toAbs, fromAbs);
-  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...orchardTrees(B, paper, G, M), ...gardenTrees(B, paper, G, M, box, toAbs, fromAbs), ...scrubBushes(B, paper, G, M, box, toAbs, fromAbs), ...hedgerows(B, paper, G, M), ...wildTrees(B, paper, G, M, box, toAbs, fromAbs)];
-  trees.push(...streetTrees(B, paper, town.ways, M));
-  if (set.trees > 0) for (const [x, y] of rounds.centres) trees.push({ x, y, r: 2.4, h: 6.5, conifer: false });
+  const from = (name: string, list: Tree[]) => {
+    for (const t of list) t.from = name;
+    return list;
+  };
+  let trees = from('park-trees', placeTrees(B, paper, M, box, toAbs, fromAbs));
+  if (G) trees = [...trees.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
+  trees.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
+  if (set.trees > 0) for (const [x, y] of rounds.centres) trees.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
   // Palms are planted in town; out in the woods and the open country they don't belong.
   trees = regionalTrees(B, trees, (t) => {
     const sx = cam.sx(t.x, t.y);
@@ -170,11 +190,17 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   });
   trees = legibleTrees(B, trees);
   counts.trees = trees.length;
+  const treeFacets = trees.map((t) => {
+    const kind = t.form ?? (t.bush ? 'bush' : t.conifer ? 'conifer' : 'broadleaf');
+    tick(kind);
+    if (t.from) tick(t.from);
+    return t.from ? `${t.from}/${kind}` : kind;
+  });
   const cars = tag('cars', traffic(B, paper, town, M));
   const bays = extra('markings', 'parking', parking(B, paper, town.ways, M));
   tag('cars', bays.solids);
   counts.cars = cars.length + bays.solids.length;
-  solids.push(...cars, ...tag('life', trains(B, paper, town, M)));
+  solids.push(...cars, ...tag('life', trains(B, paper, town, M), 'trains'));
   const extras = [bays, extra('rails', 'lifts', lifts(B, town)), extra('life', 'ferries', ferries(B, paper, town, M)), extra('life', 'moorings', moorings(B, paper, town, M)), extra('streets', 'bridges', bridges(B, paper, town, M)), extra('streets', 'platforms', platforms(B, town)), extra('streets', 'portals', portals(B, town)), extra('streets', 'airfields', airfields(B, paper, town, M)), extra('life', 'aviation', aviation(B, paper, town, M)), extra('power', 'powerLines', powerLines(B, paper, town, M, box, toAbs, fromAbs))];
   if (set.ground) extras.push(extra('ground', 'beaches', beaches(B, paper, town, M)), extra('ground', 'campsites', campsites(B, paper, town, M)), extra('ground', 'playgrounds', playgrounds(B, paper, town, M)), extra('ground', 'farmyards', farmyards(B, paper, town, M)), extra('ground', 'quarries', quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', ports(B, paper, town, M)));
@@ -184,9 +210,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   extras.push(extra('life', 'sailing', sailing(B, paper, town, M)), extra('markings', 'crossings', crossings(B, paper, town, M)), extra('life', 'people', people(B, paper, town, M)), extra('streets', 'motorways', motorways(B, paper, town, M)));
   if (G) extras.push(extra('life', 'farmWork', farmWork(B, paper, G, M, toAbs)), extra('life', 'players', players(B, paper, G, M)));
   for (const e of extras) solids.push(...e.solids);
-  if (G) solids.push(...tag('ground', allotmentSheds(B, paper, G, M)), ...tag('ground', bales(B, paper, G, M)), ...tag('life', livestock(B, paper, G, M, box, toAbs, fromAbs)));
+  if (G) solids.push(...tag('ground', allotmentSheds(B, paper, G, M), 'allotment-sheds'), ...tag('ground', bales(B, paper, G, M), 'bales'), ...tag('life', livestock(B, paper, G, M, box, toAbs, fromAbs), 'livestock'));
   const fences = G ? plots(B, paper, town, G, M) : null;
-  if (fences) solids.push(...tag('ground', fences.solids));
+  if (fences) solids.push(...tag('ground', fences.solids, 'plots'));
 
   // Depth
   onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
@@ -244,18 +270,22 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // Lines, ground first
   onStage({ stage: 'lines', note: 'Ground and streets' });
   if (set.water) withPen('water', () => {
-    waves(paper, M, set.seed);
-    outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.under, x, y));
-    for (const s of brooks) paper.line3(WATER, s.pts.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d));
-    pools(paper, M, town.pools);
+    paper.facet('waves', () => waves(paper, M, set.seed));
+    paper.facet('shores', () => outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.under, x, y)));
+    paper.facet('brooks', () => {
+      for (const s of brooks) paper.line3(WATER, s.pts.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d));
+    });
+    paper.facet('pools', () => pools(paper, M, town.pools));
   });
   if (set.parks) withPen('parks', () => {
     const grass = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y);
-    paper.hatchGround(GREENERY, -27, cam.gap(1.1), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
-    // Every other line of the same hatch, so it runs on unbroken from the plain grass around.
-    if (G) paper.hatchGround(GREENERY, -27, cam.gap(2.2), (x, y) => grass(x, y) && lightly(G, paper, x, y));
-    outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y));
-    outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y));
+    paper.facet('grass', () => {
+      paper.hatchGround(GREENERY, -27, cam.gap(1.1), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
+      // Every other line of the same hatch, so it runs on unbroken from the plain grass around.
+      if (G) paper.hatchGround(GREENERY, -27, cam.gap(2.2), (x, y) => grass(x, y) && lightly(G, paper, x, y));
+    });
+    paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
+    paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
   if (set.shadows) withPen('shadows', () => { paper.hatchGround(SHADOWS, 62, cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y)); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs); });
@@ -267,25 +297,47 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   withPen('streets', () => { railings(paper, town.ways); }, 'railings');
   withPen('markings', () => { markings(B, paper, town.ways, M); });
   for (const e of extras) e.draw(paper);
-  withPen('ground', () => { fences?.draw(); });
+  withPen('ground', () => { paper.facet('plots', () => fences?.draw()); });
 
   // Solids and trees
   onStage({ stage: 'lines', note: 'Buildings and trees' });
   for (const s of solids) {
+    const tail = s.facet ? `/${s.facet}` : '';
     for (const l of s.lines) {
       const layer = s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings');
-      paper.layer = s.part ? `${layer}:${s.part}` : layer;
+      paper.layer = (s.part ? `${layer}:${s.part}` : layer) + tail + (l.facet ? `/${l.facet}` : '');
       const on = l.on && faceNo.get(l.on);
       paper.line3(layerPen(set, layer, l.pen), l.pts, on === undefined ? paper.seen : paper.onFace(on), l.closed);
     }
   }
   paper.layer = '';
-  withPen('trees', () => { for (const sp of sprites) sp.draw(); });
+  withPen('trees', () => { sprites.forEach((sp, i) => paper.facet(treeFacets[i], sp.draw)); });
 
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
   const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys };
-  return { pens: paper.pens, counts, picks };
+  return { pens: paper.pens, counts, census, picks };
+}
+
+/** What the catalogue can single a building out as: what it is, its roof and windows, and the details it was given. */
+function buildingFacets(b: Town['buildings'][number]): string[] {
+  const i = b.info!;
+  const f = [i.kind, `${i.roof}-roof`, `${i.facade.pattern}-windows`, b.guess ? 'guessed-height' : 'mapped-height'];
+  if (i.tagged) f.push('tagged-roof');
+  if (i.across) f.push('ridge-across');
+  if (i.party.some((v) => v > 0)) f.push('party-walls');
+  if (i.shop) f.push('shop-front');
+  if (i.balconies) f.push(i.balconies === 2 ? 'railed-balconies' : 'deep-balconies');
+  if (i.shutters >= 0) f.push('shutters');
+  if (i.chimney) f.push('chimneys');
+  if (i.dormers) f.push('dormers');
+  if (i.gableFront) f.push(i.gableFront === 1 ? 'stepped-gable' : 'neck-gable');
+  if (i.parapet && i.roof === 'flat') f.push('has-parapet');
+  if (i.facade.bars) f.push('glazing-bars');
+  if (i.castle) f.push('castle');
+  if (i.hospital) f.push('hospital');
+  if (i.townHall) f.push('town-hall');
+  return f;
 }
 
 /** Kinds of building that stay however small they are on paper: a terrace would show a gap, a landmark is wanted. */

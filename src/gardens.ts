@@ -19,7 +19,7 @@ import type { Building, Town, Way } from './tiles';
 type Bound = 'hedge' | 'fence' | 'wall' | 'picket' | 'none';
 
 /** What goes along the street and what goes between neighbours, by region. */
-const BOUNDS: Record<StyleId, [Bound, Bound]> = {
+export const BOUNDS: Record<StyleId, [Bound, Bound]> = {
   alpine: ['fence', 'fence'],
   dutch: ['hedge', 'hedge'],
   central: ['fence', 'hedge'],
@@ -37,7 +37,7 @@ const BOUNDS: Record<StyleId, [Bound, Bound]> = {
 };
 
 /** Chance that a field edge carries a hedgerow, by region. */
-const HEDGEROWS: Record<StyleId, number> = {
+export const HEDGEROWS: Record<StyleId, number> = {
   alpine: 0.3,
   dutch: 0.25,
   central: 0.55,
@@ -55,7 +55,7 @@ const HEDGEROWS: Record<StyleId, number> = {
 };
 
 /** Chance that a main road is lined with trees, by region. */
-const AVENUES: Record<StyleId, number> = {
+export const AVENUES: Record<StyleId, number> = {
   alpine: 0.2,
   dutch: 0.5,
   central: 0.5,
@@ -212,8 +212,8 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
 }
 
 /** Regions where front gardens have a driveway, and where back gardens have trampolines. */
-const DRIVES = new Set<StyleId>(['american', 'antipodean', 'british', 'nordic', 'central', 'generic']);
-const TRAMPOLINES = new Set<StyleId>(['american', 'antipodean', 'british', 'nordic']);
+export const DRIVES = new Set<StyleId>(['american', 'antipodean', 'british', 'nordic', 'central', 'generic']);
+export const TRAMPOLINES = new Set<StyleId>(['american', 'antipodean', 'british', 'nordic']);
 
 /** A house's own bits of garden: a driveway with a car on it, a shed at the back, maybe a trampoline. */
 function yard(B: Build, b: Building, cx: number, cy: number, ok: (x: number, y: number) => boolean, solids: Solid[], marks: { pts: number[]; ground: boolean; closed?: boolean }[]): void {

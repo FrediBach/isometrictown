@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera } from './camera';
 import { Frame, type LngLat } from './geo';
 import type { Locator } from './locator';
@@ -12,6 +12,9 @@ import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
 import { recolor } from './plot';
 import { sheetSize, type Settings } from './settings';
+
+// The catalogue pulls in the drawing's own tables, so it loads only when first opened.
+const CatalogueDialog = lazy(() => import('./components/catalogue-dialog').then((m) => ({ default: m.CatalogueDialog })));
 
 const norm = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
 
@@ -27,6 +30,8 @@ export function App() {
   const [zoom, setZoom] = useState<Zoom>('fit');
   const [full, setFull] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalogueSeen, setCatalogueSeen] = useState(false);
 
   const commit = useCallback((next: Settings) => {
     live.current = next;
@@ -103,6 +108,13 @@ export function App() {
     schedule(0);
   }
 
+  const strokes = useCallback((names: string[]) => renderer.current?.strokes(names) ?? Promise.resolve(null), []);
+
+  function openCatalogue(): void {
+    setCatalogueSeen(true);
+    setCatalogueOpen(true);
+  }
+
   function unlockAll(): void {
     commit({ ...live.current, seedLocks: {} });
     schedule(0);
@@ -170,12 +182,17 @@ export function App() {
       </aside>
 
       <main className={cn('grid min-h-0 min-w-0 bg-stage', full ? 'grid-rows-[auto_1fr]' : 'grid-rows-[auto_1fr_auto] max-[900px]:grid-rows-[auto_70vh_auto]')}>
-        <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} />
+        <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} onCatalogue={openCatalogue} />
         <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} />
         {!full && <Stats result={result} />}
       </main>
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      {catalogueSeen && (
+        <Suspense fallback={null}>
+          <CatalogueDialog open={catalogueOpen} onOpenChange={setCatalogueOpen} result={result} set={set} onStrokes={strokes} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -29,7 +29,8 @@
 5. If it needs new map data, see [data-sources.md](data-sources.md#vector-tiles-tilests).
 6. Draw hatching and textures at a spacing of `B.cam.gap(mm)`, so the Detail slider and the pen width reach them.
 7. Keep it deterministic (`hash()` with `B.key` and a fresh salt) and keep it off roads, water and buildings with the masks.
-8. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
+8. Add an entry to `ENTRIES_BY_HAND` in `src/catalogue.ts`: what it is, how it is found, its source, settings and LOD rules, and the tally name its strokes go under (`ground:windmills`). If it shares a feature with others, give it a facet (`paper.facet('windmills', …)`, or `tag(layer, solids, 'windmills')` in `render()`) so the catalogue can pick it out.
+9. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
 
 ## Add a setting
 

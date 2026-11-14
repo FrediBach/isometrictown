@@ -6,7 +6,7 @@ import type { Shape, Way } from './tiles';
 import { LOD, shows, spaced } from './lod';
 
 /** Regions where most railways run under overhead wires. */
-const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
+export const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
 const LIT = new Set(['minor', 'tertiary', 'secondary', 'primary', 'trunk']);
 
 function polygon(cx: number, cy: number, r: number, n: number): number[] {

@@ -10,6 +10,8 @@ import { PenDot } from './title-block';
 
 export type Zoom = 'fit' | '0.5' | '1' | '2';
 
+const TEXT_BUTTON = 'rounded-sm text-[13px] text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50';
+
 type ToolbarProps = {
   zoom: Zoom;
   onZoom: (z: Zoom) => void;
@@ -20,9 +22,10 @@ type ToolbarProps = {
   canDownload: boolean;
   onDownload: () => void;
   onAbout: () => void;
+  onCatalogue: () => void;
 };
 
-export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout }: ToolbarProps) {
+export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout, onCatalogue }: ToolbarProps) {
   return (
     <div className="dark flex h-14 items-center gap-4 border-b border-black/40 bg-background px-[18px] text-foreground max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:px-4 max-[900px]:py-2.5">
       <div className="flex items-center gap-3">
@@ -63,7 +66,10 @@ export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDow
         <span className="truncate">{status.text || (status.state === 'idle' && canDownload ? 'Ready' : '')}</span>
       </span>
       <div className="flex-1" />
-      <button type="button" onClick={onAbout} className="rounded-sm text-[13px] text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">
+      <button type="button" onClick={onCatalogue} className={TEXT_BUTTON}>
+        Catalogue
+      </button>
+      <button type="button" onClick={onAbout} className={TEXT_BUTTON}>
         About
       </button>
       <Button variant="signal" size="lg" className="h-9 rounded-md px-3.5" disabled={!canDownload} onClick={onDownload}>

@@ -61,7 +61,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 
 **Interface**
 
-`main.tsx`, `App.tsx`, `app/` (model, renderer, settings context, stages), `components/` (sections and fields), `components/ui/` (owned shadcn parts), `locator.ts` (MapLibre wrapper), `palettes.ts`, `harmony.ts` (palette generator), `index.css` (tokens).
+`main.tsx`, `App.tsx`, `app/` (model, renderer, settings context, stages), `components/` (sections and fields), `components/ui/` (owned shadcn parts), `locator.ts` (MapLibre wrapper), `palettes.ts`, `harmony.ts` (palette generator), `catalogue.ts` (the documented list of everything detected, inferred or made up, for the catalogue dialog), `index.css` (tokens).
 
 ## Principles that shape the code
 

@@ -12,12 +12,14 @@ import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
 /** A 3D polyline. `on` is the face it is drawn on (one of its solid's `faces`), if it must show only where that face does. */
-export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][] };
+export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string };
 /** Something solid: faces for the depth buffer, lines to draw, and outlines that cast shadows. */
 export type Solid = {
   layer?: LayerId;
   /** Which feature within the layer made it, for the LOD lab's tally. */
   part?: string;
+  /** What the catalogue may single it out as (`house/gabled-roof`), filed after the feature; the LOD lab folds it away. */
+  facet?: string;
   faces: number[][][];
   lines: Line3[];
   casts: { ring: number[]; h: number }[];
@@ -132,7 +134,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
       const shop = !!o.shop && shows(cam, LOD.shopfront) && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
-      if (shop) shopfront(B, ax, ay, bx, by, len, out);
+      if (shop) tagLines(undefined, out, () => shopfront(B, ax, ay, bx, by, len, out), 'shopfront');
       if (o.windows && set.windows && len >= 2.4) {
         // French balconies run along the street front only.
         const toStreet = o.street ? ((by - ay) * o.street[0] - (bx - ax) * o.street[1]) / len > 0.55 : false;
@@ -483,7 +485,7 @@ export function building(B: Build, b: Building): Solid[] {
 
 /** A flagpole on the roof with the flag out. */
 function flag(B: Build, b: Building, out: Solid[]): void {
-  return tagLines('details', out, () => flagLines(B, b, out));
+  return tagLines('details', out, () => flagLines(B, b, out), 'flag');
 }
 
 function flagLines(B: Build, b: Building, out: Solid[]): void {
@@ -559,7 +561,7 @@ function body(B: Build, b: Building): Solid[] {
 
 /** Battlements along a castle's outer walls, and pointed turrets at its corners. */
 function battlements(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
-  return tagLines('details', out, () => battlementsLines(B, ring, holes, z, out));
+  return tagLines('details', out, () => battlementsLines(B, ring, holes, z, out), 'battlements');
 }
 
 function battlementsLines(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
@@ -651,7 +653,7 @@ function cone(B: Build, s: Solid, ring: number[], z: number, apexZ: number, pen 
 
 /** A helipad on a hospital's flat roof: a ring with an H in it. */
 function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
-  return tagLines('details', out, () => helipadLines(B, b, z, out));
+  return tagLines('details', out, () => helipadLines(B, b, z, out), 'helipad');
 }
 
 function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
@@ -682,7 +684,7 @@ function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
 const ONIONS: Partial<Record<string, number>> = { eastern: 0.65, alpine: 0.4, central: 0.3 };
 
 /** Regions where castles carry pointed corner turrets. */
-const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordic', 'eastern', 'dutch', 'generic']);
+export const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordic', 'eastern', 'dutch', 'generic']);
 
 /** A small box on a flat roof: stair housing, plant room, water tank. */
 function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
@@ -707,9 +709,9 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   const v = hash(k[0], k[1], B.seed, 21);
   const area = Math.abs(ringArea(outer));
   if (TANKS.has(B.style.id) && v < 0.4) {
-    if (tanks(B, rect, z, k, inside, out)) return;
+    if (tagLines(undefined, out, () => tanks(B, rect, z, k, inside, out), 'tanks')) return;
   } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && shows(B.cam, LOD.solar)) {
-    if (solar(B, rect, z, inside, out)) return;
+    if (tagLines(undefined, out, () => solar(B, rect, z, inside, out), 'solar')) return;
   }
   const count = 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);
   for (let tries = 0, made = 0; tries < 8 && made < count; tries++) {
@@ -736,8 +738,8 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
 }
 
 /** Regions where flat roofs carry water tanks, and where they carry solar panels. */
-const TANKS = new Set(['american', 'eastAsian', 'arid', 'tropical', 'mediterranean']);
-const SOLAR = new Set(['central', 'nordic', 'alpine', 'dutch', 'british', 'antipodean', 'american', 'generic']);
+export const TANKS = new Set(['american', 'eastAsian', 'arid', 'tropical', 'mediterranean']);
+export const SOLAR = new Set(['central', 'nordic', 'alpine', 'dutch', 'british', 'antipodean', 'american', 'generic']);
 
 /** One or two round water tanks: on legs with a conical lid in North America, squat drums elsewhere. */
 function tanks(B: Build, rect: Rect, z: number, k: [number, number], inside: (x: number, y: number) => boolean, out: Solid[]): boolean {
@@ -825,13 +827,20 @@ export function car(B: Build, x: number, y: number, ux: number, uy: number, k: n
   return s;
 }
 
-/** Keep feature identity on appended lines without changing faces or shadows. */
-export function tagLines<T>(layer: LayerId, out: Solid | Solid[], draw: () => T): T {
+/**
+ * Keep feature identity on appended lines without changing faces or shadows. `facet` also
+ * names the detail for the catalogue; leave `layer` undefined to name it without moving its pen.
+ */
+export function tagLines<T>(layer: LayerId | undefined, out: Solid | Solid[], draw: () => T, facet?: string): T {
   const solids = Array.isArray(out) ? out : [out];
   const starts = solids.map((s) => s.lines.length);
   const result = draw();
   solids.forEach((s, i) => {
-    for (let j = starts[i] ?? 0; j < s.lines.length; j++) s.lines[j].layer ??= layer;
+    for (let j = starts[i] ?? 0; j < s.lines.length; j++) {
+      const l = s.lines[j];
+      if (layer) l.layer ??= layer;
+      if (facet) l.facet ??= facet;
+    }
   });
   return result;
 }
