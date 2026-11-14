@@ -99,7 +99,7 @@ function candidate(fixed: (Oklch | null)[]): Candidate {
     const h = free.length ? free.pop()! : pick(spokes);
     const l = lerp(role.l, Math.min(1, Math.max(0, brightness + (Math.random() - 0.5) * 0.7)));
     let c = lerp(role.c, Math.random()) * (i === ROOFS ? Math.max(mood, 0.85) : mood);
-    // Now and then a quiet grey pen, as in Studio or Newsprint, lets the others sing.
+    // Now and then a quiet grey pen, as in Newsprint, lets the others sing.
     if (i !== ROOFS && Math.random() < 0.12) c *= 0.15;
     return inGamut({ mode: 'oklch', l, c, h });
   });

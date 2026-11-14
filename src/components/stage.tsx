@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { DownloadIcon } from 'lucide-react';
+import { DownloadIcon, Maximize2Icon, Minimize2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
@@ -13,13 +13,16 @@ export type Zoom = 'fit' | '0.5' | '1' | '2';
 type ToolbarProps = {
   zoom: Zoom;
   onZoom: (z: Zoom) => void;
+  /** Whether the preview fills the window, with the side and bottom panels hidden. */
+  full: boolean;
+  onFull: (full: boolean) => void;
   status: RenderStatus;
   canDownload: boolean;
   onDownload: () => void;
   onAbout: () => void;
 };
 
-export function Toolbar({ zoom, onZoom, status, canDownload, onDownload, onAbout }: ToolbarProps) {
+export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout }: ToolbarProps) {
   return (
     <div className="dark flex h-14 items-center gap-4 border-b border-black/40 bg-background px-[18px] text-foreground max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:px-4 max-[900px]:py-2.5">
       <div className="flex items-center gap-3">
@@ -36,6 +39,16 @@ export function Toolbar({ zoom, onZoom, status, canDownload, onDownload, onAbout
             { value: '2', label: '200%' },
           ]}
         />
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={full ? 'Exit full size' : 'Full size'}
+          aria-pressed={full}
+          title={full ? 'Exit full size (Esc)' : 'Full size'}
+          onClick={() => onFull(!full)}
+        >
+          {full ? <Minimize2Icon /> : <Maximize2Icon />}
+        </Button>
       </div>
       <span role="status" className={cn('readout flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground', status.state === 'error' && 'text-destructive')}>
         <span

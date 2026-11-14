@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera } from './camera';
 import { Frame, type LngLat } from './geo';
 import type { Locator } from './locator';
+import { cn } from '@/lib/utils';
 import { loadSettings, persist, REFIT_KEYS, slug, VIEW_KEYS } from './app/model';
 import { Renderer, type RenderResult, type RenderStatus } from './app/renderer';
 import { SettingsContext, type Change } from './app/settings-context';
@@ -24,6 +25,7 @@ export function App() {
   const [status, setStatus] = useState<RenderStatus>({ text: '', state: 'idle' });
   const [result, setResult] = useState<RenderResult | null>(null);
   const [zoom, setZoom] = useState<Zoom>('fit');
+  const [full, setFull] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const commit = useCallback((next: Settings) => {
@@ -133,6 +135,16 @@ export function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // Escape leaves full size.
+  useEffect(() => {
+    if (!full) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) setFull(false);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [full]);
+
   useEffect(() => {
     const r = new Renderer(() => live.current, setStatus, setResult);
     renderer.current = r;
@@ -142,8 +154,9 @@ export function App() {
   }, [schedule, updateFootprint]);
 
   return (
-    <div className="grid h-screen grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1">
-      <aside className="overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
+    <div className={cn('grid h-screen', full ? 'grid-cols-1' : 'grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1')}>
+      {/* Hidden rather than unmounted in full size, so the locator map keeps its state. */}
+      <aside hidden={full} className="overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
         <TitleBlock set={set} />
         <SettingsContext value={settings}>
           <PlaceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} />
@@ -156,10 +169,10 @@ export function App() {
         </SettingsContext>
       </aside>
 
-      <main className="grid min-h-0 min-w-0 grid-rows-[auto_1fr_auto] bg-stage max-[900px]:grid-rows-[auto_70vh_auto]">
-        <Toolbar zoom={zoom} onZoom={setZoom} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} />
+      <main className={cn('grid min-h-0 min-w-0 bg-stage', full ? 'grid-rows-[auto_1fr]' : 'grid-rows-[auto_1fr_auto] max-[900px]:grid-rows-[auto_70vh_auto]')}>
+        <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} />
         <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} />
-        <Stats result={result} />
+        {!full && <Stats result={result} />}
       </main>
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />

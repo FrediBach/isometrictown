@@ -43,7 +43,7 @@ System parts in [`src/components/ui`](src/components/ui):
 
 App patterns in [`src/components/fields.tsx`](src/components/fields.tsx): `Section` / `FoldingSection` (index number, title, folded summary, lamp), `SliderField` (label, mono readout, dial, note), `KeyGrid`, `Caption`, `Hint`.
 
-Composed fields (search, seed) put the input and its action key inside one frame instead of side by side. The preview sheet shows a crosshair: clicking a building gives it a new look and locks it. The Seed section then counts the locked buildings in a readout line, with an Unlock all text button. Lists of choices that are also navigation (the preset towns) are set as text links; the current one is underlined in the signal colour.
+Composed fields (search, seed) put the input and its action key inside one frame instead of side by side. The preview sheet shows a crosshair: clicking a building gives it a new look and locks it. The Seed section then counts the locked buildings in a readout line, with an Unlock all text button. The preset towns are a dropdown (name, then country in muted text) under the place search.
 
 The pen palette picker ([`src/components/palette-picker.tsx`](src/components/palette-picker.tsx)) shows each palette as a tiny test plot of a house: every pen does its own job in it (shadow hatching, a ripple of water, tree, roof, linework), with a strip of the five colours below. It is a single-choice group; editing any pen by hand makes the set "Custom" and nothing is selected. Palettes live in [`src/palettes.ts`](src/palettes.ts), in pen order, darkest pen last.
 

@@ -8,7 +8,7 @@ The interface is one React tree (`src/App.tsx`) with a settings panel on the lef
 
 - `set: Settings` — the one settings object. A ref, `live`, mirrors it so the renderer and map callbacks always read the latest value without waiting for a React render.
 - `status: RenderStatus` and `result: RenderResult | null` — from the `Renderer`.
-- `zoom` and `aboutOpen` — view-only state.
+- `zoom`, `full` and `aboutOpen` — view-only state. `full` hides the settings panel and stats so the preview fills the window; Escape leaves it.
 
 ## Changing a setting
 
