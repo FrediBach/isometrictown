@@ -84,6 +84,7 @@ const TOWN_KEYS: [BoolKey, string][] = [
   ['parks', 'Parks'],
   ['ground', 'Fields and gardens'],
   ['markings', 'Road markings'],
+  ['power', 'Power lines'],
   ['life', 'People, animals, boats, trains and aircraft'],
 ];
 

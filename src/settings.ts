@@ -40,6 +40,8 @@ export type Settings = {
   ground: boolean;
   /** Road markings, zebra crossings, parking bays and runway markings. */
   markings: boolean;
+  /** Overhead power lines: pylons across the country, poles along roads. Made up; the map carries none. */
+  power: boolean;
   /** Made-up life: people about town, herds on the meadows, sailing and moored boats, trains and aircraft. */
   life: boolean;
 
@@ -115,6 +117,7 @@ export const DEFAULT_SETTINGS: Settings = {
   parks: true,
   ground: true,
   markings: true,
+  power: true,
   life: true,
 
   shadows: true,

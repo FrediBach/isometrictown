@@ -79,7 +79,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,

@@ -40,7 +40,7 @@ const CELL = 25;
 const REACH = 100;
 
 /** Building cover and shops around a point, as 0 (open country) to 1 (town centre). */
-function urbanity(town: Town): (x: number, y: number) => number {
+export function urbanity(town: Town): (x: number, y: number) => number {
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
