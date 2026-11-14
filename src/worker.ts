@@ -2,21 +2,26 @@
 import { Camera } from './camera';
 import { Frame } from './geo';
 import { plan, toSvg, type PlotStats } from './plot';
-import { reachHeight, render, type Counts } from './render';
+import { pickAt, reachHeight, render, type Counts, type Picks } from './render';
 import type { Settings } from './settings';
 import type { StageProgress } from './app/stages';
 import { loadTags } from './osm';
 import { detectRegion, STYLES, type Region } from './styles';
 import { loadTown, TooBigError, type Tagged } from './tiles';
 
-export type Job = { id: number; set: Settings };
+/** Draw a sheet, or ask which building shows at a sheet position (mm) in the last one drawn. */
+export type Job = { kind: 'draw'; id: number; set: Settings } | { kind: 'pick'; id: number; x: number; y: number };
 export type Reply =
+  | { id: number; kind: 'picked'; key: string | null }
   | ({ id: number; kind: 'progress' } & StageProgress)
   | { id: number; kind: 'done'; svg: string; stats: PlotStats; counts: Counts; region: Region; ms: number }
   | { id: number; kind: 'error'; text: string; tooBig: boolean };
 
 /** How long to wait for OSM tags once the map tiles are in. */
 const TAG_GRACE_MS = 2500;
+
+/** What shows where in the last finished drawing, kept for picking. */
+let picks: Picks | null = null;
 
 const post = (r: Reply) => (self as unknown as DedicatedWorkerGlobalScope).postMessage(r);
 
@@ -34,7 +39,12 @@ function reporter(id: number) {
 }
 
 self.onmessage = async (e: MessageEvent<Job>) => {
-  const { id, set } = e.data;
+  const job = e.data;
+  if (job.kind === 'pick') {
+    post({ id: job.id, kind: 'picked', key: picks ? pickAt(picks, job.x, job.y) : null });
+    return;
+  }
+  const { id, set } = job;
   const report = reporter(id);
   try {
     report({ stage: 'map' });
@@ -55,6 +65,7 @@ self.onmessage = async (e: MessageEvent<Job>) => {
     report({ stage: 'plan', note: 'Joining strokes, ordering pens' });
     const planned = plan(drawing.pens, set);
     const svg = toSvg(planned.pens, set, cam.sheet);
+    picks = drawing.picks;
     post({ id, kind: 'done', svg, stats: planned.stats, counts: drawing.counts, region, ms: performance.now() - t1 });
   } catch (err) {
     post({ id, kind: 'error', text: err instanceof Error ? err.message : String(err), tooBig: err instanceof TooBigError });

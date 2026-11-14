@@ -68,3 +68,9 @@ Two random sources, both in `src/rng.ts`:
 Never use `Math.random()` in drawing code.
 
 Terraced rows share `Info.seed` so neighbouring houses in a row match.
+
+### Seed locks
+
+A building can carry its own seed. Clicking it in the preview gives it a new one, stored in `set.seedLocks` under `lockKey(info.seed)`, so a terrace rerolls as one. `seedFor(set, key)` returns the locked seed or `set.seed`. `classify()` uses it for the building's kind, height and roof, and `building()` sets it as `B.seed` while it builds. Inside `buildings.ts`, key hashes on `B.seed`, not `B.set.seed`, so roof details, rooftop boxes and awnings follow the lock. Everything else keeps `set.seed`.
+
+Picking uses an id buffer kept next to the depth buffer: `Paper.fillFace(face, id)` records which building is nearest at each pixel (`Solid.pick`, set in `render()`). Sprites and other faces write `-1`, so they hide what's behind them. The worker keeps the last drawing's `Picks` and answers `pick` jobs with `pickAt()`.

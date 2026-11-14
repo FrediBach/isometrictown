@@ -42,6 +42,8 @@ export function loadSettings(): Settings {
   s.customLayerPens = s.customLayerPens === true;
   s.customBackground = s.customBackground === true;
   if (typeof s.background !== 'string' || !/^#[0-9a-f]{6}$/i.test(s.background)) s.background = DEFAULT_SETTINGS.background;
+  s.seedLocks = Object.fromEntries(Object.entries(s.seedLocks ?? {}).filter(([key, value]) =>
+    /^-?\d+,-?\d+$/.test(key) && Number.isInteger(value) && value > 0));
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   return s;

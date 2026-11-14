@@ -391,8 +391,9 @@ function PenSwatch({ color, label, onInput, onCommit }: { color: string; label: 
 }
 
 /** The seed field keeps its own draft so typing doesn't redraw until the edit is committed. */
-export function SeedSection({ onSeed }: { onSeed: (seed: number) => void }) {
+export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => void; onUnlock: () => void }) {
   const { set } = useSettings();
+  const locked = Object.keys(set.seedLocks).length;
   const [draft, setDraft] = useState(String(set.seed));
 
   function apply(seed: number): void {
@@ -430,7 +431,13 @@ export function SeedSection({ onSeed }: { onSeed: (seed: number) => void }) {
           Shuffle
         </button>
       </div>
-      <Hint className="mt-2 mb-0">Picks which houses get pitched roofs and where trees and cars go.</Hint>
+      <Hint className="mt-2 mb-0">Picks which houses get pitched roofs and where trees and cars go. Click a building in the preview to try another look for it; it keeps that look through shuffles until you unlock it.</Hint>
+      {locked > 0 && (
+        <p className="mt-2 mb-0 flex items-baseline justify-between gap-3 text-[12px]">
+          <span className="readout text-muted-foreground">{locked.toLocaleString('en')} {locked === 1 ? 'building' : 'buildings'} locked</span>
+          <button type="button" className="underline underline-offset-4" onClick={onUnlock}>Unlock all</button>
+        </p>
+      )}
     </Section>
   );
 }

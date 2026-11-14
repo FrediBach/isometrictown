@@ -27,12 +27,13 @@ Exceptions to the redraw:
 
 - **Pen colours** (`setPen`, `setPens`, `recolorPens`) only call `recolor()` on the existing result. No worker round-trip.
 - **Place and seed** changes go through `goTo()` and `setSeed()`, which commit and schedule directly.
+- **Clicking a building** in the preview calls `reroll()`: it asks the renderer which building is at that sheet position, gives it a new entry in `seedLocks` and redraws. `unlockAll()` (the Seed section's Unlock all) clears them.
 
 ## Renderer (`app/renderer.ts`)
 
 Owns the worker. `schedule(delay)` debounces; `dispatch()` sends a `Job` with a `structuredClone` of the latest settings only if the worker is idle. When a job finishes, the next queued one goes out. Results are recoloured with the current pens on arrival, since they may have changed during the job.
 
-Worker messages (`Reply` in `worker.ts`): `progress` (a `StageProgress`), `done` (svg, stats, counts, region, ms) or `error` (with `tooBig`).
+Jobs (`Job` in `worker.ts`) are `draw` (settings) or `pick` (a sheet position in mm). Worker messages (`Reply`): `progress` (a `StageProgress`), `done` (svg, stats, counts, region, ms), `error` (with `tooBig`) or `picked` (the building's lock key, or null). `pick()` returns a promise and never touches the draw queue. The worker answers from the last finished drawing, which is the one on show.
 
 ## Progress
 
@@ -43,7 +44,7 @@ Worker messages (`Reply` in `worker.ts`): `progress` (a `StageProgress`), `done`
 `app/model.ts`:
 
 - `persist()` writes all settings to `localStorage` (`isometrictown:settings`) and the view to the URL hash: `#lat/lng/bearing/scale/seed/place`.
-- `loadSettings()` merges defaults ← saved ← hash, then validates (`migratePens`, unknown sheet or style → default).
+- `loadSettings()` merges defaults ← saved ← hash, then validates (`migratePens`, unknown sheet or style → default, malformed `seedLocks` entries dropped). Seed locks live in `localStorage` only, not in the URL hash.
 - New settings fields get their default from `DEFAULT_SETTINGS` automatically for old saved states. Renamed or reshaped fields need a migration in `loadSettings()`.
 
 ## Locator map

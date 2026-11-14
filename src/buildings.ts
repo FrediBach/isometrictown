@@ -4,7 +4,7 @@ import type { Info } from './classify';
 import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
-import { LINEWORK, ROOFS, SHADOWS, type Settings, type LayerId } from './settings';
+import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
@@ -16,6 +16,8 @@ export type Solid = {
   faces: number[][][];
   lines: Line3[];
   casts: { ring: number[]; h: number }[];
+  /** Index of the building this belongs to, so it can be clicked in the preview. */
+  pick?: number;
 };
 
 export type Build = {
@@ -29,6 +31,8 @@ export type Build = {
   sun: [number, number];
   /** Traffic keeps to the left. */
   left: boolean;
+  /** Seed for what is being built: the drawing's, or the current building's locked seed. */
+  seed: number;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */
@@ -263,7 +267,7 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const hw = bay * 0.36;
     out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
-    if (hash(k0, k1, B.set.seed, 340) < 0.25 || s < 0.45) continue;
+    if (hash(k0, k1, B.seed, 340) < 0.25 || s < 0.45) continue;
     // The awning: a sloping canvas with a short valance, striped in the roof pen.
     const aw = bay * 0.42;
     const deep = 1.3;
@@ -376,9 +380,9 @@ function roofDetailsLines(B: Build, info: Info, main: Part, P: Pitched, He: numb
   const { rect: r, party } = main;
   const hw = r.w / 2;
   const [k0, k1] = info.seed;
-  const rnd = (salt: number) => hash(k0, k1, B.set.seed, 300 + salt);
+  const rnd = (salt: number) => hash(k0, k1, B.seed, 300 + salt);
   const own = B.key(r.cx, r.cy);
-  const mine = (salt: number) => hash(own[0], own[1], B.set.seed, 320 + salt);
+  const mine = (salt: number) => hash(own[0], own[1], B.seed, 320 + salt);
   if (info.chimney) {
     if (party[1] || party[3]) {
       // Terraces share stacks on the party walls.
@@ -436,7 +440,7 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   else if (info?.parapet && set.details) parapet(B, rings, H, solid);
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
-  if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], set.seed, 2) < 0.55) rooftop(B, b, H, k, out);
+  if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
 }
 
 /** A shed or sawtooth roof over a near-rectangular footprint. */
@@ -469,7 +473,7 @@ function church(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   const h = H > ridge + 6 ? Math.min(H, 90) : ridge + 4 + s * 0.8;
   // Onion domes in the east and round the Alps, spires elsewhere.
   const onions = ONIONS[B.style.id] ?? 0;
-  tower(B, x, y, r.ux, r.uy, s, h, out, hash(info.seed[0], info.seed[1], B.set.seed, 9) < onions ? 'onion' : 'spire');
+  tower(B, x, y, r.ux, r.uy, s, h, out, hash(info.seed[0], info.seed[1], B.seed, 9) < onions ? 'onion' : 'spire');
   return true;
 }
 
@@ -522,9 +526,15 @@ function shopSide(info: Info | undefined): [number, number] | undefined {
 
 /** All the solids for one building: the building itself and anything on its roof. */
 export function building(B: Build, b: Building): Solid[] {
-  const out = body(B, b);
-  if (b.info?.townHall && B.set.details) flag(B, b, out);
-  return out;
+  const drawing = B.seed;
+  B.seed = seedFor(B.set, b.info?.seed);
+  try {
+    const out = body(B, b);
+    if (b.info?.townHall && B.set.details) flag(B, b, out);
+    return out;
+  } finally {
+    B.seed = drawing;
+  }
 }
 
 /** A flagpole on the roof with the flag out. */
@@ -716,9 +726,9 @@ function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
   out.lines.push({ pen: ROOFS, pts: [...P(-h, -h * 0.7), ...P(h, -h * 0.7)] }, { pen: ROOFS, pts: [...P(-h, h * 0.7), ...P(h, h * 0.7)] }, { pen: ROOFS, pts: [...P(0, -h * 0.7), ...P(0, h * 0.7)] });
   // Now and then the air ambulance is in.
   const [k0, k1] = B.key(rect.cx, rect.cy);
-  if (B.set.life && R >= 4.5 && hash(k0, k1, B.set.seed, 443) < 0.35) {
-    const t = hash(k0, k1, B.set.seed, 444) * Math.PI * 2;
-    const heli = helicopter(B, rect.cx, rect.cy, z, Math.cos(t), Math.sin(t), hash(k0, k1, B.set.seed, 445));
+  if (B.set.life && R >= 4.5 && hash(k0, k1, B.seed, 443) < 0.35) {
+    const t = hash(k0, k1, B.seed, 444) * Math.PI * 2;
+    const heli = helicopter(B, rect.cx, rect.cy, z, Math.cos(t), Math.sin(t), hash(k0, k1, B.seed, 445));
     out.faces.push(...heli.faces);
     out.lines.push(...heli.lines);
   }
@@ -751,16 +761,16 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   const { rect } = bestRect(outer);
   if (!rect) return;
   const inside = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts));
-  const v = hash(k[0], k[1], B.set.seed, 21);
+  const v = hash(k[0], k[1], B.seed, 21);
   const area = Math.abs(ringArea(outer));
   if (TANKS.has(B.style.id) && v < 0.4) {
     if (tanks(B, rect, z, k, inside, out)) return;
   } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && B.cam.s >= 0.6) {
     if (solar(B, rect, z, inside, out)) return;
   }
-  const count = 1 + Math.floor(hash(k[0], k[1], B.set.seed, 20) * 2.2);
+  const count = 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);
   for (let tries = 0, made = 0; tries < 8 && made < count; tries++) {
-    const r = (salt: number) => hash(k[0], k[1], B.set.seed, 30 + tries * 7 + salt);
+    const r = (salt: number) => hash(k[0], k[1], B.seed, 30 + tries * 7 + salt);
     const cx = x0 + (x1 - x0) * (0.15 + 0.7 * r(0));
     const cy = y0 + (y1 - y0) * (0.15 + 0.7 * r(1));
     const a = 1.2 + r(2) * 1.6;
@@ -788,10 +798,10 @@ const SOLAR = new Set(['central', 'nordic', 'alpine', 'dutch', 'british', 'antip
 /** One or two round water tanks: on legs with a conical lid in North America, squat drums elsewhere. */
 function tanks(B: Build, rect: Rect, z: number, k: [number, number], inside: (x: number, y: number) => boolean, out: Solid[]): boolean {
   const tower = B.style.id === 'american';
-  const count = tower ? 1 : 1 + Math.floor(hash(k[0], k[1], B.set.seed, 22) * 3);
+  const count = tower ? 1 : 1 + Math.floor(hash(k[0], k[1], B.seed, 22) * 3);
   let made = 0;
   for (let i = 0; i < 8 && made < count; i++) {
-    const r = (salt: number) => hash(k[0], k[1], B.set.seed, 600 + i * 7 + salt);
+    const r = (salt: number) => hash(k[0], k[1], B.seed, 600 + i * 7 + salt);
     const R = tower ? 1.8 + r(0) * 0.8 : 0.7 + r(0) * 0.4;
     const a = (r(1) - 0.5) * (rect.L - 2 * R - 1);
     const c = (r(2) - 0.5) * (rect.w - 2 * R - 1);

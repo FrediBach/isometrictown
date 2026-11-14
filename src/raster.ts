@@ -66,6 +66,8 @@ export class Paper {
   readonly x1: number;
   readonly y1: number;
   readonly z: Float32Array;
+  /** Which pickable object is nearest at each pixel, or -1. */
+  readonly ids: Int32Array;
   far: Float32Array;
   /** Pen override for the current feature's line pass. */
   penOverride: number | undefined;
@@ -82,6 +84,7 @@ export class Paper {
     this.W = Math.ceil(w * this.ppm);
     this.H = Math.ceil(h * this.ppm);
     this.z = new Float32Array(this.W * this.H).fill(Infinity);
+    this.ids = new Int32Array(this.W * this.H).fill(-1);
     this.far = this.z;
     this.seen = (x, y, d) => d <= this.far[this.index(x, y)] + EPS;
   }
@@ -113,8 +116,8 @@ export class Paper {
     return (y - this.y0) * this.ppm;
   }
 
-  /** Rasterise a planar 3D polygon (flat x,y,z rings, the first is the outline) into the depth buffer. */
-  fillFace(rings: number[][]): void {
+  /** Rasterise a planar 3D polygon (flat x,y,z rings, the first is the outline) into the depth buffer, tagged with a pick id. */
+  fillFace(rings: number[][], id = -1): void {
     const cam = this.cam;
     const outer = rings[0];
     const m = outer.length / 3;
@@ -155,14 +158,16 @@ export class Paper {
     const a = (ad * by - bd * ay) / det;
     const b = (ax * bd - bx * ad) / det;
     const c = d0 - a * x0 - b * y0;
-    const z = this.z;
-    const W = this.W;
+    const { z, ids, W } = this;
     scan(P, W, this.H, (y, xa, xb) => {
       const row = y * W;
       const base = b * (y + 0.5) + c;
       for (let x = xa; x <= xb; x++) {
         const d = a * (x + 0.5) + base;
-        if (d < z[row + x]) z[row + x] = d;
+        if (d < z[row + x]) {
+          z[row + x] = d;
+          ids[row + x] = id;
+        }
       }
     });
   }
@@ -170,11 +175,15 @@ export class Paper {
   /** Rasterise a flat sprite (sheet mm ring) at one depth. */
   fillSprite(ring: number[], depth: number): void {
     const P = ring.map((v, i) => (i % 2 ? this.py(v) : this.px(v)));
-    const z = this.z;
-    const W = this.W;
+    const { z, ids, W } = this;
     scan([P], W, this.H, (y, xa, xb) => {
       const row = y * W;
-      for (let x = xa; x <= xb; x++) if (depth < z[row + x]) z[row + x] = depth;
+      for (let x = xa; x <= xb; x++) {
+        if (depth < z[row + x]) {
+          z[row + x] = depth;
+          ids[row + x] = -1;
+        }
+      }
     });
   }
 

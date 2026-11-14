@@ -11,7 +11,7 @@ import { placeTrees, regionalTrees, treeSprite, type Masks } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { sequence } from './rng';
-import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, type LayerId, type Settings } from './settings';
+import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { trains } from './trains';
@@ -21,7 +21,29 @@ import type { Style } from './styles';
 import type { Shape, Stream, Town } from './tiles';
 
 export type Counts = { buildings: number; houses: number; trees: number; cars: number; lamps: number };
-export type Drawing = { pens: number[][][]; counts: Counts };
+/** Which building shows at each pixel of the drawing area, for clicking in the preview. */
+export type Picks = { x0: number; y0: number; ppm: number; W: number; H: number; ids: Int32Array; keys: string[] };
+export type Drawing = { pens: number[][][]; counts: Counts; picks: Picks };
+
+/** The lock key of the building at a sheet position (mm), looking a little around it for a near miss. */
+export function pickAt(p: Picks, x: number, y: number): string | null {
+  const px = Math.floor((x - p.x0) * p.ppm);
+  const py = Math.floor((y - p.y0) * p.ppm);
+  const reach = Math.ceil(p.ppm * 0.6);
+  for (let r = 0; r <= reach; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const qx = px + dx;
+        const qy = py + dy;
+        if (qx < 0 || qy < 0 || qx >= p.W || qy >= p.H) continue;
+        const id = p.ids[qy * p.W + qx];
+        if (id >= 0) return p.keys[id];
+      }
+    }
+  }
+  return null;
+}
 
 /** Tallest building we expect to poke into view from below the sheet, in metres. */
 export function reachHeight(set: Settings): number {
@@ -57,6 +79,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     style,
     sun,
     left,
+    seed: set.seed,
     key: (x, y) => {
       const [X, Y] = toAbs(x, y);
       return [Math.round(X), Math.round(Y)];
@@ -86,6 +109,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // Buildings, only those that can show inside the drawing area
   const [rx0, ry0, rx1, ry1] = cam.rect;
   const solids: Solid[] = [];
+  const pickKeys: string[] = [];
   const candidates = town.buildings.length;
   for (let i = 0; i < candidates; i++) {
     const b = town.buildings[i];
@@ -106,6 +130,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (sx1 < rx0 || sx0 > rx1 || syBot < ry0 || syTop > ry1) continue;
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
     const made = building(B, b);
+    if (b.info) {
+      const id = pickKeys.push(lockKey(b.info.seed)) - 1;
+      for (const s of made) s.pick = id;
+    }
     counts.buildings++;
     if (made[0].lines.some((l) => l.pen === ROOFS)) counts.houses++;
     solids.push(...made);
@@ -142,7 +170,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   // Depth
   onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
-  for (const s of solids) for (const f of s.faces) paper.fillFace(f);
+  for (const s of solids) for (const f of s.faces) paper.fillFace(f, s.pick);
   const sprites = trees.map((t) => treeSprite(B, paper, t));
   for (const sp of sprites) paper.fillSprite(sp.ring, sp.depth);
   paper.finishDepth();
@@ -217,7 +245,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
-  return { pens: paper.pens, counts };
+  const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys };
+  return { pens: paper.pens, counts, picks };
 }
 
 /** Short wavy strokes over open water. */

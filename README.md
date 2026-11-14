@@ -47,7 +47,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 - **Shadows** are hatched on the ground, from a sun you can move.
 - **Map notes** letter the margin like a printed town map, in single-stroke capitals. The neat line gets a second border with latitude and longitude ticks. Below the drawing are the place name, its coordinates and view, a scale bar, a round north arrow whose needle runs along north as drawn, parallel to north–south streets, and the imprint.
 
-Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it.
+Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it. Click a building in the preview to try another look for it (a terrace changes as a row). It keeps that look through shuffles until you unlock all in the Seed section.
 
 ## Made for pen plotters
 

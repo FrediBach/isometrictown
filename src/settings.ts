@@ -63,6 +63,8 @@ export type Settings = {
   speed: number;
 
   seed: number;
+  /** Buildings given their own seed by clicking them, by lock key (see `lockKey`). */
+  seedLocks: Record<string, number>;
 };
 
 export type SheetId = 'a4' | 'a3' | 'a2' | 'letter' | 'tabloid' | 'square' | 'axidraw';
@@ -141,7 +143,18 @@ export const DEFAULT_SETTINGS: Settings = {
   speed: 40,
 
   seed: 1,
+  seedLocks: {},
 };
+
+/** The key a building's seed lock is stored under: its terrace's or its own position key. */
+export function lockKey(k: readonly [number, number]): string {
+  return `${k[0]},${k[1]}`;
+}
+
+/** The seed a building is made with: its locked seed, or the drawing's. */
+export function seedFor(set: Settings, k: readonly [number, number] | undefined): number {
+  return (k && set.seedLocks[lockKey(k)]) || set.seed;
+}
 
 /** Millimetres on paper per metre on the ground. */
 export function mmPerMetre(s: Pick<Settings, 'scale'>): number {

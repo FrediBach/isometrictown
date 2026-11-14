@@ -68,9 +68,11 @@ type PreviewProps = {
   pens: string[];
   mono: boolean;
   status: RenderStatus;
+  /** Called with the sheet position (mm) of a click on the drawing. */
+  onPick: (x: number, y: number) => void;
 };
 
-export function Preview({ result, sheet, zoom, pens, mono, status }: PreviewProps) {
+export function Preview({ result, sheet, zoom, pens, mono, status, onPick }: PreviewProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
 
@@ -106,14 +108,33 @@ export function Preview({ result, sheet, zoom, pens, mono, status }: PreviewProp
     return () => ro.disconnect();
   }, [sheet, zoom]);
 
+  // Clicking a building tries another look for it; the SVG's own transform maps the click to sheet mm.
+  // Picking is by pointing only, a shortcut on top of the Seed section, which stays usable by keyboard.
+  const pick = useRef(onPick);
+  useLayoutEffect(() => {
+    pick.current = onPick;
+  });
+  useEffect(() => {
+    const el = paper.current!;
+    const click = (e: MouseEvent) => {
+      const m = el.querySelector('svg')?.getScreenCTM();
+      if (!m) return;
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+      pick.current(p.x, p.y);
+    };
+    el.addEventListener('click', click);
+    return () => el.removeEventListener('click', click);
+  }, []);
+
   const working = status.state === 'working';
   return (
     <div className="relative min-h-0">
       <div ref={viewport} className={cn('perforated absolute inset-0', zoom === 'fit' ? 'grid place-items-center overflow-hidden' : 'grid place-items-start overflow-auto p-6')}>
         <div
           ref={paper}
+          title={result ? 'Click a building to try another look for it' : undefined}
           className={cn(
-            'sheet rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
+            'sheet cursor-crosshair rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
             // Fade the old drawing only once the progress card shows, so quick redraws don't flicker.
             working && 'opacity-55 delay-350',
           )}

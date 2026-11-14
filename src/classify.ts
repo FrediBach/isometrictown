@@ -2,7 +2,7 @@ import { pointInRing, ringArea } from './geo';
 import { hash } from './rng';
 import { GREENERY, ROOFS } from './settings';
 import { bestRect } from './shape';
-import type { Settings } from './settings';
+import { seedFor, type Settings } from './settings';
 import type { HouseRoof, Style } from './styles';
 import { SHOP_POIS, type Town, type Way } from './tiles';
 
@@ -388,10 +388,12 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     let H = b.h;
     const guess = !!b.guess;
     const k = keys[i];
-    const r = (salt: number) => hash(k[0], k[1], set.seed, 100 + salt);
     const hasParty = partyNb[i].length > 0;
     const seed = hasParty ? groupSeed.get(root(i))! : k;
-    const g = (salt: number) => hash(seed[0], seed[1], set.seed, 200 + salt);
+    // A building, or a whole terrace, can carry its own seed, locked by clicking it.
+    const own = seedFor(set, seed);
+    const r = (salt: number) => hash(k[0], k[1], own, 100 + salt);
+    const g = (salt: number) => hash(seed[0], seed[1], own, 200 + salt);
     // Rows share their roof shape and details only where that's the local habit.
     const row = (salt: number) => (style.rows ? g(salt) : r(salt));
     const t = tags[i];

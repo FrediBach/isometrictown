@@ -29,6 +29,8 @@ export class Renderer {
   private busy = false;
   private queued = false;
   private timer = 0;
+  private pickId = 0;
+  private picking = new Map<number, (key: string | null) => void>();
 
   constructor(
     private settings: () => Settings,
@@ -37,6 +39,11 @@ export class Renderer {
   ) {
     this.worker.onmessage = (e: MessageEvent<Reply>) => {
       const r = e.data;
+      if (r.kind === 'picked') {
+        this.picking.get(r.id)?.(r.key);
+        this.picking.delete(r.id);
+        return;
+      }
       if (r.kind === 'progress') {
         if (r.id === this.jobId) this.onStatus(working(r));
         return;
@@ -54,6 +61,8 @@ export class Renderer {
     };
     this.worker.onerror = () => {
       this.busy = false;
+      for (const resolve of this.picking.values()) resolve(null);
+      this.picking.clear();
       this.onStatus({ text: 'The drawing failed. Try another place or setting.', state: 'error' });
     };
   }
@@ -71,8 +80,17 @@ export class Renderer {
     this.queued = false;
     this.busy = true;
     this.onStatus(working({ stage: 'map' }));
-    const job: Job = { id: ++this.jobId, set: structuredClone(this.settings()) };
+    const job: Job = { kind: 'draw', id: ++this.jobId, set: structuredClone(this.settings()) };
     this.worker.postMessage(job);
+  }
+
+  /** The lock key of the building at a sheet position (mm) in the drawing on show, or null. */
+  pick(x: number, y: number): Promise<string | null> {
+    const id = ++this.pickId;
+    return new Promise((resolve) => {
+      this.picking.set(id, resolve);
+      this.worker.postMessage({ kind: 'pick', id, x, y } satisfies Job);
+    });
   }
 
   dispose(): void {

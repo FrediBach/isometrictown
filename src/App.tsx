@@ -90,6 +90,22 @@ export function App() {
     schedule(0);
   }
 
+  /** Give the building under a sheet position (mm) a new seed of its own, and keep it. */
+  async function reroll(x: number, y: number): Promise<void> {
+    const key = await renderer.current?.pick(x, y);
+    if (!key) return;
+    const locks = live.current.seedLocks;
+    let seed = 1 + Math.floor(Math.random() * 99999);
+    if (seed === (locks[key] ?? live.current.seed)) seed = (seed % 99999) + 1;
+    commit({ ...live.current, seedLocks: { ...locks, [key]: seed } });
+    schedule(0);
+  }
+
+  function unlockAll(): void {
+    commit({ ...live.current, seedLocks: {} });
+    schedule(0);
+  }
+
   /** Pen colours only restyle the finished drawing, so they never send it back to the worker. */
   function recolorPens(): void {
     persist(live.current);
@@ -136,13 +152,13 @@ export function App() {
           <LightSection />
           <SheetSection />
           <PensSection onPalette={setPens} onPen={setPen} onPenCommit={recolorPens} />
-          <SeedSection onSeed={setSeed} />
+          <SeedSection onSeed={setSeed} onUnlock={unlockAll} />
         </SettingsContext>
       </aside>
 
       <main className="grid min-h-0 min-w-0 grid-rows-[auto_1fr_auto] bg-stage max-[900px]:grid-rows-[auto_70vh_auto]">
         <Toolbar zoom={zoom} onZoom={setZoom} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} />
-        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} />
+        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} />
         <Stats result={result} />
       </main>
 
