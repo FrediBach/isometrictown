@@ -15,15 +15,23 @@ export function powerRoads(roads: Way[], key: (x: number, y: number) => [number,
     return [x / l, y / l];
   };
   for (let e = 0; e < ways.length * 2; e++) {
-    const [x,y] = point(e), k = key(x,y).join(','), list = ends.get(k);
+    const [x,y] = point(e), k = `${Math.floor(x)},${Math.floor(y)}`, list = ends.get(k);
     if (list) list.push(e); else ends.set(k,[e]);
   }
   const links = new Map<number, number>();
-  for (const list of ends.values()) for (const e of list) {
+  for (let e = 0; e < ways.length * 2; e++) {
+    const [x,y] = point(e), list: number[] = [];
+    // Search neighbouring metre cells, then measure the gap: rounded keys can split the same junction.
+    for (let dx=-1; dx<=1; dx++) for (let dy=-1; dy<=1; dy++) {
+      list.push(...(ends.get(`${Math.floor(x)+dx},${Math.floor(y)+dy}`) ?? []));
+    }
     const w = ways[e >> 1], [ux,uy] = direction(e);
     const matches = list.filter(f => {
-      const v = ways[f >> 1];
-      return (f >> 1) !== (e >> 1) && v.cls === w.cls && Math.abs(v.width - w.width) < 0.5;
+      const v = ways[f >> 1], [px,py] = point(f), distance = Math.hypot(px-x,py-y);
+      const [vx,vy] = direction(f);
+      // Small tile seams may join only in the same direction; nearby parallel roads must stay separate.
+      return (f >> 1) !== (e >> 1) && v.cls === w.cls && Math.abs(v.width - w.width) < 0.5 &&
+        distance <= 0.75 && (distance < 0.05 || -(ux*vx+uy*vy) > 0.85);
     }).map(f => { const [vx,vy] = direction(f); return { f, dot: -(ux * vx + uy * vy) }; }).sort((a,b) => b.dot - a.dot);
     // A simple bend can turn ninety degrees. At a fork only an unambiguous straight continuation wins.
     if ((matches.length === 1 && matches[0].dot > -0.1) || (matches.length > 1 && matches[0].dot > 0.85 && matches[0].dot - matches[1].dot > 0.2)) links.set(e,matches[0].f);
@@ -76,4 +84,30 @@ export function roadsideSupports(w: Way, side: number, spacing: number): number[
     const [x,y,ux,uy]=at(q,cum,d);
     return [x,y,-uy*side,ux*side];
   });
+}
+
+
+/** A route's westernmost vertex anchors its choices to geometry rather than a feature boundary. */
+export function roadAnchor(w: Way): [number, number] {
+  const p = w.pts;
+  let at = 0;
+  for (let i=2; i<p.length; i+=2) if (p[i]<p[at] || (p[i]===p[at] && p[i+1]<p[at+1])) at=i;
+  return [p[at],p[at+1]];
+}
+
+/** Suppress short rural pockets beside a settlement, independently of route traversal direction. */
+export function ruralSupports(poles: number[][], urban: (x: number, y: number) => number): boolean[] {
+  const allowed = poles.map(([x,y]) => urban(x,y) <= 0.15);
+  for (let start=0; start<allowed.length;) {
+    if (!allowed[start]) { start++; continue; }
+    let end=start+1, length=0;
+    while (end<allowed.length && allowed[end]) {
+      length+=Math.hypot(poles[end][0]-poles[end-1][0],poles[end][1]-poles[end-1][1]);
+      end++;
+    }
+    // A few low-density samples among houses do not justify restarting an overhead route.
+    if ((start>0 || end<allowed.length) && length<150) for(let i=start;i<end;i++) allowed[i]=false;
+    start=end;
+  }
+  return allowed;
 }

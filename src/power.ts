@@ -9,7 +9,7 @@ import type { Town, Way } from './tiles';
 import { urbanity } from './traffic';
 import { LOD, shows } from './lod';
 import { powerTerrain } from './power-terrain';
-import { powerRoads, roadsideSupports } from './power-roads';
+import { powerRoads, roadsideSupports, ruralSupports, roadAnchor } from './power-roads';
 type Terrain = ReturnType<typeof powerTerrain>;
 
 /*
@@ -239,7 +239,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
   const H = american ? 10.5 : asian ? 11 : 8.5;
   const blocked = (x: number, y: number) => !terrain.support(x, y, false) || onMask(paper, M.title, x, y);
   const keyed = (w: Way, salt: number) => {
-    const [k0, k1] = B.key(w.pts[0], w.pts[1]);
+    const [k0, k1] = B.key(...roadAnchor(w));
     return hash(k0, k1, set.seed, salt);
   };
   for (const w of powerRoads(terrain.roads, B.key)) {
@@ -275,8 +275,11 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
     const can = (american || asian) && shows(B.cam, LOD.transformer);
     let prev: [number, number, number, number] | null = null;
     let previousPole: Line[] = [], previousDrawn = false;
-    for (const [x, y, nx, ny] of roadsideSupports(w, side, spacing)) {
-      if (blocked(x, y) || (!townToo && urban(x, y) > 0.15)) { prev = null; continue; }
+    const poles = roadsideSupports(w, side, spacing);
+    const rural = townToo ? null : ruralSupports(poles, urban);
+    for (let i=0; i<poles.length; i++) {
+      const [x, y, nx, ny] = poles[i];
+      if (blocked(x, y) || (rural && !rural[i])) { prev = null; continue; }
       const ux = ny * side, uy = -nx * side;
       const pole: Line[] = [];
       // The pole, and its cross-arms; retain them only if a verified span uses this support.

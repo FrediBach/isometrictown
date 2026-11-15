@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artistic round 30 — Road seams and village transitions</title><style>body{font:16px/1.6 system-ui;max-width:1050px;margin:40px auto;padding:0 20px;background:#f5f3ed;color:#242820}a{color:#345a49}.pair{display:grid;grid-template-columns:1fr 1fr;gap:20px}figure{margin:0}img{width:100%}table{border-collapse:collapse}td,th{text-align:left;padding:8px 18px;border-bottom:1px solid #ccc}@media(max-width:600px){.pair{grid-template-columns:1fr}}</style>
+<body><main><h1>Road seams and village transitions</h1>
+<p>Round 30 · Sułoszowa · 50.2747° N, 19.7106° E · 1:1600</p>
+<p>Two compatible road endpoints were 21 cm apart but rounded to different map keys. The route builder missed their connection. Independently, per-support urban checks could allow small pockets of overhead wires to restart near houses.</p>
+<h2>Changes</h2>
+<ul><li>Search neighbouring spatial cells and measure the actual endpoint gap. Compatible ends within 0.75 m join if their directions agree. Nearby parallel roads, ambiguous forks and incompatible classes stay separate.</li>
+<li>Anchor placement decisions to the westernmost route vertex, rather than a feature boundary. Joining a seam now produces one placement decision; the selected side and pole phase can change as the route is reconstructed.</li>
+<li>Suppress rural pockets shorter than 150 m beside urban rejections. This works in both traversal directions and allows longer countryside stretches beyond a settlement.</li>
+<li>Water, building, airfield and rejected-support checks remain hard breaks. No span is stretched blindly across an obstruction.</li></ul>
+<h2>Village approach</h2>
+<figure><img src="artistic-review-assets/road-gap-before.png" alt="Village approach before endpoint repair"><figcaption>Before — the roadside route is anchored to a map-feature boundary.</figcaption></figure>
+<figure><img src="artistic-review-assets/road-gap-after.png" alt="Village approach after joining the road seam"><figcaption>After — the reconstructed route uses one placement decision and a coherent village cutoff. Its selected side changes; at this projection the wires lie close to the road outline.</figcaption></figure>
+<h2>Verification</h2>
+<p>Regression tests cover the 21 cm rounding mismatch, spatial-cell boundaries under a coordinate shift, reversed feature order, nearby parallel roads, excessive gaps, route anchors and village pockets in both directions. All prior power tests remain in place.</p>
+<p>The reported location and four LOD comparisons at 1:1600 were rendered. Waste scores are unchanged at reported precision. The two intended golden changes affect power linework only: Midtown route joins and Nördlingen village-edge fragments. Golden sheets and selected LOD close-ups were inspected on screen.</p>
+<p>No physical plot or exhaustive pan sweep across all tile contexts was checked. These are inferred artistic routes, not confirmed utility data.</p>
+<p><a href="artistic-review.html">Back to artistic review</a></p></main></body></html>

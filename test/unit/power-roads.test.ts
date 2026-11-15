@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { powerRoads, roadsideSupports } from '@/power-roads';
+import { powerRoads, roadsideSupports, ruralSupports, roadAnchor } from '@/power-roads';
 import type { Way } from '@/tiles';
 
 const key = (x:number,y:number):[number,number] => [Math.round(x),Math.round(y)];
@@ -44,4 +44,41 @@ test('closed routes are traversed once and do not loop indefinitely', () => {
   const routes=powerRoads([road([0,0,100,0]),road([100,0,100,100]),road([100,100,0,100]),road([0,100,0,0])],key);
   expect(routes).toHaveLength(1);
   expect(routes[0].pts).toHaveLength(10);
+});
+
+
+test('submetre endpoint gaps join across rounded keys and spatial cell boundaries', () => {
+  const ways=[road([-100,0,0.4,0]),road([0.61,0,100,0])];
+  const route=powerRoads(ways,key);
+  expect(key(.4,0)).not.toEqual(key(.61,0));
+  expect(route).toHaveLength(1);
+  expect(powerRoads([...ways].reverse(),key)).toEqual(route);
+  const shifted=ways.map(w=>({...w,pts:w.pts.map((v,i)=>i%2?v:v-.53)}));
+  const moved=powerRoads(shifted,(x,y)=>key(x+.53,y));
+  expect(rounded(moved.map(w=>w.pts.map((v,i)=>i%2?v:v+.53)))).toEqual(rounded(route.map(w=>w.pts)));
+});
+
+test('nearby endpoints still need matching direction and distance', () => {
+  expect(powerRoads([road([-100,0,0,0]),road([.21,0,-100,.21])],key)).toHaveLength(2);
+  expect(powerRoads([road([-100,0,0,0]),road([.8,0,100,0])],key)).toHaveLength(2);
+  expect(powerRoads([road([-100,0,0,0]),road([.21,0,0,100])],key)).toHaveLength(2);
+});
+
+test('route choices use a geometric anchor regardless of which end is first', () => {
+  const w=road([100,0,0,100,200,200]);
+  expect(roadAnchor(w)).toEqual([0,100]);
+  expect(roadAnchor(road([200,200,0,100,100,0]))).toEqual([0,100]);
+});
+
+test('village transitions suppress short rural restarts in either direction', () => {
+  const poles=Array.from({length:20},(_,i)=>[i*38,0]);
+  const density=[0,0,0,0,0,0,.3,.3,0,0,.3,.3,0,0,0,0,0,.3,0,0];
+  const urban=(x:number)=>density[Math.round(x/38)];
+  const accepted=ruralSupports(poles,urban);
+  expect(accepted.slice(0,6)).toEqual(Array(6).fill(true));
+  expect(accepted.slice(8,10)).toEqual([false,false]);
+  expect(accepted.slice(12,17)).toEqual(Array(5).fill(true));
+  expect(accepted.slice(18)).toEqual([false,false]);
+  expect(ruralSupports([...poles].reverse(),urban).reverse()).toEqual(accepted);
+  expect(ruralSupports(poles,()=>0)).toEqual(Array(20).fill(true));
 });
