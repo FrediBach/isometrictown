@@ -24,6 +24,47 @@ function build(more: Partial<Settings> = {}): Build {
   };
 }
 
+test('small balcony railings keep a single top outline and preserve their depth faces', () => {
+  const draw = (scale: number) => {
+    const B = build({ scale, bearing: 0 });
+    const out = newSolid();
+    const wall: Wall = { ax: 0, ay: 0, bx: 20, by: 0, len: 20, z0: 0, z1: 12, ground: true, street: false, door: false, balconies: 1, shutters: -1 };
+    facadeLines(B, wall, PLAIN, out);
+    return out;
+  };
+  const small = draw(1000), large = draw(500);
+  expect(small.faces.length).toBeGreaterThan(0);
+  expect(small.faces).toEqual(large.faces);
+  const rails = small.lines.filter(({ pts }) => pts.some((v, i) => i % 3 === 1 && v < -0.01));
+  expect(rails.length).toBe(small.faces.length / 3);
+  for (const { pts, closed } of rails) {
+    expect(pts).toHaveLength(12);
+    expect(closed).not.toBe(true);
+    expect(new Set(pts.filter((_, i) => i % 3 === 2)).size).toBe(1);
+  }
+});
+
+test.each([0.35, 0.7])('balcony uprights keep clear spacing with a %s mm pen', (penWidth) => {
+  const B = build({ scale: 250, bearing: 0, penWidth });
+  const out = newSolid();
+  const wall: Wall = { ax: 0, ay: 0, bx: 20, by: 0, len: 20, z0: 0, z1: 12, ground: true, street: false, door: false, balconies: 1, shutters: -1 };
+  facadeLines(B, wall, PLAIN, out);
+  const fronts = out.lines.filter(({ pts: p, closed }) => closed && p[1] < -0.01);
+  expect(fronts.length).toBeGreaterThan(0);
+  let uprights = 0;
+  for (const { pts: f } of fronts) {
+    const xs = [f[0], f[3]];
+    for (const { pts: p } of out.lines) {
+      if (p.length !== 6 || p[0] !== p[3] || p[1] !== p[4] || p[1] !== f[1] || p[2] !== f[2] || p[0] <= f[0] || p[0] >= f[3]) continue;
+      xs.push(p[0]);
+      uprights++;
+    }
+    xs.sort((a, b) => a - b);
+    for (let i = 1; i < xs.length; i++) expect((xs[i] - xs[i - 1]) * B.cam.s).toBeGreaterThanOrEqual(B.cam.gap(1.2) - 1e-8);
+  }
+  expect(uprights).toBeGreaterThan(0);
+});
+
 test.each([0.35, 0.7])('oblique window frames become upright strokes with a %s mm pen', (penWidth) => {
   const B = build({ scale: 500 * 0.35 / penWidth, bearing: 0, penWidth });
   const draw = (angle: number) => {

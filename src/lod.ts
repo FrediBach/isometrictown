@@ -32,6 +32,7 @@ export const LOD = {
   windowRow: { m: 10, mm: 2, what: 'A floor of windows (three or more), glazing bands and curtain walls as one stroke per floor: length' },
   floors: { m: 2.7, mm: 0.9, what: 'Windows as one stroke per floor at all: storey height as it shows on the wall' },
   glazingBars: { m: 1.2, mm: 1.7, what: 'Glazing bars in windows: the smaller projected clear dimension' },
+  balconyRail: { m: 1.15, mm: 1, what: 'Balcony railing outline and uprights: perpendicular projected height; smaller railings keep only the top' },
   shopfront: { m: 2.3, mm: 1.15, what: 'Shop windows: height' },
   awning: { m: 1.3, mm: 0.6, what: 'Striped awnings: depth' },
   gable: { m: 0.8, mm: 0.7, what: 'Stepped and shaped gables on street fronts: step width' },

@@ -54,6 +54,8 @@ Merged window rows and curtain-wall floor lines keep at least `cam.gap(1.5)` bet
 
 Individual window frames test the smaller perpendicular distance between opposite sides, minus one physical pen width for the ink. A narrow or shallow opening falls back to an upright stroke rather than a cramped quadrilateral. Glazing bars use the same clear interior measurement with their larger threshold, so a wide but shallow window cannot acquire bars merely because its width is large.
 
+Balcony railings use `balconyRail` to test the perpendicular projected height. Small railings keep just the top rail and its side returns; larger ones retain a front outline and uprights spaced by at least `cam.gap(1.2)` horizontally on the sheet. One bottom edge replaces the former slab-edge/floor-edge pair. The depth-buffer faces stay unchanged at both detail levels, so simplification does not expose windows behind a balcony.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.

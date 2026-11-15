@@ -593,7 +593,7 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
       }
     }
   }
-  if (full) for (const b of c.bals) balcony(out, ax, ay, dx, dy, b.m, b.hw, b.zf, b.d, open(0.7, 0.7));
+  if (full) for (const b of c.bals) balcony(c, out, b);
 }
 
 /**
@@ -626,8 +626,11 @@ function rows(c: Ctx, row: (u0: number, u1: number, z: number) => void): void {
   }
 }
 
-/** A balcony in front of a window: a slab with a railing round it, balusters `bar` apart. (dx, dy) runs along the wall. */
-function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: number, hw: number, zf: number, d: number, bar: number): void {
+/** A balcony railing, reduced to its top outline when its height closes up on paper. */
+function balcony(c: Ctx, out: Solid, b: Balcony): void {
+  const { B, w: { ax, ay }, dx, dy, across, along } = c;
+  const { cam } = B;
+  const { m, hw, zf, d } = b;
   // Outward from the wall (rings run counter-clockwise).
   const nx = dy;
   const ny = -dx;
@@ -637,13 +640,17 @@ function balcony(out: Solid, ax: number, ay: number, dx: number, dy: number, m: 
   const front = [P(m - hw, d, bot), P(m + hw, d, bot), P(m + hw, d, top), P(m - hw, d, top)];
   out.faces.push([front.flat()]);
   for (const u of [m - hw, m + hw]) out.faces.push([[...P(u, 0, bot), ...P(u, d, bot), ...P(u, d, top), ...P(u, 0, top)]]);
+  if (!shows(cam, LOD.balconyRail, (top - bot) * cam.ca * across / along)) {
+    out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, top), ...P(m - hw, d, top), ...P(m + hw, d, top), ...P(m + hw, 0, top)] });
+    return;
+  }
   out.lines.push({ pen: LINEWORK, pts: front.flat(), closed: true });
   out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, top), ...P(m - hw, d, top)] }, { pen: LINEWORK, pts: [...P(m + hw, 0, top), ...P(m + hw, d, top)] });
   out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, bot), ...P(m - hw, d, bot)] }, { pen: LINEWORK, pts: [...P(m + hw, 0, bot), ...P(m + hw, d, bot)] });
-  out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, d, zf), ...P(m + hw, d, zf)] });
-  const n = Math.max(2, Math.round((hw * 2) / bar));
+  const bar = Math.max(0.7, cam.gap(1.2) / (cam.s * across));
+  const n = Math.max(1, Math.floor((hw * 2) / bar));
   for (let k = 1; k < n; k++) {
     const u = m - hw + (2 * hw * k) / n;
-    out.lines.push({ pen: LINEWORK, pts: [...P(u, d, zf), ...P(u, d, top)] });
+    out.lines.push({ pen: LINEWORK, pts: [...P(u, d, bot), ...P(u, d, top)] });
   }
 }
