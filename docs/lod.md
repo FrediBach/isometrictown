@@ -64,6 +64,8 @@ Path and track dashes measure distance along the projected line on the sheet: `c
 
 Rail pairs test the minimum perpendicular projected gauge along the mapped way, minus one physical pen width for the ink. Standard, tram and narrow gauge use their own widths. A cramped way becomes one centre line; it has no sleepers. Retained sleepers use a shared pitch of at least 2.6 m, widened to keep `cam.gap(1.2)` and two physical pen widths of perpendicular separation in the most compressed direction. Masts retain their height gate. The `contactWire` rule additionally tests the wire’s minimum perpendicular projected clearance outside its own rail corridor, minus one pen width for ink. A wire that crowds the rails is omitted as a whole mapped way, while its masts and support arms remain. A minimum physical gap of one pen width prevents high Detail from restoring touching strokes.
 
+Cast-shadow tone discards connected visible patches smaller than `cam.tone(1.2)²` square millimetres (1.44 mm² with the reference pen). Connectivity is measured after water and hidden ground are excluded, using eight raster neighbours so diagonal edges stay connected. Retained shadow shapes use the original union mask, hatch phase and visibility test; the filter adds no boundary inset. The original shadow mask remains available to the other ground textures.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.

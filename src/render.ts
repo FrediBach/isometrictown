@@ -1,6 +1,6 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
-import { allotmentSheds, bales, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
+import { allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
 import { players, racing } from './sport';
@@ -14,7 +14,7 @@ import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type T
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { patch, sequence } from './rng';
-import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
+import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
@@ -340,7 +340,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
-  if (set.shadows) withPen('shadows', () => { paper.hatchGround(SHADOWS, 62, cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y) && !paper.on(M.water, x, y)); });
+  if (set.shadows) withPen('shadows', () => { castShadows(paper, M); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
   withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');

@@ -1399,7 +1399,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'sheet',
     name: 'Cast shadows',
     source: ['inferred'],
-    what: 'Shadows of buildings, trees and everything standing, hatched on the ground in the shadow pen.',
+    what: 'Shadows of buildings, trees and everything standing, hatched on the ground in the shadow pen. Tiny disconnected patches of visible shadow are omitted whole.',
     how: 'Each outline is swept away from the sun by its height; the Sun direction and height settings set the light. Shadows too short to hatch are left out.',
     needs: ['shadows'],
     lod: ['shadow'],

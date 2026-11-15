@@ -375,6 +375,50 @@ export function lightly(G: Ground, paper: Paper, x: number, y: number): boolean 
   return c === CEMETERY || c === PITCH;
 }
 
+/** Hatch the shadow union, leaving out tiny disconnected patches of visible ground tone. */
+export function castShadows(paper: Paper, M: Masks): void {
+  const { cam, W, H, ppm } = paper;
+  const visible = paper.mask();
+  let count = 0;
+  for (let y = 0; y < H; y++) {
+    const sy = paper.y0 + (y + 0.5) / ppm;
+    const d = cam.groundDepth(sy);
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (M.shadow[i] && !M.water[i] && paper.seen(paper.x0 + (x + 0.5) / ppm, sy, d)) {
+        visible[i] = 1;
+        count++;
+      }
+    }
+  }
+  // The queue holds only visible shadow pixels, not a second full sheet of indices.
+  const queue = new Uint32Array(count);
+  const minimum = Math.ceil(cam.tone(1.2) ** 2 * ppm * ppm);
+  for (let i = 0; i < visible.length; i++) {
+    if (visible[i] !== 1) continue;
+    let head = 0, tail = 1;
+    queue[0] = i;
+    visible[i] = 2;
+    while (head < tail) {
+      const at = queue[head++];
+      const x = at % W, y = Math.floor(at / W);
+      // Eight neighbours keep diagonal shadow edges connected.
+      for (let yy = Math.max(0, y - 1); yy <= Math.min(H - 1, y + 1); yy++) {
+        for (let xx = Math.max(0, x - 1); xx <= Math.min(W - 1, x + 1); xx++) {
+          const next = yy * W + xx;
+          if (visible[next] !== 1) continue;
+          visible[next] = 2;
+          queue[tail++] = next;
+        }
+      }
+    }
+    if (tail < minimum) for (let k = 0; k < tail; k++) visible[queue[k]] = 3;
+  }
+  // Keep the original mask and visibility test at retained edges, without erosion or a halo.
+  paper.hatchGround(SHADOWS, 62, cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y)
+    && !paper.on(M.water, x, y) && paper.at(visible, x, y) !== 3);
+}
+
 /** Quiet park tone, inset from boundaries and visible objects so their outlines stay separate. */
 export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array): void {
   const cam = paper.cam;

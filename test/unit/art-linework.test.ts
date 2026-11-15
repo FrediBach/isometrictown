@@ -3,12 +3,12 @@ import { car, newSolid, type Build } from '@/buildings';
 import { Camera } from '@/camera';
 import { facadeLines, PLAIN, type Wall } from '@/facades';
 import { markings } from '@/infra';
-import { drawGround, FIELD, GARDEN, parkGrass, type Ground } from '@/ground';
+import { castShadows, drawGround, FIELD, GARDEN, parkGrass, type Ground } from '@/ground';
 import { treeSprite, type Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
-import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, type Settings } from '@/settings';
+import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, SHADOWS, type Settings } from '@/settings';
 import { curbs, fillRoads, footpaths, pathClearance, railways } from '@/streets';
 import { STYLES } from '@/styles';
 import type { Way } from '@/tiles';
@@ -538,4 +538,38 @@ test.each([0.35, 0.7])('overhead wires need clear projected separation with a %s
     // One compressed section simplifies the complete wire rather than leaving loose ends.
     expect(overheadLines(B, [-40, 0, 0, 0, 0, 40], sub).some(wire)).toBe(false);
   }
+});
+
+
+test.each([0.35, 0.7])('tiny shadow islands disappear without changing retained tone with a %s mm pen', (penWidth) => {
+  const B = build({ penWidth });
+  const paper = new Paper(B.cam);
+  const M = { shadow: paper.mask(), water: paper.mask() } as Masks;
+  const rect = (x: number, y: number, w: number, h: number) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].flatMap(([a, b]) => B.cam.ground(a, b));
+  const k = penWidth / 0.35;
+  paper.fillMask(M.shadow, [rect(180, 120, 20, 15)]);
+  paper.fillMask(M.shadow, [rect(210, 120, k, k)]);
+  const original = M.shadow.slice();
+  paper.finishDepth();
+  paper.hatchGround(SHADOWS, 62, B.cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y));
+  const before = paper.pens[SHADOWS].splice(0);
+  expect(before.some((line) => line[0] > 205)).toBe(true);
+  castShadows(paper, M);
+  const after = paper.pens[SHADOWS];
+  expect(after.length).toBeGreaterThan(5);
+  expect(after).toEqual(before.filter((line) => line[0] < 205));
+  expect(M.shadow).toEqual(original);
+});
+
+test('hidden and water-covered shadow areas cannot keep a tiny visible island alive', () => {
+  const B = build();
+  const paper = new Paper(B.cam);
+  const M = { shadow: paper.mask(), water: paper.mask() } as Masks;
+  const rect = (x: number, y: number, w: number, h: number) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].flatMap(([a, b]) => B.cam.ground(a, b));
+  paper.fillMask(M.shadow, [rect(180, 120, 1, 20), rect(210, 120, 1, 20)]);
+  paper.fillMask(M.water, [rect(180, 121, 1, 19)]);
+  paper.fillSprite([209, 121, 212, 121, 212, 141, 209, 141], -1e6);
+  paper.finishDepth();
+  castShadows(paper, M);
+  expect(paper.pens[SHADOWS]).toHaveLength(0);
 });
