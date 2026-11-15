@@ -38,12 +38,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 17133,
-    "rawLifts": 19040,
-    "inkMm": 76058,
-    "travelMm": 42422.7,
-    "minutes": 126.2,
-    "pens": [["Shadows",3549,14173.2],["Water",120,473.9],["Greenery",2102,6741.5],["Roofs",5019,27203],["Linework",6343,27466.3]]
+    "lifts": 17131,
+    "rawLifts": 19038,
+    "inkMm": 75998.9,
+    "travelMm": 42250.7,
+    "minutes": 126.1,
+    "pens": [["Shadows",3549,14173.2],["Water",118,414.8],["Greenery",2102,6741.5],["Roofs",5019,27203],["Linework",6343,27466.3]]
   },
   "features": {
     "buildings": [1789,10339.7],
@@ -66,7 +66,7 @@
     "streets:railings": [46,99.9],
     "title": [87,1965.6],
     "trees": [402,2371.4],
-    "water": [245,1341.9],
+    "water": [243,1282.8],
     "windows": [2210,3478]
   },
   "facets": {
@@ -189,7 +189,7 @@
     "trees/street-trees": [17,82.3],
     "water/pools": [10,38.1],
     "water/shores": [122,846.7],
-    "water/waves": [113,457.1],
+    "water/waves": [111,398],
     "windows/blank-windows": [3,11.5],
     "windows/chimneys": [642,826.7],
     "windows/church-roof": [2,4.9],
@@ -217,5 +217,5 @@
     "windows/terrace": [1432,1995.6],
     "windows/worship": [2,4.9]
   },
-  "svg": {"bytes":687371,"sha1":"7511bb5393691447"}
+  "svg": {"bytes":685131,"sha1":"dba7ac88ea51e239"}
 }

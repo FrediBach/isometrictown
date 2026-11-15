@@ -91,6 +91,7 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
       if (run.length > 3) banks.push(project(run));
     }
   });
+  const mappedRiver = river.slice();
   for (const shape of streams) paper.fillMask(river, shape.map((r) => r.pts));
   const kindAt = (x: number, y: number) => paper.on(sea, x, y) ? 'ocean' : paper.on(lake, x, y) ? 'lake' : 'river';
   const inset = cam.nib * 1.5;
@@ -103,7 +104,7 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
   const [X, Y] = B.toAbs(0, 0), [X1] = B.toAbs(1, 0), k = 1 / (X1 - X);
   const ox = cam.sx(-X * k, -Y * k), oy = cam.sy(-X * k, -Y * k, 0);
   for (const kind of ['lake', 'ocean'] as const) {
-    const ocean = kind === 'ocean', pitch = cam.gap(ocean ? 2.5 : 1.65), step = cam.gap(ocean ? 14 : 10);
+    const ocean = kind === 'ocean', pitch = cam.gap(ocean ? 2.5 : 2.6), step = cam.gap(ocean ? 14 : 10);
     for (let j = Math.floor((paper.y0 - oy) / pitch) - 1; j <= Math.ceil((paper.y1 - oy) / pitch); j++) {
       const y = oy + (j + 0.5) * pitch;
       for (let i = Math.floor((paper.x0 - ox) / step) - 1; i <= Math.ceil((paper.x1 - ox) / step); i++) {
@@ -119,34 +120,58 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
     }
   }
   const centre = channelField(town.streams.map((s) => project(s.pts))), bank = channelField(banks, true);
-  const direction = (x: number, y: number) => centre(x, y) ?? bank(x, y);
-  const gap = cam.gap(1.2), cell = gap / 2, occupied = new Set<string>();
-  const key = (x: number, y: number) => `${Math.floor((x - ox) / cell)},${Math.floor((y - oy) / cell)}`;
+  // River and canal centre lines take priority within mapped river areas. A small tributary
+  // must not turn the main current sideways just because its endpoint is closer to a bank.
+  const main = channelField(town.streams.filter((s) => s.width >= 7).map((s) => project(s.pts)));
+  const direction = (x: number, y: number) => (paper.on(mappedRiver, x, y) ? main(x, y) : undefined) ?? centre(x, y) ?? bank(x, y);
+  const gap = cam.gap(1.2), occupied = new Map<string, number[]>();
+  const cellKey = (i: number, j: number) => `${i},${j}`;
   const free = (x: number, y: number) => {
-    for (const [dx, dy] of [[0, 0], [cell, 0], [-cell, 0], [0, cell], [0, -cell]]) if (occupied.has(key(x + dx, y + dy))) return false;
+    const i = Math.floor((x - ox) / gap), j = Math.floor((y - oy) / gap);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const points = occupied.get(cellKey(i + dx, j + dy));
+      if (!points) continue;
+      for (let k = 0; k < points.length; k += 2) if ((x - points[k]) ** 2 + (y - points[k + 1]) ** 2 < gap * gap) return false;
+    }
     return true;
   };
+  const keepRiver = (x: number, y: number) => paper.on(river, x, y) && kindAt(x, y) === 'river' && keep(x, y, cam.groundDepth(y));
   for (let j = Math.floor((paper.y0 - oy) / gap); j <= Math.ceil((paper.y1 - oy) / gap); j++) {
     for (let i = Math.floor((paper.x0 - ox) / gap); i <= Math.ceil((paper.x1 - ox) / gap); i++) {
-      let x = ox + (i + 0.5) * gap, y = oy + (j + 0.5) * gap;
-      if (!paper.on(river, x, y) || kindAt(x, y) !== 'river' || !free(x, y) || !keep(x, y, cam.groundDepth(y))) continue;
+      // Break alignment with the seeding lattice without moving decisions when the map pans.
+      const x = ox + (i + 0.1 + hash(i, j, seed, 7943) * 0.8) * gap;
+      const y = oy + (j + 0.1 + hash(i, j, seed, 7944) * 0.8) * gap;
+      if (!keepRiver(x, y) || !free(x, y)) continue;
+      const first = direction(x, y);
+      if (!first) continue;
       const len = cam.gap(3 + hash(i, j, seed, 7942) * 4), ds = Math.min(0.3, gap / 3);
-      const pts = [x, y, cam.groundDepth(y)];
-      let prev = direction(x, y);
-      if (!prev) continue;
-      // A consistent orientation is only a drawing convention, not inferred downstream flow.
-      if (prev[1] < 0 || (prev[1] === 0 && prev[0] < 0)) prev = [-prev[0], -prev[1]];
-      for (let t = 0; t < len; t += ds) {
-        let dir = direction(x, y);
-        if (!dir) break;
-        if (dir[0] * prev[0] + dir[1] * prev[1] < 0) dir = [-dir[0], -dir[1]];
-        x += dir[0] * ds; y += dir[1] * ds;
-        if (!paper.on(river, x, y) || kindAt(x, y) !== 'river' || !free(x, y) || !keep(x, y, cam.groundDepth(y))) break;
-        pts.push(x, y, cam.groundDepth(y)); prev = dir;
+      const arms: number[][] = [];
+      let length = 0;
+      for (const sign of [-1, 1]) {
+        const arm: number[] = [];
+        let px = x, py = y, prev = [first[0] * sign, first[1] * sign];
+        for (let t = 0; t < len / 2; t += ds) {
+          let dir = direction(px, py);
+          if (!dir) break;
+          if (dir[0] * prev[0] + dir[1] * prev[1] < 0) dir = [-dir[0], -dir[1]];
+          const nx = px + dir[0] * ds, ny = py + dir[1] * ds;
+          if (!keepRiver(nx, ny) || !free(nx, ny)) break;
+          arm.push(nx, ny, cam.groundDepth(ny)); length += ds;
+          px = nx; py = ny; prev = dir;
+        }
+        arms.push(arm);
       }
-      if (pts.length < 9 || Math.hypot(x - pts[0], y - pts[1]) < Math.max(cam.nib * 2, gap)) continue;
+      // Crowded remnants are omitted instead of filling the channel with dot-like fragments.
+      if (length < Math.max(cam.nib * 2, gap * 2)) continue;
+      const pts: number[] = [];
+      for (let k = arms[0].length - 3; k >= 0; k -= 3) pts.push(arms[0][k], arms[0][k + 1], arms[0][k + 2]);
+      pts.push(x, y, cam.groundDepth(y), ...arms[1]);
       paper.sheet(WATER, pts, keep);
-      for (let p = 0; p < pts.length; p += 3) occupied.add(key(pts[p], pts[p + 1]));
+      for (let k = 0; k < pts.length; k += 3) {
+        const key = cellKey(Math.floor((pts[k] - ox) / gap), Math.floor((pts[k + 1] - oy) / gap));
+        const points = occupied.get(key);
+        if (points) points.push(pts[k], pts[k + 1]); else occupied.set(key, [pts[k], pts[k + 1]]);
+      }
     }
   }
 }

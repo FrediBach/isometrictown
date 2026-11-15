@@ -27,14 +27,15 @@ test('channel tangents follow vertical channels and turn smoothly through bends'
   expect(bend(200, 200)).toBeUndefined();
 });
 
-function sample(cls: string, penWidth = 0.35, block = false) {
-  const set = { ...DEFAULT_SETTINGS, scale: 1000, bearing: 0, penWidth };
+function sample(cls: string, penWidth = 0.35, block = false, bearing = 0, tributary = false) {
+  const set = { ...DEFAULT_SETTINGS, scale: 1000, bearing, penWidth };
   const cam = new Camera(set), paper = new Paper(cam), town: Pick<Town, 'water' | 'waterCls' | 'streams'> = { water: [], waterCls: [], streams: [] };
   const B: Build = { set, cam, style: STYLES.alpine, seed: set.seed, sun: [1, 0], equator: [0, -1], left: false,
     key: (x, y) => [Math.round(x), Math.round(y)], toAbs: (x, y) => [x, y], cell: (x, y, size) => [Math.floor(x / size), Math.floor(y / size)] };
   const M = Object.fromEntries(['water', 'pool', 'road', 'under', 'calm', 'green', 'wood', 'foot', 'shadow', 'title'].map((k) => [k, paper.mask()])) as Masks;
   town.water = [shape([-30, -30, 30, -30, 30, 30, -30, 30])]; town.waterCls = [cls];
-  if (cls === 'river') town.streams = [{ pts: [0, -40, 0, 40], width: 60 }];
+  if (cls === 'river') town.streams = [{ pts: [0, -40, 0, 40], width: 7 }];
+  if (tributary) town.streams.push({ pts: [0, 15, 35, 15], width: 2.5 });
   paper.fillMask(M.water, town.water[0].map((r) => r.pts));
   if (block) paper.fillMask(M.calm, [[-8, -40, 8, -40, 8, 40, -8, 40]]);
   paper.finishDepth();
@@ -61,4 +62,24 @@ test('ripples stay inside the water and leave wake masks clear', () => {
       expect(paper.on(M.calm, line[i], line[i + 1])).toBe(false);
     }
   }
+});
+
+
+test('small tributaries do not turn hatching across the main river', () => {
+  expect(sample('river', 0.35, false, 0, true).lines).toEqual(sample('river').lines);
+});
+
+test('river strokes stay long and coverage stays comparable as the channel rotates', () => {
+  const counts: number[] = [];
+  for (const bearing of [0, 20, 40, 60, 80]) {
+    const { lines } = sample('river', 0.35, false, bearing);
+    counts.push(lines.length);
+    const lengths = lines.map((p) => {
+      let n = 0;
+      for (let i = 2; i < p.length; i += 2) n += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
+      return n;
+    }).sort((a, b) => a - b);
+    expect(lengths[Math.floor(lengths.length / 2)]).toBeGreaterThan(3);
+  }
+  expect(Math.max(...counts) / Math.min(...counts)).toBeLessThan(1.5);
 });

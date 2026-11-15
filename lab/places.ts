@@ -8,6 +8,7 @@ export type LabPlace = { id: string; name: string; center: LngLat; bearing: numb
  * mountains, marsh and an airport. Between them they reach almost every drawn feature.
  */
 export const PLACES: LabPlace[] = [
+  { id: 'interlaken-river', name: 'Interlaken river', center: [7.8610, 46.6895], bearing: 35, kind: 'River direction, tributaries and hatch stability across scales' },
   { id: 'lake-piers', name: 'Lake piers', center: [9.1071, 47.1284], bearing: 35, kind: 'Marina with closed pier footprints and narrow fingers' },
   { id: 'mollis', name: 'Mollis', center: [9.0744, 47.0934], bearing: 35, kind: 'Alpine village, fields, power lines' },
   { id: 'amsterdam', name: 'Amsterdam', center: [4.8862, 52.3727], bearing: 35, kind: 'Dense canal city, boats, trams' },
