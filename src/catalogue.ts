@@ -945,10 +945,10 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'land',
     name: 'Woods',
     source: ['map'],
-    what: 'Outlined and filled with trees.',
+    what: 'Outlined, and filled with trees (see Park and wood trees, which follow the Trees setting rather than Parks).',
     how: 'Wood and forest land cover.',
     needs: ['parks'],
-    strokes: ['parks/wood-edges', '*/park-trees'],
+    strokes: ['parks/wood-edges'],
   },
   {
     id: 'fields',

@@ -147,7 +147,7 @@ function flatPylon(cam: Camera, t: Tower, out: Line[]): void {
 /** Transmission lines from the grid cells around the view, as pylons and the spans between them. */
 function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], out: Line[]): void {
   const { set, cam } = B;
-  const urban = urbanity(town);
+  const urban = urbanity(town, B.toAbs);
   const [X0, Y0] = toAbs(box[0], box[1]);
   const [X1, Y1] = toAbs(box[2], box[3]);
   const i0 = Math.floor(Math.min(X0, X1) / CELL) - 2;
@@ -228,7 +228,7 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
 /** Wooden poles along roads with wires between them. */
 function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[]): void {
   const { set, style } = B;
-  const urban = urbanity(town);
+  const urban = urbanity(town, B.toAbs);
   const townToo = OVERHEAD_TOWN.has(style.id);
   const american = style.id === 'american' || style.id === 'antipodean';
   const asian = style.id === 'eastAsian';

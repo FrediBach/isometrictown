@@ -325,7 +325,8 @@ function drawCar(B: Build, s: Solid, car: Car, train: Train, x: number, y: numbe
       // One long container or two short ones, two high on American well cars.
       const z0 = car.kind === 'stack' ? 0.6 : 1.35;
       const levels = car.kind === 'stack' ? 2 : 1;
-      const r = (salt: number) => hash(Math.round(x), Math.round(y), B.set.seed, salt);
+      const [kx, ky] = B.key(x, y);
+      const r = (salt: number) => hash(kx, ky, B.set.seed, salt);
       for (let l = 0; l < levels; l++) {
         const zb = z0 + l * 2.6;
         const split = l === 0 && car.kind === 'flat' && r(810) < 0.5;
@@ -417,7 +418,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   const stable = (t: Track) => {
     // Key a track by its middle, so the same track gets the same train from any view.
     const [mx, my] = at(t.pts, t.cum, t.L / 2);
-    return B.key(Math.round(mx / 10) * 10, Math.round(my / 10) * 10);
+    return B.cell(mx, my, 10);
   };
 
   /** Put a train on track i with its middle at d (or anywhere it fits); returns whether it went in. */
@@ -501,7 +502,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
         }
       }
       if (best < 6) {
-        const [k0, k1] = B.key(Math.round(px), Math.round(py));
+        const [k0, k1] = B.key(px, py);
         stops.push({ i, d: bestD, score: hash(k0, k1, set.seed, 720 + i) });
       }
     });

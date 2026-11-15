@@ -1,9 +1,9 @@
 /**
- * Made-up detail is fixed to the map, so panning the view must move it with the map, not
- * reshuffle it. With the view facing north a pan east is a plain shift across the sheet, so
+ * Made-up detail is fixed to the map, and so is everything worked out from the map, so panning
+ * the view must move it with the map, not reshuffle it. With the view facing north a pan east is a plain shift across the sheet, so
  * away from the edges the two drawings must lay the same strokes, shifted.
  */
-import { beforeAll, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 import { EARTH } from '@/geo';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { pinClock } from '../support/clock';
@@ -11,17 +11,9 @@ import { draw, type Sheet } from '../support/draw';
 
 pinClock();
 
-// A shift of whole raster pixels (7 per mm at most), so the depth buffer lines up too.
-const SHIFT_M = 30;
-const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), osmTags: false, bearing: 0, sheet: 'a4', marginalia: false, frame: false };
+const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), osmTags: false, bearing: 0, marginalia: false, frame: false };
 const lat = set.center[1];
-const panned: Settings = { ...set, center: [set.center[0] + (SHIFT_M / (EARTH * Math.cos((lat * Math.PI) / 180))) * 360, lat] };
-
-let a: Sheet;
-let b: Sheet;
-beforeAll(async () => {
-  [a, b] = [await draw(set), await draw(panned)];
-});
+const pan = (m: number): Settings => ({ ...set, center: [set.center[0] + (m / (EARTH * Math.cos((lat * Math.PI) / 180))) * 360, lat] });
 
 /** Segments of a feature inside a window, rounded to 0.05 mm, as a set of keys. */
 function segments(s: Sheet, prefix: string, dx: number, win: [number, number, number, number]): Set<string> {
@@ -45,21 +37,29 @@ function segments(s: Sheet, prefix: string, dx: number, win: [number, number, nu
   return out;
 }
 
-function stayPut(prefix: string) {
-  const [x0, y0, x1, y1] = a.cam.rect;
-  const dx = SHIFT_M * a.cam.s;
-  // Well inside both drawings, clear of edge effects.
-  const win: [number, number, number, number] = [x0 + 40, y0 + 30, x1 - 40 - dx, y1 - 30];
-  const here = segments(a, prefix, -dx, [win[0] - dx, win[1], win[2] - dx, win[3]]);
-  const there = segments(b, prefix, 0, [win[0] - dx, win[1], win[2] - dx, win[3]]);
-  const same = [...here].filter((k) => there.has(k)).length;
-  expect(here.size).toBeGreaterThan(20);
-  expect(same / Math.max(here.size, there.size)).toBeGreaterThan(0.98);
-}
+let base: Sheet;
+beforeAll(async () => {
+  base = await draw(set);
+});
 
-test.each(['trees', 'life', 'details', 'windows', 'ground'])('%s stay put on the map when the view pans', stayPut);
+// Shifts of whole raster pixels (7 per mm at most at 1:1000), so the depth buffers line up too.
+// 47 m is a multiple of no grid the drawing uses, so a grid tied to the view would show.
+describe.each([30, 47])('panned %i m east', (m) => {
+  let b: Sheet;
+  beforeAll(async () => {
+    b = await draw(pan(m));
+  });
 
-// Known bug: traffic is spaced along each way from its first point, and ways are cut where
-// the loaded area ends, so a pan that moves the cut reshuffles every car on that road (about
-// a third of them here). Flip to `test` once cars are keyed to the map.
-test.fails('cars stay put on the map when the view pans', () => stayPut('cars'));
+  // Not shadows, park grass or water waves: they are tone hatching laid on the sheet's own grid.
+  test.each(['trees', 'cars', 'life', 'details', 'windows', 'ground', 'buildings', 'roofs', 'roofHatch', 'streets'])('%s stay put on the map', (prefix) => {
+    const [x0, y0, x1, y1] = base.cam.rect;
+    const dx = m * base.cam.s;
+    // In the panned drawing's sheet mm, and 40 mm inside both drawings, clear of edge effects.
+    const win: [number, number, number, number] = [x0 + 40, y0 + 30, x1 - 40 - dx, y1 - 30];
+    const here = segments(base, prefix, -dx, win);
+    const there = segments(b, prefix, 0, win);
+    const same = [...here].filter((k) => there.has(k)).length;
+    expect(here.size).toBeGreaterThan(20);
+    expect(same / Math.max(here.size, there.size)).toBeGreaterThan(0.995);
+  });
+});

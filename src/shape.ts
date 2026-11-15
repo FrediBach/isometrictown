@@ -29,7 +29,9 @@ export function bestRect(p: number[]): { rect: Rect | null; fill: number } {
       b1 = Math.max(b1, b);
     }
     const area = (a1 - a0) * (b1 - b0);
-    if (area < bestArea) {
+    // A near tie goes to the first edge: otherwise rounding, which differs from view to view
+    // as the local origin moves, would pick between two all but equal rectangles.
+    if (area < bestArea * (1 - 1e-9)) {
       bestArea = area;
       const ca = (a0 + a1) / 2;
       const cb = (b0 + b1) / 2;

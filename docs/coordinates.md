@@ -67,6 +67,10 @@ Two random sources, both in `src/rng.ts`:
 
   Because the key is absolute, panning or rotating the view does not change what stands where. Reuse of a salt correlates two unrelated decisions, so pick a fresh one (grep for it first).
 
+  For a decision shared by everything nearby (a stretch of parking, a hedge, a gantry every 50 m), key on **`B.cell(x, y, size)`**, the map-fixed cell of `size` Mercator metres that holds the point. Never snap local coordinates (`B.key(Math.round(x / 40) * 40, …)`): local metres are measured from the view's centre, so a grid in them moves when the view pans. For grids of your own, go through `B.toAbs(x, y)`.
+
+  The same goes for anything a decision is measured from. Spacing along a way runs from the way's own ends, which the map fixes, not from a point that depends on what else is loaded. Anything worked out from the area loaded must not change near the drawing when the view moves: `Town.density` (how built up the land is) covers every tile loaded, and `Town.nearby` gives `classify()` land use, POIs, house numbers and streets out to the 250 m that buildings are loaded to as context. `test/render/pan.test.ts` checks it all, so run `npm test`.
+
 - **`sequence(seed)`** → a stream. Only for things that may reshuffle with the view, such as wave strokes over water.
 
 Never use `Math.random()` in drawing code.

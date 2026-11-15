@@ -106,11 +106,9 @@ describe('share links', () => {
     expect('bogus' in s).toBe(false);
   });
 
-  // Known bug: the place name is decoded without a guard, so a truncated link stops the app
-  // loading. Flip to `test` once loadSettings() catches it.
-  test.fails('a broken percent escape in the place name does not throw', () => {
+  test('a broken percent escape in the place name does not throw', () => {
     loc.hash = '#47/9/0/1000/1/%E0%A4%A/';
-    expect(() => loadSettings()).not.toThrow();
+    expect(loadSettings().place).toBe('%E0%A4%A');
   });
 
   test('a broken percent escape in a setting is ignored', () => {

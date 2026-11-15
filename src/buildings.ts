@@ -36,6 +36,14 @@ export type Build = {
   style: Style;
   /** Stable integer key for a local position, so randomness doesn't change when the view moves. */
   key: (x: number, y: number) => [number, number];
+  /** A local position in Web Mercator metres, unrounded: for grids that must stay fixed to the map. */
+  toAbs: (x: number, y: number) => [number, number];
+  /**
+   * Stable integer key for the cell of `size` Web Mercator metres that holds a local position,
+   * for decisions shared by everything nearby (a stretch of parking, a hedge). Snapping local
+   * coordinates instead would tie the cells to the view, and they would move when it pans.
+   */
+  cell: (x: number, y: number, size: number) => [number, number];
   /** Horizontal unit vector pointing towards the sun. */
   sun: [number, number];
   /** Towards the equator, scaled from 0 in the tropics to 1 at mid latitudes: walls facing it get more windows. */

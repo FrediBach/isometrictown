@@ -16,20 +16,12 @@ pinClock();
 const SKIP = new Set<Gate>(['frame', 'marginalia', 'osmTags']);
 const GATES = (Object.keys(GATE_LABEL) as Gate[]).filter((g) => !SKIP.has(g));
 
-/**
- * Known disagreements between the catalogue and the drawing, by gate: patterns the gate's
- * entries claim that are drawn anyway. Each wants a decision, then removing from here.
- * - parks: the Woods entry claims the park and wood trees, but `render()` places them under
- *   Trees alone, so they stay when Parks is off.
- */
-const KNOWN: Partial<Record<Gate, string[]>> = { parks: ['*/park-trees'] };
-
 const off = (set: Settings, g: Gate): Settings => ({ ...set, [g]: typeof set[g] === 'number' ? 0 : false });
 
 /** Tally names on a sheet that some entry needing this gate claims. */
 function gated(s: Sheet, g: Gate): string[] {
   const ms = ENTRIES.filter((e) => e.needs?.includes(g))
-    .flatMap((e) => (e.strokes ?? []).filter((p) => p !== '*' && !KNOWN[g]?.includes(p)))
+    .flatMap((e) => (e.strokes ?? []).filter((p) => p !== '*'))
     .map(matcher);
   return [...s.tally.keys()].filter((n) => ms.some((m) => m(filed(n))));
 }

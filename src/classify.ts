@@ -226,17 +226,18 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     return found;
   };
 
-  // Points that say what a building is.
+  // Points that say what a building is, from out as far as the buildings go (see `Town.nearby`).
+  const near = town.nearby;
   const numbers = new Uint16Array(N);
-  for (let k = 0; k < town.numbers.length; k += 2) {
-    const i = containing(town.numbers[k], town.numbers[k + 1]);
+  for (let k = 0; k < near.numbers.length; k += 2) {
+    const i = containing(near.numbers[k], near.numbers[k + 1]);
     if (i >= 0 && numbers[i] < 65535) numbers[i]++;
   }
   const poi: (string | undefined)[] = new Array(N);
   const religion: (string | undefined)[] = new Array(N);
   const shops = new Uint8Array(N);
   const marks = new Uint8Array(N);
-  for (const p of town.pois) {
+  for (const p of near.pois) {
     const i = containing(p.x, p.y);
     if (i < 0) continue;
     if (SHOP_POIS.has(p.cls)) shops[i] = 1;
@@ -249,7 +250,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     } else if (CIVIC_POIS.has(p.cls) && !poi[i]) poi[i] = 'civic';
   }
   // A helipad mapped on a building means a flat roof to land on.
-  for (const h of town.helipads) {
+  for (const h of near.helipads) {
     const p = h[0].pts;
     let cx = 0;
     let cy = 0;
@@ -267,11 +268,11 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
   }
 
   // Land use under each building, smallest area wins.
-  const landBoxes = town.landuse.map((a) => bbox(a.shape[0].pts));
-  const landArea = town.landuse.map((a) => Math.abs(ringArea(a.shape[0].pts)));
+  const landBoxes = near.landuse.map((a) => bbox(a.shape[0].pts));
+  const landArea = near.landuse.map((a) => Math.abs(ringArea(a.shape[0].pts)));
   const land: (string | undefined)[] = new Array(N);
   const centre: [number, number][] = boxes.map((b) => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]);
-  const landGrid = new Grid(town.landuse.length);
+  const landGrid = new Grid(near.landuse.length);
   landBoxes.forEach((b, k) => landGrid.add(k, ...b));
   for (let i = 0; i < N; i++) {
     const [x, y] = centre[i];
@@ -279,9 +280,9 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     landGrid.near(x, y, x, y, (k) => {
       const b = landBoxes[k];
       if (x < b[0] || x > b[2] || y < b[1] || y > b[3] || landArea[k] >= best) return;
-      if (pointInRing(x, y, town.landuse[k].shape[0].pts)) {
+      if (pointInRing(x, y, near.landuse[k].shape[0].pts)) {
         best = landArea[k];
-        land[i] = town.landuse[k].cls;
+        land[i] = near.landuse[k].cls;
       }
     });
   }
@@ -349,7 +350,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
   // Streets, for which way ridges and gables face.
   const segs: number[] = [];
   const segWay: Way[] = [];
-  for (const w of town.ways) {
+  for (const w of near.ways) {
     if (w.kind === 'rail' || w.bridge) continue;
     for (let k = 0; k + 3 < w.pts.length; k += 2) {
       segs.push(w.pts[k], w.pts[k + 1], w.pts[k + 2], w.pts[k + 3]);

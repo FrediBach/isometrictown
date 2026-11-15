@@ -133,7 +133,7 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
   if (t.form === 'palm') {
     // A leaning trunk and a crown of drooping fronds.
     const R = t.r * s;
-    const lean = (hash(Math.round(t.x), Math.round(t.y), 66) - 0.5) * 0.5 * R;
+    const lean = (hash(...B.key(t.x, t.y), 66) - 0.5) * 0.5 * R;
     const yb = cam.sy(t.x, t.y, 0);
     const yt = cam.sy(t.x, t.y, t.h);
     const tx = sx + lean;

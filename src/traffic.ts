@@ -5,7 +5,7 @@ import type { Paper } from './raster';
 import { LOD, showsAt } from './lod';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
-import { SHOP_POIS, type Town, type Way } from './tiles';
+import type { Town, Way } from './tiles';
 
 /*
  * Traffic: vehicles driving in their lanes, queues at traffic lights, and cars parked at the kerb.
@@ -37,59 +37,60 @@ const PRIVATE = new Set(['driveway', 'parking_aisle', 'drive-through']);
 const BUSES = new Set(['primary', 'secondary', 'tertiary']);
 const TRUCKS: Record<string, number> = { motorway: 0.17, trunk: 0.14, primary: 0.06, secondary: 0.04 };
 
-const CELL = 25;
+/** Side of the density cells, in Web Mercator metres; about 25 m on the ground at 45°. */
+const CELL = 35;
 const REACH = 100;
 
-/** Building cover and shops around a point, as 0 (open country) to 1 (town centre). */
-export function urbanity(town: Town): (x: number, y: number) => number {
-  let x0 = Infinity;
-  let y0 = Infinity;
-  let x1 = -Infinity;
-  let y1 = -Infinity;
+/**
+ * Building cover and shops around a point, as 0 (open country) to 1 (town centre). It reads
+ * `town.density`, which covers every tile loaded, on cells fixed to the map (`toAbs` gives Web
+ * Mercator metres), so panning the view doesn't change it.
+ */
+export function urbanity(town: Town, toAbs: (x: number, y: number) => [number, number]): (x: number, y: number) => number {
+  let X0 = Infinity;
+  let Y0 = Infinity;
+  let X1 = -Infinity;
+  let Y1 = -Infinity;
   for (const w of town.ways)
     for (let i = 0; i < w.pts.length; i += 2) {
-      x0 = Math.min(x0, w.pts[i]);
-      x1 = Math.max(x1, w.pts[i]);
-      y0 = Math.min(y0, w.pts[i + 1]);
-      y1 = Math.max(y1, w.pts[i + 1]);
+      const [X, Y] = toAbs(w.pts[i], w.pts[i + 1]);
+      X0 = Math.min(X0, X);
+      X1 = Math.max(X1, X);
+      Y0 = Math.min(Y0, Y);
+      Y1 = Math.max(Y1, Y);
     }
-  if (!(x1 > x0)) return () => 0;
-  x0 -= REACH;
-  y0 -= REACH;
-  const nx = Math.ceil((x1 + REACH - x0) / CELL) + 1;
-  const ny = Math.ceil((y1 + REACH - y0) / CELL) + 1;
+  if (!(X1 > X0)) return () => 0;
+  // Local metres per Mercator metre, for the reach and the area of a cell on the ground.
+  const k = 1 / (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
+  const r = Math.max(1, Math.round(REACH / (CELL * k)));
+  const reach = (r + 1) * CELL;
+  const i0 = Math.floor((X0 - reach) / CELL);
+  const j0 = Math.floor((Y0 - reach) / CELL);
+  const nx = Math.floor((X1 + reach) / CELL) - i0 + 1;
+  const ny = Math.floor((Y1 + reach) / CELL) - j0 + 1;
   // Summed-area tables of built area and shop count, so any square around a point costs four reads.
   const area = new Float64Array((nx + 1) * (ny + 1));
   const shops = new Float64Array((nx + 1) * (ny + 1));
+  const at = (x: number, y: number): [number, number] => {
+    const [X, Y] = toAbs(x, y);
+    return [Math.floor(X / CELL) - i0, Math.floor(Y / CELL) - j0];
+  };
   const cell = (x: number, y: number) => {
-    const i = Math.floor((x - x0) / CELL);
-    const j = Math.floor((y - y0) / CELL);
+    const [i, j] = at(x, y);
     return i >= 0 && j >= 0 && i < nx && j < ny ? (j + 1) * (nx + 1) + i + 1 : -1;
   };
-  for (const b of town.buildings) {
-    if (b.min > 0) continue;
-    const p = b.shape[0].pts;
-    let a = 0;
-    let cx = 0;
-    let cy = 0;
-    for (let i = 0, n = p.length / 2; i < n; i++) {
-      const j = (i + 1) % n;
-      a += p[i * 2] * p[j * 2 + 1] - p[j * 2] * p[i * 2 + 1];
-      cx += p[i * 2];
-      cy += p[i * 2 + 1];
-    }
-    const c = cell(cx / (p.length / 2), cy / (p.length / 2));
-    if (c >= 0) area[c] += Math.abs(a) / 2;
+  const { built, shops: shopAt } = town.density;
+  for (let i = 0; i < built.length; i += 3) {
+    const c = cell(built[i], built[i + 1]);
+    if (c >= 0) area[c] += built[i + 2];
   }
-  for (const q of town.pois) {
-    if (!SHOP_POIS.has(q.cls)) continue;
-    const c = cell(q.x, q.y);
+  for (let i = 0; i < shopAt.length; i += 2) {
+    const c = cell(shopAt[i], shopAt[i + 1]);
     if (c >= 0) shops[c]++;
   }
   for (const t of [area, shops])
     for (let j = 1; j <= ny; j++)
       for (let i = 1; i <= nx; i++) t[j * (nx + 1) + i] += t[(j - 1) * (nx + 1) + i] + t[j * (nx + 1) + i - 1] - t[(j - 1) * (nx + 1) + i - 1];
-  const r = Math.round(REACH / CELL);
   const sum = (t: Float64Array, i: number, j: number) => {
     const a0 = Math.max(0, i - r);
     const b0 = Math.max(0, j - r);
@@ -97,10 +98,10 @@ export function urbanity(town: Town): (x: number, y: number) => number {
     const b1 = Math.min(ny, j + r + 1);
     return t[b1 * (nx + 1) + a1] - t[b0 * (nx + 1) + a1] - t[b1 * (nx + 1) + a0] + t[b0 * (nx + 1) + a0];
   };
-  const box = (2 * r + 1) * CELL * ((2 * r + 1) * CELL);
+  // The square summed, in square metres on the ground.
+  const box = ((2 * r + 1) * CELL * k) ** 2;
   return (x, y) => {
-    const i = Math.floor((x - x0) / CELL);
-    const j = Math.floor((y - y0) / CELL);
+    const [i, j] = at(x, y);
     if (i < 0 || j < 0 || i >= nx || j >= ny) return 0;
     const cover = sum(area, i, j) / box;
     const u = Math.max((cover - 0.04) / 0.22, sum(shops, i, j) / 10);
@@ -228,7 +229,7 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   const { set, cam } = B;
   const out: Solid[] = [];
   if (set.cars <= 0) return out;
-  const urban = urbanity(town);
+  const urban = urbanity(town, B.toAbs);
   // The slider scales traffic around its default; at small scales vehicles turn into blobs, so fewer.
   const amount = (set.cars / 0.35) * (cam.s >= 1 ? 1 : cam.s >= 0.5 ? 0.6 : 0.3);
   const key = (x: number, y: number) => `${Math.round(x * 2)},${Math.round(y * 2)}`;
@@ -277,7 +278,7 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
           const cx = x - uy * s * off;
           const cy = y + ux * s * off;
           // Parking comes in stretches, broken by driveways, loading bays and bus stops.
-          const [sa, sb] = B.key(Math.round(cx / 40) * 40, Math.round(cy / 40) * 40);
+          const [sa, sb] = B.cell(cx, cy, 40);
           if (hash(sa, sb, set.seed, 474 + s) < 0.4) continue;
           const [ka, kb] = B.key(cx, cy);
           const chance = Math.min(0.85, set.cars * 1.8) * Math.min(1, (urban(cx, cy) - PARK_FROM[w.cls] + 0.15) / 0.4);
@@ -314,7 +315,7 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
       // A queue at a red light where a busier road meets a junction in town.
       if (leaves && SIGNALS.has(w.cls) && uw > 0.3 && L > 30) {
         const [qx, qy] = pos(end);
-        const [ka, kb] = B.key(Math.round(qx / 4) * 4, Math.round(qy / 4) * 4);
+        const [ka, kb] = B.cell(qx, qy, 4);
         if (hash(ka, kb, set.seed, 450 + (lane.dir === 1 ? 0 : 1)) < 0.45) {
           let n = 1 + Math.floor(hash(ka, kb, set.seed, 452 + li) * (1 + 3 * uw) * Math.min(1.5, amount));
           let front = end;
@@ -335,9 +336,12 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
       // Free-flowing traffic up to the queue, if there is one.
       const [a, b] = gaps;
       const mean = (a + (b - a) * uw) / Math.max(0.05, amount);
-      let tau = start;
+      // The chain of vehicles starts at the way's own end, which stays put, not at `start`:
+      // that moves when a side road at the junction comes into or out of the loaded area,
+      // and every vehicle down the road would move with it. Those before `start` are skipped.
+      let tau = 0.5;
       {
-        const [x, y] = pos(start);
+        const [x, y] = pos(tau);
         const [ka, kb] = B.key(x, y);
         tau += hash(ka, kb, set.seed, 458 + li) * Math.min(mean, L);
       }
@@ -347,10 +351,10 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
         const len = length(kind, k);
         if (tau + len > end) continue next;
         const [x, y, ux, uy] = pos(tau + len / 2);
-                put(w, x, y, ux, uy, kind, k);
+        if (tau >= start) put(w, x, y, ux, uy, kind, k);
         // Exponential gaps, stretched or squeezed by a slow wave along the road, so vehicles bunch.
         const [ka, kb] = B.key(x, y);
-        const [wa, wb] = B.key(Math.round(x / 150) * 150, Math.round(y / 150) * 150);
+        const [wa, wb] = B.cell(x, y, 150);
         const wave = 0.35 + 1.4 * hash(wa, wb, set.seed, 464);
         tau += len + 5 + -Math.log(1 - hash(ka, kb, set.seed, 462) * 0.999) * mean * wave;
       }

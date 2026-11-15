@@ -9,8 +9,12 @@ export type Ring = { pts: number[]; seam: Uint8Array };
 /** Outer ring (counter-clockwise) followed by holes (clockwise). */
 export type Shape = Ring[];
 
-/** `guess` marks a building whose height is OpenMapTiles' 5 m default, i.e. the map gives none. */
-export type Building = { shape: Shape; h: number; min: number; guess?: boolean; info?: Info };
+/**
+ * `guess` marks a building whose height is OpenMapTiles' 5 m default, i.e. the map gives none.
+ * `context` marks one loaded only so that its neighbours are classified as they would be from
+ * any view; `render()` drops these once buildings are classified.
+ */
+export type Building = { shape: Shape; h: number; min: number; guess?: boolean; context?: boolean; info?: Info };
 /** Building tags from OpenStreetMap, at the building's centre. */
 export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean };
 export type WayKind = 'road' | 'rail' | 'path';
@@ -62,6 +66,19 @@ export type Town = {
   helipads: Shape[];
   /** Airfield labels: the class (international, regional, public, private, military, other), and whether the name says gliders or helicopters. */
   airports: Airport[];
+  /**
+   * How built up the land is, from every tile loaded rather than only the area drawn, so that
+   * what is worked out from it (traffic, parking, power lines) doesn't change as the view pans:
+   * ground-standing buildings as flat [x, y, area m², …] at their centres, and shops as [x, y, …].
+   */
+  density: { built: number[]; shops: number[] };
+  /**
+   * What says what a building is (land use, points of interest, house numbers, helipads, the
+   * streets it faces), out
+   * to the margin context buildings are loaded to rather than only the area drawn, so a
+   * building near the edge is classified the same from every view. Only `classify()` reads it.
+   */
+  nearby: { landuse: Area[]; pois: Poi[]; numbers: number[]; helipads: Shape[]; ways: Way[] };
 };
 
 const ZOOM = 14;
@@ -69,6 +86,12 @@ const ZOOM = 14;
 const DEFAULT_H = 5;
 /** Extra margin (m) for buildings around the area drawn; more than the classifier's density radius. */
 const BUILDING_PAD = 60;
+/**
+ * Margin (m) for buildings loaded as context only. A terrace takes its seed from one of its
+ * houses, so a row cut short where the buildings stop would change with the view; this keeps
+ * rows whole unless they run on for hundreds of metres.
+ */
+const CONTEXT_PAD = 250;
 const TILEJSON = 'https://tiles.openfreemap.org/planet';
 const MAX_TILES = 36;
 const MAX_CACHED = 64;
@@ -179,7 +202,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [] };
+  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -521,22 +544,38 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   };
   for (const t of tiles) {
     for (const b of t.buildings) {
-      // A wider margin than the rest, so every building in view has all its neighbours
-      // for the density that sets guessed heights, and panning doesn't change them.
-      const s = shape(b.shape, BUILDING_PAD);
-      if (s) town.buildings.push({ shape: s, h: b.h, min: b.min, guess: b.guess });
+      if (b.min <= 0) {
+        const p = b.shape[0].pts;
+        const n = p.length / 2;
+        let cx = 0;
+        let cy = 0;
+        for (let i = 0; i < n; i++) {
+          cx += p[i * 2];
+          cy += p[i * 2 + 1];
+        }
+        town.density.built.push(frame.x(cx / n), frame.y(cy / n), Math.abs(ringArea(p)) * frame.k * frame.k);
+      }
+      // A wider margin than the rest, so every building in view has all its neighbours for the
+      // density that sets guessed heights and the whole of its terrace, and panning doesn't
+      // change them. Those beyond BUILDING_PAD are only there for that.
+      const s = shape(b.shape, CONTEXT_PAD);
+      if (s) town.buildings.push({ shape: s, h: b.h, min: b.min, guess: b.guess, context: !local(b.shape[0].pts, BUILDING_PAD) || undefined });
     }
     for (const key of ['landuse', 'cover'] as const) {
       for (const a of t[key]) {
         const s = shape(a.shape);
         if (s) town[key].push({ shape: s, cls: a.cls });
+        const near = key === 'landuse' && (s ?? shape(a.shape, CONTEXT_PAD));
+        if (near) town.nearby.landuse.push({ shape: near, cls: a.cls });
       }
     }
-    const inside = (x: number, y: number) => x >= bx0 && x <= bx1 && y >= by0 && y <= by1;
+    const inside = (x: number, y: number, pad = 0) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
     for (const p of t.pois) {
       const x = frame.x(p.x);
       const y = frame.y(p.y);
+      if (SHOP_POIS.has(p.cls)) town.density.shops.push(x, y);
       if (inside(x, y)) town.pois.push({ ...p, x, y });
+      if (inside(x, y, CONTEXT_PAD)) town.nearby.pois.push({ ...p, x, y });
     }
     // Airfield labels can sit well away from the runways in view, so keep them all.
     for (const a of t.airports) town.airports.push({ ...a, x: frame.x(a.x), y: frame.y(a.y) });
@@ -549,6 +588,7 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       const x = frame.x(t.numbers[i]);
       const y = frame.y(t.numbers[i + 1]);
       if (inside(x, y)) town.numbers.push(x, y);
+      if (inside(x, y, CONTEXT_PAD)) town.nearby.numbers.push(x, y);
     }
     for (const w of t.streams) {
       const pts = local(w.pts);
@@ -564,12 +604,18 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
       for (const sh of t[key]) {
         const s = shape(sh);
         if (s) town[key].push(s);
+        const near = key === 'helipads' && (s ?? shape(sh, CONTEXT_PAD));
+        if (near) town.nearby.helipads.push(near);
       }
     }
     for (const key of ['ways', 'tunnels', 'runways', 'lifts'] as const) {
       for (const w of t[key]) {
         const pts = local(w.pts);
         if (pts) (town[key] as { pts: number[] }[]).push({ ...w, pts });
+        if (key !== 'ways') continue;
+        // The same object where it is both, so changes made to drawn ways (widths) show here too.
+        const near = pts ? town.ways[town.ways.length - 1] : local(w.pts, CONTEXT_PAD) && { ...w, pts: local(w.pts, CONTEXT_PAD)! };
+        if (near) town.nearby.ways.push(near as Way);
       }
     }
     for (const f of t.ferries) {

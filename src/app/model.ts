@@ -64,7 +64,7 @@ export function loadSettings(): Settings {
     if (h.length >= 3) s.bearing = ((h[2] % 360) + 360) % 360;
     if (h.length >= 4 && h[3] >= 300) s.scale = h[3];
     if (h.length >= 5 && h[4] > 0) s.seed = Math.round(h[4]);
-    s.place = decodeURIComponent(parts[5] ?? '') || 'Somewhere';
+    s.place = decodePlace(parts[5] ?? '') || 'Somewhere';
   }
   if (!Number.isFinite(s.detail) || s.detail <= 0) s.detail = DEFAULT_SETTINGS.detail;
   s.pens = migratePens(s.pens);
@@ -81,6 +81,15 @@ export function loadSettings(): Settings {
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   return s;
+}
+
+/** A place name from the link; a broken escape (a link cut short) keeps the text as it came. */
+function decodePlace(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 /**

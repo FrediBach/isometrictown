@@ -579,7 +579,7 @@ export function motorways(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     }
     // Gantries on a fixed spacing along the way, keyed to where they stand.
     walk(p, 150, 600, 50, (x, y, ux, uy) => {
-      const [k0, k1] = B.key(Math.round(x / 50) * 50, Math.round(y / 50) * 50);
+      const [k0, k1] = B.cell(x, y, 50);
       if (hash(k0, k1, B.set.seed, 490) > 0.7 || onMask(paper, M.water, x, y)) return;
       const P = (c: number, z: number) => [x - uy * c, y + ux * c, z];
       const e = hw + 1.2;
@@ -740,7 +740,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       ] as const) {
         if (!isJ || L < 12) continue;
         const [x, y, ux, uy] = at(p, cum, t);
-        const [k0, k1] = B.key(Math.round(x), Math.round(y));
+        const [k0, k1] = B.key(x, y);
         if (hash(k0, k1, B.set.seed, 435) > 0.6) continue;
         // On the kerb to the right of traffic heading into the junction.
         const side = B.left ? -dir : dir;

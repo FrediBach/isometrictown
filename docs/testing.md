@@ -41,7 +41,7 @@ These draw whole sheets with the real pipeline (`loadTown` → `render` → `pla
 
   At the end it draws the first case again and requires the identical SVG, which catches state leaking between drawings.
 - **`gates.test.ts`** switches each setting that switches something on (Windows, Trees, Life, Markings…) off in turn. Whatever the catalogue says needs that setting must then be gone, and the setting must have had something to take away.
-- **`pan.test.ts`** pans the view 30 m east and checks that made-up detail (trees, people and animals, roof details, windows, ground textures) lays the same strokes, shifted.
+- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid.
 
 The imprint in the margin dates each sheet, so drawing tests pin the clock to `DRAWN_ON` in `test/support/clock.ts`.
 
@@ -63,17 +63,8 @@ When you add a case or move one (place, scale, sheet, tilt: anything that change
 
 Only `mollis-default` uses OSM tags; the other cases keep `osmTags` off.
 
-### Known bugs
-
-Two tests are marked `test.fails`. They pass while the bug is there and fail once it's fixed, which is the cue to turn them into plain `test`s:
-
-- `model.test.ts`: a share link with a broken percent escape in the place name makes `loadSettings()` throw.
-- `pan.test.ts`: cars are spaced along each way from its first point, and ways are cut where the loaded area ends, so panning reshuffles the traffic on roads that cross that edge.
-
-`gates.test.ts` also has `KNOWN`: the Woods entry in the catalogue says park and wood trees need Parks, but `render()` places them under Trees alone.
-
 ## Adding tests
 
 - A new drawn feature: the drawing tests will want a catalogue entry for its tally name, and its golden will change. If no case draws it, add or adjust a case in `test/cases.ts` and run `npm run test:record`.
-- A new switch: give its catalogue entries `needs` and `strokes`, and `gates.test.ts` checks it. If neither base sheet has anything for it to switch off, add a base, as `RURAL_BASE` does for railways and power lines.
+- A new switch: give its catalogue entries `needs` and `strokes`, and `gates.test.ts` checks it. Where an entry's strokes don't need the switch, leave them out of that entry; another entry can claim them. If neither base sheet has anything for it to switch off, add a base, as `RURAL_BASE` does for railways and power lines.
 - Pure logic: a unit test in `test/unit/`. Use `vi.stubGlobal` for browser globals, as `model.test.ts` does for storage and the address bar.

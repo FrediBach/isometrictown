@@ -105,6 +105,11 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     equator,
     left,
     seed: set.seed,
+    toAbs,
+    cell: (x, y, size) => {
+      const [X, Y] = toAbs(x, y);
+      return [Math.round(X / size), Math.round(Y / size)];
+    },
     key: (x, y) => {
       const [X, Y] = toAbs(x, y);
       return [Math.round(X), Math.round(Y)];
@@ -115,6 +120,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
+  // Buildings loaded only so their neighbours are classified the same from any view go now.
+  town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.
   at('streets', () => { for (const w of town.ways) if (w.kind === 'road') w.width = atLeast(cam, LOD.road, w.width); });
   // Streams too narrow for two banks are a single line.

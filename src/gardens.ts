@@ -351,7 +351,7 @@ export function hedgerows(B: Build, paper: Paper, G: Ground, M: Masks): Tree[] {
       const by = p[f * 2 + 1];
       const len = Math.hypot(bx - ax, by - ay);
       if (len < 12) continue;
-      const [m0, m1] = B.key(Math.round((ax + bx) / 4) * 2, Math.round((ay + by) / 4) * 2);
+      const [m0, m1] = B.cell((ax + bx) / 2, (ay + by) / 2, 2);
       if (hash(m0, m1, set.seed, 510) >= chance) continue;
       const ux = (bx - ax) / len;
       const uy = (by - ay) / len;
@@ -393,7 +393,7 @@ export function streetTrees(B: Build, paper: Paper, ways: Way[], M: Masks): Tree
     if (w.kind !== 'road' || !AVENUE_CLASSES.has(w.cls)) continue;
     const p = w.pts;
     const mid = Math.floor(p.length / 4) * 2;
-    const [m0, m1] = B.key(Math.round(p[mid] / 20) * 20, Math.round(p[mid + 1] / 20) * 20);
+    const [m0, m1] = B.cell(p[mid], p[mid + 1], 20);
     if (hash(m0, m1, set.seed, 530) >= (w.cls === 'minor' ? chance * 0.5 : chance)) continue;
     const off = w.width / 2 + 1.5;
     walk(p, 5, 9, 5, (x, y, ux, uy) => {
