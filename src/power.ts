@@ -265,6 +265,13 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
             [0, H],
             [0.6, H - 0.3],
           ];
+    // Wires too close to read apart on paper close up into one thick stroke: keep one of each
+    // close group, the ones nearest the pole first.
+    const kept: [number, number][] = [];
+    for (const wr of [...wires].sort((a, b) => Math.abs(a[0]) - Math.abs(b[0]) || b[1] - a[1]))
+      if (kept.every(([b, z]) => shows(B.cam, LOD.poleWires, Math.hypot(b - wr[0], z - wr[1])))) kept.push(wr);
+    const arms = new Set(kept.filter(([b]) => b !== 0).map(([, z]) => z));
+    const can = (american || asian) && shows(B.cam, LOD.transformer);
     let prev: [number, number, number, number] | null = null;
     for (let d = 6; d <= L - 4; d += spacing) {
       const [x0, y0, ux, uy] = at(w.pts, cum, d);
@@ -275,11 +282,10 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
       if (blocked(x, y)) continue;
       // The pole, and its cross-arms.
       out.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
-      const arms = new Set(wires.filter(([b]) => b !== 0).map(([, z]) => z));
       for (const z of arms) out.push({ pen: LINEWORK, pts: [x + nx * 1.1, y + ny * 1.1, z, x - nx * 1.1, y - ny * 1.1, z] });
       // Now and then a transformer can on the pole.
       const [k0, k1] = B.key(x, y);
-      if ((american || asian) && hash(k0, k1, set.seed, 952) < 0.15) {
+      if (can && hash(k0, k1, set.seed, 952) < 0.15) {
         const cx = x - ux * 0.5;
         const cy = y - uy * 0.5;
         const z0 = H - 3.4;
@@ -289,7 +295,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
         const [px, py, pnx, pny] = prev;
         // Round a bend the road turns away from the wires; start a new run rather than cut the corner.
         if (Math.hypot(px - x, py - y) < spacing * 2.2 && pnx * nx + pny * ny > 0.87)
-          for (const [b, z] of wires) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
+          for (const [b, z] of kept) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
       }
       prev = [x, y, nx, ny];
     }

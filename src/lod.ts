@@ -75,6 +75,8 @@ export const LOD = {
   pantograph: { m: 1.8, mm: 0.54, what: 'Pantographs' },
   pylon: { m: 30, mm: 3, what: 'Transmission pylons' },
   pole: { m: 9, mm: 2.7, what: 'Wooden poles along roads' },
+  poleWires: { m: 1, mm: 1.2, what: 'Separate wires on poles: their spacing. Closer ones merge into one wire' },
+  transformer: { m: 0.6, mm: 0.6, what: 'Transformer cans on poles: width' },
   lattice: { m: 2, mm: 1.8, what: 'Pylon lattice bracing' },
   pylonLegs: { m: 2.2, mm: 0.9, what: 'Pylons with four legs and full arms: width at the waist. Narrower, a flat A-frame' },
   insulator: { m: 2.2, mm: 0.7, what: 'Insulators hanging from pylon arms' },

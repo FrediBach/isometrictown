@@ -1386,7 +1386,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     how: 'Along primary to service roads: in town where that is the custom, only on country roads elsewhere.',
     regions: `In town too: ${listed(OVERHEAD_TOWN)}.`,
     needs: ['power'],
-    lod: ['pole'],
+    lod: ['pole', 'poleWires', 'transformer'],
     strokes: ['power:powerLines'],
   },
 
