@@ -1,6 +1,6 @@
 import type { Build, Solid } from './buildings';
 import type { Kind, Roof } from './classify';
-import { LOD, shows } from './lod';
+import { atLeast, LOD, shows } from './lod';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { StyleId } from './styles';
@@ -202,6 +202,13 @@ type Opening = {
   closed?: boolean;
 };
 type Balcony = { m: number; hw: number; zf: number; d: number };
+/**
+ * How a wall's windows are drawn as it shrinks on paper: framed; as single upright strokes
+ * once frames would close up; then each floor of windows as one stroke along the wall once
+ * even the strokes would run into the floor above. Every pattern goes through the same steps,
+ * so neighbours of a size look alike whichever pattern they have.
+ */
+type Mode = 'full' | 'ticks' | 'rows';
 /** `f0` is how squarely the wall faces the equator, scaled by the façade's bias; `f` damps it on street fronts. */
 type Ctx = { B: Build; w: Wall; fa: Facade; dx: number; dy: number; f0: number; f: number; ops: Opening[]; bals: Balcony[]; along: number };
 
@@ -211,8 +218,8 @@ export function facadeLines(B: Build, w: Wall, fa: Facade, out: Solid): void {
   // How much of a metre along the wall shows on paper: a wall seen edge-on squeezes its windows.
   const along = Math.hypot(cam.sx(w.bx, w.by) - cam.sx(w.ax, w.ay), cam.sy(w.bx, w.by, 0) - cam.sy(w.ax, w.ay, 0)) / (w.len * cam.s);
   const full = shows(cam, LOD.window, LOD.window.m * along);
-  // Not even a tall window would make a stroke that reads as more than a dot.
-  if (!full && !shows(cam, LOD.windowTick, 2.2 * cam.ca)) return;
+  // Too short on paper even for one stroke along a floor.
+  if (!full && !shows(cam, LOD.windowRow, w.len * along)) return;
   const dx = (w.bx - w.ax) / w.len;
   const dy = (w.by - w.ay) / w.len;
   // Outward normal (dy, -dx) against the equator: positive on the sunny side. Street fronts
@@ -239,7 +246,28 @@ export function facadeLines(B: Build, w: Wall, fa: Facade, out: Solid): void {
       bays(c);
   }
   bigDoors(c);
-  draw(c, full, out);
+  const mode: Mode = full ? 'full' : shows(cam, LOD.windowTick, tick(c, fa.h) * cam.ca) ? 'ticks' : 'rows';
+  // Floors too close together on paper to tell apart: leave the wall plain.
+  if (mode === 'rows' && !shows(cam, LOD.floors, Math.min(storeyOf(c), w.z1 - w.z0) * cam.ca)) return;
+  draw(c, mode, out);
+}
+
+/** How tall a window `h` high is drawn as a single stroke: stretched to read, but kept clear of the next floor. */
+function tick(c: Ctx, h: number): number {
+  const { cam } = c.B;
+  const storey = storeyOf(c);
+  // Leave an open gap between one floor's strokes and the next.
+  const room = storey > 20 ? Infinity : storey - cam.gap(0.8) / (cam.s * cam.ca);
+  return Math.min(atLeast(cam, LOD.windowTick, h * cam.ca) / cam.ca, Math.max(h, room));
+}
+
+/** Draw every `n`th floor's stroke, doubling `n` until the strokes stay apart on paper. */
+function floorStep(c: Ctx): number {
+  const { cam } = c.B;
+  const pitch = storeyOf(c) * cam.ca * cam.s;
+  let n = 1;
+  while (pitch * n < cam.gap(1.2) && n < 64) n *= 2;
+  return n;
 }
 
 /** A stable number for a position along the wall, per salt. */
@@ -450,24 +478,39 @@ function bigDoors(c: Ctx): void {
 /**
  * Draw the openings and balconies on the wall. Each window is drawn as big as it shows on
  * paper: framed, with glazing bars when there's room, as a single upright stroke when it's
- * too narrow for a frame, and not at all when even that would only make a dot.
+ * too narrow for a frame, and merged with its floor into one stroke along the wall when even
+ * that would run into the floor above.
  */
-function draw(c: Ctx, full: boolean, out: Solid): void {
+function draw(c: Ctx, mode: Mode, out: Solid): void {
   const { B, w, dx, dy, along } = c;
   const { ax, ay } = w;
   const { cam } = B;
+  const full = mode === 'full';
   const P = (u: number, n: number, z: number) => [ax + dx * u + dy * n, ay + dy * u - dx * n, z];
   const L = (pen: number, pts: number[], closed?: boolean) => out.lines.push(closed ? { pen, pts, closed } : { pen, pts });
   const rect = (pen: number, u0: number, u1: number, z0: number, z1: number) => L(pen, [...P(u0, 0, z0), ...P(u1, 0, z0), ...P(u1, 0, z1), ...P(u0, 0, z1)], true);
   // Spacing that stays open on paper, in metres.
   const open = (m: number, mm: number) => Math.max(m, B.cam.gap(mm) / B.cam.s);
+  const storey = storeyOf(c);
+  const step = full ? 1 : floorStep(c);
+  const floorOf = (z: number) => (storey > 20 ? 0 : Math.floor((z - w.z0) / storey + 0.001));
+  // One stroke along a floor, where that floor is kept and the stroke is long enough to read.
+  const row = (u0: number, u1: number, z: number) => {
+    if (floorOf(z) % step === 0 && shows(cam, LOD.windowRow, (u1 - u0) * along)) L(LINEWORK, [...P(u0, 0, z), ...P(u1, 0, z)]);
+  };
+  if (mode === 'rows') rows(c, row);
   for (const o of c.ops) {
     const { u0, u1, z0, z1 } = o;
     const um = (u0 + u1) / 2;
     switch (o.kind) {
       case 'window': {
+        if (mode === 'rows') break;
         if (!full || !shows(cam, LOD.window, (u1 - u0) * along)) {
-          if (shows(cam, LOD.windowTick, (z1 - z0) * cam.ca)) L(LINEWORK, [...P(um, 0, z0), ...P(um, 0, z1)]);
+          // Stretched about its middle in the tick step, but never past the eaves or into the
+          // ground; true to size beside framed windows.
+          const zm = (z0 + z1) / 2;
+          const t = full ? z1 - z0 : Math.min(tick(c, z1 - z0), 2 * (zm - w.z0 - 0.2), 2 * (w.z1 - 0.2 - zm));
+          if (shows(cam, LOD.windowTick, t * cam.ca)) L(LINEWORK, [...P(um, 0, zm - t / 2), ...P(um, 0, zm + t / 2)]);
           break;
         }
         const bars = c.fa.bars && shows(cam, LOD.glazingBars, (u1 - u0) * along);
@@ -510,6 +553,7 @@ function draw(c: Ctx, full: boolean, out: Solid): void {
       case 'loading':
       case 'garage': {
         // Roller shutters with slats, up-and-over garage doors with a few panels.
+        if (mode === 'rows') break;
         L(LINEWORK, [...P(u0, 0, z0), ...P(u0, 0, z1), ...P(u1, 0, z1), ...P(u1, 0, z0)]);
         if (!full) break;
         const step = o.kind === 'loading' ? open(0.45, 0.6) : (z1 - z0) / 4;
@@ -518,8 +562,7 @@ function draw(c: Ctx, full: boolean, out: Solid): void {
       }
       case 'band': {
         if (!full) {
-          const zm = (z0 + z1) / 2;
-          L(LINEWORK, [...P(u0, 0, zm), ...P(u1, 0, zm)]);
+          row(u0, u1, (z0 + z1) / 2);
           break;
         }
         rect(LINEWORK, u0, u1, z0, z1);
@@ -531,11 +574,12 @@ function draw(c: Ctx, full: boolean, out: Solid): void {
         break;
       }
       case 'curtain': {
-        // Floor lines every storey (every other one where they'd crowd), mullions at full detail.
-        const rows = o.rows ?? 3.2;
-        const every = rows * B.cam.s < B.cam.gap(0.6) ? 2 : 1;
-        for (let z = z0, k = 0; z <= z1 + 0.01; z += rows, k++) if (k % every === 0) L(LINEWORK, [...P(u0, 0, z), ...P(u1, 0, z)]);
-        if (!full) break;
+        // Floor lines every storey (fewer where they'd crowd), mullions at full detail.
+        if (!full) {
+          for (let z = z0; z <= z1 + 0.01; z += o.rows ?? storey) row(u0, u1, z);
+          break;
+        }
+        for (let z = z0; z <= z1 + 0.01; z += o.rows ?? storey) L(LINEWORK, [...P(u0, 0, z), ...P(u1, 0, z)]);
         const n = Math.max(1, Math.round((u1 - u0) / open(o.div ?? 1.5, 0.7)));
         for (let k = 0; k <= n; k++) {
           const u = u0 + ((u1 - u0) * k) / n;
@@ -546,6 +590,36 @@ function draw(c: Ctx, full: boolean, out: Solid): void {
     }
   }
   if (full) for (const b of c.bals) balcony(out, ax, ay, dx, dy, b.m, b.hw, b.zf, b.d, open(0.7, 0.7));
+}
+
+/**
+ * Each floor's windows as runs along the wall, for the rows step: windows close enough to
+ * read as one row join up, and a run needs three windows to stand for a floor of them.
+ * `row` draws one run at the windows' mean height.
+ */
+function rows(c: Ctx, row: (u0: number, u1: number, z: number) => void): void {
+  const storey = storeyOf(c);
+  const wins = c.ops.filter((o) => o.kind === 'window');
+  if (!wins.length) return;
+  // Gaps of up to about two bays still read as one row: a missing column doesn't break it.
+  const join = c.fa.pattern === 'sparse' ? 0 : c.fa.bay * 2.2;
+  const floor = (o: Opening) => (storey > 20 ? 0 : Math.floor(((o.z0 + o.z1) / 2 - c.w.z0) / storey));
+  wins.sort((a, b) => floor(a) - floor(b) || a.u0 - b.u0);
+  for (let i = 0; i < wins.length; ) {
+    const fl = floor(wins[i]);
+    const u0 = wins[i].u0;
+    let u1 = wins[i].u1;
+    let zs = (wins[i].z0 + wins[i].z1) / 2;
+    let n = 1;
+    let j = i + 1;
+    for (; j < wins.length && floor(wins[j]) === fl && wins[j].u0 - u1 <= join; j++) {
+      u1 = Math.max(u1, wins[j].u1);
+      zs += (wins[j].z0 + wins[j].z1) / 2;
+      n++;
+    }
+    if (n >= 3) row(u0, u1, zs / n);
+    i = j;
+  }
 }
 
 /** A balcony in front of a window: a slab with a railing round it, balusters `bar` apart. (dx, dy) runs along the wall. */

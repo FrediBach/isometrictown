@@ -15,6 +15,7 @@ export const PLACES: LabPlace[] = [
   { id: 'rye', name: 'Rye', center: [0.7335, 50.9503], bearing: 25, kind: 'English market town, marsh, left traffic' },
   { id: 'zurich-airport', name: 'Zürich Airport', center: [8.5618, 47.4502], bearing: 0, kind: 'Runways, aprons, aircraft, rail' },
   { id: 'midtown', name: 'Midtown Manhattan', center: [-73.984, 40.7549], bearing: 29, kind: 'Towers, grid streets, traffic' },
+  { id: 'sapporo', name: 'Sapporo', center: [141.3512, 43.0603], bearing: 30, kind: 'Mid-rise East Asian city blocks, joined towers' },
   { id: 'emmental', name: 'Trubschachen', center: [7.8454, 46.922], bearing: 20, kind: 'Farmland, scattered farms, forest' },
 ];
 

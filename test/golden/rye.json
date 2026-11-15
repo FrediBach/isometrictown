@@ -39,12 +39,12 @@
     "worship": 3
   },
   "plan": {
-    "lifts": 17286,
-    "rawLifts": 18821,
-    "inkMm": 91337.4,
-    "travelMm": 42244.7,
+    "lifts": 17285,
+    "rawLifts": 18820,
+    "inkMm": 91336.1,
+    "travelMm": 42243.3,
     "minutes": 133.3,
-    "pens": [["Shadows",2932,10073.6],["Water",0,0],["Greenery",2782,13633.9],["Roofs",4353,27980.8],["Linework",7219,39649.1]]
+    "pens": [["Shadows",2932,10073.6],["Water",0,0],["Greenery",2782,13633.9],["Roofs",4353,27980.8],["Linework",7218,39647.8]]
   },
   "features": {
     "buildings": [1418,13471.4],
@@ -63,7 +63,7 @@
     "shadows": [2932,10073.6],
     "streets:kerbs": [284,1605.6],
     "trees": [329,2207.2],
-    "windows": [3761,12582.3]
+    "windows": [3760,12581]
   },
   "facets": {
     "buildings/apartment": [264,3294.5],
@@ -195,27 +195,27 @@
     "trees/scrub-bushes": [9,51],
     "trees/street-trees": [83,515.5],
     "windows/apartment": [1187,3999.5],
-    "windows/chimneys": [2850,9135.6],
+    "windows/chimneys": [2849,9134.3],
     "windows/church-roof": [30,218.9],
     "windows/civic": [146,554.8],
     "windows/dormers": [422,1421.2],
     "windows/flat-roof": [1203,3926],
-    "windows/gabled-roof": [1379,4708.2],
+    "windows/gabled-roof": [1378,4706.8],
     "windows/glazing-bars": [1431,5131.3],
-    "windows/grid-windows": [1309,5361.1],
-    "windows/guessed-height": [3759,12573.2],
+    "windows/grid-windows": [1308,5359.8],
+    "windows/guessed-height": [3758,12571.9],
     "windows/has-parapet": [233,868.9],
     "windows/hipped-roof": [1149,3729.3],
     "windows/house": [1283,4222.4],
     "windows/mapped-height": [2,9.1],
     "windows/paired-windows": [1170,1765.2],
-    "windows/party-walls": [1857,6379.4],
+    "windows/party-walls": [1856,6378],
     "windows/ribbon-windows": [302,1122.4],
-    "windows/shop-front": [965,3618.6],
+    "windows/shop-front": [964,3617.2],
     "windows/tall-windows": [980,4333.7],
-    "windows/terrace": [1115,3586.7],
+    "windows/terrace": [1114,3585.4],
     "windows/town-hall": [8,33],
     "windows/worship": [30,218.9]
   },
-  "svg": {"bytes":707308,"sha1":"f2809a746dd89135"}
+  "svg": {"bytes":707282,"sha1":"4172e0117f2d3265"}
 }

@@ -545,7 +545,8 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       dormers: (isHome || kind === 'civic') && pick2(style.dormer, 8),
       gableFront: isHome && roof === 'gabled' && r(9) < style.gableFront ? (r(10) < 0.55 ? 1 : 2) : 0,
       parapet: r(11) < style.parapet,
-      facade: chooseFacade(kind, t?.building, roof, H, style.id, kind === 'terrace' ? row : r, office),
+      // Towers joined by party walls are one development: they share a window scheme.
+      facade: chooseFacade(kind, t?.building, roof, H, style.id, kind === 'terrace' ? row : kind === 'tall' && hasParty ? g : r, office),
       seed,
       tagged: !!tagRoof,
     };

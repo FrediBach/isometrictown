@@ -40,7 +40,7 @@ if (shows(B.cam, LOD.chimney, width, hash(k0, k1, B.seed, SALT))) chimney(…);
 | `cam.gap(mm)` | Hatch and texture spacing: closed up by Detail, opened out by a broad pen. |
 | `cam.tone(mm)` | Tone hatching (shadows, shaded walls) and dash patterns: opened out by a broad pen only. |
 
-Some rules change *how* a thing is drawn rather than whether it is: narrow streams become a single line, pylons too small for their legs to stand apart become a flat A-frame, and battlements too small to read become a parapet.
+Some rules change *how* a thing is drawn rather than whether it is: windows step down from frames (`window`) to single upright strokes stretched to read (`windowTick`) to one stroke per floor (`windowRow`, every other floor where they crowd) and finally to a plain wall (`floors`), the same steps for every window pattern; narrow streams become a single line, pylons too small for their legs to stand apart become a flat A-frame, and battlements too small to read become a parapet.
 
 ## What `Paper` does for every stroke
 
@@ -54,7 +54,7 @@ Some rules change *how* a thing is drawn rather than whether it is: narrow strea
 
 ## The LOD lab
 
-`npm run lod` draws a set of test places (`lab/places.ts`: an Alpine village, a canal city, a walled town, a lake village, a marsh town, an airport, Midtown Manhattan and farmland) at 1:500 to 1:8000 with the real renderer, headless, through Vite's module runner. Downloads are cached in `lab/.cache`, so reruns don't use the network. OSM tags are off unless you pass `--tags`, so runs are repeatable.
+`npm run lod` draws a set of test places (`lab/places.ts`: an Alpine village, a canal city, a walled town, a lake village, a marsh town, an airport, Midtown Manhattan, mid-rise Sapporo and farmland) at 1:500 to 1:8000 with the real renderer, headless, through Vite's module runner. Downloads are cached in `lab/.cache`, so reruns don't use the network. OSM tags are off unless you pass `--tags`, so runs are repeatable.
 
 Every stroke is filed under the feature that drew it (`Paper.tally`, with names such as `roofHatch` or `streets:kerbs`; the catalogue's facets after a slash are folded back into their feature), then the lab stamps the strokes onto a 0.1 mm ink raster at the real pen width and scores each feature:
 
@@ -66,7 +66,7 @@ Every stroke is filed under the feature that drew it (`Paper.tally`, with names 
 Intentional dots (stipple) count as specks too, so a little waste in sand and marsh is expected.
 
 ```bash
-npm run lod                                   # everything: 8 places × 5 scales, a few minutes
+npm run lod                                   # everything: 9 places × 5 scales, a few minutes
 npm run lod -- --places mollis,amsterdam --scales 1000,4000
 npm run lod -- --name before                  # keep a run under a name
 npm run lod -- --name after --compare before  # what changed, per case and per feature
