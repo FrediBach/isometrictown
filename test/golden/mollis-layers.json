@@ -1,9 +1,9 @@
 {
   "region": {"country":"Switzerland","code":"CH","style":"alpine","left":false},
-  "counts": {"buildings":215,"houses":153,"trees":2083,"cars":109,"lamps":13},
+  "counts": {"buildings":215,"houses":153,"trees":2082,"cars":109,"lamps":13},
   "census": {
     "blank-windows": 10,
-    "broadleaf": 611,
+    "broadleaf": 610,
     "bush": 1454,
     "chimneys": 57,
     "church-roof": 1,
@@ -21,7 +21,7 @@
     "hipped-roof": 22,
     "house": 25,
     "paired-windows": 54,
-    "park-trees": 38,
+    "park-trees": 37,
     "party-walls": 169,
     "ribbon-windows": 3,
     "shed": 19,
@@ -37,18 +37,18 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 10755,
-    "rawLifts": 11403,
-    "inkMm": 45360.2,
-    "travelMm": 25116.9,
-    "minutes": 77.9,
-    "pens": [["Shadows",1609,6286.6],["Water",377,3879.3],["Greenery",1665,4259],["Roofs",3283,12963.9],["Linework",3821,17971.3]]
+    "lifts": 9813,
+    "rawLifts": 10461,
+    "inkMm": 43380.2,
+    "travelMm": 23047.6,
+    "minutes": 71.9,
+    "pens": [["Shadows",1609,6284.4],["Water",365,3836.8],["Greenery",738,2345],["Roofs",3283,12963.9],["Linework",3818,17950.1]]
   },
   "features": {
     "buildings": [671,4127.2],
     "cars": [158,760],
     "details": [153,312.7],
-    "ground": [1900,3907.6],
+    "ground": [973,1993.5],
     "lamps": [13,72.1],
     "life": [7,14.2],
     "markings": [17,42],
@@ -57,12 +57,12 @@
     "roofHatch": [2568,11132.6],
     "roofs": [607,3811.4],
     "rooftops": [44,773.8],
-    "shadows": [1609,6286.6],
+    "shadows": [1609,6284.4],
     "streets:busStops": [1,1.4],
     "streets:kerbs": [207,1442.6],
     "streets:railings": [4,3.7],
-    "trees": [247,1529.1],
-    "water": [102,377.6],
+    "trees": [244,1507.8],
+    "water": [90,335.1],
     "windows": [2329,6183.7]
   },
   "facets": {
@@ -110,8 +110,8 @@
     "details/small-windows": [76,142.6],
     "details/terrace": [88,163.5],
     "ground/cemeteries": [188,292],
-    "ground/lawns": [944,1927.4],
-    "ground/meadows": [613,1287.3],
+    "ground/lawns": [378,770.6],
+    "ground/meadows": [252,530],
     "ground/multi": [4,62.5],
     "ground/pitches": [4,62.5],
     "ground/plots": [151,338.4],
@@ -181,16 +181,16 @@
     "rooftops/small-windows": [10,44.4],
     "rooftops/solar": [13,637.6],
     "rooftops/terrace": [28,303.1],
-    "trees/broadleaf": [166,1050.1],
+    "trees/broadleaf": [163,1028.8],
     "trees/bush": [26,151],
     "trees/conifer": [55,328],
     "trees/garden-trees": [65,417],
     "trees/hedgerows": [48,287.7],
-    "trees/park-trees": [117,737.7],
+    "trees/park-trees": [114,716.5],
     "trees/street-trees": [17,86.7],
     "water/pools": [4,12.9],
     "water/shores": [70,300.5],
-    "water/waves": [28,64.3],
+    "water/waves": [16,21.8],
     "windows/blank-windows": [4,10.2],
     "windows/chimneys": [659,1760],
     "windows/church-roof": [16,80.3],
@@ -217,5 +217,5 @@
     "windows/terrace": [1376,3528.9],
     "windows/worship": [16,80.3]
   },
-  "svg": {"bytes":464908,"sha1":"9b0848271847b9ca"}
+  "svg": {"bytes":404586,"sha1":"7d0e21d7d0822ebc"}
 }

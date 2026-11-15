@@ -5,6 +5,7 @@ import { markings } from '@/infra';
 import type { Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
+import { patch } from '@/rng';
 import { DEFAULT_SETTINGS, LINEWORK, type Settings } from '@/settings';
 import { curbs, fillRoads } from '@/streets';
 import { STYLES } from '@/styles';
@@ -20,6 +21,25 @@ function build(more: Partial<Settings> = {}): Build {
     toAbs: (x, y) => [x, y],
   };
 }
+
+test('texture patches stay bounded and continuous across positive and negative cell edges', () => {
+  for (let i = -5; i <= 5; i++) {
+    for (let j = -5; j <= 5; j++) {
+      const value = patch(i + 0.37, j + 0.63, 42, 7931);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThan(1);
+      expect(patch(i - 1e-6, j + 0.4, 42, 7931)).toBeCloseTo(patch(i + 1e-6, j + 0.4, 42, 7931), 8);
+      expect(patch(i + 0.4, j - 1e-6, 42, 7931)).toBeCloseTo(patch(i + 0.4, j + 1e-6, 42, 7931), 8);
+    }
+  }
+});
+
+test('texture patches repeat for the same seed and vary independently by seed and salt', () => {
+  const samples = (seed: number, salt: number) => Array.from({ length: 30 }, (_, i) => patch(i * 0.37, i * -0.23, seed, salt));
+  expect(samples(42, 7931)).toEqual(samples(42, 7931));
+  expect(samples(42, 7931)).not.toEqual(samples(43, 7931));
+  expect(samples(42, 7931)).not.toEqual(samples(42, 7932));
+});
 
 test.each([0.35, 0.7])('roof hatch leaves clear ends with a %s mm pen without changing the roof', (penWidth) => {
   const B = build({ penWidth });

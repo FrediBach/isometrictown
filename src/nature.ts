@@ -1,7 +1,7 @@
 import type { Build } from './buildings';
 import type { Paper } from './raster';
 import { LOD, thin } from './lod';
-import { hash } from './rng';
+import { hash, patch } from './rng';
 import { GREENERY } from './settings';
 
 /** A bush is a low dome sitting on the ground, with no trunk. */
@@ -70,6 +70,13 @@ export function placeTrees(B: Build, paper: Paper, M: Masks, box: [number, numbe
         const sy = cam.sy(x, y, 0);
         if (!paper.on(pass.mask, sx, sy) || paper.on(M.road, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.foot, sx, sy)) continue;
         if (pass.mask === M.green && paper.on(M.wood, sx, sy)) continue;
+        // Keep the edge readable, with groves and quieter openings further inside.
+        const edge = !paper.on(pass.mask, cam.sx(x + pass.cell, y), cam.sy(x + pass.cell, y, 0))
+          || !paper.on(pass.mask, cam.sx(x - pass.cell, y), cam.sy(x - pass.cell, y, 0))
+          || !paper.on(pass.mask, cam.sx(x, y + pass.cell), cam.sy(x, y + pass.cell, 0))
+          || !paper.on(pass.mask, cam.sx(x, y - pass.cell), cam.sy(x, y - pass.cell, 0));
+        const cover = edge ? 1 : Math.min(1, Math.max(0.12, (patch(X / (step * 8), Y / (step * 8), set.seed, 7932) - 0.2) * 2));
+        if (hash(i, j, set.seed, pass.salt) >= chance * cover) continue;
         const r0 = hash(i, j, set.seed, pass.salt + 30);
         const conifer = hash(i, j, set.seed, pass.salt + 40) < pass.conifer;
         const r = conifer ? 1.6 + r0 * 1.1 : 1.9 + r0 * 1.7;

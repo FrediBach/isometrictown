@@ -1,14 +1,14 @@
 {
   "region": {"country":"United States of America","code":"US","style":"american","left":false},
-  "counts": {"buildings":1551,"houses":120,"trees":2224,"cars":957,"lamps":305},
+  "counts": {"buildings":1551,"houses":120,"trees":2220,"cars":957,"lamps":305},
   "census": {
     "apartment": 398,
     "blank-windows": 9,
-    "broadleaf": 2218,
+    "broadleaf": 2215,
     "chimneys": 149,
     "church-roof": 4,
     "civic": 42,
-    "conifer": 6,
+    "conifer": 5,
     "curtain-windows": 478,
     "deep-balconies": 59,
     "dormers": 77,
@@ -25,7 +25,7 @@
     "mansard-roof": 6,
     "mapped-height": 1519,
     "paired-windows": 111,
-    "park-trees": 50,
+    "park-trees": 46,
     "party-walls": 1246,
     "ribbon-windows": 381,
     "roundabout-trees": 1,
@@ -40,12 +40,12 @@
     "worship": 6
   },
   "plan": {
-    "lifts": 16968,
-    "rawLifts": 18372,
-    "inkMm": 113865.8,
-    "travelMm": 29737.4,
-    "minutes": 138.5,
-    "pens": [["Shadows",1824,13327.1],["Water",14,19.8],["Greenery",923,3209.5],["Roofs",216,552.2],["Linework",13991,96757.3]]
+    "lifts": 16955,
+    "rawLifts": 18359,
+    "inkMm": 113855.2,
+    "travelMm": 29311.3,
+    "minutes": 138.3,
+    "pens": [["Shadows",1818,13335.1],["Water",14,19.8],["Greenery",917,3185.2],["Roofs",216,552.2],["Linework",13990,96763]]
   },
   "features": {
     "buildings": [3013,28948.1],
@@ -53,18 +53,18 @@
     "details": [259,2052.8],
     "lamps": [99,225.6],
     "markings": [49,68.3],
-    "parks": [44,190.9],
+    "parks": [43,191.1],
     "paths": [304,323],
     "power:powerLines": [209,695.4],
     "roofHatch": [56,216.3],
     "roofs": [137,244.6],
     "rooftops": [725,1464.5],
-    "shadows": [1824,13327.1],
+    "shadows": [1818,13335.1],
     "streets:busStops": [33,63.6],
     "streets:kerbs": [440,1555],
-    "streets:plazas": [227,1071.9],
+    "streets:plazas": [226,1077.6],
     "streets:squares": [42,60.6],
-    "trees": [950,3018.5],
+    "trees": [945,2994.1],
     "windows": [8747,53720.9]
   },
   "facets": {
@@ -120,7 +120,7 @@
     "details/tall": [193,1642.8],
     "details/tall-windows": [4,38.3],
     "details/terrace": [5,18.2],
-    "parks/grass": [29,96.1],
+    "parks/grass": [28,96.3],
     "parks/park-edges": [15,94.8],
     "roofHatch/apartment": [8,27.6],
     "roofHatch/chimneys": [17,43.8],
@@ -190,9 +190,9 @@
     "rooftops/tall-windows": [8,12.9],
     "rooftops/tanks": [280,487.7],
     "rooftops/terrace": [2,2.3],
-    "trees/broadleaf": [946,2993.3],
-    "trees/conifer": [4,25.2],
-    "trees/park-trees": [71,273.1],
+    "trees/broadleaf": [943,2982.3],
+    "trees/conifer": [2,11.8],
+    "trees/park-trees": [66,248.7],
     "trees/street-trees": [879,2745.5],
     "windows/apartment": [341,1517.4],
     "windows/chimneys": [115,677.3],
@@ -219,5 +219,5 @@
     "windows/terrace": [4,15],
     "windows/worship": [1,1.8]
   },
-  "svg": {"bytes":650787,"sha1":"46c2b86f5ddb188d"}
+  "svg": {"bytes":650133,"sha1":"a4cced2a169a69fc"}
 }

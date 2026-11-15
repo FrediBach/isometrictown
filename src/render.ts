@@ -13,7 +13,7 @@ import { atLeast, LOD, shows, showsAt } from './lod';
 import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
-import { sequence } from './rng';
+import { patch, sequence } from './rng';
 import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
@@ -411,21 +411,27 @@ function legible(B: Build, b: Town['buildings'][number]): boolean {
 function waves(paper: Paper, M: Masks, seed: number): void {
   const rnd = sequence(seed * 7919 + 13);
   const cam = paper.cam;
-  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y) && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && !paper.on(M.calm, x, y) && paper.seen(x, y, d);
-  for (let y = paper.y0 + 0.8; y < paper.y1; y += cam.gap(1.7 + rnd() * 0.5)) {
+  const inset = cam.nib * 1.5;
+  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y)
+    && paper.on(M.water, x - inset, y) && paper.on(M.water, x + inset, y)
+    && paper.on(M.water, x, y - inset) && paper.on(M.water, x, y + inset)
+    && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && !paper.on(M.calm, x, y) && paper.seen(x, y, d);
+  for (let y = paper.y0 + 0.8; y < paper.y1; y += cam.gap(2 + rnd() * 0.7)) {
     let x = paper.x0 - rnd() * 8;
     while (x < paper.x1) {
-      const len = 2.5 + rnd() * 7;
-      const amp = 0.18 + rnd() * 0.16;
-      const waves = Math.max(1, Math.round(len / 3.2));
-      const tilt = (rnd() - 0.5) * 0.08;
+      const len = cam.gap(4 + rnd() * 9);
+      const amp = cam.gap(0.08 + rnd() * 0.08);
+      const tilt = (rnd() - 0.5) * 0.025;
       const pts: number[] = [];
-      for (let t = 0; t <= len + 1e-9; t += 0.4) {
-        const yy = y + Math.sin((t / len) * waves * Math.PI * 2) * amp + t * tilt;
+      const n = Math.max(2, Math.ceil(len / 0.4));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n * len;
+        const yy = y + Math.sin(k / n * Math.PI * 2) * amp + t * tilt;
         pts.push(x + t, yy, cam.groundDepth(yy));
       }
-      if (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y)) paper.sheet(WATER, pts, keep);
-      x += len + cam.gap(1 + rnd() * 5.5);
+      if (patch((x + len / 2) / cam.gap(28), y / cam.gap(7), seed, 7933) > 0.38
+        && (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y))) paper.sheet(WATER, pts, keep);
+      x += len + cam.gap(2 + rnd() * 6);
     }
   }
 }

@@ -3,7 +3,7 @@ import { REF_NIB } from './camera';
 import { pointInRing, ringArea } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
-import { hash } from './rng';
+import { hash, patch } from './rng';
 import { GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
 import { bestRect, turn, type Rect } from './shape';
 import { outline } from './streets';
@@ -238,8 +238,11 @@ function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: numb
       if (!wild(G, M, paper, x, y, sx, sy) || paper.on(M.shadow, sx, sy)) continue;
       const d = cam.depth(x, y, 0);
       const u = r(3);
-      if (u < w.tuft) paper.sheet(GREENERY, (r(4) < 0.5 ? TUFT : SMALL_TUFT).flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
-      else if (u < w.tuft + w.dot) paper.fine(() => paper.sheet(LINEWORK, DOT.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep));
+      if (u < w.tuft) {
+        const [X, Y] = toAbs(x, y);
+        if (r(5) < Math.max(0, (patch(X / (step * 5), Y / (step * 5), set.seed, 7931) - 0.25) * 1.8))
+          paper.sheet(GREENERY, (r(4) < 0.5 ? TUFT : SMALL_TUFT).flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
+      } else if (u < w.tuft + w.dot) paper.fine(() => paper.sheet(LINEWORK, DOT.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep));
     }
 }
 
@@ -577,10 +580,14 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
         const d = cam.depth(x, y, 0);
         paper.layer = facets.get(code) ?? base;
         if (code === MEADOW) {
-          if (r(3) < 0.85) mark(GREENERY, sx, sy, d, TUFT);
+          const [X, Y] = toAbs(x, y);
+          const cover = Math.max(0, (patch(X / (step * 5), Y / (step * 5), set.seed, 7931) - 0.25) * 1.8);
+          if (r(3) < 0.85 * cover) mark(GREENERY, sx, sy, d, TUFT);
         } else if (code === GARDEN) {
           // Lawns: a little sparser than meadows, and never over a mapped park's hatching.
-          if (r(3) < 0.6 && !paper.on(M.green, sx, sy)) mark(GREENERY, sx, sy, d, TUFT);
+          const [X, Y] = toAbs(x, y);
+          const cover = Math.max(0, (patch(X / (step * 5), Y / (step * 5), set.seed, 7931) - 0.25) * 1.8);
+          if (r(3) < 0.6 * cover && !paper.on(M.green, sx, sy)) mark(GREENERY, sx, sy, d, TUFT);
         } else if (code === WETLAND) {
           mark(SHADOWS, sx, sy, d, [
             [-0.8, 0],

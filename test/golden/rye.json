@@ -1,9 +1,9 @@
 {
   "region": {"country":"England","code":"GB","style":"british","left":true},
-  "counts": {"buildings":289,"houses":192,"trees":2000,"cars":696,"lamps":40},
+  "counts": {"buildings":289,"houses":192,"trees":1996,"cars":696,"lamps":40},
   "census": {
     "apartment": 15,
-    "broadleaf": 525,
+    "broadleaf": 521,
     "bush": 1461,
     "chimneys": 222,
     "church-roof": 3,
@@ -22,7 +22,7 @@
     "house": 109,
     "mapped-height": 1,
     "paired-windows": 67,
-    "park-trees": 34,
+    "park-trees": 30,
     "party-walls": 163,
     "ribbon-windows": 6,
     "roundabout-trees": 3,
@@ -39,30 +39,30 @@
     "worship": 3
   },
   "plan": {
-    "lifts": 17056,
-    "rawLifts": 18487,
-    "inkMm": 88373.6,
-    "travelMm": 42199.4,
-    "minutes": 130.9,
-    "pens": [["Shadows",2932,10073.6],["Water",0,0],["Greenery",2782,13633.9],["Roofs",4161,25119.6],["Linework",7181,39546.6]]
+    "lifts": 16315,
+    "rawLifts": 17746,
+    "inkMm": 86941.8,
+    "travelMm": 40440.3,
+    "minutes": 126.2,
+    "pens": [["Shadows",2912,10021.1],["Water",0,0],["Greenery",2061,12254.6],["Roofs",4161,25119.6],["Linework",7181,39546.6]]
   },
   "features": {
     "buildings": [1418,13471.4],
     "cars": [625,1884.7],
     "cars:parking": [105,267.4],
     "details": [504,2002.5],
-    "ground": [2481,7273.8],
+    "ground": [1799,5863.4],
     "lamps": [29,169],
     "markings": [31,62.3],
     "markings:parking": [55,140],
-    "parks": [392,5397],
+    "parks": [365,5522.3],
     "paths": [215,201],
     "roofHatch": [3290,16286.6],
     "roofs": [1292,8693.2],
     "rooftops": [125,1264.2],
-    "shadows": [2932,10073.6],
+    "shadows": [2912,10021.1],
     "streets:kerbs": [244,1504.4],
-    "trees": [329,2207.2],
+    "trees": [317,2113],
     "windows": [3760,12581]
   },
   "facets": {
@@ -120,9 +120,9 @@
     "details/town-hall": [3,11.7],
     "ground/allotment-sheds": [30,103.7],
     "ground/allotments": [542,999],
-    "ground/lawns": [1283,2660.3],
+    "ground/lawns": [601,1249.9],
     "ground/plots": [626,3510.7],
-    "parks/grass": [364,5049.4],
+    "parks/grass": [337,5174.7],
     "parks/park-edges": [28,347.6],
     "roofHatch/apartment": [100,649.1],
     "roofHatch/chimneys": [2206,10072.2],
@@ -187,11 +187,11 @@
     "rooftops/tall-windows": [31,295.7],
     "rooftops/terrace": [41,305.3],
     "rooftops/worship": [3,157.7],
-    "trees/broadleaf": [285,1903.8],
+    "trees/broadleaf": [273,1809.6],
     "trees/bush": [9,51],
     "trees/conifer": [35,252.4],
     "trees/garden-trees": [135,888.5],
-    "trees/park-trees": [102,752.1],
+    "trees/park-trees": [90,657.9],
     "trees/scrub-bushes": [9,51],
     "trees/street-trees": [83,515.5],
     "windows/apartment": [1187,3999.5],
@@ -217,5 +217,5 @@
     "windows/town-hall": [8,33],
     "windows/worship": [30,218.9]
   },
-  "svg": {"bytes":698613,"sha1":"7ef8b7ec9e65349a"}
+  "svg": {"bytes":650823,"sha1":"ee7554a72cdf3701"}
 }

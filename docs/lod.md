@@ -44,6 +44,8 @@ Some rules change *how* a thing is drawn rather than whether it is: cars lose th
 
 Road centre dashes are tested by their projected length, so dashes pointing into the view drop out before those across it. Roof hatching stops 1.25 pen widths short of each endpoint and is tested again at its shortened length, keeping small slopes clear rather than filling them with fragments.
 
+Grass tufts and inferred park and wood trees use smooth, map-fixed density patches, leaving quiet gaps between groups. Tree spacing still follows its LOD rule; woods keep fuller edges. Grass patches span five texture cells, so their paper size follows `cam.gap()`. Water uses longer, shallow ripples in loose bands on the sheet, with spacing and length following `cam.gap()` and a bank clearance of 1.5 physical pen widths. Its quiet gaps are compositional, not inferred currents or depths.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.
