@@ -43,12 +43,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 32682,
-    "rawLifts": 36429,
-    "inkMm": 94670.2,
-    "travelMm": 60996.8,
+    "lifts": 32690,
+    "rawLifts": 36437,
+    "inkMm": 94685,
+    "travelMm": 61002.7,
     "minutes": 215.6,
-    "pens": [["Shadows",3174,3909.3],["Water",179,720.2],["Greenery",21855,60825.1],["Roofs",2442,8661.9],["Linework",5032,20553.6]]
+    "pens": [["Shadows",3174,3909.3],["Water",179,720.2],["Greenery",21855,60825.1],["Roofs",2450,8676.8],["Linework",5032,20553.6]]
   },
   "features": {
     "buildings": [2227,5383.9],
@@ -63,7 +63,7 @@
     "paths": [1331,1289.7],
     "power:powerLines": [41,856],
     "rails": [30,439.6],
-    "roofHatch": [1204,2162.3],
+    "roofHatch": [1212,2177.2],
     "roofs": [2928,6459.7],
     "rooftops": [21,49.7],
     "shadows": [3174,3909.3],
@@ -132,22 +132,22 @@
     "roofHatch/church-roof": [5,11.1],
     "roofHatch/civic": [21,32.3],
     "roofHatch/clerestory-windows": [7,16.5],
-    "roofHatch/dormers": [278,475.7],
-    "roofHatch/gabled-roof": [1023,1872.1],
-    "roofHatch/glazing-bars": [485,785.9],
-    "roofHatch/grid-windows": [443,739.7],
-    "roofHatch/guessed-height": [1204,2162.3],
-    "roofHatch/halfHipped-roof": [106,186.3],
+    "roofHatch/dormers": [279,476.5],
+    "roofHatch/gabled-roof": [1030,1886.3],
+    "roofHatch/glazing-bars": [486,786.6],
+    "roofHatch/grid-windows": [444,740.4],
+    "roofHatch/guessed-height": [1212,2177.2],
+    "roofHatch/halfHipped-roof": [107,187.1],
     "roofHatch/hipped-roof": [66,84],
-    "roofHatch/house": [994,1649.4],
+    "roofHatch/house": [1002,1664.3],
     "roofHatch/industrial": [114,359.3],
     "roofHatch/officeEnd-windows": [103,334],
     "roofHatch/paired-windows": [155,272.6],
     "roofHatch/party-walls": [83,135],
     "roofHatch/shed-roof": [4,8.7],
     "roofHatch/shop-front": [1,1.2],
-    "roofHatch/shutters": [600,965.5],
-    "roofHatch/small-windows": [479,765.8],
+    "roofHatch/shutters": [608,980.4],
+    "roofHatch/small-windows": [486,780],
     "roofHatch/sparse-windows": [4,8.7],
     "roofHatch/tall-windows": [13,24.8],
     "roofHatch/terrace": [70,110.1],
@@ -211,5 +211,5 @@
     "windows/tall-windows": [4,3.2],
     "windows/worship": [4,3.2]
   },
-  "svg": {"bytes":2173731,"sha1":"1a3f8c9d25843269"}
+  "svg": {"bytes":2173939,"sha1":"c9e18a955b52b6b6"}
 }

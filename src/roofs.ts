@@ -266,6 +266,8 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
   const pen = ROOFS;
   const { cam } = B;
   const [upx, upy] = cam.up;
+  // The top is hatched with the slopes, so a skirted roof reads as one roof and not a white lid.
+  let hatched = false;
   rings.forEach((r, ri) => {
     const p = r.pts;
     const q = insetRings[ri];
@@ -295,6 +297,7 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
       // Outward normal (to the right of a counter-clockwise edge) faces the viewer?
       const front = ey * upx - ex * upy < 0;
       if (B.set.roofHatch && front && hatchable(B, [A[0], A[1], He], [A2[0], A2[1], Ht])) {
+        hatched = true;
         const count = strokes(B, A[0], A[1], Bv[0], Bv[1], He, [A[0], A[1], He], A2);
         for (let k = 0; k < count; k++) {
           const t = (k + 0.5) / count;
@@ -315,8 +318,84 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
       }
     }
   });
-  out.faces.push(insetRings.map((q) => q.flatMap((v, i) => (i % 2 ? [v, Ht] : [v]))));
+  const top = insetRings.map((q) => q.flatMap((v, i) => (i % 2 ? [v, Ht] : [v])));
+  out.faces.push(top);
+  if (hatched) hatchTop(B, rings[0], insetRings, Ht, top, out);
   return true;
+}
+
+/**
+ * Hatch a flat roof top at height z, square to the longest open edge of the walls so the
+ * strokes carry on from the long slopes. The phase hangs off that edge, so it holds still
+ * when the view pans.
+ */
+function hatchTop(B: Build, outer: { pts: number[]; seam: Uint8Array }, rings: number[][], z: number, on: number[][], out: Solid): void {
+  const p = outer.pts;
+  const n = p.length / 2;
+  let best = -1;
+  let bl = 0;
+  for (let i = 0; i < n; i++) {
+    if (outer.seam[i]) continue;
+    const j = (i + 1) % n;
+    const l = Math.hypot(p[j * 2] - p[i * 2], p[j * 2 + 1] - p[i * 2 + 1]);
+    if (l > bl) [best, bl] = [i, l];
+  }
+  if (best < 0) return;
+  const j = (best + 1) % n;
+  // Strokes run along d; they are stepped along e, the edge direction.
+  const ex = (p[j * 2] - p[best * 2]) / bl;
+  const ey = (p[j * 2 + 1] - p[best * 2 + 1]) / bl;
+  const dx = -ey;
+  const dy = ex;
+  const c = B.cam;
+  const hx = c.sx(dx, dy) - c.sx(0, 0);
+  const hy = c.sy(dx, dy, z) - c.sy(0, 0, z);
+  const hl = Math.hypot(hx, hy);
+  const kx = c.sx(ex, ey) - c.sx(0, 0);
+  const ky = c.sy(ex, ey, z) - c.sy(0, 0, z);
+  // Paper distance between strokes one metre apart along e, measured square to the strokes.
+  const across = hl > 1e-9 ? Math.abs(kx * hy - ky * hx) / hl : Math.hypot(kx, ky);
+  if (across < 1e-9) return;
+  const step = c.within('roofHatch', () => c.gap(ROOF_HATCH_MM)) / across;
+  const ox = p[best * 2];
+  const oy = p[best * 2 + 1];
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const q of rings) {
+    for (let i = 0; i < q.length; i += 2) {
+      const t = (q[i] - ox) * ex + (q[i + 1] - oy) * ey;
+      if (t < lo) lo = t;
+      if (t > hi) hi = t;
+    }
+  }
+  const hits: number[] = [];
+  for (let t = (Math.floor(lo / step) + 0.5) * step; t < hi; t += step) {
+    hits.length = 0;
+    for (const q of rings) {
+      const m = q.length / 2;
+      for (let i = 0; i < m; i++) {
+        const k = (i + 1) % m;
+        const ax = q[i * 2] - ox;
+        const ay = q[i * 2 + 1] - oy;
+        const bx = q[k * 2] - ox;
+        const by = q[k * 2 + 1] - oy;
+        const ta = ax * ex + ay * ey - t;
+        const tb = bx * ex + by * ey - t;
+        if (ta < 0 === tb < 0) continue;
+        const f = ta / (ta - tb);
+        hits.push(ax * dx + ay * dy + ((bx - ax) * dx + (by - ay) * dy) * f);
+      }
+    }
+    hits.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < hits.length; i += 2) {
+      const a = hits[i];
+      const b = hits[i + 1];
+      if (b - a < 0.3) continue;
+      const x = ox + ex * t;
+      const y = oy + ey * t;
+      out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts: [x + dx * a, y + dy * a, z, x + dx * b, y + dy * b, z] });
+    }
+  }
 }
 
 /** A flat roof's parapet: a second outline just inside the edge. */
