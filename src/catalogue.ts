@@ -1386,7 +1386,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Poles along roads',
     source: ['invented'],
     what: 'Wooden poles with sagging wires and transformer cans here and there.',
-    how: 'Along primary to service roads: in town where that is the custom, only on country roads elsewhere. Wires join adjacent valid poles only, with no water or building crossing; rejected poles break the run.',
+    how: 'Along primary to service roads: in town where that is the custom, only on country roads elsewhere. Compatible road sections form continuous routes with a shared side and spacing, and poles at bends. Ambiguous forks remain separate. Wires join adjacent valid poles only, with no water or building crossing; rejected poles break the run and isolated poles are omitted.',
     regions: `In town too: ${listed(OVERHEAD_TOWN)}.`,
     needs: ['power'],
     lod: ['pole', 'poleWires', 'transformer'],

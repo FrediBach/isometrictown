@@ -119,3 +119,17 @@ test('power context adds only outer tiles, with a deterministic bounded budget',
   expect(powerContextTiles(frame,box)).toEqual(tiles);
   expect(powerContextTiles(frame,[-20000,-20000,20000,20000])).toHaveLength(16);
 });
+
+test('emitted roadside wires ignore feature splits and omit unsupported standalone poles', () => {
+  const c=context(); c.land=[];
+  c.roads=Array.from({length:10},(_,i)=>({kind:'road' as const,cls:'minor',width:4,pts:[-200,i*20,200,i*20]}));
+  const before=drawn(c);
+  expect(before.length).toBeGreaterThan(0);
+  const split=structuredClone(c);
+  split.roads=split.roads.flatMap(w=>[{...w,pts:[0,w.pts[1],w.pts[0],w.pts[1]]},{...w,pts:[w.pts[2],w.pts[3],0,w.pts[3]]}]).reverse();
+  const rounded=(ls:number[][])=>ls.map(p=>p.map(v=>Math.round(v*1e5)/1e5));
+  expect(rounded(drawn(split))).toEqual(rounded(before));
+  // A strip across the middle leaves isolated foundations, but no complete span.
+  c.water=[rectangle(-190,-100,190,300)];
+  expect(drawn(c)).toHaveLength(0);
+});

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artistic round 29 — Connected roadside power</title><style>body{font:16px/1.6 system-ui;max-width:1050px;margin:40px auto;padding:0 20px;background:#f5f3ed;color:#242820}a{color:#345a49}.pair{display:grid;grid-template-columns:1fr 1fr;gap:20px}figure{margin:0}img{width:100%}table{border-collapse:collapse}td,th{text-align:left;padding:8px 18px;border-bottom:1px solid #ccc}@media(max-width:600px){.pair{grid-template-columns:1fr}}</style>
+<body><main><h1>Connected roadside power</h1>
+<p>Round 29 · 50.2747° N, 19.7106° E · 1:1600 · bearing 35°</p>
+<p>The short two-span line came from a 111 m map feature. Neighbouring road features made independent placement decisions, despite belonging to the same road.</p>
+<h2>Changes</h2>
+<ul><li>Compatible road sections join into routes before selecting power placement, side and spacing. Feature order and direction no longer control the result.</li>
+<li>Simple bends join; a clear straight continuation can pass a junction. Ambiguous forks, incompatible road classes, bridges and private accesses do not extend a route.</li>
+<li>Dedicated corner poles let wires follow bends, with regular poles kept clear of them.</li>
+<li>Urban eligibility is checked at each support. Water, building and airfield checks still apply to every accepted span. A pole is drawn only if a valid wire span uses it.</li></ul>
+<h2>Reported location</h2>
+<figure><img src="artistic-review-assets/road-power-before.png" alt="Before: short isolated power spans alongside the road"><figcaption>Before — independent map features create short disconnected runs.</figcaption></figure>
+<figure><img src="artistic-review-assets/road-power-after.png" alt="After: roadside power follows the long road and its bend"><figcaption>After — a continuous route follows the countryside road and its bend.</figcaption></figure>
+<h2>Verification</h2>
+<p>Regression tests cover split, reversed and shuffled road features, local-coordinate shifts, right-angle corner supports, junctions, ambiguous forks, closed loops, exclusions, and omission of unsupported standalone poles. Existing water-crossing tests still pass.</p>
+<p>Eight before/after LOD cases cover Mollis, Emmental, Midtown and the Interlaken lakeshore at 1:1000 and 1:1600. Changes remain confined to power linework. Midtown gains longer connected spans; its wasted-ink score rises by 0.1 percentage point. Other waste scores are unchanged at the reported precision.</p>
+<p>The three intended golden changes are Hallstatt (one isolated pole removed), Midtown (connected roadside spans) and Nördlingen (rural portions no longer excluded by a road feature's urban midpoint). The golden sheets, selected LOD close-ups and reported location were checked on screen. No physical pen plot or exhaustive sweep across changing tile contexts was checked. Routes are still artistic inferences.</p>
+<p><a href="artistic-review.html">Back to artistic review</a></p></main></body></html>

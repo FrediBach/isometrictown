@@ -1,6 +1,6 @@
 import type { Build } from './buildings';
 import type { Camera } from './camera';
-import { measure, at, onMask, type Extra } from './infra';
+import { onMask, type Extra } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
 import { hash } from './rng';
@@ -9,6 +9,7 @@ import type { Town, Way } from './tiles';
 import { urbanity } from './traffic';
 import { LOD, shows } from './lod';
 import { powerTerrain } from './power-terrain';
+import { powerRoads, roadsideSupports } from './power-roads';
 type Terrain = ReturnType<typeof powerTerrain>;
 
 /*
@@ -29,8 +30,6 @@ const CELL = 3000;
 const LINE_CHANCE = 0.6;
 /** Regions where wires run overhead on poles along town streets, not just country roads. */
 export const OVERHEAD_TOWN = new Set(['american', 'eastAsian', 'antipodean', 'tropical', 'arid', 'eastern']);
-const POLE_ROADS = new Set(['primary', 'secondary', 'tertiary', 'minor', 'service']);
-const PRIVATE = new Set(['driveway', 'parking_aisle', 'drive-through']);
 
 type Line = { pen: number; pts: number[] };
 
@@ -243,18 +242,9 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
     const [k0, k1] = B.key(w.pts[0], w.pts[1]);
     return hash(k0, k1, set.seed, salt);
   };
-  for (const w of terrain.roads) {
-    if (w.kind !== 'road' || !POLE_ROADS.has(w.cls) || PRIVATE.has(w.service ?? '') || w.bridge) continue;
-    const cum = measure(w.pts);
-    const L = cum[cum.length - 1];
-    if (L < spacing) continue;
-    const [mx, my] = at(w.pts, cum, L / 2);
-    const u = urban(mx, my);
-    // Out of town everywhere; in town only where wires overhead are the norm.
-    if (!townToo && u > 0.15) continue;
+  for (const w of powerRoads(terrain.roads, B.key)) {
     if (keyed(w, 950) > (townToo ? 0.85 : 0.5)) continue;
     const side = keyed(w, 951) < 0.5 ? 1 : -1;
-    const off = w.width / 2 + 1.0;
     // Arms across the road's direction carry the wires; the pole's top is the same for all.
     const wires: [number, number][] = american
       ? [
@@ -284,31 +274,35 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
     const arms = new Set(kept.filter(([b]) => b !== 0).map(([, z]) => z));
     const can = (american || asian) && shows(B.cam, LOD.transformer);
     let prev: [number, number, number, number] | null = null;
-    for (let d = 6; d <= L - 4; d += spacing) {
-      const [x0, y0, ux, uy] = at(w.pts, cum, d);
-      const nx = -uy * side;
-      const ny = ux * side;
-      const x = x0 + nx * off;
-      const y = y0 + ny * off;
-      if (blocked(x, y)) { prev = null; continue; }
-      // The pole, and its cross-arms.
-      out.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
-      for (const z of arms) out.push({ pen: LINEWORK, pts: [x + nx * 1.1, y + ny * 1.1, z, x - nx * 1.1, y - ny * 1.1, z] });
+    let previousPole: Line[] = [], previousDrawn = false;
+    for (const [x, y, nx, ny] of roadsideSupports(w, side, spacing)) {
+      if (blocked(x, y) || (!townToo && urban(x, y) > 0.15)) { prev = null; continue; }
+      const ux = ny * side, uy = -nx * side;
+      const pole: Line[] = [];
+      // The pole, and its cross-arms; retain them only if a verified span uses this support.
+      pole.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
+      for (const z of arms) pole.push({ pen: LINEWORK, pts: [x + nx * 1.1, y + ny * 1.1, z, x - nx * 1.1, y - ny * 1.1, z] });
       // Now and then a transformer can on the pole.
       const [k0, k1] = B.key(x, y);
       if (can && hash(k0, k1, set.seed, 952) < 0.15) {
         const cx = x - ux * 0.5;
         const cy = y - uy * 0.5;
         const z0 = H - 3.4;
-        out.push({ pen: LINEWORK, pts: [cx - nx * 0.3, cy - ny * 0.3, z0, cx - nx * 0.3, cy - ny * 0.3, z0 + 1.1, cx + nx * 0.3, cy + ny * 0.3, z0 + 1.1, cx + nx * 0.3, cy + ny * 0.3, z0, cx - nx * 0.3, cy - ny * 0.3, z0] });
+        pole.push({ pen: LINEWORK, pts: [cx - nx * 0.3, cy - ny * 0.3, z0, cx - nx * 0.3, cy - ny * 0.3, z0 + 1.1, cx + nx * 0.3, cy + ny * 0.3, z0 + 1.1, cx + nx * 0.3, cy + ny * 0.3, z0, cx - nx * 0.3, cy - ny * 0.3, z0] });
       }
+      let joined = false;
       if (prev) {
         const [px, py, pnx, pny] = prev;
-        // Round a bend the road turns away from the wires; start a new run rather than cut the corner.
-        if (Math.hypot(px - x, py - y) < spacing * 1.2 && pnx * nx + pny * ny > 0.87 && terrain.span(px, py, x, y, false, 1.1) && !crossesTitle(paper, M, px, py, x, y))
+        // Dedicated corner supports let the wires turn with the road.
+        if (Math.hypot(px - x, py - y) < spacing * 1.5 && terrain.span(px, py, x, y, false, 1.1) && !crossesTitle(paper, M, px, py, x, y)) {
+          if (!previousDrawn) out.push(...previousPole);
+          out.push(...pole);
+          joined = true;
           for (const [b, z] of kept) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
+        }
       }
       prev = [x, y, nx, ny];
+      previousPole = pole; previousDrawn = joined;
     }
   }
 }
