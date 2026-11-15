@@ -72,25 +72,42 @@ export function blockLetters(text: string, weight: number, spacing: number, roun
       for (let i = i0; i <= i1; i++) if (inside(ox + (i + 0.5) / R, y)) grid[j * W + i] = 1;
     }
   };
-  for (const s of strokes) {
+  /** Whether a stroke's end lands on another stroke (the A's crossbar on its legs): such an end gets no square cap, which would poke out past a slanting stroke. */
+  const joined = (si: number, x: number, y: number, own: number): boolean => {
+    for (let sj = 0; sj < strokes.length; sj++) {
+      const t = strokes[sj];
+      for (let k = 0; k + 3 < t.length; k += 2) {
+        if (sj === si && k / 2 === own) continue;
+        const [ax, ay, bx, by] = [t[k], t[k + 1], t[k + 2], t[k + 3]];
+        const L2 = (bx - ax) ** 2 + (by - ay) ** 2;
+        const u = L2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / L2)) : 0;
+        if (Math.hypot(ax + (bx - ax) * u - x, ay + (by - ay) * u - y) < 0.15) return true;
+      }
+    }
+    return false;
+  };
+  strokes.forEach((s, si) => {
     const n = s.length / 2;
     const closed = n > 2 && Math.hypot(s[0] - s[s.length - 2], s[1] - s[s.length - 1]) < 1e-6;
     if (n === 1 || (n === 2 && s[0] === s[2] && s[1] === s[3])) {
       paint(s[0] - hw, s[1] - hw, s[0] + hw, s[1] + hw, (x, y) => (round ? Math.hypot(x - s[0], y - s[1]) <= hw : Math.abs(x - s[0]) <= hw && Math.abs(y - s[1]) <= hw));
-      continue;
+      return;
     }
+    const cap0 = !round && !closed && !joined(si, s[0], s[1], 0);
+    const cap1 = !round && !closed && !joined(si, s[s.length - 2], s[s.length - 1], n - 2);
     for (let k = 0; k + 1 < n; k++) {
       const [ax, ay, bx, by] = [s[k * 2], s[k * 2 + 1], s[k * 2 + 2], s[k * 2 + 3]];
       const L = Math.hypot(bx - ax, by - ay);
       if (L < 1e-9) continue;
       const dx = (bx - ax) / L;
       const dy = (by - ay) / L;
-      // Square letters get square ends where a stroke starts or stops; joints are mitred below.
-      // At a joint the stroke runs on a pixel or so, so no hairline crack opens along the seam with
-      // the mitre, where pixel centres on the shared edge would fail both tests.
+      // Square letters get square ends where a stroke starts or stops freely; an end on another
+      // stroke stops at its centre line, buried. Joints are mitred below. Elsewhere the stroke runs
+      // on a pixel or so, so no hairline crack opens along the seam with the mitre, where pixel
+      // centres on the shared edge would fail both tests.
       const seam = 1.5 / R;
-      const e0 = round ? 0 : !closed && k === 0 ? hw : seam;
-      const e1 = round ? 0 : !closed && k === n - 2 ? hw : seam;
+      const e0 = round ? 0 : k === 0 && !closed ? (cap0 ? hw : seam) : seam;
+      const e1 = round ? 0 : k === n - 2 && !closed ? (cap1 ? hw : seam) : seam;
       paint(Math.min(ax, bx) - hw, Math.min(ay, by) - hw, Math.max(ax, bx) + hw, Math.max(ay, by) + hw, (x, y) => {
         const t = (x - ax) * dx + (y - ay) * dy;
         if (round) {
@@ -100,7 +117,7 @@ export function blockLetters(text: string, weight: number, spacing: number, roun
         return t >= -e0 && t <= L + e1 && Math.abs((y - ay) * dx - (x - ax) * dy) <= hw;
       });
     }
-    if (round) continue;
+    if (round) return;
     // Mitre each joint: the wedge between the two strokes' outer edges, cut off as a bevel when it gets long.
     for (let k = closed ? 0 : 1; k < n - 1; k++) {
       const p = k === 0 ? n - 2 : k - 1;
@@ -132,7 +149,7 @@ export function blockLetters(text: string, weight: number, spacing: number, roun
       const ys = ring.filter((_, i) => i % 2 === 1);
       paint(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys), (x, y) => pointInRing(x, y, ring));
     }
-  }
+  });
   const loops = trace(grid, W, H).map((l) => {
     const pts = simplify(l, 1.1);
     for (let i = 0; i < pts.length; i += 2) {
