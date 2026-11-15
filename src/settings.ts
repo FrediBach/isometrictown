@@ -185,7 +185,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shadows: true,
   sunAngle: 55,
   sunHeight: 38,
-  shadeWalls: false,
+  shadeWalls: true,
 
   pens: ['#a6b9dd', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'],
   customLayerPens: false,

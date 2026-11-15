@@ -28,6 +28,7 @@ export const CASES: Case[] = [
   { id: 'zurich-airport', what: 'Runways, aprons, aircraft and rail at a coarse scale', set: at('Zürich Airport', [8.5618, 47.4502], 0, 4000) },
   { id: 'midtown', what: 'Towers, a street grid and traffic', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000) },
   { id: 'nordlingen', what: 'Walled old town of packed roofs', set: at('Nördlingen', [10.4878, 48.8518], 30, 2500) },
+  { id: 'betschwanden', what: 'Glarus valley village: railway, main road, stream, church and cemetery', set: at('Betschwanden', [9.0267, 46.9462], 35, 1000) },
   { id: 'emmental', what: 'Farmland, scattered farms and forest, coarse', set: at('Trubschachen', [7.8454, 46.922], 20, 4000) },
   {
     id: 'mollis-title',

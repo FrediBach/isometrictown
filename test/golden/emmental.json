@@ -43,12 +43,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 18924,
-    "rawLifts": 22341,
-    "inkMm": 66983.2,
-    "travelMm": 45465.3,
-    "minutes": 132,
-    "pens": [["Shadows",1661,2517.2],["Water",158,759.3],["Greenery",10858,36790.5],["Roofs",1501,7327.7],["Linework",4746,19588.5]]
+    "lifts": 19842,
+    "rawLifts": 23259,
+    "inkMm": 68595.8,
+    "travelMm": 46012.9,
+    "minutes": 137.4,
+    "pens": [["Shadows",2579,4129.7],["Water",158,759.3],["Greenery",10858,36790.5],["Roofs",1501,7327.7],["Linework",4746,19588.5]]
   },
   "features": {
     "buildings": [2225,5385.4],
@@ -64,6 +64,7 @@
     "roofHatch": [272,545.7],
     "roofs": [3112,6742],
     "rooftops": [21,49.7],
+    "shadeWalls": [918,1612.6],
     "shadows": [1661,2517.2],
     "streets:bridges": [22,59.9],
     "streets:kerbs": [672,4791.9],
@@ -187,6 +188,34 @@
     "rooftops/paired-windows": [6,13.4],
     "rooftops/party-walls": [6,14.2],
     "rooftops/small-windows": [8,19.1],
+    "shadeWalls/apartment": [28,110.3],
+    "shadeWalls/blank-windows": [72,127.9],
+    "shadeWalls/chimneys": [253,496.5],
+    "shadeWalls/civic": [8,15.5],
+    "shadeWalls/clerestory-windows": [28,52.6],
+    "shadeWalls/deep-balconies": [28,110.3],
+    "shadeWalls/dormers": [176,291.6],
+    "shadeWalls/flat-roof": [88,150.3],
+    "shadeWalls/gabled-roof": [672,1132.9],
+    "shadeWalls/glazing-bars": [351,595.1],
+    "shadeWalls/grid-windows": [271,442.2],
+    "shadeWalls/guessed-height": [918,1612.6],
+    "shadeWalls/halfHipped-roof": [63,103],
+    "shadeWalls/has-parapet": [2,3.9],
+    "shadeWalls/hipped-roof": [58,100.4],
+    "shadeWalls/house": [686,1156],
+    "shadeWalls/industrial": [156,273.4],
+    "shadeWalls/officeEnd-windows": [54,88.7],
+    "shadeWalls/paired-windows": [136,305.3],
+    "shadeWalls/party-walls": [80,129.6],
+    "shadeWalls/shed": [2,1.4],
+    "shadeWalls/shed-roof": [9,15.7],
+    "shadeWalls/shop-front": [1,1.3],
+    "shadeWalls/shutters": [413,694.5],
+    "shadeWalls/skirt-roof": [28,110.3],
+    "shadeWalls/small-windows": [353,590.3],
+    "shadeWalls/sparse-windows": [4,5.7],
+    "shadeWalls/terrace": [38,56],
     "trees/broadleaf": [5546,14811.6],
     "trees/bush": [125,264.4],
     "trees/conifer": [3344,14235],
@@ -206,5 +235,5 @@
     "windows/tall-windows": [4,3.2],
     "windows/worship": [4,3.2]
   },
-  "svg": {"bytes":1354100,"sha1":"21f5bbd5ce7e0050"}
+  "svg": {"bytes":1378620,"sha1":"9a98fa8cd65e50da"}
 }

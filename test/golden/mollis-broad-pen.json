@@ -36,12 +36,12 @@
     "worship": 2
   },
   "plan": {
-    "lifts": 3134,
-    "rawLifts": 4506,
-    "inkMm": 23570.6,
-    "travelMm": 7817.1,
-    "minutes": 27.1,
-    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",3134,23570.6]]
+    "lifts": 3666,
+    "rawLifts": 5044,
+    "inkMm": 25804.6,
+    "travelMm": 8586.5,
+    "minutes": 30.9,
+    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",3666,25804.6]]
   },
   "features": {
     "buildings": [1171,6217.6],
@@ -52,6 +52,7 @@
     "roofHatch": [25,163.5],
     "roofs": [1773,7578.7],
     "rooftops": [6,33.1],
+    "shadeWalls": [538,2234],
     "shadows": [589,2282.4],
     "streets:kerbs": [328,1996.3],
     "streets:railings": [11,48.2],
@@ -140,6 +141,29 @@
     "rooftops/shop-front": [4,17.5],
     "rooftops/shutters": [6,33.1],
     "rooftops/terrace": [6,33.1],
+    "shadeWalls/blank-windows": [1,1.6],
+    "shadeWalls/chimneys": [167,688.6],
+    "shadeWalls/church-roof": [16,89.6],
+    "shadeWalls/civic": [31,130.7],
+    "shadeWalls/dormers": [151,665.1],
+    "shadeWalls/flat-roof": [40,167.4],
+    "shadeWalls/gabled-roof": [373,1517.3],
+    "shadeWalls/glazing-bars": [307,1321.1],
+    "shadeWalls/grid-windows": [159,719.8],
+    "shadeWalls/guessed-height": [538,2234],
+    "shadeWalls/halfHipped-roof": [50,223.9],
+    "shadeWalls/hipped-roof": [59,235.7],
+    "shadeWalls/house": [182,804.5],
+    "shadeWalls/paired-windows": [134,540.4],
+    "shadeWalls/party-walls": [365,1539.6],
+    "shadeWalls/ribbon-windows": [12,60.6],
+    "shadeWalls/shed": [1,1.6],
+    "shadeWalls/shop-front": [13,36.7],
+    "shadeWalls/shutters": [329,1364.6],
+    "shadeWalls/small-windows": [210,808.5],
+    "shadeWalls/tall-windows": [22,103.1],
+    "shadeWalls/terrace": [308,1207.6],
+    "shadeWalls/worship": [16,89.6],
     "trees/broadleaf": [91,679.7],
     "trees/conifer": [3,42.3],
     "trees/garden-trees": [61,467.5],
@@ -155,5 +179,5 @@
     "windows/tall-windows": [5,16],
     "windows/worship": [5,16]
   },
-  "svg": {"bytes":143574,"sha1":"67d2128f2a1cab7e"}
+  "svg": {"bytes":157407,"sha1":"82b6ec4a9f45d5d9"}
 }

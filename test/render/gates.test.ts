@@ -52,7 +52,6 @@ describe.each(GATES)('%s off', (g) => {
   });
 
   test('had something to take away', () => {
-    if (g === 'shadeWalls') return; // off by default; checked the other way below
     // Where the catalogue files the gate's strokes, they must have been there; otherwise the
     // sheet must at least lose strokes. (Not both: the title clears buildings, so taking it
     // away draws more.)
@@ -61,9 +60,11 @@ describe.each(GATES)('%s off', (g) => {
   });
 });
 
-test('shaded walls add hatching when switched on', async () => {
-  const on = await draw({ ...GATE_BASE, shadeWalls: true });
-  expect(on.stats.lifts).toBeGreaterThan(base.stats.lifts);
+test('wall hatching survives switching windows off', async () => {
+  const bare = await draw({ ...GATE_BASE, windows: false });
+  const hatching = (s: Sheet) => gated(s, 'shadeWalls').map((name) => s.tally.get(name));
+  expect(hatching(base).length).toBeGreaterThan(0);
+  expect(hatching(bare)).toEqual(hatching(base));
 });
 
 test('the frame and map notes only draw in the margin', async () => {

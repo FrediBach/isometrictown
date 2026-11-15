@@ -17,6 +17,7 @@ export const PRESETS: Preset[] = [
   { name: 'Bauma', country: 'Switzerland', center: [8.8858, 47.3653], bearing: 35, scale: 1000 },
   { name: 'Lenzburg', country: 'Switzerland', center: [8.1745, 47.3876], bearing: 35, scale: 1000 },
   { name: 'Wädenswil', country: 'Switzerland', center: [8.6738, 47.2302], bearing: 35, scale: 1000 },
+  { name: 'Betschwanden', country: 'Switzerland', center: [9.0267, 46.9462], bearing: 35, scale: 1000 },
   { name: 'Amsterdam', country: 'Netherlands', center: [4.8907, 52.3603], bearing: 35, scale: 1000 },
   { name: 'Nördlingen', country: 'Germany', center: [10.4878, 48.8518], bearing: 30, scale: 2500 },
   { name: 'Bourtange', country: 'Netherlands', center: [7.1918, 53.0068], bearing: 20, scale: 1800 },
