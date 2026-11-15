@@ -410,7 +410,8 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       }
     }
   }
-  return { solids: [], draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y) => paper.on(M.under, x, y) || paper.on(M.water, x, y))) };
+  // Hidden behind whatever stands in front, like any other line.
+  return { solids: [], draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y, d) => (paper.on(M.under, x, y) || paper.on(M.water, x, y)) && paper.seen(x, y, d))) };
 }
 
 // ---------------------------------------------------------------- Station platforms

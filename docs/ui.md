@@ -61,7 +61,7 @@ It is loaded lazily on first open, because it imports the regional tables from t
 
 ## Panel sections
 
-`components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
+`components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
 
 ## Optional drawing colours
 

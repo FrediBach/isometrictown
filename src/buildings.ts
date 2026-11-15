@@ -23,6 +23,8 @@ export type Solid = {
   faces: number[][][];
   lines: Line3[];
   casts: { ring: number[]; h: number }[];
+  /** Faces (rings of 3D triples) that don't stand on a footprint, so their shadow is cast by projecting them along the sun onto the ground. */
+  shade?: number[][][];
   /** Index of the building this belongs to, so it can be clicked in the preview. */
   pick?: number;
 };

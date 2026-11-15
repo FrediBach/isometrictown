@@ -70,6 +70,7 @@ export const GATE_LABEL: Partial<Record<Gate, string>> = {
   shadeWalls: 'Shade walls',
   frame: 'Frame line',
   marginalia: 'Map notes',
+  title: 'Cinematic title',
   trees: 'Trees',
   cars: 'Traffic',
 };
@@ -1410,6 +1411,17 @@ const ENTRIES_BY_HAND: Entry[] = [
     what: 'A second border with latitude and longitude ticks; below the drawing the place name, coordinates and view, a scale bar, a north arrow and the imprint, in single-stroke capitals.',
     how: 'From the settings and the place.',
     needs: ['marginalia'],
+  },
+  {
+    id: 'title',
+    group: 'sheet',
+    name: 'Cinematic title',
+    source: ['invented'],
+    what: 'The place name, or a text of your own, in giant 3D block capitals standing on a street between the buildings, like the opening shot of a film. The sides turned from the sun can be hatched, and the letters cast shadows.',
+    how: 'The margin\'s single-stroke capitals, thickened, merged into outlines and extruded. Road centre lines are joined across tile cuts and searched for long straight runs; the best run crosses the sheet, lies near the middle, is a main street and has buildings along it. The letters stand on its centre line, sized to a share of the drawing\'s width and kept inside it. Buildings they would stand in can make way, and Reveal brings them forward along the line of sight so buildings in front stop hiding them.',
+    needs: ['title'],
+    lod: ['title'],
+    strokes: ['title'],
   },
 ];
 

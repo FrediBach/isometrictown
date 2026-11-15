@@ -47,6 +47,37 @@ export type Settings = {
   /** Made-up life: people about town, herds on the meadows, machines in the fields, sport on pitches and raceways, boats and ships, trains and aircraft. */
   life: boolean;
 
+  /** The place name in giant 3D block letters standing on a long street, as in a film's opening shot. */
+  title: boolean;
+  /** Text for the title; empty letters the place name. */
+  titleText: string;
+  /** Width of the word as a share of the drawing area's width. */
+  titleSize: number;
+  /** Stroke thickness of the letters, in grid units of a cap height of 6. */
+  titleWeight: number;
+  /** Thickness of the letters front to back, as a share of their cap height. */
+  titleDepth: number;
+  /** Gap between letters, in grid units of a cap height of 6. */
+  titleTrack: number;
+  /** Height the letters float above the street, as a share of their cap height. */
+  titleLift: number;
+  /** Which street the title stands on: 1 is the best fit, 2 the next best and so on. */
+  titleStreet: number;
+  /** Slides the title along its street, from -1 to 1 of half the street's length in view. */
+  titleSlide: number;
+  /** Turns the title away from its street, degrees clockwise. */
+  titleTurn: number;
+  /** Brings the letters forward along the line of sight, from 0 (true depth) to 1 (in front of everything), so buildings before them stop hiding them. */
+  titleReveal: number;
+  /** Stand the title square to the viewer in the middle of the sheet instead of on a street. */
+  titleFront: boolean;
+  /** Leave out buildings the letters would stand in. */
+  titleClear: boolean;
+  /** Hatch the faces of the letters that have their backs to the sun. */
+  titleShade: boolean;
+  /** Round stroke ends and joints instead of square ones. */
+  titleRound: boolean;
+
   shadows: boolean;
   /** Where the light comes from, relative to the view, in degrees clockwise from straight up the sheet. */
   sunAngle: number;
@@ -131,6 +162,22 @@ export const DEFAULT_SETTINGS: Settings = {
   power: true,
   life: true,
 
+  title: false,
+  titleText: '',
+  titleSize: 0.6,
+  titleWeight: 1.5,
+  titleDepth: 0.3,
+  titleTrack: 1.2,
+  titleLift: 0,
+  titleStreet: 1,
+  titleSlide: 0,
+  titleTurn: 0,
+  titleReveal: 0,
+  titleFront: false,
+  titleClear: true,
+  titleShade: true,
+  titleRound: false,
+
   shadows: true,
   sunAngle: 55,
   sunHeight: 38,
@@ -171,7 +218,7 @@ export const LAYERS = {
   streets: 'Streets and infrastructure', lamps: 'Street lamps', paths: 'Footpaths',
   rails: 'Railways and lifts', water: 'Water', parks: 'Parks', ground: 'Fields and gardens',
   markings: 'Road markings', power: 'Power lines', life: 'People, animals, boats, trains and aircraft',
-  shadows: 'Shadows', shadeWalls: 'Wall shading', margin: 'Frame and map notes',
+  shadows: 'Shadows', shadeWalls: 'Wall shading', title: 'Cinematic title', margin: 'Frame and map notes',
 } as const;
 export type LayerId = keyof typeof LAYERS;
 

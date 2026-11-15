@@ -7,7 +7,7 @@ import { loadSettings, persist, REFIT_KEYS, slug, VIEW_KEYS } from './app/model'
 import { Renderer, type RenderResult, type RenderStatus } from './app/renderer';
 import { SettingsContext, type Change } from './app/settings-context';
 import { AboutDialog } from './components/about-dialog';
-import { LightSection, PensSection, PlaceSection, SeedSection, SheetSection, TownSection, ViewSection } from './components/sections';
+import { LightSection, PensSection, PlaceSection, SeedSection, SheetSection, TitleSection, TownSection, ViewSection } from './components/sections';
 import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
 import { recolor } from './plot';
@@ -175,6 +175,7 @@ export function App() {
           <ViewSection />
           <TownSection region={result?.region} />
           <LightSection />
+          <TitleSection />
           <SheetSection />
           <PensSection onPalette={setPens} onPen={setPen} onPenCommit={recolorPens} />
           <SeedSection onSeed={setSeed} onUnlock={unlockAll} />

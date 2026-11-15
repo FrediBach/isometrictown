@@ -48,6 +48,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
   - Cemeteries get rows of headstones and crosses.
   - Sports pitches get their markings for football, tennis, basketball or a running track, with goals, nets and hoops.
 - **Shadows** are hatched on the ground, from a sun you can move.
+- **Cinematic title** (off by default) stands the place name, or any text, in giant 3D block letters on a long straight street between the buildings, as in a film's opening shot. The best street is picked for you: one that crosses the sheet near the middle, wide and built up along both sides. You can pick the next best street, slide and turn the title, set its width, weight, depth, spacing and float, round the letters, shade their sides, clear buildings out of their way, and bring them forward so towers in front don't hide them.
 - **Map notes** letter the margin like a printed town map, in single-stroke capitals. The neat line gets a second border with latitude and longitude ticks. Below the drawing are the place name, its coordinates and view, a scale bar, a round north arrow whose needle runs along north as drawn, parallel to north–south streets, and the imprint.
 
 Most buildings aren't tagged with a roof shape in OpenStreetMap, so roofs are worked out from the footprint, the neighbours, the nearest street, points of interest (places of worship, schools), house numbers and land use. Where OpenStreetMap does tag a roof shape or building type, that's used instead. Trees, cars and lamps are made up. Everything made up is tied to the seed and to map position, so the same settings always give the same drawing, and panning doesn't reshuffle it. Click a building in the preview to try another look for it (a terrace changes as a row). It keeps that look through shuffles until you unlock all in the Seed section.
@@ -95,6 +96,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 | `src/catalogue.ts` | Everything detected, inferred or made up, with how it's found and where its strokes are filed, for the Catalogue |
 | `lab/` | The LOD lab: draws test places at several scales and scores wasted ink (`npm run lod`) |
 | `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
+| `src/title.ts` | The cinematic title: block letters traced from the single-stroke capitals, extruded and stood on the best straight street |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/worker.ts` | Runs all of the above off the main thread |
 | `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |

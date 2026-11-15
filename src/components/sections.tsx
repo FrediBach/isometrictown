@@ -140,10 +140,69 @@ export function LightSection() {
   );
 }
 
+/** The title's text; it keeps a draft so typing doesn't redraw until the edit is committed. */
+function TitleText() {
+  const { set, change } = useSettings();
+  const [draft, setDraft] = useState(set.titleText);
+  const input = useNativeChange<HTMLInputElement>((el) => change('titleText', el.value.trim()));
+  return (
+    <div className="mb-3 flex h-10 items-stretch overflow-hidden rounded-md border border-input bg-card focus-within:border-foreground/40 focus-within:ring-3 focus-within:ring-ring/30">
+      <span className="micro self-center pl-3">Text</span>
+      <input
+        ref={input}
+        type="text"
+        maxLength={40}
+        aria-label="Title text"
+        placeholder={set.place}
+        className="min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      />
+    </div>
+  );
+}
+
+/** The cinematic title: the place name in giant letters standing in the town. */
+export function TitleSection() {
+  const { set } = useSettings();
+  const shown = (set.titleText || set.place).toUpperCase();
+  return (
+    <FoldingSection index={5} title="Title" summary={set.title ? `${shown}${SEP}${FORMAT.titleStreet(set.titleStreet).toLowerCase()} street` : 'Off'}>
+      <KeyGrid className="mt-0 mb-2">
+        <BoolSetting name="title" label="Cinematic title" />
+      </KeyGrid>
+      <Hint>The place name in giant 3D letters standing on a long street between the buildings, like the opening shot of a film.</Hint>
+      {set.title && (
+        <>
+          <TitleText />
+          <NumberSetting name="titleSize" label="Width" min={0.2} max={1} step={0.01} hint="How much of the drawing's width the word spans." />
+          <NumberSetting name="titleWeight" label="Weight" min={0.6} max={2.6} step={0.1} />
+          <NumberSetting name="titleDepth" label="Depth" min={0.05} max={1.5} step={0.05} hint="How thick the letters are front to back, against their height." />
+          <NumberSetting name="titleTrack" label="Spacing" min={0.4} max={4} step={0.1} />
+          <NumberSetting name="titleLift" label="Float" min={0} max={1.5} step={0.05} hint="Lifts the letters off the street." />
+          <Caption className="mt-4">Placing</Caption>
+          <NumberSetting name="titleStreet" label="Street" min={1} max={8} step={1} hint="The best long, straight street across the view, or the next best ones." />
+          <NumberSetting name="titleSlide" label="Slide" min={-1} max={1} step={0.01} hint="Along the street; facing the viewer, back and forth." />
+          <NumberSetting name="titleTurn" label="Turn" min={-80} max={80} step={1} />
+          <NumberSetting name="titleReveal" label="Reveal" min={0} max={1} step={0.01} hint="Brings the letters forward along the line of sight, so buildings in front stop hiding them." />
+          <KeyGrid>
+            <BoolSetting name="titleFront" label="Face the viewer" />
+            <BoolSetting name="titleClear" label="Make room" />
+            <BoolSetting name="titleShade" label="Shade sides" />
+            <BoolSetting name="titleRound" label="Round letters" />
+          </KeyGrid>
+          <Hint className="mt-2 mb-0">Make room leaves out buildings the letters would stand in. Shade sides hatches the sides turned away from the sun.</Hint>
+        </>
+      )}
+    </FoldingSection>
+  );
+}
+
 export function SheetSection() {
   const { set, change } = useSettings();
   return (
-    <FoldingSection index={5} title="Sheet" summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
+    <FoldingSection index={6} title="Sheet" summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
       <div className="mb-4 flex gap-2">
         <Select value={set.sheet} onValueChange={(v) => change('sheet', v as SheetId)}>
           <SelectTrigger aria-label="Sheet size" className="h-9 min-w-0 flex-1 rounded-md bg-card">
@@ -250,7 +309,7 @@ export function PensSection({ onPalette, onPen, onPenCommit }: PensSectionProps)
 
   return (
     <FoldingSection
-      index={6}
+      index={7}
       title="Pens"
       summary={
         <span className="inline-flex items-center gap-2">
@@ -410,7 +469,7 @@ export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => vo
   });
 
   return (
-    <Section index={7} title="Seed">
+    <Section index={8} title="Seed">
       <div className="flex h-10 items-stretch overflow-hidden rounded-md border border-input bg-card focus-within:border-foreground/40 focus-within:ring-3 focus-within:ring-ring/30">
         <span className="micro self-center pl-3">No.</span>
         <input

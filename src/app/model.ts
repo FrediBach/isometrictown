@@ -113,8 +113,8 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customBackground';
+export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,
@@ -130,6 +130,15 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   margin: (v) => `${Math.round(v)} mm`,
   penWidth: (v) => `${v.toFixed(2)} mm`,
   speed: (v) => `${Math.round(v)} mm/s`,
+  titleSize: (v) => `${Math.round(v * 100)}%`,
+  titleWeight: (v) => v.toFixed(1),
+  titleDepth: (v) => `${v.toFixed(2)}×`,
+  titleTrack: (v) => v.toFixed(1),
+  titleLift: (v) => `${v.toFixed(2)}×`,
+  titleStreet: (v) => (v <= 1 ? 'Best' : `No. ${Math.round(v)}`),
+  titleSlide: (v) => (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)),
+  titleTurn: (v) => `${Math.round(v)}°`,
+  titleReveal: (v) => `${Math.round(v * 100)}%`,
 };
 
 /** Keys that move the red footprint on the locator map. */

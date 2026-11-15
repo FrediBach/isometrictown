@@ -34,7 +34,8 @@ export function regionalTrees(B: Build, trees: Tree[], wild: (t: Tree) => boolea
 }
 /** `under` is the sheet area hidden by the sides and arches of bridges over water. */
 /** `calm` is water a ship or its wake lies on: waves leave it clear, and small boats keep off it. */
-export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under' | 'calm', Uint8Array>;
+/** Screen-space masks shared by every pass; `title` is the ground under the cinematic title and a little round it, which overhead wires keep off. */
+export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under' | 'calm' | 'title', Uint8Array>;
 
 /**
  * Scatter trees over parks and woods on a grid fixed to the map,

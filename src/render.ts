@@ -17,6 +17,7 @@ import { sequence } from './rng';
 import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
+import { title } from './title';
 import { trains } from './trains';
 import { aviation } from './aircraft';
 import { powerLines } from './power';
@@ -106,7 +107,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       return [Math.round(X), Math.round(Y)];
     },
   };
-  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask() };
+  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask(), title: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
   onStage({ stage: 'ground' });
@@ -130,6 +131,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   fillRoads(paper, town.ways, town.plazas, M.road);
   fillRoads(paper, town.runways, town.aprons, M.road);
   const G = set.ground ? planGround(B, paper, town) : null;
+  // The title is placed before the buildings, so the ones it stands in can make way.
+  const T = title(B, town);
 
   // Buildings, only those that can show inside the drawing area
   const [rx0, ry0, rx1, ry1] = cam.rect;
@@ -153,6 +156,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       syBot = Math.max(syBot, cam.sy(p[i], p[i + 1], 0));
     }
     if (sx1 < rx0 || sx0 > rx1 || syBot < ry0 || syTop > ry1) continue;
+    if (T?.clears(b)) continue;
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
     if (!legible(B, b)) continue;
     const made = building(B, b);
@@ -169,6 +173,13 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     counts.buildings++;
     if (made[0].lines.some((l) => l.pen === ROOFS)) counts.houses++;
     solids.push(...made);
+  }
+
+  // Trees, cars and people keep out from under the title too.
+  if (T) {
+    paper.fillMask(M.foot, [T.footprint]);
+    paper.fillMask(M.title, [T.clearance]);
+    solids.push(...tag('title', T.solids));
   }
 
   // Life on the ground
@@ -254,6 +265,17 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
           paper.fillMask(M.shadow, [[r[i * 2], r[i * 2 + 1], r[j * 2], r[j * 2 + 1], moved[j * 2], moved[j * 2 + 1], moved[i * 2], moved[i * 2 + 1]]]);
         }
       }
+    }
+    // Faces that float or stand on their edge: their shadow is their outline projected along the sun.
+    for (const s of solids) {
+      for (const f of s.shade ?? []) paper.fillMask(M.shadow, f.map((r) => {
+        const out = new Array<number>((r.length / 3) * 2);
+        for (let i = 0, j = 0; i < r.length; i += 3, j += 2) {
+          out[j] = r[i] + ox * r[i + 2];
+          out[j + 1] = r[i + 1] + oy * r[i + 2];
+        }
+        return out;
+      }));
     }
     for (const t of trees) {
       const cx = t.x + ox * t.h * 0.9;

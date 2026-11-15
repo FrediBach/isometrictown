@@ -107,6 +107,9 @@ export const LOD = {
   pitch: { m: 100, mm: 10, what: 'Pitch markings: length of the pitch' },
   vines: { m: 2, mm: 0.7, what: 'Vineyard rows drawn standing' },
   bale: { m: 1.2, mm: 0.6, what: 'Bales on stubble' },
+
+  // Sheet
+  title: { m: 40, mm: 6, what: 'Cinematic title letters: cap height' },
 } satisfies Record<string, Rule>;
 
 export type RuleId = keyof typeof LOD;

@@ -23,7 +23,7 @@ type Build = { cam; set; style; sun; left; key };
 | Stage (`app/stages.ts`) | What happens |
 | --- | --- |
 | `ground` | `classify()` fills `Building.info`. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`). |
-| `buildings` | Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints go into `M.foot`. |
+| `buildings` | The cinematic title (if on) is placed first, so buildings it stands in can be left out. Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints, and the title's, go into `M.foot`. |
 | `life` | Trees (placed, then filtered by ground plan, plus orchards, gardens, scrub, hedgerows, street trees), traffic, parking, trains, then all the **extras** (lifts, ferries, bridges, airfields, aircraft, power, sites…). |
 | `light` | Every solid face and tree sprite is rasterised into the **depth buffer**; `finishDepth()`. Then shadows are swept into `M.shadow`. |
 | `lines` | Ground lines: waves, water outlines, park hatch, shadow hatch, ground textures, kerbs, rails, paths, lamps, railings, markings, each extra's `draw()`, fences. Then every solid's lines and tree sprites, traced against depth. Frame and marginalia last. |
@@ -59,13 +59,14 @@ The drawing surface over `cam.rect`, at up to 7 px/mm (capped at ~7 M pixels).
 ## Solids and extras
 
 ```ts
-type Solid = { faces: number[][][]; lines: Line3[]; casts: { ring: number[]; h: number }[] };
+type Solid = { faces: number[][][]; lines: Line3[]; casts: { ring: number[]; h: number }[]; shade?: number[][][] };
 type Extra = { solids: Solid[]; draw: (paper: Paper) => void };   // src/infra.ts
 ```
 
 - `faces` go into the depth buffer, so the object hides what is behind it.
 - `lines` are traced after depth, so the object is itself hidden correctly. Each line names its pen.
 - `casts` are ground outlines with a height, swept away from the sun into `M.shadow`.
+- `shade` (optional) holds 3D faces that don't stand on a footprint, such as the cinematic title's floating letters; each is projected along the sun onto the ground into `M.shadow`.
 - An `Extra`'s `draw()` runs in the ground-lines pass, for things flat on the ground (markings, aprons, crossbucks' ground parts).
 
 Helpers: `newSolid()`, `prism()` (walls with windows and roofs), `slab()`, `rect()`, `place()` (local frame → world), `measure()`/`at()` (walk a polyline by distance), `walk()` and `shifted()` in `streets.ts`.

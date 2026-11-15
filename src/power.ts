@@ -32,6 +32,13 @@ const PRIVATE = new Set(['driveway', 'parking_aisle', 'drive-through']);
 type Line = { pen: number; pts: number[] };
 
 /** A wire hanging between two points, sagging by sag in the middle. */
+/** Whether a span between two points passes over the cinematic title, which no wire may run through. */
+function crossesTitle(paper: Paper, M: Masks, ax: number, ay: number, bx: number, by: number): boolean {
+  const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5);
+  for (let i = 0; i <= n; i++) if (onMask(paper, M.title, ax + ((bx - ax) * i) / n, ay + ((by - ay) * i) / n)) return true;
+  return false;
+}
+
 function wire(ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag: number, out: Line[]): void {
   const pts: number[] = [];
   const n = 12;
@@ -203,7 +210,7 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
         }
         if (!tower) continue;
         pylon(cam, tower, detail, out);
-        if (prev && Math.hypot(prev.x - tower.x, prev.y - tower.y) < span * 2.3) {
+        if (prev && Math.hypot(prev.x - tower.x, prev.y - tower.y) < span * 2.3 && !crossesTitle(paper, M, prev.x, prev.y, tower.x, tower.y)) {
           const sag = Math.hypot(prev.x - tower.x, prev.y - tower.y) * 0.025;
           const P = (tw: Tower, b: number, z: number) => [tw.x - tw.dy * b, tw.y + tw.dx * b, z];
           for (const [b, z] of conductors(tower)) {
@@ -227,7 +234,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
   const asian = style.id === 'eastAsian';
   const spacing = asian ? 30 : 38;
   const H = american ? 10.5 : asian ? 11 : 8.5;
-  const blocked = (x: number, y: number) => onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y) || onMask(paper, M.road, x, y);
+  const blocked = (x: number, y: number) => onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y) || onMask(paper, M.road, x, y) || onMask(paper, M.title, x, y);
   const keyed = (w: Way, salt: number) => {
     const [k0, k1] = B.key(w.pts[0], w.pts[1]);
     return hash(k0, k1, set.seed, salt);
@@ -294,7 +301,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
       if (prev) {
         const [px, py, pnx, pny] = prev;
         // Round a bend the road turns away from the wires; start a new run rather than cut the corner.
-        if (Math.hypot(px - x, py - y) < spacing * 2.2 && pnx * nx + pny * ny > 0.87)
+        if (Math.hypot(px - x, py - y) < spacing * 2.2 && pnx * nx + pny * ny > 0.87 && !crossesTitle(paper, M, px, py, x, y))
           for (const [b, z] of kept) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
       }
       prev = [x, y, nx, ny];
