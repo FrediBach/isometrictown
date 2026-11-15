@@ -1,6 +1,6 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
-import { allotmentSheds, bales, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, lightly, orchardTrees, planGround, scrubBushes, textured } from './ground';
+import { allotmentSheds, bales, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
 import { players, racing } from './sport';
@@ -335,12 +335,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.facet('pools', () => pools(paper, M, town.pools));
   });
   if (set.parks) withPen('parks', () => {
-    const grass = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.shadow, x, y);
-    paper.facet('grass', () => {
-      paper.hatchGround(GREENERY, -27, cam.gap(1.1), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
-      // Every other line of the same hatch, so it runs on unbroken from the plain grass around.
-      if (G) paper.hatchGround(GREENERY, -27, cam.gap(2.2), (x, y) => grass(x, y) && lightly(G, paper, x, y));
-    });
+    paper.facet('grass', () => parkGrass(paper, M, G));
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });

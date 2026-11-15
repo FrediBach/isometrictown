@@ -41,12 +41,12 @@
     "worship": 2
   },
   "plan": {
-    "lifts": 9468,
-    "rawLifts": 10321,
-    "inkMm": 54061,
-    "travelMm": 27626.1,
-    "minutes": 75.6,
-    "pens": [["Shadows",1716,5741.9],["Water",948,7723.7],["Greenery",722,5848.7],["Roofs",2721,17318.3],["Linework",3361,17428.4]]
+    "lifts": 9439,
+    "rawLifts": 10292,
+    "inkMm": 53797.7,
+    "travelMm": 27559,
+    "minutes": 75.4,
+    "pens": [["Shadows",1716,5741.9],["Water",948,7723.7],["Greenery",693,5585.3],["Roofs",2721,17318.3],["Linework",3361,17428.4]]
   },
   "features": {
     "buildings": [548,4608.3],
@@ -59,7 +59,7 @@
     "life:sailing": [12,83.2],
     "markings": [3,8.6],
     "markings:parking": [131,402.5],
-    "parks": [114,930.7],
+    "parks": [85,667.3],
     "paths": [615,706.7],
     "power:powerLines": [2,16.5],
     "roofHatch": [2078,11480.4],
@@ -136,7 +136,7 @@
     "details/terrace": [30,96.5],
     "details/town-hall": [3,14.4],
     "ground/open-country": [2,3.6],
-    "parks/grass": [59,500.7],
+    "parks/grass": [30,237.3],
     "parks/park-edges": [21,167.8],
     "parks/wood-edges": [34,262.2],
     "roofHatch/apartment": [18,31.7],
@@ -242,5 +242,5 @@
     "windows/town-hall": [12,52.8],
     "windows/worship": [6,52.9]
   },
-  "svg": {"bytes":616031,"sha1":"4c358247603509f8"}
+  "svg": {"bytes":615243,"sha1":"8547f241a912a3fd"}
 }

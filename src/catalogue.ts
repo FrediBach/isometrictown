@@ -935,7 +935,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'land',
     name: 'Parks and grass',
     source: ['map'],
-    what: 'Hatched in the greenery pen, half as dense under headstones and pitch markings; outlined round the edge.',
+    what: 'Lightly hatched in the greenery pen, with clearance round boundaries and visible objects; half as dense under headstones and pitch markings, and outlined round the edge.',
     how: 'Parks, gardens, grass, recreation grounds, village greens, cemeteries, pitches and playgrounds from the land use and land cover.',
     needs: ['parks'],
     strokes: ['parks/grass', 'parks/park-edges'],

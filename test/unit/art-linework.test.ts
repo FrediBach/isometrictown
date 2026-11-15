@@ -2,11 +2,12 @@ import { expect, test, vi } from 'vitest';
 import { car, newSolid, type Build } from '@/buildings';
 import { Camera } from '@/camera';
 import { markings } from '@/infra';
+import { parkGrass } from '@/ground';
 import type { Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
-import { DEFAULT_SETTINGS, LINEWORK, type Settings } from '@/settings';
+import { DEFAULT_SETTINGS, GREENERY, LINEWORK, type Settings } from '@/settings';
 import { curbs, fillRoads } from '@/streets';
 import { STYLES } from '@/styles';
 import type { Way } from '@/tiles';
@@ -21,6 +22,27 @@ function build(more: Partial<Settings> = {}): Build {
     toAbs: (x, y) => [x, y],
   };
 }
+
+test.each([0.35, 0.7])('park hatch leaves a visible gap at lawn and road edges with a %s mm pen', (penWidth) => {
+  const B = build({ penWidth });
+  const paper = new Paper(B.cam);
+  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+  const rect = (x0: number, y0: number, x1: number, y1: number) =>
+    [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].flatMap(([x, y]) => B.cam.ground(x, y));
+  paper.fillMask(M.green, [rect(180, 120, 220, 150)]);
+  paper.fillMask(M.road, [rect(199, 110, 201, 160)]);
+  paper.finishDepth();
+  parkGrass(paper, M);
+  const lines = paper.pens[GREENERY];
+  expect(lines.length).toBeGreaterThan(5);
+  for (const line of lines) {
+    for (let i = 0; i < line.length; i += 2) {
+      const x = line[i], y = line[i + 1];
+      const gap = Math.min(x - 180, 220 - x, y - 120, 150 - y, Math.abs(x - 200) - 1);
+      expect(gap).toBeGreaterThan(penWidth * 0.8);
+    }
+  }
+});
 
 test('texture patches stay bounded and continuous across positive and negative cell edges', () => {
   for (let i = -5; i <= 5; i++) {
