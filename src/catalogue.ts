@@ -688,7 +688,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'streets',
     name: 'Bridges',
     source: ['map', 'inferred'],
-    what: 'Over water, bridges show their side: masonry arches for most, beams on piers for railways and big roads; piers stand on rows of posts. Road bridges get railings with posts.',
+    what: 'Over water, bridges show their side: masonry arches for most, beams on piers for railways and big roads; open pier centre lines stand on rows of posts. Closed pier footprints get a simple deck outline, without invented railings or duplicate supports. Road bridges get railings with posts.',
     how: 'Roads, railways and piers the map marks as bridges. Short ones span on arches, long ones on piers; motorways, trunk and primary roads and railways get beams.',
     lod: ['bridge'],
     strokes: ['streets:bridges', 'streets:railings'],

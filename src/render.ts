@@ -5,7 +5,7 @@ import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
 import { players, racing } from './sport';
 import { ships } from './ships';
-import { airfields, crossings, motorways, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
+import { airfields, crossings, motorways, platforms, bridges, pierOutline, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
 import { pointInRing, ringArea, type Frame } from './geo';
 import type { StageProgress } from './app/stages';
@@ -445,7 +445,7 @@ function streamShapes(streams: Stream[]): Shape[] {
 function railings(paper: Paper, ways: Town['ways']): void {
   const z = 1.1;
   for (const w of ways) {
-    if (!w.bridge || w.kind === 'rail') continue;
+    if (!w.bridge || w.kind === 'rail' || pierOutline(w)) continue;
     const hw = w.kind === 'path' ? 2 : Math.max(1.2, w.width / 2);
     const p = w.pts;
     for (const side of [-1, 1]) {

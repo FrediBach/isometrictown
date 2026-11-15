@@ -332,6 +332,12 @@ const WATER_DROP = 5;
 const DECK = 0.9;
 const BEAM_ROADS = new Set(['motorway', 'trunk', 'primary']);
 
+/** Closed pier ways describe the deck perimeter, not a bridge centre line. */
+export function pierOutline(w: Way): boolean {
+  const p = w.pts;
+  return w.sub === 'pier' && p.length >= 8 && Math.hypot(p[0] - p[p.length - 2], p[1] - p[p.length - 1]) < 0.01;
+}
+
 /**
  * Bridges over water: the side of the deck facing the viewer, carried on arches (short
  * bridges) or on piers (long ones). The water sits notionally below the deck, so the arches
@@ -341,8 +347,21 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   if (!shows(B.cam, LOD.bridge)) return none;
   const [upx, upy] = B.cam.up;
   const lines: number[][] = [];
+  const solids: Solid[] = [];
   for (const w of town.ways) {
     if (!w.bridge) continue;
+    if (pierOutline(w)) {
+      // The mapped outline already supplies both sides of each narrow finger pier.
+      const s = newSolid(), ring: number[] = [];
+      for (let i = 0; i < w.pts.length - 2; i += 2) ring.push(w.pts[i], w.pts[i + 1], 0.35);
+      if (Math.abs(ringArea(w.pts)) < 0.1) continue;
+      const face = [ring];
+      s.faces.push(face);
+      s.lines.push({ pen: LINEWORK, pts: ring, closed: true, on: face });
+      paper.fillMask3(M.under, face);
+      solids.push(s);
+      continue;
+    }
     const p = w.pts;
     const cum = measure(p);
     const L = cum[cum.length - 1];
@@ -411,7 +430,7 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     }
   }
   // Hidden behind whatever stands in front, like any other line.
-  return { solids: [], draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y, d) => (paper.on(M.under, x, y) || paper.on(M.water, x, y)) && paper.seen(x, y, d))) };
+  return { solids, draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y, d) => (paper.on(M.under, x, y) || paper.on(M.water, x, y)) && paper.seen(x, y, d))) };
 }
 
 // ---------------------------------------------------------------- Station platforms
