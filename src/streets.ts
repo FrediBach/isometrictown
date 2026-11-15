@@ -207,12 +207,13 @@ export function shifted(p: number[], o: number, z = 0): number[] {
  */
 export function railways(B: Build, paper: Paper, ways: Way[]): void {
   const { cam } = B;
-  const twin = shows(cam, LOD.twinRails);
   for (const w of ways) {
     if (w.kind !== 'rail') continue;
     const p = w.pts;
     const tram = w.sub === 'tram';
     const g = tram ? 0.72 : w.sub === 'narrow_gauge' ? 0.5 : 0.75;
+    const { gauge, pitch } = railProjection(B, p, g);
+    const twin = shows(cam, LOD.twinRails, gauge - cam.nib / cam.s) && gauge * cam.s >= cam.nib * 2;
     for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
     if (tram) {
       if (!shows(cam, LOD.catenary, 6.4)) continue;
@@ -237,9 +238,28 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
     }
     if (twin && shows(cam, LOD.sleepers)) {
       const sl = g + 0.55;
-      walk(p, 1, 2.6, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
+      walk(p, 1, pitch, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
     }
   }
+}
+
+/** Minimum perpendicular rail gauge and a shared sleeper pitch for the projected track. */
+function railProjection(B: Build, p: number[], g: number): { gauge: number; pitch: number } {
+  const c = B.cam;
+  let gauge = Infinity;
+  let separation = Infinity;
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const dx = p[i + 2] - p[i], dy = p[i + 3] - p[i + 1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+    const ux = dx / len, uy = dy / len;
+    const along = Math.hypot(ux * c.cb - uy * c.sb, c.sa * (ux * c.sb + uy * c.cb));
+    const across = Math.hypot(uy * c.cb + ux * c.sb, c.sa * (uy * c.sb - ux * c.cb));
+    gauge = Math.min(gauge, 2 * g * c.sa / along);
+    separation = Math.min(separation, c.s * c.sa / across);
+  }
+  if (!Number.isFinite(gauge)) return { gauge: 0, pitch: 2.6 };
+  return { gauge, pitch: Math.max(2.6, Math.max(c.gap(1.2), c.nib * 2) / separation) };
 }
 
 /** Reserve a continuous, pen-scaled corridor through park tone for drawable paths. */

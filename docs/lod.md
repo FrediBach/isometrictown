@@ -62,6 +62,8 @@ Park hatching leaves two physical pen widths from a visible path centre line, wi
 
 Path and track dashes measure distance along the projected line on the sheet: `cam.tone(1.1)` of ink followed by `cam.tone(0.8)` of space. Their phase continues through bends and repeated vertices, so foreshortening does not shrink full dashes below the short-stroke filter. Clipped fragments and short final dashes still use the ordinary filter. Stair treads use the narrowest projected width along the flight for their LOD gate and fall back to the ordinary dashed path if it cannot read. Their shared pitch allows for the most compressed direction, keeping perpendicular separation of at least `cam.gap(0.8)` and two physical pen widths, while retaining a minimum 0.55 m ground pitch. The texture corridor follows the same tread/fallback decision.
 
+Rail pairs test the minimum perpendicular projected gauge along the mapped way, minus one physical pen width for the ink. Standard, tram and narrow gauge use their own widths. A cramped way becomes one centre line; it has no sleepers. Retained sleepers use a shared pitch of at least 2.6 m, widened to keep `cam.gap(1.2)` and two physical pen widths of perpendicular separation in the most compressed direction. Overhead wires and masts keep their existing rules.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.

@@ -9,7 +9,7 @@ import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
 import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, type Settings } from '@/settings';
-import { curbs, fillRoads, footpaths, pathClearance } from '@/streets';
+import { curbs, fillRoads, footpaths, pathClearance, railways } from '@/streets';
 import { STYLES } from '@/styles';
 import type { Way } from '@/tiles';
 
@@ -474,4 +474,44 @@ test('narrow projected stairs fall back to the same readable dashes and corridor
   const paper = new Paper(B.cam);
   const way: Way = { kind: 'path', cls: 'path', width: 1, pts };
   expect(pathClearance(B, paper, [{ ...way, sub: 'steps' }])).toEqual(pathClearance(B, paper, [way]));
+});
+
+
+function railLines(B: Build, pts: number[], sub?: string) {
+  B.style = STYLES.arid;
+  const paper = new Paper(B.cam);
+  paper.finishDepth();
+  railways(B, paper, [{ kind: 'rail', cls: 'rail', width: 2, pts, sub }]);
+  return paper.pens[LINEWORK];
+}
+
+test('rail pairs use projected clear gauge and distinguish narrow gauge', () => {
+  const B = build({ scale: 1000, bearing: 0, tilt: 30 });
+  const sideways = railLines(B, [-20, 0, 20, 0]);
+  expect(sideways).toHaveLength(1);
+  expect(railLines(B, [0, -20, 0, 20]).length).toBeGreaterThan(2);
+  expect(railLines(B, [0, -20, 0, 20], 'narrow_gauge')).toHaveLength(1);
+});
+
+test.each([0.35, 0.7])('rail pairs and sleepers keep visible separation with a %s mm pen', (penWidth) => {
+  let pairs = 0;
+  for (const angle of [0, Math.PI / 4, Math.PI / 2]) {
+    const B = build({ scale: 500, bearing: 0, tilt: 20, penWidth });
+    const ux = Math.cos(angle), uy = Math.sin(angle);
+    const lines = railLines(B, [-20 * ux, -20 * uy, 20 * ux, 20 * uy]);
+    if (lines.length === 1) continue;
+    pairs++;
+    const a = lines[0], b = lines[1];
+    const dx = a[a.length - 2] - a[0], dy = a[a.length - 1] - a[1];
+    const gauge = Math.abs(dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / Math.hypot(dx, dy);
+    expect(gauge - penWidth).toBeGreaterThanOrEqual(0.7 * penWidth / 0.35 - 1e-6);
+    expect(lines.length).toBeGreaterThan(4);
+    for (let i = 3; i < lines.length; i++) {
+      const p = lines[i - 1], q = lines[i];
+      const tx = p[p.length - 2] - p[0], ty = p[p.length - 1] - p[1];
+      const separation = Math.abs(tx * (q[1] - p[1]) - ty * (q[0] - p[0])) / Math.hypot(tx, ty);
+      expect(separation).toBeGreaterThanOrEqual(Math.max(B.cam.gap(1.2), penWidth * 2) - 1e-6);
+    }
+  }
+  expect(pairs).toBeGreaterThan(0);
 });

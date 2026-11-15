@@ -68,7 +68,7 @@ export const LOD = {
   runwayMarks: { m: 8, mm: 0.96, what: 'Runway and taxiway markings' },
   steps: { m: 1.8, mm: 1, what: 'Steps: projected tread width' },
   ruts: { m: 1.6, mm: 0.7, what: 'Farm tracks as twin ruts: their spacing' },
-  twinRails: { m: 1.5, mm: 0.7, what: 'Both rails of a track: gauge' },
+  twinRails: { m: 1.5, mm: 0.7, what: 'Both rails of a track: projected clear gauge after ink' },
   sleepers: { m: 2.6, mm: 1, what: 'Railway sleepers: spacing' },
   catenary: { m: 7, mm: 2.1, what: 'Overhead line masts: height' },
   crossing: { m: 3.5, mm: 1.2, what: 'Level crossing barriers' },

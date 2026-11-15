@@ -761,7 +761,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'rail',
     name: 'Railways',
     source: ['map'],
-    what: 'Two rails and sleepers when there’s room, else one line. Narrow gauge sits closer.',
+    what: 'Two rails and sleepers when their projected spacing leaves room for ink, else one line. Narrow gauge sits closer; sleepers spread out under foreshortening.',
     how: 'Rail and transit lines from the map.',
     needs: ['rails'],
     lod: ['twinRails', 'sleepers'],
