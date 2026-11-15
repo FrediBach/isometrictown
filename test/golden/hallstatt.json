@@ -41,12 +41,12 @@
     "worship": 2
   },
   "plan": {
-    "lifts": 9175,
-    "rawLifts": 9994,
-    "inkMm": 51995.1,
-    "travelMm": 27115.1,
-    "minutes": 73.2,
-    "pens": [["Shadows",1771,5897.4],["Water",948,7724],["Greenery",594,5280.7],["Roofs",2515,16757.9],["Linework",3347,16335.1]]
+    "lifts": 9115,
+    "rawLifts": 9932,
+    "inkMm": 51752.1,
+    "travelMm": 26813,
+    "minutes": 72.7,
+    "pens": [["Shadows",1771,5897.4],["Water",948,7724],["Greenery",594,5280.7],["Roofs",2455,16514.9],["Linework",3347,16335.1]]
   },
   "features": {
     "buildings": [551,4620.8],
@@ -74,7 +74,7 @@
     "streets:squares": [18,49.8],
     "trees": [574,4594.6],
     "water": [980,8209.5],
-    "windows": [1013,2585]
+    "windows": [951,2342]
   },
   "facets": {
     "buildings/apartment": [4,95.5],
@@ -214,33 +214,33 @@
     "water/waves": [939,7701.4],
     "windows/apartment": [29,39.2],
     "windows/blank-windows": [2,4.8],
-    "windows/chimneys": [273,503.7],
+    "windows/chimneys": [263,444.3],
     "windows/church-roof": [6,38.5],
     "windows/civic": [89,368.2],
     "windows/curtain-windows": [33,351.4],
-    "windows/dormers": [226,413.2],
-    "windows/flat-roof": [112,521],
-    "windows/gabled-roof": [527,1215.9],
-    "windows/glazing-bars": [523,1265.3],
-    "windows/grid-windows": [383,1372.6],
-    "windows/guessed-height": [605,1411.7],
-    "windows/halfHipped-roof": [155,269.3],
-    "windows/hipped-roof": [182,496.5],
-    "windows/house": [369,746.2],
-    "windows/mapped-height": [408,1173.2],
+    "windows/dormers": [225,401.6],
+    "windows/flat-roof": [111,507.1],
+    "windows/gabled-roof": [471,1007.6],
+    "windows/glazing-bars": [481,1112.8],
+    "windows/grid-windows": [321,1129.6],
+    "windows/guessed-height": [568,1261.8],
+    "windows/halfHipped-roof": [154,257.4],
+    "windows/hipped-roof": [178,487.5],
+    "windows/house": [348,667.3],
+    "windows/mapped-height": [383,1080.2],
     "windows/paired-windows": [336,488.6],
-    "windows/party-walls": [623,1791.7],
+    "windows/party-walls": [578,1618.7],
     "windows/shed": [2,4.8],
     "windows/shed-roof": [2,4.8],
-    "windows/shop-front": [129,326],
-    "windows/shutters": [565,1150.4],
+    "windows/shop-front": [128,311.7],
+    "windows/shutters": [503,907.4],
     "windows/skirt-roof": [29,39.2],
     "windows/small-windows": [253,329.1],
     "windows/tall": [33,351.4],
     "windows/tall-windows": [6,38.5],
-    "windows/terrace": [485,1036.8],
+    "windows/terrace": [444,872.7],
     "windows/town-hall": [12,52.8],
     "windows/worship": [6,38.5]
   },
-  "svg": {"bytes":605411,"sha1":"c7eb7ce5b45d32af"}
+  "svg": {"bytes":601038,"sha1":"d242cba1dd2ca66f"}
 }

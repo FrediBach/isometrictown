@@ -8,7 +8,7 @@ import { treeSprite, type Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
-import { DEFAULT_SETTINGS, GREENERY, LINEWORK, type Settings } from '@/settings';
+import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, type Settings } from '@/settings';
 import { curbs, fillRoads } from '@/streets';
 import { STYLES } from '@/styles';
 import type { Way } from '@/tiles';
@@ -23,6 +23,43 @@ function build(more: Partial<Settings> = {}): Build {
     toAbs: (x, y) => [x, y],
   };
 }
+
+function shutterWall(scale: number, penWidth = 0.35, seed = 1, height = 30) {
+  const B = build({ scale, penWidth, seed, bearing: 0 });
+  const out = newSolid();
+  const wall: Wall = { ax: 0, ay: 0, bx: 3.4, by: 0, len: 3.4, z0: 0, z1: height, ground: true, street: false, door: false, balconies: 0, shutters: ROOFS };
+  facadeLines(B, wall, PLAIN, out);
+  return { B, out };
+}
+
+test.each([0.35, 0.7])('open shutters step from panels to strokes to clear frames with a %s mm pen', (penWidth) => {
+  for (const scale of [250, 500, 1000]) {
+    const { B, out } = shutterWall(scale * 0.35 / penWidth, penWidth);
+    const windows = out.lines.filter((l) => l.pen === LINEWORK && l.closed);
+    expect(windows.length).toBeGreaterThan(0);
+    for (const { pts: w } of windows) {
+      const shutters = out.lines.filter(({ pen, pts: p }) => pen === ROOFS && p[2] === w[2]);
+      expect(shutters.length).toBe(scale === 1000 ? 0 : 2);
+      for (const { pts: p, closed } of shutters) {
+        expect(!!closed).toBe(scale === 250);
+        for (let i = 0; i < p.length; i += 3) {
+          const gap = Math.min(Math.abs(p[i] - w[0]), Math.abs(p[i] - w[3])) * B.cam.s;
+          expect(gap).toBeGreaterThanOrEqual(penWidth * 1.5 - 1e-8);
+        }
+      }
+    }
+  }
+});
+
+test('closed shutters drop their centre seam before it crowds the panels', () => {
+  const seed = Array.from({ length: 64 }, (_, i) => i).find((s) => shutterWall(1000, 0.35, s, 3).out.lines.some((l) => l.pen === ROOFS && l.closed));
+  expect(seed).toBeDefined();
+  const small = shutterWall(1000, 0.35, seed!, 3).out.lines.filter((l) => l.pen === ROOFS);
+  const large = shutterWall(250, 0.35, seed!, 3).out.lines.filter((l) => l.pen === ROOFS);
+  expect(small).toHaveLength(1);
+  expect(small[0].closed).toBe(true);
+  expect(large).toHaveLength(2);
+});
 
 test('small balcony railings keep a single top outline and preserve their depth faces', () => {
   const draw = (scale: number) => {

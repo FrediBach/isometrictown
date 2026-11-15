@@ -521,7 +521,8 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
         if (pen >= 0 && o.closed) {
           // Shutters closed against the sun: a pair of panels meeting in the middle.
           rect(pen, u0, u1, z0, z1);
-          L(pen, [...P(um, 0, z0), ...P(um, 0, z1)]);
+          if (shows(cam, LOD.shutter, (u1 - u0) * 0.5 * c.across - cam.nib / cam.s))
+            L(pen, [...P(um, 0, z0), ...P(um, 0, z1)]);
           break;
         }
         const r = (u1 - u0) / 2;
@@ -542,8 +543,17 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
         // Shutters folded back either side.
         if (pen >= 0) {
           const sw = Math.min(0.42, (u1 - u0) * 0.3);
-          rect(pen, u0 - sw - 0.06, u0 - 0.06, z0, z1);
-          rect(pen, u1 + 0.06, u1 + sw + 0.06, z0, z1);
+          const far = sw + 0.06;
+          const gap = Math.max(0.06, cam.nib * 1.5 / (cam.s * c.across));
+          // Trim towards the outer edge, preserving placement and leaving the frame clear.
+          if (far < gap) break;
+          if (shows(cam, LOD.shutter, (far - gap) * c.across - cam.nib / cam.s)) {
+            rect(pen, u0 - far, u0 - gap, z0, z1);
+            rect(pen, u1 + gap, u1 + far, z0, z1);
+          } else if (shows(cam, LOD.windowTick, (z1 - z0) * cam.ca)) {
+            L(pen, [...P(u0 - far, 0, z0), ...P(u0 - far, 0, z1)]);
+            L(pen, [...P(u1 + far, 0, z0), ...P(u1 + far, 0, z1)]);
+          }
         }
         break;
       }

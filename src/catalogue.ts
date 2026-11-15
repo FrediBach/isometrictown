@@ -440,7 +440,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'walls',
     name: 'Shutters',
     source: ['inferred'],
-    what: 'Window shutters drawn in a pen colour, some of them closed.',
+    what: 'Coloured window shutters, some closed. Open panels leave a clear gap from the frame, becoming single strokes or disappearing when too small; closed panels lose cramped centre seams.',
     how: 'On houses and terraces where it is the local habit, and on flats in Mediterranean and French towns.',
     regions: `Share of homes with shutters, and their pen: ${Object.entries(SHUTTERS)
       .sort((a, b) => b[1]![0] - a[1]![0])
@@ -448,6 +448,7 @@ const ENTRIES_BY_HAND: Entry[] = [
       .join(', ')}.`,
     needs: ['windows'],
     strokes: ['windows/shutters'],
+    lod: ['shutter'],
     count: ['shutters'],
     unit: 'building',
   },
