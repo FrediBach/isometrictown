@@ -58,8 +58,10 @@ function graticule(cam: Camera, frame: Frame, g: number, t: number): Lines {
   const latOf = (sx: number, sy: number) => frame.toLngLat(...cam.ground(sx, sy))[1] * 3600;
   const lngOf = (sx: number, sy: number) => frame.toLngLat(...cam.ground(sx, sy))[0] * 3600;
   const metresPerSec = 30.87;
-  const latStep = pickStep(42 / cam.s, metresPerSec);
-  const lngStep = pickStep(42 / cam.s, metresPerSec * frame.k);
+  // Larger lettering needs fewer coordinate labels, not just wider glyphs at every old tick.
+  const spacing = 42 * Math.max(1, t / clamp(cam.rect[0] * 0.085, 1.3, 2));
+  const latStep = pickStep(spacing / cam.s, metresPerSec);
+  const lngStep = pickStep(spacing / cam.s, metresPerSec * frame.k);
   const off = 0.9;
 
   type Edge = { a: [number, number]; b: [number, number]; out: [number, number]; dir: [number, number] };
@@ -204,14 +206,16 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const m = x0;
   const g = set.frame ? clamp(m * 0.1, 1.2, 2.5) : 0;
   const t = clamp(m * 0.085, 1.3, 2);
+  const coordinateHeight = Math.max(t, 4.8 * cam.nib);
+  const coordinatesFit = g + 0.9 + coordinateHeight + cam.nib / 2 <= m;
 
   if (set.frame && m >= 6) {
     out.push(rect(x0 - g, y0 - g, x1 + g, y1 + g));
-    out.push(...graticule(cam, frame, g, t));
+    if (coordinatesFit) out.push(...graticule(cam, frame, g, coordinateHeight));
   }
 
   // The bottom margin carries the title on the left and the scale and north arrow on the right.
-  const top = y1 + (set.frame ? g + 0.9 + t : 0) + clamp(m * 0.12, 1.5, 4);
+  const top = y1 + (set.frame ? g + 0.9 + (coordinatesFit ? coordinateHeight : t) : 0) + clamp(m * 0.12, 1.5, 4);
   const bottom = H - clamp(m * 0.22, 2.5, 9);
   const room = bottom - top;
   if (room < 4.5) return out;

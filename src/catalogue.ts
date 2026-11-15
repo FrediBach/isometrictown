@@ -1411,7 +1411,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Map notes',
     source: ['map'],
     what: 'A second border with latitude and longitude ticks; below the drawing the place name, coordinates and view, a scale bar, a north arrow and the imprint, in single-stroke capitals.',
-    how: 'From the settings and the place.',
+    how: 'From the settings and the place. Frame coordinates grow and become less frequent with a broad pen; they are omitted if the margin cannot hold readable lettering.',
     needs: ['marginalia'],
   },
   {

@@ -1,4 +1,8 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { Camera } from '@/camera';
+import { Frame } from '@/geo';
+import * as lettering from '@/lettering';
+import { marginalia } from '@/marginalia';
 import { harmonise, paletteSource } from '@/harmony';
 import { letter, letterable, measure } from '@/lettering';
 import { currentPalette, PALETTES } from '@/palettes';
@@ -101,4 +105,29 @@ describe('palettes', () => {
     }
     expect(paletteSource(pens, 'X')).toBe(`{ name: 'X', pens: [${pens.map((c) => `'${c}'`).join(', ')}] },`);
   });
+});
+
+test.each([true, false])('frame coordinates stay readable with a broad pen (landscape %s)', (landscape) => {
+  const draw = (penWidth: number, margin = 20) => {
+    const set = { ...DEFAULT_SETTINGS, sheet: 'a4' as const, penWidth, margin, landscape };
+    const cam = new Camera(set);
+    const text = vi.spyOn(lettering, 'letter');
+    marginalia(set, cam, new Frame(set.center), new Date('2026-11-15T12:00:00Z'));
+    const labels = text.mock.calls.filter((call) => call[3].dir);
+    text.mockRestore();
+    return { cam, labels };
+  };
+  const regular = draw(0.35), broad = draw(0.7);
+  expect(broad.labels.length).toBeGreaterThan(0);
+  expect(broad.labels.length).toBeLessThan(regular.labels.length);
+  for (const [text, x, y, options] of broad.labels) {
+    expect(options.h).toBeGreaterThanOrEqual(4.8 * broad.cam.nib);
+    for (const line of letter(text, x, y, options)) {
+      for (let i = 0; i < line.length; i++) {
+        expect(line[i]).toBeGreaterThanOrEqual(broad.cam.nib / 2);
+        expect(line[i]).toBeLessThanOrEqual(broad.cam.sheet[i % 2] - broad.cam.nib / 2);
+      }
+    }
+  }
+  expect(draw(2, 6).labels).toHaveLength(0);
 });

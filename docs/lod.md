@@ -102,3 +102,7 @@ npm run lod -- --no-png                       # numbers only
 Each run writes `lab/out/<name>/`: an SVG per case, `report.json`, and `index.html`. The page has a table per place (feature × scale), the whole sheet, the busiest and the middle 30 × 20 mm at true pen width, a waste close-up (specks in magenta, solid cells in red), and the full rule table with the scale each rule cuts in at. PNGs need Chrome or a Playwright Chromium.
 
 What to look for: waste should stay low (it was 15–70% before this system, and is now about 6–25% at every scale), and the close-ups should read cleanly at every scale. A feature that turns red only at coarse scales usually wants a rule; one that is red at every scale is probably drawing at a fixed spacing that ignores `cam.gap()`.
+
+### Frame coordinate lettering
+
+Frame coordinates use a cap height of at least 4.8 pen widths, with a wider geographic interval as the lettering grows. This does not depend on Detail. Labels and their ticks are omitted when the margin cannot hold that cap height, while the border stays. The footer reserves space below the enlarged bottom labels. The title, scale bar and imprint retain their existing lettering rules.
