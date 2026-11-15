@@ -13,6 +13,7 @@ import { atLeast, LOD, shows, showsAt } from './lod';
 import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
+import { finishRoofEdges } from './roofs';
 import { patch, sequence } from './rng';
 import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
@@ -262,6 +263,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   // Depth
   onStage({ stage: 'light', note: `${counts.trees.toLocaleString('en')} trees, ${counts.cars.toLocaleString('en')} cars` });
+  finishRoofEdges(solids);
   // Faces are numbered as they go in, so lines drawn on one can show only where it does.
   const faceNo = new Map<number[][], number>();
   for (const s of solids) {
@@ -360,7 +362,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       const layer = s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings');
       paper.layer = (s.part ? `${layer}:${s.part}` : layer) + tail + (l.facet ? `/${l.facet}` : '');
       const on = l.on && faceNo.get(l.on);
-      paper.line3(layerPen(set, layer, l.pen), l.pts, on === undefined ? paper.seen : paper.onFace(on), l.closed);
+      const edge = l.edge?.flatMap((f) => { const n = faceNo.get(f); return n === undefined ? [] : [n]; });
+      paper.line3(layerPen(set, layer, l.pen), l.pts, edge ? paper.onEdge(edge) : on === undefined ? paper.seen : paper.onFace(on), l.closed);
     }
   }
   paper.layer = '';

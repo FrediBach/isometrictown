@@ -11,8 +11,8 @@ import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './sha
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
-/** A 3D polyline. `on` is the face it is drawn on (one of its solid's `faces`), if it must show only where that face does. */
-export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string };
+/** A 3D polyline. `on` restricts marks to a face; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
+export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string; edge?: number[][][]; roofJoin?: boolean };
 /** Something solid: faces for the depth buffer, lines to draw, and outlines that cast shadows. */
 export type Solid = {
   layer?: LayerId;

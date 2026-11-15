@@ -8,7 +8,7 @@ const ROOF_HATCH_MM = 0.7;
 
 /**
  * How a pitched roof finishes at each end of its ridge. A party end meets the roof next
- * door; an inner end runs into another part of the same roof and is never seen.
+ * door; an inner end runs into another part of the same roof. Either can remain partly exposed.
  */
 export type End = 'gable' | 'hip' | 'half' | 'party' | 'inner';
 
@@ -165,6 +165,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
 
   const slope = [0, 1].map((s) => face(out, [C(0, s), C(1, s), E(1, s), R[1], R[0], E(0, s)]));
   const hipFace: (number[][] | undefined)[] = [undefined, undefined];
+  const endFaces: (number[][] | undefined)[] = [undefined, undefined];
   for (const k of [0, 1]) {
     if (d[k] > 0) hipFace[k] = face(out, [E(k, 0), E(k, 1), R[k]]);
     const e = ends[k];
@@ -175,18 +176,28 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
       const prof = gableProfile(decorated, hw, He, tan).map(([v, z]) => at(u, v, z));
       face(out, prof);
       poly(out.lines, LINEWORK, prof);
-    } else if (d[k] > 0) face(out, [at(u, -hw, He), at(u, -d[k], He + (hw - d[k]) * tan), at(u, d[k], He + (hw - d[k]) * tan), at(u, hw, He)]);
-    else face(out, [at(u, -hw, He), at(u, 0, Hr), at(u, hw, He)]);
+    } else if (d[k] > 0) endFaces[k] = face(out, [at(u, -hw, He), at(u, -d[k], He + (hw - d[k]) * tan), at(u, d[k], He + (hw - d[k]) * tan), at(u, hw, He)]);
+    else endFaces[k] = face(out, [at(u, -hw, He), at(u, 0, Hr), at(u, hw, He)]);
   }
 
-  const pen = ROOFS;
-  for (const s of [0, 1]) poly(out.lines, pen, [C(0, s), C(1, s)]);
+  const edge = (pts: number[][], faces: (number[][] | undefined)[], roofJoin = false) => {
+    const start = out.lines.length;
+    poly(out.lines, ROOFS, pts);
+    if (out.lines.length > start) {
+      out.lines[start].edge = faces.filter((f): f is number[][] => !!f);
+      if (roofJoin) out.lines[start].roofJoin = true;
+    }
+  };
+  for (const s of [0, 1]) edge([C(0, s), C(1, s)], [slope[s]]);
   for (const k of [0, 1]) {
-    if (ends[k] === 'party' || ends[k] === 'inner' || S.front?.end === k) continue;
-    poly(out.lines, pen, [C(k, 0), E(k, 0), R[k], E(k, 1), C(k, 1)]);
-    if (d[k] > 0) poly(out.lines, pen, [E(k, 0), E(k, 1)]);
+    if (S.front?.end === k) continue;
+    const joined = ends[k] === 'party' || ends[k] === 'inner';
+    if (joined) {
+      for (const s of [0, 1]) edge([C(k, s), R[k]], [slope[s], endFaces[k]], true);
+    } else edge([C(k, 0), E(k, 0), R[k], E(k, 1), C(k, 1)], [...slope, hipFace[k], endFaces[k]]);
+    if (d[k] > 0) edge([E(k, 0), E(k, 1)], [hipFace[k], endFaces[k]]);
   }
-  if (a1 - a0 > 0.1) poly(out.lines, pen, R);
+  if (a1 - a0 > 0.1) edge(R, slope);
 
   if (S.hatch) {
     for (const s of [0, 1]) {
@@ -645,4 +656,87 @@ export function onion(B: Build, x: number, y: number, R: number, z: number, out:
     [x, y, z0 + H],
     [x, y, z0 + H + R * 1.2],
   ]);
+}
+
+/** Remove roof-end seams only where another pitched face continues the same plane beyond them. */
+export function finishRoofEdges(solids: Solid[]): void {
+  type Plane = { ring: number[]; a: number; b: number; c: number; sign: number };
+  const planes = new Map<number[][], Plane>();
+  const cells = new Map<string, Plane[]>();
+  const size = 32;
+  for (const solid of solids) for (const line of solid.lines) for (const face of line.edge ?? []) {
+    if (planes.has(face)) continue;
+    const p = face[0];
+    const dx = p[3] - p[0], dy = p[4] - p[1], dz = p[5] - p[2];
+    let a = 0, b = 0, found = false;
+    for (let i = 6; i < p.length; i += 3) {
+      const ex = p[i] - p[0], ey = p[i + 1] - p[1], ez = p[i + 2] - p[2];
+      const det = dx * ey - dy * ex;
+      if (Math.abs(det) < 1e-8) continue;
+      a = (dz * ey - dy * ez) / det;
+      b = (dx * ez - dz * ex) / det;
+      found = true;
+      break;
+    }
+    if (!found) continue;
+    const ring = p.filter((_, i) => i % 3 !== 2);
+    const plane = { ring, a, b, c: p[2] - a * p[0] - b * p[1], sign: Math.sign(ringArea(ring)) };
+    planes.set(face, plane);
+    const xs = ring.filter((_, i) => i % 2 === 0), ys = ring.filter((_, i) => i % 2 === 1);
+    for (let x = Math.floor(Math.min(...xs) / size); x <= Math.floor(Math.max(...xs) / size); x++) {
+      for (let y = Math.floor(Math.min(...ys) / size); y <= Math.floor(Math.max(...ys) / size); y++) {
+        const key = `${x},${y}`;
+        const bucket = cells.get(key);
+        if (bucket) bucket.push(plane);
+        else cells.set(key, [plane]);
+      }
+    }
+  }
+  for (const solid of solids) {
+    const lines: Line3[] = [];
+    for (const line of solid.lines) {
+      const own = line.roofJoin && line.edge?.[0] && planes.get(line.edge[0]);
+      if (!own) { lines.push(line); continue; }
+      const p = line.pts, dx = p[3] - p[0], dy = p[4] - p[1];
+      const length = Math.hypot(dx, dy);
+      if (length < 1e-8) { lines.push(line); continue; }
+      let side = 0;
+      for (let i = 0; i < own.ring.length; i += 2) side += dx * (own.ring[i + 1] - p[1]) - dy * (own.ring[i] - p[0]);
+      // Probe just beyond the end in metres, so a coplanar join vanishes but an exposed step stays.
+      const off = Math.sign(side) * 1e-4 / length;
+      const ax = p[0] + dy * off, ay = p[1] - dx * off;
+      const candidates = new Set<Plane>();
+      for (let x = Math.floor((Math.min(p[0], p[3]) - 1e-4) / size); x <= Math.floor((Math.max(p[0], p[3]) + 1e-4) / size); x++) {
+        for (let y = Math.floor((Math.min(p[1], p[4]) - 1e-4) / size); y <= Math.floor((Math.max(p[1], p[4]) + 1e-4) / size); y++) {
+          for (const plane of cells.get(`${x},${y}`) ?? []) candidates.add(plane);
+        }
+      }
+      // Pitched faces are convex; clipping against their half-planes gives the covered interval.
+      const covered: [number, number][] = [];
+      for (const f of candidates) {
+        if (f === own || Math.abs(f.a - own.a) > 1e-6 || Math.abs(f.b - own.b) > 1e-6 || Math.abs(f.c - own.c) > 1e-5) continue;
+        let lo = 0, hi = 1;
+        const r = f.ring;
+        for (let i = 0; i < r.length; i += 2) {
+          const j = (i + 2) % r.length, ex = r[j] - r[i], ey = r[j + 1] - r[i + 1];
+          const value = f.sign * (ex * (ay - r[i + 1]) - ey * (ax - r[i]));
+          const slope = f.sign * (ex * dy - ey * dx);
+          if (Math.abs(slope) < 1e-10) { if (value < -1e-8) { hi = -1; break; } }
+          else if (slope > 0) lo = Math.max(lo, -value / slope);
+          else hi = Math.min(hi, -value / slope);
+        }
+        if (hi > lo) covered.push([lo, hi]);
+      }
+      covered.sort((a, b) => a[0] - b[0]);
+      const emit = (from: number, to: number) => {
+        if (to - from < 1e-8) return;
+        const at = (t: number) => [p[0] + dx * t, p[1] + dy * t, p[2] + (p[5] - p[2]) * t];
+        lines.push({ ...line, pts: [...at(from), ...at(to)] });
+      };
+      let end = 0;
+      for (const [lo, hi] of covered) { emit(end, lo); end = Math.max(end, hi); }
+      emit(end, 1);
+    }
+    solid.lines = lines;
+  }
 }

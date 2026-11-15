@@ -18,6 +18,7 @@ These are small and exact, for the parts that are pure functions.
 
 | File | What it pins down |
 | --- | --- |
+| `roof-visibility.test.ts` | Exposed and occluded roof ends, full and partial coplanar joins, real gaps, rotations and panning, plus a recorded Mollis rim where pixel depth hid its own edge |
 | `geometry.test.ts` | `hash()` values (every made-up thing depends on them), Mercator and `Frame`, ring area, `bestRect`, `offsetRing`, the camera's projection, `ground()`, `region()`, `gap()`/`tone()`, `within()` |
 | `lod.test.ts` | Every rule in `LOD` cuts in where `coarsest()` says, the fade order, bigger things lasting longer, Detail and pen width, `thin`, `atLeast`, `spaced` |
 | `model.test.ts` | Share links: every kind of setting round-trips through the address bar, bad values are dropped, old four-pen sets migrate, the scale slider |

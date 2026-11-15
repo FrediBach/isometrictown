@@ -87,6 +87,7 @@ export class Paper {
   /** Strokes shorter than this, mm, are dropped: two pen widths or less, a pen only makes a dot of them. */
   private minRun: number;
   readonly seen: Test;
+  private facePlanes: (readonly [number, number, number])[] = [];
 
   constructor(readonly cam: Camera, maxPixels = 7e6) {
     [this.x0, this.y0, this.x1, this.y1] = cam.rect;
@@ -172,6 +173,7 @@ export class Paper {
     const a = (ad * by - bd * ay) / det;
     const b = (ax * bd - bx * ad) / det;
     const c = d0 - a * x0 - b * y0;
+    if (face >= 0) this.facePlanes[face] = [a, b, c];
     const { z, ids, owner, W } = this;
     scan(P, W, this.H, (y, xa, xb) => {
       const row = y * W;
@@ -460,6 +462,17 @@ export class Paper {
         }
       }
       return false;
+    };
+  }
+
+  /** Keep a roof rim visible when its own steep face wins a neighbouring depth pixel. */
+  onEdge(faces: number[]): Test {
+    return (x, y, d) => {
+      if (this.seen(x, y, d)) return true;
+      const owner = this.owner[this.index(x, y)];
+      if (!faces.includes(owner)) return false;
+      const plane = this.facePlanes[owner];
+      return !!plane && Math.abs(d - (plane[0] * this.px(x) + plane[1] * this.py(y) + plane[2])) <= EPS;
     };
   }
 
