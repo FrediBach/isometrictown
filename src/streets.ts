@@ -279,10 +279,9 @@ function visiblePath(B: Build, w: Way): boolean {
 
 /** Dashed paths, paired track ruts and stair treads. */
 export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
-  const s = B.cam.s;
-  // Dashes and gaps open out with a broad pen, so the gaps don't close up.
-  const dash = B.cam.tone(1.1) / s;
-  const gap = B.cam.tone(0.8) / s;
+  // Measure on the sheet, so foreshortening cannot turn dashes into filtered specks.
+  const dash = B.cam.tone(1.1);
+  const gap = B.cam.tone(0.8);
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
     if (!visiblePath(B, w)) continue;
@@ -309,22 +308,28 @@ function pathLength(p: number[]): number {
   return l;
 }
 
-/** A dashed line on the ground. */
+/** A ground line with dash phase measured in sheet millimetres, continuous through bends. */
 function dashed(paper: Paper, p: number[], dash: number, gap: number, test: Test): void {
-  let phase = 0;
+  let inDash = true;
+  let left = dash;
+  const c = paper.cam;
   for (let i = 0; i + 3 < p.length; i += 2) {
-    const l = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
+    const l = Math.hypot(c.sx(p[i + 2], p[i + 3]) - c.sx(p[i], p[i + 1]), c.sy(p[i + 2], p[i + 3], 0) - c.sy(p[i], p[i + 1], 0));
     if (l < 1e-6) continue;
+    // Local metres travelled per millimetre along this projected segment.
     const ux = (p[i + 2] - p[i]) / l;
     const uy = (p[i + 3] - p[i + 1]) / l;
     let t = 0;
-    while (t < l) {
-      const inDash = phase < dash;
-      const left = Math.max(1e-3, inDash ? dash - phase : dash + gap - phase);
+    while (t < l - 1e-9) {
       const t1 = Math.min(l, t + left);
       if (inDash) groundSeg(paper, LINEWORK, p[i] + ux * t, p[i + 1] + uy * t, p[i] + ux * t1, p[i + 1] + uy * t1, test);
       else paper.end();
-      phase = (phase + (t1 - t)) % (dash + gap);
+      left -= t1 - t;
+      if (left < 1e-9) {
+        if (inDash) paper.end();
+        inDash = !inDash;
+        left = inDash ? dash : gap;
+      }
       t = t1;
     }
   }

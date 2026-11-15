@@ -60,6 +60,8 @@ Open shutters leave 1.5 physical pen widths of horizontal clearance from the win
 
 Park hatching leaves two physical pen widths from a visible path centre line, with extra room for stair treads and paired wheel ruts. The corridor is continuous through dash gaps and uses the paths layer’s Detail and length threshold. Disabling paths restores the hatch. The same corridor interrupts flat crop rows and ground textures. Small symbols (tufts, marsh marks, sand stipple, rocks and crevasses) are omitted whole when a stroke touches it, so clearing the path does not leave half-symbols. Farm outlines, standing objects, sports markings and shadows retain their existing rules.
 
+Path and track dashes measure distance along the projected line on the sheet: `cam.tone(1.1)` of ink followed by `cam.tone(0.8)` of space. Their phase continues through bends and repeated vertices, so foreshortening does not shrink full dashes below the short-stroke filter. Clipped fragments and short final dashes still use the ordinary filter. Stair treads retain their separate spacing rule.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.

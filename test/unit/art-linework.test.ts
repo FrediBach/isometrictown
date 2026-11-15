@@ -9,7 +9,7 @@ import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
 import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, type Settings } from '@/settings';
-import { curbs, fillRoads, pathClearance } from '@/streets';
+import { curbs, fillRoads, footpaths, pathClearance } from '@/streets';
 import { STYLES } from '@/styles';
 import type { Way } from '@/tiles';
 
@@ -394,4 +394,56 @@ test('field rows break at path corridors while field boundaries stay intact', ()
     const xs = line.filter((_, i) => i % 2 === 0);
     return Math.min(...xs) < 210 && Math.max(...xs) > 210;
   })).toBe(true);
+});
+
+
+function pathLines(B: Build, pts: number[], road = false) {
+  const paper = new Paper(B.cam);
+  const M = { road: paper.mask(), water: paper.mask() } as Masks;
+  if (road) paper.fillMask(M.road, [[...B.cam.ground(198, 100), ...B.cam.ground(202, 100), ...B.cam.ground(202, 160), ...B.cam.ground(198, 160)]]);
+  paper.finishDepth();
+  footpaths(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts }], M);
+  return paper.pens[LINEWORK];
+}
+
+function strokeLength(p: number[]): number {
+  let length = 0;
+  for (let i = 2; i < p.length; i += 2) length += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
+  return length;
+}
+
+test.each([0.35, 0.7])('path dash lengths and gaps survive every direction with a %s mm pen', (penWidth) => {
+  for (const scale of [1000, 4000]) for (const tilt of [20, 60]) for (const angle of [0, Math.PI / 4, Math.PI / 2]) {
+    const B = build({ penWidth, scale, tilt });
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    const pts = [...B.cam.ground(180, 120), ...B.cam.ground(180 + dx * 40, 120 + dy * 40)];
+    const lines = pathLines(B, pts);
+    expect(lines.length).toBeGreaterThan(9);
+    for (let i = 0; i < lines.length - 1; i++) {
+      expect(strokeLength(lines[i])).toBeCloseTo(B.cam.tone(1.1), 5);
+      const p = lines[i], q = lines[i + 1];
+      expect(Math.hypot(p[p.length - 2] - q[0], p[p.length - 1] - q[1])).toBeCloseTo(B.cam.tone(0.8), 5);
+    }
+  }
+});
+
+test('dash phase crosses vertices and repeated points without restarting', () => {
+  const B = build({ scale: 4000 });
+  const ground = (x: number, y: number) => B.cam.ground(x, y);
+  const simple = pathLines(B, [...ground(180, 120), ...ground(220, 120)]);
+  const split = pathLines(B, [...ground(180, 120), ...ground(180.4, 120), ...ground(180.4, 120), ...ground(193.2, 120), ...ground(220, 120)]);
+  expect(split.length).toBe(simple.length);
+  for (let i = 0; i < simple.length; i++) {
+    expect(split[i][0]).toBeCloseTo(simple[i][0], 5);
+    expect(strokeLength(split[i])).toBeCloseTo(strokeLength(simple[i]), 5);
+  }
+  const bent = pathLines(B, [...ground(180, 120), ...ground(180.4, 120), ...ground(180.4, 160)]);
+  expect(strokeLength(bent[0])).toBeCloseTo(B.cam.tone(1.1), 5);
+});
+
+test('projected path dashes still stop at road masks', () => {
+  const B = build({ scale: 4000 });
+  const lines = pathLines(B, [...B.cam.ground(180, 130), ...B.cam.ground(220, 130)], true);
+  expect(lines.length).toBeGreaterThan(10);
+  for (const line of lines) for (let i = 0; i < line.length; i += 2) expect(Math.abs(line[i] - 200)).toBeGreaterThan(1.8);
 });
