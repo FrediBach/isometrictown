@@ -66,7 +66,7 @@ Rail pairs test the minimum perpendicular projected gauge along the mapped way, 
 
 Cast-shadow tone discards connected visible patches smaller than `cam.tone(1.2)²` square millimetres (1.44 mm² with the reference pen). Connectivity is measured after water and hidden ground are excluded, using eight raster neighbours so diagonal edges stay connected. Retained shadow shapes use the original union mask, hatch phase and visibility test; the filter adds no boundary inset. Drawable paths also clear a continuous corridor through the shadow tone, using the same pen-scaled mask as park and ground textures. Road crossings retain their tone where the path marks themselves are suppressed. The component filter runs after this clearance, removing tiny slivers left beside the route. Disabling paths restores the uninterrupted hatch. The original shadow mask remains available to the other ground textures.
 
-Wall tone is independent of wall size and Detail. Walls almost parallel to the sunlight stay plain: tone starts when the outward normal’s dot product with the sun falls below −0.2 and reaches full strength at −0.7. Walls turned well away from the sun use `cam.tone(0.75)` spacing; the pen width scales that spacing. The ordinary short-stroke filter still applies.
+Wall tone is independent of wall size and Detail. Walls almost parallel to the sunlight stay plain: tone starts when the outward normal’s dot product with the sun falls below −0.2 and reaches full strength at −0.7. Walls turned well away from the sun use `cam.tone(0.85)` spacing; ground shadows use `cam.tone(0.95)`. The pen width scales both spacings. The ordinary short-stroke filter still applies.
 
 ## What `Paper` does for every stroke
 

@@ -58,7 +58,7 @@ export type Build = {
 export type WallRing = Ring & { party?: Float32Array };
 
 const CREASE = Math.cos((24 * Math.PI) / 180);
-const SHADE_MM = 0.75;
+const SHADE_MM = 0.85;
 /** Height of a shop's ground floor; the upper floors' windows start above it. */
 const SHOP_H = 3.6;
 

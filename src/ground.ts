@@ -415,7 +415,7 @@ export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array): void {
     if (tail < minimum) for (let k = 0; k < tail; k++) visible[queue[k]] = 3;
   }
   // Retained edges keep their original shape; only drawable paths interrupt the tone.
-  paper.hatchGround(SHADOWS, 62, cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y)
+  paper.hatchGround(SHADOWS, 62, cam.tone(0.95), (x, y) => paper.on(M.shadow, x, y)
     && !paper.on(M.water, x, y) && !(paths && paper.on(paths, x, y) && !paper.on(M.road, x, y)) && paper.at(visible, x, y) !== 3);
 }
 

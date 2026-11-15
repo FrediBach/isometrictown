@@ -14,13 +14,13 @@ function wall(width: number, height: number, more: Partial<Settings> = {}, sun: 
 }
 
 test('wall height does not change hatch density, including small walls', () => {
-  for (const height of [3, 6, 20]) expect(wall(12, height)).toHaveLength(15);
+  for (const height of [3, 6, 20]) expect(wall(12, height)).toHaveLength(13);
   expect(wall(2, 30)).toHaveLength(1);
 });
 
 test('tone spacing follows scale and nib width but not Detail', () => {
-  expect(wall(12, 6, { scale: 4000 })).toHaveLength(3);
-  expect(wall(12, 6, { penWidth: 0.7 })).toHaveLength(7);
+  expect(wall(12, 6, { scale: 4000 })).toHaveLength(2);
+  expect(wall(12, 6, { penWidth: 0.7 })).toHaveLength(6);
   expect(wall(12, 6, { detail: 2 })).toEqual(wall(12, 6, { detail: 0.5 }));
   expect(wall(12, 20, { shadeWalls: false })).toHaveLength(0);
 });

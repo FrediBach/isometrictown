@@ -551,7 +551,7 @@ test.each([0.35, 0.7])('tiny shadow islands disappear without changing retained 
   paper.fillMask(M.shadow, [rect(210, 120, k, k)]);
   const original = M.shadow.slice();
   paper.finishDepth();
-  paper.hatchGround(SHADOWS, 62, B.cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y));
+  paper.hatchGround(SHADOWS, 62, B.cam.tone(0.95), (x, y) => paper.on(M.shadow, x, y));
   const before = paper.pens[SHADOWS].splice(0);
   expect(before.some((line) => line[0] > 205)).toBe(true);
   castShadows(paper, M);
