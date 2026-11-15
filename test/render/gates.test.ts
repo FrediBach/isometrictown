@@ -6,7 +6,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { ENTRIES, filed, GATE_LABEL, matcher, type Gate } from '@/catalogue';
 import type { Settings } from '@/settings';
-import { GATE_BASE, RURAL_BASE } from '../cases';
+import { CASES, GATE_BASE, RURAL_BASE } from '../cases';
 import { pinClock } from '../support/clock';
 import { draw, type Sheet } from '../support/draw';
 
@@ -27,8 +27,10 @@ function gated(s: Sheet, g: Gate): string[] {
 }
 
 /** Switches the village doesn't have anything for. */
-const RURAL = new Set<Gate>(['rails', 'power']);
-const baseSet = (g: Gate) => (RURAL.has(g) ? RURAL_BASE : GATE_BASE);
+const RURAL = new Set<Gate>(['rails']);
+// This recorded city has supported roadside wires; rural transmission runs may be rejected.
+const POWER_BASE = CASES.find(c => c.id === 'midtown')!.set;
+const baseSet = (g: Gate) => g === 'power' ? POWER_BASE : (RURAL.has(g) ? RURAL_BASE : GATE_BASE);
 const bases = new Map<Settings, Promise<Sheet>>();
 const baseFor = (g: Gate) => bases.get(baseSet(g)) ?? bases.set(baseSet(g), draw(baseSet(g))).get(baseSet(g))!;
 

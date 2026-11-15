@@ -32,7 +32,11 @@ export type Stream = { pts: number[]; width: number };
 /** An airfield's label point. */
 export type Airport = { x: number; y: number; cls: string; gliders: boolean; heli: boolean };
 
+/** Uncropped map geometry used to validate inferred power supports and spans, including off-sheet land. */
+export type PowerContext = { land: Shape[]; water: Shape[]; buildings: Shape[]; roads: Way[]; streams: Stream[]; airfields: Shape[] };
+
 export type Town = {
+  powerContext?: PowerContext;
   buildings: Building[];
   water: Shape[];
   /** The OpenMapTiles class of each water shape, in step with `water`: ocean, lake, river, pond and so on. */
@@ -147,9 +151,26 @@ function tileTemplate(): Promise<string> {
 
 export class TooBigError extends Error {}
 
+/** Extra tiles for power continuity: an 800 m margin, capped at sixteen cached tile requests. */
+export function powerContextTiles(frame: Frame, box: [number, number, number, number]): [number, number][] {
+  const n = 2 ** ZOOM;
+  const tx = (x: number) => Math.floor(((frame.mx0 + x / frame.k) / EARTH + 0.5) * n);
+  const ty = (y: number) => Math.floor((0.5 - (frame.my0 + y / frame.k) / EARTH) * n);
+  const x0 = tx(box[0]), x1 = tx(box[2]), y0 = ty(box[3]), y1 = ty(box[1]);
+  const out: [number, number][] = [];
+  for (let x = tx(box[0] - 800); x <= tx(box[2] + 800); x++) {
+    for (let y = Math.max(0, ty(box[3] + 800)); y <= Math.min(n - 1, ty(box[1] - 800)); y++) {
+      if (x < x0 || x > x1 || y < y0 || y > y1) out.push([x, y]);
+    }
+  }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  out.sort((a, b) => (a[0] - cx) ** 2 + (a[1] - cy) ** 2 - (b[0] - cx) ** 2 - (b[1] - cy) ** 2 || a[0] - b[0] || a[1] - b[1]);
+  return out.slice(0, 16);
+}
+
 /** Load everything inside a local-metre bounding box, converted to local metres. */
-export async function loadTown(frame: Frame, box: [number, number, number, number], onProgress?: (done: number, total: number) => void, onDownload?: () => void): Promise<Town> {
-  const key = JSON.stringify([frame.mx0, frame.my0, frame.k, ...box]);
+export async function loadTown(frame: Frame, box: [number, number, number, number], onProgress?: (done: number, total: number) => void, onDownload?: () => void, power = false): Promise<Town> {
+  const key = JSON.stringify([frame.mx0, frame.my0, frame.k, ...box, power]);
   if (assembled?.key === key) return structuredClone(assembled.town);
   const n = 2 ** ZOOM;
   const toTileX = (x: number) => Math.floor(((frame.mx0 + x / frame.k) / EARTH + 0.5) * n);
@@ -170,8 +191,10 @@ export async function loadTown(frame: Frame, box: [number, number, number, numbe
       jobs.push(job);
     }
   }
-  const tiles = await Promise.all(jobs);
-  const town = assemble(tiles, frame, box);
+  // Missing outer context is conservative: the renderer omits an unverified route.
+  const context = power ? powerContextTiles(frame, box).map(([x, y]) => readTile(((x % n) + n) % n, y, onDownload).catch(() => null)) : [];
+  const [tiles, outer] = await Promise.all([Promise.all(jobs), Promise.all(context)]);
+  const town = assemble(tiles, frame, box, outer.filter((t): t is Town => t !== null));
   assembled = { key, town };
   return structuredClone(town);
 }
@@ -511,7 +534,7 @@ function clipLine(line: { x: number; y: number }[], ext: number): { x: number; y
 }
 
 /** Convert absolute-Mercator tiles to local metres, keeping what touches the box. */
-function assemble(tiles: Town[], frame: Frame, box: [number, number, number, number]): Town {
+function assemble(tiles: Town[], frame: Frame, box: [number, number, number, number], context: Town[] = []): Town {
   const town = empty();
   const [bx0, by0, bx1, by1] = box;
   const local = (pts: number[], pad = 0): number[] | null => {
@@ -542,6 +565,24 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     }
     return rings;
   };
+  const power: PowerContext = { land: [], water: [], buildings: [], roads: [], streams: [], airfields: [] };
+  town.powerContext = power;
+  const powerShape = (s: Shape): Shape => s.map((r) => ({ pts: r.pts.map((v, i) => i % 2 ? frame.y(v) : frame.x(v)), seam: r.seam }));
+  const powerPoints = (p: number[]) => p.map((v, i) => i % 2 ? frame.y(v) : frame.x(v));
+  for (const t of [...tiles, ...context]) {
+    // Keep complete loaded-tile geometry: a support just outside the sheet needs the same checks.
+    power.land.push(...[...t.green, ...t.wood, ...t.landuse.map((a) => a.shape), ...t.cover.map((a) => a.shape)].map(powerShape));
+    power.water.push(...[...t.water, ...t.pools].map(powerShape));
+    power.buildings.push(...t.buildings.filter((b) => b.min <= 0).map((b) => powerShape(b.shape)));
+    power.roads.push(...t.ways.filter((w) => w.kind === 'road').map((w) => ({ ...w, pts: powerPoints(w.pts) })));
+    power.streams.push(...t.streams.map((w) => ({ ...w, pts: powerPoints(w.pts) })));
+    power.airfields.push(...t.aprons.map(powerShape));
+    for (const w of t.runways) {
+      const p = powerPoints(w.pts), xs = p.filter((_, i) => i % 2 === 0), ys = p.filter((_, i) => i % 2 === 1);
+      const x0 = Math.min(...xs) - 30, x1 = Math.max(...xs) + 30, y0 = Math.min(...ys) - 30, y1 = Math.max(...ys) + 30;
+      power.airfields.push([{ pts: [x0, y0, x1, y0, x1, y1, x0, y1], seam: new Uint8Array(4) }]);
+    }
+  }
   for (const t of tiles) {
     for (const b of t.buildings) {
       if (b.min <= 0) {

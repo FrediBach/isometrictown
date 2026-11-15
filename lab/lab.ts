@@ -42,7 +42,7 @@ export async function runCase(place: LabPlace, scale: number, o: CaseOptions = {
   const cam = new Camera(set);
   const frame = new Frame(set.center);
   const box = cam.region(reachHeight(set));
-  const [region, town] = await Promise.all([detectRegion(set.center), loadTown(frame, box)]);
+  const [region, town] = await Promise.all([detectRegion(set.center), loadTown(frame, box, undefined, undefined, set.power)]);
   town.tagged = set.osmTags ? await loadTags(frame, box).catch(() => []) : [];
   const style = STYLES[region.style] ?? STYLES.generic;
   const t0 = performance.now();

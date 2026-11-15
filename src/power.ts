@@ -8,14 +8,17 @@ import { LINEWORK } from './settings';
 import type { Town, Way } from './tiles';
 import { urbanity } from './traffic';
 import { LOD, shows } from './lod';
+import { powerTerrain } from './power-terrain';
+type Terrain = ReturnType<typeof powerTerrain>;
 
 /*
  * Power lines. OpenMapTiles carries none, so they're made up, in two kinds:
  *
  * Transmission lines on lattice pylons, laid out on a grid in absolute map coordinates: each grid
  * cell may hold one straight line of its own, a few kilometres long, so a line runs on unbroken
- * from one view into the next and never moves when the view pans. Pylons stand at fixed spans from
- * the line's start; where a span would land in a dense town centre the line goes underground.
+ * from one view into the next. Pylons stand at fixed spans from the line's start; supports and
+ * the full corridor must lie on mapped land, clear of water, buildings and airfields. Unknown
+ * ground and dense towns break the run; rejected supports are never bridged over.
  *
  * Distribution lines on wooden poles along roads: in town where that's how it's done (the Americas,
  * East Asia, Australia, the tropics), only out on country roads elsewhere.
@@ -31,7 +34,6 @@ const PRIVATE = new Set(['driveway', 'parking_aisle', 'drive-through']);
 
 type Line = { pen: number; pts: number[] };
 
-/** A wire hanging between two points, sagging by sag in the middle. */
 /** Whether a span between two points passes over the cinematic title, which no wire may run through. */
 function crossesTitle(paper: Paper, M: Masks, ax: number, ay: number, bx: number, by: number): boolean {
   const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5);
@@ -39,6 +41,7 @@ function crossesTitle(paper: Paper, M: Masks, ax: number, ay: number, bx: number
   return false;
 }
 
+/** A wire hanging between two supports, sagging in the middle. */
 function wire(ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag: number, out: Line[]): void {
   const pts: number[] = [];
   const n = 12;
@@ -144,10 +147,25 @@ function flatPylon(cam: Camera, t: Tower, out: Line[]): void {
   if (shows(cam, LOD.insulator, drop(t))) for (const [b, z] of conductors(t)) out.push({ pen: LINEWORK, pts: [...P(b, z), ...P(b, z + drop(t))] });
 }
 
+/** An inferred transmission run must continue beyond both sides of the print, not terminate within it. */
+export function powerRunContinues(cam: Camera, first: { x: number; y: number; H: number }, last: { x: number; y: number; H: number }): boolean {
+  const outside = (t: { x: number; y: number; H: number }) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    // Include the whole tower and its arms: a base outside the sheet can still leave a visible end.
+    for (const dx of [-16, 16]) for (const dy of [-16, 16]) for (const z of [0, t.H]) {
+      const x = cam.sx(t.x + dx, t.y + dy), y = cam.sy(t.x + dx, t.y + dy, z);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    const [left, top, right, bottom] = cam.rect, margin = 8;
+    return x1 < left - margin || x0 > right + margin || y1 < top - margin || y0 > bottom + margin;
+  };
+  return outside(first) && outside(last);
+}
+
 /** Transmission lines from the grid cells around the view, as pylons and the spans between them. */
-function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], out: Line[]): void {
+function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], out: Line[], terrain: Terrain): void {
   const { set, cam } = B;
-  const urban = urbanity(town, B.toAbs);
+  const urban = urbanity({ ...town, ways: terrain.roads }, B.toAbs);
   const [X0, Y0] = toAbs(box[0], box[1]);
   const [X1, Y1] = toAbs(box[2], box[3]);
   const i0 = Math.floor(Math.min(X0, X1) / CELL) - 2;
@@ -157,14 +175,6 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
   const inBox = (x: number, y: number, m: number) => x > box[0] - m && x < box[2] + m && y > box[1] - m && y < box[3] + m;
   // Lattice bracing only where it can read as lattice; smaller, it closes up into a black mass.
   const detail = shows(cam, LOD.lattice);
-  // No pylons across airfields: their runways and aprons keep a wide berth.
-  const field: number[] = [];
-  for (const w of town.runways) for (let k = 0; k < w.pts.length; k += 2) field.push(w.pts[k], w.pts[k + 1]);
-  for (const a of town.aprons) for (let k = 0; k < a[0].pts.length; k += 2) field.push(a[0].pts[k], a[0].pts[k + 1]);
-  const nearField = (x: number, y: number) => {
-    for (let k = 0; k < field.length; k += 2) if (Math.hypot(field[k] - x, field[k + 1] - y) < 500) return true;
-    return false;
-  };
   for (let i = i0; i <= i1; i++)
     for (let j = j0; j <= j1; j++) {
       const r = (salt: number) => hash(i, j, set.seed, 900 + salt);
@@ -186,60 +196,54 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
       if (Math.hypot(ax + dx * t - (box[0] + box[2]) / 2, ay + dy * t - (box[1] + box[3]) / 2) > reach) continue;
       const span = big ? 380 : 290;
       const H = big ? 48 + r(6) * 8 : 30 + r(6) * 6;
-      let prev: Tower | null = null;
+      let run: Tower[] = [];
+      const flush = () => {
+        if (run.length > 1 && powerRunContinues(cam, run[0], run[run.length - 1])) {
+          for (const tower of run) pylon(cam, tower, detail, out);
+          for (let k = 1; k < run.length; k++) {
+            const prev = run[k - 1], tower = run[k];
+            const sag = Math.hypot(prev.x - tower.x, prev.y - tower.y) * 0.025;
+            for (const [b, z] of conductors(tower)) wire(prev.x - prev.dy * b, prev.y + prev.dx * b, z, tower.x - tower.dy * b, tower.y + tower.dx * b, z, sag, out);
+            wire(prev.x, prev.y, prev.H, tower.x, tower.y, tower.H, sag * 0.8, out);
+          }
+        }
+        run = [];
+      };
       for (let d = 0; d <= L; d += span) {
-        const x = ax + dx * d;
-        const y = ay + dy * d;
-        if (!inBox(x, y, span * 1.2)) {
-          prev = null;
-          continue;
-        }
-        // Into a dense town the line goes underground; elsewhere a pylon steps aside from what's in its way.
-        if (urban(x, y) > 0.55 || nearField(x, y) || nearField((x + (prev?.x ?? x)) / 2, (y + (prev?.y ?? y)) / 2)) {
-          prev = null;
-          continue;
-        }
+        const x = ax + dx * d, y = ay + dy * d;
+        // Inspect two spans beyond the view before deciding whether the route continues.
+        if (!inBox(x, y, span * 2) || urban(x, y) > 0.55) { flush(); continue; }
         let tower: Tower | null = null;
         for (const shift of [0, 12, -12, 24, -24]) {
-          const px = x + dx * shift;
-          const py = y + dy * shift;
-          const onSheet = inBox(px, py, 0);
-          if (onSheet && (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py) || onMask(paper, M.road, px, py))) continue;
+          const px = x + dx * shift, py = y + dy * shift;
+          if (!terrain.support(px, py, true) || onMask(paper, M.title, px, py)) continue;
           tower = { x: px, y: py, dx, dy, big, H };
           break;
         }
-        if (!tower) continue;
-        pylon(cam, tower, detail, out);
-        if (prev && Math.hypot(prev.x - tower.x, prev.y - tower.y) < span * 2.3 && !crossesTitle(paper, M, prev.x, prev.y, tower.x, tower.y)) {
-          const sag = Math.hypot(prev.x - tower.x, prev.y - tower.y) * 0.025;
-          const P = (tw: Tower, b: number, z: number) => [tw.x - tw.dy * b, tw.y + tw.dx * b, z];
-          for (const [b, z] of conductors(tower)) {
-            const [px, py] = P(prev, b, z);
-            const [qx, qy] = P(tower, b, z);
-            wire(px, py, z, qx, qy, z, sag, out);
-          }
-          wire(prev.x, prev.y, prev.H, tower.x, tower.y, tower.H, sag * 0.8, out);
-        }
-        prev = tower;
+        if (!tower) { flush(); continue; }
+        const prev = run[run.length - 1];
+        if (prev && (Math.hypot(prev.x - tower.x, prev.y - tower.y) >= span * 1.2 || !terrain.span(prev.x, prev.y, tower.x, tower.y, true, big ? 11 : 5) || crossesTitle(paper, M, prev.x, prev.y, tower.x, tower.y))) flush();
+        run.push(tower);
       }
+      flush();
     }
 }
 
 /** Wooden poles along roads with wires between them. */
-function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[]): void {
+function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[], terrain: Terrain): void {
   const { set, style } = B;
-  const urban = urbanity(town, B.toAbs);
+  const urban = urbanity({ ...town, ways: terrain.roads }, B.toAbs);
   const townToo = OVERHEAD_TOWN.has(style.id);
   const american = style.id === 'american' || style.id === 'antipodean';
   const asian = style.id === 'eastAsian';
   const spacing = asian ? 30 : 38;
   const H = american ? 10.5 : asian ? 11 : 8.5;
-  const blocked = (x: number, y: number) => onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y) || onMask(paper, M.road, x, y) || onMask(paper, M.title, x, y);
+  const blocked = (x: number, y: number) => !terrain.support(x, y, false) || onMask(paper, M.title, x, y);
   const keyed = (w: Way, salt: number) => {
     const [k0, k1] = B.key(w.pts[0], w.pts[1]);
     return hash(k0, k1, set.seed, salt);
   };
-  for (const w of town.ways) {
+  for (const w of terrain.roads) {
     if (w.kind !== 'road' || !POLE_ROADS.has(w.cls) || PRIVATE.has(w.service ?? '') || w.bridge) continue;
     const cum = measure(w.pts);
     const L = cum[cum.length - 1];
@@ -286,7 +290,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
       const ny = ux * side;
       const x = x0 + nx * off;
       const y = y0 + ny * off;
-      if (blocked(x, y)) continue;
+      if (blocked(x, y)) { prev = null; continue; }
       // The pole, and its cross-arms.
       out.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
       for (const z of arms) out.push({ pen: LINEWORK, pts: [x + nx * 1.1, y + ny * 1.1, z, x - nx * 1.1, y - ny * 1.1, z] });
@@ -301,7 +305,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
       if (prev) {
         const [px, py, pnx, pny] = prev;
         // Round a bend the road turns away from the wires; start a new run rather than cut the corner.
-        if (Math.hypot(px - x, py - y) < spacing * 2.2 && pnx * nx + pny * ny > 0.87 && !crossesTitle(paper, M, px, py, x, y))
+        if (Math.hypot(px - x, py - y) < spacing * 1.2 && pnx * nx + pny * ny > 0.87 && terrain.span(px, py, x, y, false, 1.1) && !crossesTitle(paper, M, px, py, x, y))
           for (const [b, z] of kept) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
       }
       prev = [x, y, nx, ny];
@@ -313,7 +317,8 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[])
 export function powerLines(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Extra {
   const out: Line[] = [];
   if (!B.set.power || !shows(B.cam, LOD.pylon)) return { solids: [], draw: () => {} };
-  transmission(B, paper, town, M, box, toAbs, fromAbs, out);
-  if (shows(B.cam, LOD.pole)) distribution(B, paper, town, M, out);
+  const terrain = powerTerrain(town);
+  transmission(B, paper, town, M, box, toAbs, fromAbs, out, terrain);
+  if (shows(B.cam, LOD.pole)) distribution(B, paper, town, M, out, terrain);
   return { solids: [], draw: (p) => out.forEach((l) => p.line3(l.pen, l.pts)) };
 }

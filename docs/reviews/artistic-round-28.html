@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artistic round 28 — Power continuity</title><style>body{font:16px/1.6 system-ui;max-width:1050px;margin:40px auto;padding:0 20px;background:#f5f3ed;color:#242820}a{color:#345a49}.pair{display:grid;grid-template-columns:1fr 1fr;gap:20px}figure{margin:0}img{width:100%}table{border-collapse:collapse}td,th{text-align:left;padding:8px 18px;border-bottom:1px solid #ccc}@media(max-width:600px){.pair{grid-template-columns:1fr}}</style>
+<body><main>
+<h1>Power lines that continue beyond the print</h1>
+<p>Round 28 · 47.1190° N, 9.0507° E · 1:1000 · bearing 35°</p>
+<p>The reported pylon was the end of a partially accepted inferred route. Checking each span prevented lake crossings but left those partial routes visible.</p>
+<h2>Changes</h2>
+<ul><li>Power-enabled drawings load an 800 m outer terrain margin, capped at sixteen additional cached tiles. Failed outer requests leave terrain unverified.</li>
+<li>Transmission candidates inspect two spans beyond the ground box. Each continuous run is buffered before it is drawn.</li>
+<li>Both end towers must lie wholly outside the drawing, including their elevated tops and arms, with an 8 mm guard. Incomplete runs are omitted.</li>
+<li>Extra tile geometry feeds only power checks. These routes remain artistic inferences, not confirmed utility infrastructure.</li></ul>
+<h2>Reported location</h2>
+<figure><img src="artistic-review-assets/power-continuation-before.png" alt="Before: a transmission line ends at a pylon in the forest"><figcaption>Before — a visible terminal pylon.</figcaption></figure>
+<figure><img src="artistic-review-assets/power-continuation-after.png" alt="After: the incomplete inferred transmission run is omitted"><figcaption>After — this route cannot continue confidently, so the whole incomplete run is omitted.</figcaption></figure>
+<h2>Verification</h2>
+<p>The exact-location render drops from 10,251 to 10,221 strokes; wasted ink falls from 4.5% to 4.0%. Six LOD comparisons at Mollis, Emmental and the Interlaken lakeshore (1:1000 and 1:1550) have unchanged drawing metrics. Their close-ups and the reported location were inspected on screen.</p>
+<p>The Emmental golden at 1:4000 intentionally loses nine raw power strokes (125.4 mm). Its other feature counts are unchanged. The setting-gate test now uses the existing Midtown fixture, which has supported roadside wires.</p>
+<p>Regression tests cover rejected terrain, water crossings, panning, internal run endings, elevated endpoint visibility and the outer-tile budget. No physical pen plot or exhaustive pan sweep was checked.</p>
+<p><a href="artistic-review.html">Back to artistic review</a></p>
+</main></body></html>
