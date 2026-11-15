@@ -402,7 +402,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'walls',
     name: 'Glazing bars',
     source: ['inferred'],
-    what: 'Windows divided into panes.',
+    what: 'Windows divided into panes only where both projected dimensions leave enough clear paper inside the frame.',
     how: 'Half of homes and civic buildings, except ribbon windows and curtain walls, where it is the local habit; drawn only when the panes are big enough on paper.',
     regions: `Where windows have glazing bars: ${listed(BARS)}.`,
     needs: ['windows'],

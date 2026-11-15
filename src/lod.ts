@@ -27,11 +27,11 @@ export const LOD = {
   // Buildings
   building: { m: 5, mm: 0.7, what: 'Small sheds, garages and houses: square root of the footprint. Terraces and landmarks always stay' },
   crease: { m: 2, mm: 0.9, what: 'Corners between two walls that both face the viewer: the shorter wall' },
-  window: { m: 1.2, mm: 0.85, what: 'Window frames: width' },
+  window: { m: 1.2, mm: 0.85, what: 'Window frames: the smaller projected clear dimension; glazing bands: projected height' },
   windowTick: { m: 1.5, mm: 0.8, what: 'Windows as single strokes: height, stretched up to twice to read, short of the next floor' },
   windowRow: { m: 10, mm: 2, what: 'A floor of windows (three or more), glazing bands and curtain walls as one stroke per floor: length' },
   floors: { m: 2.7, mm: 0.9, what: 'Windows as one stroke per floor at all: storey height as it shows on the wall' },
-  glazingBars: { m: 1.2, mm: 1.7, what: 'Glazing bars in windows: width' },
+  glazingBars: { m: 1.2, mm: 1.7, what: 'Glazing bars in windows: the smaller projected clear dimension' },
   shopfront: { m: 2.3, mm: 1.15, what: 'Shop windows: height' },
   awning: { m: 1.3, mm: 0.6, what: 'Striped awnings: depth' },
   gable: { m: 0.8, mm: 0.7, what: 'Stepped and shaped gables on street fronts: step width' },

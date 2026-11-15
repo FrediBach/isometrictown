@@ -52,6 +52,8 @@ The `treeCrown` rule gives large broadleaf crowns a gently lobed outline, varied
 
 Merged window rows and curtain-wall floor lines keep at least `cam.gap(1.5)` between parallel strokes, measured perpendicular to the projected wall direction. Glazing mullions keep `cam.gap(1.2)` of horizontal separation. Ribbon bands too shallow to read collapse to a single floor stroke, and glazing bands start at least 1.5 pen widths inside the projected vertical corners. These rules reduce rows and columns coherently, without changing the building's inferred window pattern.
 
+Individual window frames test the smaller perpendicular distance between opposite sides, minus one physical pen width for the ink. A narrow or shallow opening falls back to an upright stroke rather than a cramped quadrilateral. Glazing bars use the same clear interior measurement with their larger threshold, so a wide but shallow window cannot acquire bars merely because its width is large.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.

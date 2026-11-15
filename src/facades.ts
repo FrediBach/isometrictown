@@ -506,7 +506,9 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
     switch (o.kind) {
       case 'window': {
         if (mode === 'rows') break;
-        if (!full || !shows(cam, LOD.window, (u1 - u0) * along)) {
+        // Measure the paper left between strokes, not the length of a sloping frame edge.
+        const room = Math.min((u1 - u0) * c.across, (z1 - z0) * cam.ca * c.across / along) - cam.nib / cam.s;
+        if (!full || !shows(cam, LOD.window, room)) {
           // Stretched about its middle in the tick step, but never past the eaves or into the
           // ground; true to size beside framed windows.
           const zm = (z0 + z1) / 2;
@@ -514,7 +516,7 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
           if (shows(cam, LOD.windowTick, t * cam.ca)) L(LINEWORK, [...P(um, 0, zm - t / 2), ...P(um, 0, zm + t / 2)]);
           break;
         }
-        const bars = c.fa.bars && shows(cam, LOD.glazingBars, (u1 - u0) * along);
+        const bars = c.fa.bars && shows(cam, LOD.glazingBars, room);
         const pen = o.shutters ?? -1;
         if (pen >= 0 && o.closed) {
           // Shutters closed against the sun: a pair of panels meeting in the middle.

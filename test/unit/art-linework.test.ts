@@ -24,6 +24,53 @@ function build(more: Partial<Settings> = {}): Build {
   };
 }
 
+test.each([0.35, 0.7])('oblique window frames become upright strokes with a %s mm pen', (penWidth) => {
+  const B = build({ scale: 500 * 0.35 / penWidth, bearing: 0, penWidth });
+  const draw = (angle: number) => {
+    const out = newSolid();
+    const a = angle * Math.PI / 180;
+    const wall: Wall = { ax: 0, ay: 0, bx: 20 * Math.cos(a), by: 20 * Math.sin(a), len: 20, z0: 0, z1: 12, ground: true, street: false, door: false, balconies: 0, shutters: -1 };
+    facadeLines(B, wall, PLAIN, out);
+    return out;
+  };
+  expect(draw(0).lines.some((l) => l.closed)).toBe(true);
+  const oblique = draw(75);
+  expect(oblique.lines.length).toBeGreaterThan(0);
+  expect(oblique.faces).toHaveLength(0);
+  for (const { pts: p, closed } of oblique.lines) {
+    expect(closed).not.toBe(true);
+    expect(p).toHaveLength(6);
+    expect(p[0]).toBe(p[3]);
+    expect(p[1]).toBe(p[4]);
+  }
+});
+
+test('wide but shallow windows omit glazing bars until both dimensions have room', () => {
+  const draw = (scale: number, bars: boolean) => {
+    const B = build({ scale, bearing: 0 });
+    const out = newSolid();
+    const wall: Wall = { ax: 0, ay: 0, bx: 20, by: 0, len: 20, z0: 0, z1: 12, ground: true, street: false, door: false, balconies: 0, shutters: -1 };
+    facadeLines(B, wall, { ...PLAIN, w: 3, h: 1, bay: 5, bars }, out);
+    return out.lines;
+  };
+  expect(draw(500, true)).toEqual(draw(500, false));
+  expect(draw(400, true).length).toBeGreaterThan(draw(400, false).length);
+});
+
+test('window frames reserve space for the ink as well as the opening', () => {
+  const draw = (width: number) => {
+    const B = build({ scale: 1000, bearing: 0 });
+    const out = newSolid();
+    const wall: Wall = { ax: 0, ay: 0, bx: 20, by: 0, len: 20, z0: 0, z1: 12, ground: true, street: false, door: false, balconies: 0, shutters: -1 };
+    facadeLines(B, wall, { ...PLAIN, w: width }, out);
+    return out.lines;
+  };
+  const narrow = draw(1.1);
+  expect(narrow.length).toBeGreaterThan(0);
+  expect(narrow.every((l) => !l.closed)).toBe(true);
+  expect(draw(1.5).some((l) => l.closed)).toBe(true);
+});
+
 test.each([0.35, 0.7])('curtain grids keep projected spacing and corner clearance with a %s mm pen', (penWidth) => {
   const B = build({ scale: 500, bearing: 0, tilt: 75, penWidth });
   const len = 40, dx = Math.SQRT1_2, dy = Math.SQRT1_2;
