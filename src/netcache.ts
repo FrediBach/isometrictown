@@ -102,3 +102,5 @@ export const TTL = { day: DAY, month: 30 * DAY };
 export const TILES: Store = { name: 'isometrictown-tiles-v1', maxEntries: 1500 };
 /** Small things: the tile index and Overpass cells. */
 export const META: Store = { name: 'isometrictown-meta-v1', maxEntries: 5000 };
+/** Search answers have a separate budget so typing cannot evict map metadata. */
+export const SEARCH: Store = { name: 'isometrictown-search-v1', maxEntries: 300 };

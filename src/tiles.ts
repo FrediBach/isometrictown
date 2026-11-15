@@ -2,6 +2,7 @@ import { VectorTile, type VectorTileFeature } from '@mapbox/vector-tile';
 import { PbfReader } from 'pbf';
 import type { Info } from './classify';
 import { EARTH, ringArea, type Frame } from './geo';
+import { queue, timed } from './lib/network';
 import { bytes, cached, json, LOCAL, META, TILES, TTL } from './netcache';
 
 /** A ring as flat [x, y, ...] coordinates. seam[i] marks edge i -> i+1 as a cut along a tile edge. */
@@ -98,6 +99,8 @@ const BUILDING_PAD = 60;
 const CONTEXT_PAD = 250;
 const TILEJSON = 'https://tiles.openfreemap.org/planet';
 const MAX_TILES = 36;
+const download = queue(4);
+const DOWNLOAD_TIMEOUT_MS = 20000;
 const MAX_CACHED = 64;
 
 export const ROAD_WIDTH: Record<string, number> = {
@@ -135,12 +138,12 @@ let assembled: { key: string; town: Town } | null = null;
 
 function tileTemplate(): Promise<string> {
   // The index names the current planet build; it changes about weekly, so a day-old copy is fine.
-  template ??= cached(META, `${LOCAL}tilejson`, TTL.day, json<{ tiles: string[] }>, async () => {
-    const r = await fetch(TILEJSON);
+  template ??= cached(META, `${LOCAL}tilejson`, TTL.day, json<{ tiles: string[] }>, () => timed(DOWNLOAD_TIMEOUT_MS, async (signal) => {
+    const r = await fetch(TILEJSON, { signal });
     if (!r.ok) throw new Error(`Tile index failed (${r.status})`);
     const text = await r.text();
     return { body: text, value: JSON.parse(text) as { tiles: string[] } };
-  })
+  }))
     .then((j) => j.tiles[0])
     .catch((e) => {
       template = null;
@@ -205,13 +208,15 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
   if (!job) {
     // Keyed by z/x/y rather than the full URL, so a new planet build doesn't throw away every tile we have.
     job = cached(TILES, `${LOCAL}tiles/${ZOOM}/${x}/${y}`, TTL.month, bytes, async () => {
-      onDownload?.();
       const url = await tileTemplate();
-      const r = await fetch(url.replace('{z}', String(ZOOM)).replace('{x}', String(x)).replace('{y}', String(y)));
-      if (r.status === 204 || r.status === 404) return { body: null, value: null };
-      if (!r.ok) throw new Error(`Map tile failed (${r.status})`);
-      const buf = await r.arrayBuffer();
-      return { body: buf, value: buf };
+      return download(() => timed(DOWNLOAD_TIMEOUT_MS, async (signal) => {
+        onDownload?.();
+        const r = await fetch(url.replace('{z}', String(ZOOM)).replace('{x}', String(x)).replace('{y}', String(y)), { signal });
+        if (r.status === 204 || r.status === 404) return { body: null, value: null };
+        if (!r.ok) throw new Error(`Map tile failed (${r.status})`);
+        const buf = await r.arrayBuffer();
+        return { body: buf, value: buf };
+      }));
     }).then((buf) => decode(buf, x, y));
     job.catch(() => {
       if (cache.get(key) === job) cache.delete(key);

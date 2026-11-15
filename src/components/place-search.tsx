@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { SearchIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LngLat } from '../geo';
@@ -18,6 +18,11 @@ export function PlaceSearch({ onPick }: { onPick: (center: LngLat, name: string)
   const timer = useRef(0);
   const abort = useRef<AbortController | null>(null);
 
+  useEffect(() => () => {
+    clearTimeout(timer.current);
+    abort.current?.abort();
+  }, []);
+
   function show(places: Place[]): void {
     setShown(places);
     setActive(-1);
@@ -25,6 +30,8 @@ export function PlaceSearch({ onPick }: { onPick: (center: LngLat, name: string)
   }
 
   function pick(p: Place): void {
+    clearTimeout(timer.current);
+    abort.current?.abort();
     setOpen(false);
     setQuery('');
     setStatus('');
@@ -34,6 +41,7 @@ export function PlaceSearch({ onPick }: { onPick: (center: LngLat, name: string)
   function onInput(value: string): void {
     setQuery(value);
     clearTimeout(timer.current);
+    abort.current?.abort();
     const q = value.trim();
     if (q.length < 2) {
       show([]);
@@ -44,10 +52,12 @@ export function PlaceSearch({ onPick }: { onPick: (center: LngLat, name: string)
       abort.current = new AbortController();
       const signal = abort.current.signal;
       const local = await matchCities(q, 3);
+      if (signal.aborted) return;
       show(local);
+      if (local.length >= 3) return;
       try {
         const remote = await suggestPlaces(q, signal);
-        show([...local, ...remote].slice(0, 7));
+        if (!signal.aborted) show([...local, ...remote].slice(0, 7));
       } catch {
         /* keep the local matches */
       }
@@ -69,6 +79,8 @@ export function PlaceSearch({ onPick }: { onPick: (center: LngLat, name: string)
     if (open && active >= 0 && shown[active]) return pick(shown[active]);
     const q = query.trim();
     if (!q) return;
+    clearTimeout(timer.current);
+    abort.current?.abort();
     setStatus('Searching...');
     try {
       const found = await searchPlaces(q);

@@ -1,6 +1,7 @@
 import { EARTH, latOf, lngOf, mercX, mercY, type Frame } from './geo';
 import { json, LOCAL, META, read, TTL, write } from './netcache';
 import type { Tagged } from './tiles';
+import { Cooldown, queue, timed } from './lib/network';
 
 /**
  * Real building tags from OpenStreetMap via Overpass: roof shapes, roof orientation and
@@ -14,10 +15,8 @@ const ZOOM = 15;
 const MAX_CELLS = 24;
 const MAX_CACHED = 400;
 const TIMEOUT_MS = 9000;
-/** Leave a failing mirror alone, with longer pauses for repeated failures. */
-const BACKOFF_MS = 120000;
-const MAX_BACKOFF_MS = 1800000;
-const endpoints = ENDPOINTS.map((url) => ({ url, pausedUntil: 0, backoff: BACKOFF_MS }));
+const endpoints = ENDPOINTS.map((url) => ({ url, cooldown: new Cooldown(url) }));
+const queryQueue = queue(1);
 
 const TYPES = 'house|detached|semidetached_house|bungalow|cabin|farm|terrace|apartments|residential|hotel|office|commercial|retail|garage|garages|shed|hut|carport|industrial|warehouse|barn|farm_auxiliary|school|university|college|hospital|public|civic|government|train_station|church|cathedral|chapel|mosque|temple|shrine|synagogue';
 
@@ -34,29 +33,21 @@ async function query(s: number, w: number, n: number, e: number): Promise<Elemen
   const q = `[out:json][timeout:15];(way["building"]["roof:shape"](${bbox});way["building"]["roof:orientation"](${bbox});way["building"~"^(${TYPES})$"](${bbox}););out tags center;`;
   let last: unknown;
   for (const endpoint of endpoints) {
-    if (Date.now() < endpoint.pausedUntil) continue;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    let retryAt = 0;
+    if (!(await endpoint.cooldown.ready())) continue;
+    let response: Response | undefined;
     try {
-      const r = await fetch(endpoint.url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctrl.signal });
-      const retry = r.headers.get('Retry-After');
-      if (retry) {
-        const seconds = Number(retry);
-        retryAt = Number.isFinite(seconds) ? Date.now() + Math.max(0, seconds) * 1000 : Date.parse(retry);
-        if (!Number.isFinite(retryAt)) retryAt = 0;
-      }
-      if (!r.ok) throw new Error(`Overpass ${r.status}`);
-      const j = (await r.json()) as { elements?: Element[] };
-      endpoint.pausedUntil = 0;
-      endpoint.backoff = BACKOFF_MS;
-      return j.elements ?? [];
+      const elements = await timed(TIMEOUT_MS, async (signal) => {
+        response = await fetch(endpoint.url, { method: 'POST', body: new URLSearchParams({ data: q }), signal });
+        if (!response.ok) throw new Error(`Overpass ${response.status}`);
+        const j = (await response.json()) as { elements?: Element[]; remark?: string };
+        if (j.remark || !Array.isArray(j.elements)) throw new Error('Incomplete Overpass response');
+        return j.elements;
+      });
+      await endpoint.cooldown.success();
+      return elements;
     } catch (err) {
       last = err;
-      endpoint.pausedUntil = Math.max(Date.now() + endpoint.backoff, retryAt);
-      endpoint.backoff = Math.min(endpoint.backoff * 2, MAX_BACKOFF_MS);
-    } finally {
-      clearTimeout(timer);
+      await endpoint.cooldown.failure(response);
     }
   }
   throw last ?? new Error('Overpass mirrors are cooling down');
@@ -109,7 +100,7 @@ export async function loadTags(frame: Frame, box: [number, number, number, numbe
     }),
   );
 
-  if (missing.length && endpoints.some((endpoint) => Date.now() >= endpoint.pausedUntil)) waits.add(fetchCells(missing, n, cell, cellY));
+  if (missing.length) waits.add(fetchCells(missing, n, cell, cellY));
   await Promise.all(waits);
   // Overpass couldn't be reached: an old answer beats none.
   for (const [k, v] of stale) if (!cache.has(k)) remember(k, v);
@@ -137,7 +128,7 @@ function fetchCells(missing: [number, number][], n: number, cell: (mx: number) =
     const toX = (cx: number) => (cx / n - 0.5) * EARTH;
     const toY = (cy: number) => (0.5 - cy / n) * EARTH;
     try {
-      const els = await query(latOf(toY(my1 + 1)), lngOf(toX(mx0)), latOf(toY(my0)), lngOf(toX(mx1 + 1)));
+      const els = await queryQueue(() => query(latOf(toY(my1 + 1)), lngOf(toX(mx0)), latOf(toY(my0)), lngOf(toX(mx1 + 1))));
       const fresh = new Map<string, Abs[]>();
       for (const [x, y] of missing) fresh.set(`${x}/${y}`, []);
       for (const el of els) {

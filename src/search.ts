@@ -1,3 +1,6 @@
+import { json, LOCAL, read, SEARCH, TTL, write } from './netcache';
+import { Cooldown, queue, timed } from './lib/network';
+
 export type Place = {
   name: string;
   label: string;
@@ -18,43 +21,91 @@ type NominatimResult = {
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 const MIN_GAP_MS = 1000;
 
-const cache = new Map<string, Place[]>();
-let lastRequest = 0;
+const cache = new Map<string, { places: Place[]; at: number }>();
+const pending = new Map<string, Promise<Place[]>>();
+const providers = new Map<string, { cooldown: Cooldown; run: ReturnType<typeof queue>; last: number }>();
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function remotePlaces(url: string, language: string, decode: (response: Response) => Promise<Place[]>, signal?: AbortSignal): Promise<Place[]> {
+  const origin = new URL(url).origin;
+  let provider = providers.get(origin);
+  if (!provider) {
+    provider = { cooldown: new Cooldown(origin), run: queue(1), last: 0 };
+    providers.set(origin, provider);
+  }
+  const key = `${LOCAL}search/${encodeURIComponent(language)}/${encodeURIComponent(url)}`;
+  const fetchPlaces = async () => {
+    signal?.throwIfAborted();
+    const memory = cache.get(key);
+    if (memory && Date.now() - memory.at < TTL.day) return memory.places;
+    const hit = await read(SEARCH, key, json<Place[]>, TTL.day);
+    signal?.throwIfAborted();
+    if (hit?.fresh) return hit.value;
+    try {
+      return await provider.run(async () => {
+        signal?.throwIfAborted();
+        if (!(await provider.cooldown.ready())) throw new Error('Search is cooling down');
+        const gap = MIN_GAP_MS - (Date.now() - provider.last);
+        if (gap > 0) await new Promise<void>((resolve) => setTimeout(resolve, gap));
+        signal?.throwIfAborted();
+        provider.last = Date.now();
+        let response: Response | undefined;
+        try {
+          const places = await timed(9000, async (requestSignal) => {
+            response = await fetch(url, { signal: requestSignal, headers: { 'Accept-Language': language } });
+            if (!response.ok) throw new Error(`Search failed (${response.status})`);
+            return decode(response);
+          }, signal);
+          signal?.throwIfAborted();
+          await provider.cooldown.success();
+          cache.delete(key);
+          cache.set(key, { places, at: Date.now() });
+          while (cache.size > 100) cache.delete(cache.keys().next().value!);
+          await write(SEARCH, key, JSON.stringify(places), 'application/json');
+          return places;
+        } catch (err) {
+          // Typing a new query cancels the old one without penalising the provider.
+          if (!signal?.aborted) await provider.cooldown.failure(response);
+          throw err;
+        }
+      });
+    } catch (err) {
+      signal?.throwIfAborted();
+      if (hit) return hit.value;
+      if (memory) return memory.places;
+      throw err;
+    }
+  };
+  // Submitted searches share work; autocomplete keeps its caller's cancellation signal.
+  if (signal) return fetchPlaces();
+  const existing = pending.get(key);
+  if (existing) return existing;
+  const job = fetchPlaces().finally(() => pending.delete(key));
+  pending.set(key, job);
+  return job;
 }
 
+/** Search on explicit submission, caching answers by query and browser language. */
 export async function searchPlaces(query: string): Promise<Place[]> {
   const key = query.trim().toLowerCase();
   if (!key) return [];
-  const cached = cache.get(key);
-  if (cached) return cached;
-
-  const gap = Date.now() - lastRequest;
-  if (gap < MIN_GAP_MS) await wait(MIN_GAP_MS - gap);
-  lastRequest = Date.now();
-
-  const params = new URLSearchParams({ q: query.trim(), format: 'jsonv2', limit: '5' });
-  const response = await fetch(`${ENDPOINT}?${params}`, { headers: { 'Accept-Language': navigator.language } });
-  if (!response.ok) throw new Error(`Search failed (${response.status})`);
-
-  const results = (await response.json()) as NominatimResult[];
-  const places = results.map((r) => {
-    const [south, north, west, east] = r.boundingbox.map(Number);
-    return {
-      name: r.name || r.display_name.split(',')[0],
-      label: r.display_name,
-      center: [Number(r.lon), Number(r.lat)] as [number, number],
-      bounds: [
-        [west, south],
-        [east, north],
-      ] as Place['bounds'],
-      ...(r.addresstype === 'country' ? { country: r.name || r.display_name } : {}),
-    };
+  const params = new URLSearchParams({ q: key, format: 'jsonv2', limit: '5' });
+  return remotePlaces(`${ENDPOINT}?${params}`, navigator.language, async (response) => {
+    const results = (await response.json()) as NominatimResult[];
+    const places = results.map((r) => {
+      const [south, north, west, east] = r.boundingbox.map(Number);
+      return {
+        name: r.name || r.display_name.split(',')[0],
+        label: r.display_name,
+        center: [Number(r.lon), Number(r.lat)] as [number, number],
+        bounds: [
+          [west, south],
+          [east, north],
+        ] as Place['bounds'],
+        ...(r.addresstype === 'country' ? { country: r.name || r.display_name } : {}),
+      };
+    });
+    return places;
   });
-  cache.set(key, places);
-  return places;
 }
 
 type PhotonFeature = {
@@ -74,37 +125,32 @@ type PhotonFeature = {
 const PHOTON = 'https://photon.komoot.io/api/';
 const PHOTON_LANGUAGES = ['en', 'de', 'fr'];
 const SPAN = 0.004;
-const suggestCache = new Map<string, Place[]>();
 
+/** Fetch cancellable suggestions; failed providers fall back to cached answers. */
 export async function suggestPlaces(query: string, signal: AbortSignal): Promise<Place[]> {
   const key = query.trim().toLowerCase();
   if (key.length < 3) return [];
-  const cached = suggestCache.get(key);
-  if (cached) return cached;
 
-  const params = new URLSearchParams({ q: query.trim(), limit: '8' });
+  const params = new URLSearchParams({ q: key, limit: '8' });
   const language = navigator.language.slice(0, 2);
   if (PHOTON_LANGUAGES.includes(language)) params.set('lang', language);
-  const response = await fetch(`${PHOTON}?${params}`, { signal });
-  if (!response.ok) throw new Error(`Suggestions failed (${response.status})`);
-
-  const { features } = (await response.json()) as { features: PhotonFeature[] };
-  const seen = new Set<string>();
-  const places = features.flatMap((f): Place[] => {
-    const p = f.properties;
-    const name = p.name ?? p.street;
-    if (!name || p.type === 'country' || p.osm_value === 'country') return [];
-    const parts = [name, p.city, p.state, p.country].filter((v, i, all): v is string => !!v && all.indexOf(v) === i);
-    const label = parts.join(', ');
-    if (seen.has(label)) return [];
-    seen.add(label);
-    const [lng, lat] = f.geometry.coordinates;
-    const [west, north, east, south] = p.extent ?? [lng - SPAN, lat + SPAN, lng + SPAN, lat - SPAN];
-    return [{ name, label, center: [lng, lat], bounds: [[west, south], [east, north]] }];
-  });
-  const top = places.slice(0, 5);
-  suggestCache.set(key, top);
-  return top;
+  return remotePlaces(`${PHOTON}?${params}`, navigator.language, async (response) => {
+    const { features } = (await response.json()) as { features: PhotonFeature[] };
+    const seen = new Set<string>();
+    const places = features.flatMap((f): Place[] => {
+      const p = f.properties;
+      const name = p.name ?? p.street;
+      if (!name || p.type === 'country' || p.osm_value === 'country') return [];
+      const parts = [name, p.city, p.state, p.country].filter((v, i, all): v is string => !!v && all.indexOf(v) === i);
+      const label = parts.join(', ');
+      if (seen.has(label)) return [];
+      seen.add(label);
+      const [lng, lat] = f.geometry.coordinates;
+      const [west, north, east, south] = p.extent ?? [lng - SPAN, lat + SPAN, lng + SPAN, lat - SPAN];
+      return [{ name, label, center: [lng, lat], bounds: [[west, south], [east, north]] }];
+    });
+    return places.slice(0, 5);
+  }, signal);
 }
 
 export type City = [string, string, string, string, number, number, number];

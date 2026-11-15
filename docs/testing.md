@@ -18,6 +18,8 @@ These are small and exact, for the parts that are pure functions.
 
 | File | What it pins down |
 | --- | --- |
+| `search.test.ts` | Search persistence, language keys, duplicate submissions, spacing, cooldowns, cancellation and unavailable storage |
+| `network.test.ts` | Overpass cooldowns across worker reloads, tile concurrency and stalled response bodies |
 | `osm.test.ts` | Overpass mirror cooldowns, fallback success, recovery, increasing pauses, `Retry-After` and timeouts |
 | `roof-hatching.test.ts` | Gable shading continues to the roof profile; a recorded Bauma wing keeps roof faces and hatch strokes coplanar despite unequal overhangs |
 | `roof-visibility.test.ts` | Exposed and occluded roof ends, full and partial coplanar joins, real gaps, rotations and panning, plus a recorded Mollis rim where pixel depth hid its own edge |
