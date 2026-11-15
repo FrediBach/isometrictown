@@ -62,6 +62,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 - An optional background colour appears in the preview and SVG presentation without adding a filled shape to plot.
 - Strokes that touch are joined, and the stroke order is sorted to cut pen-up travel.
 - The stats panel shows ink length, pen lifts and an estimated plot time for each pen.
+- **Pen Plot** sends the drawing straight to a GRBL pen plotter over USB (Web Serial, in Chrome or Edge), pen by pen, with a prompt to swap pens between layers. It can also download the plot as G-code with a pause before each pen. It is tuned for the UUNA TEK 3.0: GRBL 1.1 at 115200 baud, the pen on a Z axis (Z0 up), origin on the top-left corner of the paper.
 - Sizes are real millimetres for A4, A3, A2, Letter, Tabloid and more.
 
 ## How it works
@@ -98,6 +99,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 | `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
 | `src/title.ts` | The cinematic title: block letters traced from the single-stroke capitals, extruded and stood on the best straight street |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
+| `src/gcode.ts`, `src/app/grbl.ts` | G-code for GRBL pen plotters, and plotting over USB with Web Serial |
 | `src/worker.ts` | Runs all of the above off the main thread |
 | `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |
 

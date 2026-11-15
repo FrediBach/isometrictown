@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { DownloadIcon, Maximize2Icon, Minimize2Icon } from 'lucide-react';
+import { DownloadIcon, Maximize2Icon, Minimize2Icon, PenToolIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { metres, minutes, MONO_INK, num } from '../app/model';
+import { usePlotActivity } from '../app/plot-activity';
 import type { RenderResult, RenderStatus } from '../app/renderer';
 import { DrawingProgress } from './drawing-progress';
 import { PenDot } from './title-block';
@@ -166,7 +167,19 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick }: Pre
 
 const pct = (before: number, after: number) => (before > 0 ? `−${Math.round((1 - after / before) * 100)}%` : '');
 
-export function Stats({ result }: { result: RenderResult | null }) {
+/** Opens the plot dialog. A lit lamp replaces its icon while a plotter is connected. */
+function PlotButton({ disabled, onPlot }: { disabled: boolean; onPlot: () => void }) {
+  const activity = usePlotActivity();
+  return (
+    <Button variant="outline" className="shrink-0" disabled={disabled && !activity} onClick={onPlot} title={activity ?? 'Plot on a pen plotter, or download G-code'}>
+      {activity ? <span aria-hidden className="mx-[5px] size-1.5 rounded-full bg-signal shadow-[0_0_6px_var(--signal)]" /> : <PenToolIcon data-icon="inline-start" />}
+      Pen Plot
+      {activity && <span className="sr-only">: {activity}</span>}
+    </Button>
+  );
+}
+
+export function Stats({ result, onPlot }: { result: RenderResult | null; onPlot: () => void }) {
   const rows = result ? result.stats.pens.map((p, i) => ({ p, i })).filter(({ p }) => p.lifts > 0) : [];
   const total = result?.stats.seconds || 1;
   const th = 'micro pb-2 text-left font-normal';
@@ -272,9 +285,12 @@ export function Stats({ result }: { result: RenderResult | null }) {
           </>
         )}
       </dl>
-      <p className="col-span-full m-0 text-[11.5px] text-muted-foreground empty:hidden">
-        {result && `Times are estimates at ${result.speed} mm/s drawing, twice that for pen-up moves, plus 0.3 s per pen lift. Plot the pens top to bottom.`}
-      </p>
+      <div className="col-span-full flex items-end justify-between gap-4">
+        <p className="m-0 text-[11.5px] text-muted-foreground">
+          {result && `Times are estimates at ${result.speed} mm/s drawing, twice that for pen-up moves, plus 0.3 s per pen lift. Plot the pens top to bottom.`}
+        </p>
+        <PlotButton disabled={!result} onPlot={onPlot} />
+      </div>
     </footer>
   );
 }

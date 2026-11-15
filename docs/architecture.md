@@ -34,6 +34,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | `camera.ts` | Orthographic camera: world metres → sheet mm and depth |
 | `geo.ts` | Web Mercator, `Frame` (local metres around the centre), ring helpers |
 | `plot.ts` | Stroke joining and ordering, plot stats, SVG output, recolouring |
+| `gcode.ts` | G-code for GRBL pen plotters, read back from the finished SVG on the main thread (see [ui.md](ui.md#pen-plot)) |
 | `rng.ts` | `hash()` for position-keyed randomness, `sequence()` for seeded streams |
 | `settings.ts` | `Settings` type, defaults, sheet sizes, pen indices |
 
@@ -61,7 +62,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 
 **Interface**
 
-`main.tsx`, `App.tsx`, `app/` (model, renderer, settings context, stages), `components/` (sections and fields), `components/ui/` (owned shadcn parts), `locator.ts` (MapLibre wrapper), `palettes.ts`, `harmony.ts` (palette generator), `catalogue.ts` (the documented list of everything detected, inferred or made up, for the catalogue dialog), `index.css` (tokens).
+`main.tsx`, `App.tsx`, `app/` (model, renderer, settings context, stages, the GRBL plotter driver and its session), `components/` (sections and fields), `components/ui/` (owned shadcn parts), `locator.ts` (MapLibre wrapper), `palettes.ts`, `harmony.ts` (palette generator), `catalogue.ts` (the documented list of everything detected, inferred or made up, for the catalogue dialog), `index.css` (tokens).
 
 ## Principles that shape the code
 

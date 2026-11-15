@@ -15,6 +15,8 @@ import { sheetSize, type Settings } from './settings';
 
 // The catalogue pulls in the drawing's own tables, so it loads only when first opened.
 const CatalogueDialog = lazy(() => import('./components/catalogue-dialog').then((m) => ({ default: m.CatalogueDialog })));
+// So does the plot dialog, which then stays mounted so a plot and its connection outlive closing it.
+const PlotDialog = lazy(() => import('./components/plot-dialog').then((m) => ({ default: m.PlotDialog })));
 
 const norm = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
 
@@ -32,6 +34,8 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [catalogueSeen, setCatalogueSeen] = useState(false);
+  const [plotOpen, setPlotOpen] = useState(false);
+  const [plotSeen, setPlotSeen] = useState(false);
 
   const commit = useCallback((next: Settings) => {
     live.current = next;
@@ -123,6 +127,11 @@ export function App() {
     setCatalogueOpen(true);
   }
 
+  function openPlot(): void {
+    setPlotSeen(true);
+    setPlotOpen(true);
+  }
+
   function unlockAll(): void {
     commit({ ...live.current, seedLocks: {} });
     schedule(0);
@@ -193,13 +202,18 @@ export function App() {
       <main className={cn('grid min-h-0 min-w-0 bg-stage', full ? 'grid-rows-[auto_1fr]' : 'grid-rows-[auto_1fr_auto] max-[900px]:grid-rows-[auto_70vh_auto]')}>
         <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} onCatalogue={openCatalogue} />
         <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} />
-        {!full && <Stats result={result} />}
+        {!full && <Stats result={result} onPlot={openPlot} />}
       </main>
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       {catalogueSeen && (
         <Suspense fallback={null}>
           <CatalogueDialog open={catalogueOpen} onOpenChange={setCatalogueOpen} result={result} set={set} onStrokes={strokes} />
+        </Suspense>
+      )}
+      {plotSeen && (
+        <Suspense fallback={null}>
+          <PlotDialog open={plotOpen} onOpenChange={setPlotOpen} result={result} place={set.place} seed={set.seed} />
         </Suspense>
       )}
     </div>

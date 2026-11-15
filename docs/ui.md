@@ -47,6 +47,17 @@ Jobs (`Job` in `worker.ts`) are `draw` (settings), `pick` (a sheet position in m
 
 It is loaded lazily on first open, because it imports the regional tables from the drawing modules. Its survey only runs while it is open.
 
+## Pen plot
+
+The **Pen Plot** button in the stats footer opens `components/plot-dialog.tsx`. It is lazily loaded on first open and then stays mounted, so a plot carries on, and the connection is kept, while the dialog is closed. `app/plot-activity.ts` is a tiny store the dialog writes to from its handlers; the button reads it to light its lamp.
+
+- `gcode.ts` reads the pen layers back out of the finished SVG (`layersOf()`), so plotting needs nothing from the worker and always matches what is on show, colours included. `layerCode()` maps sheet mm to machine mm (`machine()`: optional quarter turn, origin top left or bottom left), simplifies each stroke to 0.02 mm and writes `G0` travel, `G1 Z` pen moves at 2500 mm/min and `G1` drawing at the plot speed (`speed` × 60 mm/min). `gcodeFile()` writes one file for all pens with `G92 X0 Y0` at the start and `M0` before each new pen.
+- `app/grbl.ts` drives GRBL 1.1 over Web Serial at 115200 baud. Lines stream with character counting (at most 127 bytes in GRBL's receive buffer), and real-time bytes skip the queue: `?` every 250 ms for status, `!` hold, `~` resume. `stream()` ends with `G4 P0`, which GRBL answers only once the moves are done. `stop()` holds, waits for the carriage to stop, soft-resets to drop the rest of the job, unlocks, lifts the pen and goes back to the origin using the last `WCO` it saw.
+- `app/use-plotter.ts` is the session: connection phase, whether the origin is set, and the job. The job is a snapshot of the drawing taken when its first pen starts, so a redraw midway can't mix two drawings; the dialog offers Start over when the drawing has changed. The origin corner and the turn are locked once a pen has plotted, so the layers line up.
+- The plotter set-up (pen-down Z, origin corner, turn) belongs to the machine, not the drawing. It is kept in `localStorage` under `isometrictown:plotter`, not in `Settings`, so it never reaches the URL.
+
+The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis with Z0 up and about Z10 at full press. X grows to the right and Y towards you, so the origin is the top-left corner of the paper. These defaults follow the community UUNA TEK controller and the maker's G-code guide.
+
 ## Persistence
 
 `app/model.ts`:
