@@ -1,4 +1,5 @@
 import type { LngLat } from './geo';
+import { PALETTES } from './palettes';
 import type { StyleId } from './styles';
 
 export type Settings = {
@@ -190,7 +191,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sunHeight: 38,
   shadeWalls: true,
 
-  pens: ['#a6b9dd', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'],
+  pens: [...PALETTES[0].pens],
   customLayerPens: false,
   layerPens: {},
   customLayerDetail: false,

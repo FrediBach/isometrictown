@@ -19,7 +19,7 @@ export type Palette = {
  * The linework pen is the darkest in every set.
  */
 export const PALETTES: Palette[] = [
-  { name: 'Classic', pens: ['#3e4657', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'] },
+  { name: 'Classic', pens: ['#3f537d', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'] },
   { name: 'Archive', pens: ['#464500', '#7292d0', '#317061', '#822b2e', '#04263f'] },
   { name: 'Heritage', pens: ['#6a3b8f', '#05585f', '#6b961e', '#ecaa0b', '#5e1924'] },
   { name: 'Newsprint', pens: ['#333333', '#439081', '#5d5d5d', '#d40f0c', '#0b0b0b'] },
