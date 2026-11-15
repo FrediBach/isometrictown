@@ -37,12 +37,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 9741,
-    "rawLifts": 10389,
-    "inkMm": 42975.3,
-    "travelMm": 22889.8,
-    "minutes": 71.4,
-    "pens": [["Shadows",1609,6285.8],["Water",365,3836.8],["Greenery",722,2090.8],["Roofs",3283,12963.9],["Linework",3762,17798]]
+    "lifts": 9733,
+    "rawLifts": 10381,
+    "inkMm": 42961.3,
+    "travelMm": 22929.1,
+    "minutes": 71.3,
+    "pens": [["Shadows",1609,6285.8],["Water",365,3836.8],["Greenery",722,2090.8],["Roofs",3283,12963.9],["Linework",3754,17784]]
   },
   "features": {
     "buildings": [671,4127.2],
@@ -63,7 +63,7 @@
     "streets:railings": [4,3.7],
     "trees": [186,1348.3],
     "water": [90,335.1],
-    "windows": [2329,6183.7]
+    "windows": [2321,6169.7]
   },
   "facets": {
     "buildings/blank-windows": [36,108.8],
@@ -194,19 +194,19 @@
     "windows/blank-windows": [4,10.2],
     "windows/chimneys": [659,1760],
     "windows/church-roof": [16,80.3],
-    "windows/civic": [98,308.5],
-    "windows/dormers": [871,2334.4],
+    "windows/civic": [90,294.5],
+    "windows/dormers": [865,2327.4],
     "windows/flat-roof": [298,929.8],
     "windows/gabled-roof": [1588,4003.8],
     "windows/glazing-bars": [1469,3826.1],
     "windows/grid-windows": [954,2706.9],
-    "windows/guessed-height": [2329,6183.7],
+    "windows/guessed-height": [2321,6169.7],
     "windows/halfHipped-roof": [215,615.8],
-    "windows/hipped-roof": [206,539.8],
+    "windows/hipped-roof": [198,525.8],
     "windows/house": [831,2247.4],
     "windows/paired-windows": [637,1735],
-    "windows/party-walls": [1828,4915.8],
-    "windows/ribbon-windows": [23,61.6],
+    "windows/party-walls": [1825,4912.6],
+    "windows/ribbon-windows": [15,47.6],
     "windows/shed": [8,18.5],
     "windows/shed-roof": [6,14.2],
     "windows/shop-front": [85,287.5],
@@ -217,5 +217,5 @@
     "windows/terrace": [1376,3528.9],
     "windows/worship": [16,80.3]
   },
-  "svg": {"bytes":401253,"sha1":"61b45b71212b8b63"}
+  "svg": {"bytes":400949,"sha1":"d02b1a19b9cf447f"}
 }

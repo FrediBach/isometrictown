@@ -39,12 +39,12 @@
     "worship": 3
   },
   "plan": {
-    "lifts": 16203,
-    "rawLifts": 17637,
-    "inkMm": 84831.8,
-    "travelMm": 39939.6,
-    "minutes": 124.7,
-    "pens": [["Shadows",2931,10145.7],["Water",0,0],["Greenery",1908,9860.1],["Roofs",4162,25127.9],["Linework",7202,39698]]
+    "lifts": 16146,
+    "rawLifts": 17578,
+    "inkMm": 84748.5,
+    "travelMm": 40036.5,
+    "minutes": 124.4,
+    "pens": [["Shadows",2931,10145.7],["Water",0,0],["Greenery",1908,9860.1],["Roofs",4162,25127.9],["Linework",7145,39614.7]]
   },
   "features": {
     "buildings": [1418,13504.1],
@@ -63,7 +63,7 @@
     "shadows": [2931,10145.7],
     "streets:kerbs": [245,1522.2],
     "trees": [302,1971.8],
-    "windows": [3768,12618]
+    "windows": [3709,12534.7]
   },
   "facets": {
     "buildings/apartment": [264,3301.6],
@@ -194,28 +194,28 @@
     "trees/park-trees": [85,621.5],
     "trees/scrub-bushes": [9,51],
     "trees/street-trees": [84,475.8],
-    "windows/apartment": [1186,4006.6],
-    "windows/chimneys": [2855,9152.2],
+    "windows/apartment": [1138,3943],
+    "windows/chimneys": [2807,9088.6],
     "windows/church-roof": [30,220],
-    "windows/civic": [147,560.3],
-    "windows/dormers": [424,1428.8],
-    "windows/flat-roof": [1202,3931],
-    "windows/gabled-roof": [1383,4723.3],
+    "windows/civic": [136,540.6],
+    "windows/dormers": [418,1420.6],
+    "windows/flat-roof": [1149,3855.9],
+    "windows/gabled-roof": [1382,4722],
     "windows/glazing-bars": [1435,5141.4],
     "windows/grid-windows": [1312,5375.9],
-    "windows/guessed-height": [3766,12608.9],
-    "windows/has-parapet": [233,868.9],
-    "windows/hipped-roof": [1153,3743.8],
+    "windows/guessed-height": [3707,12525.6],
+    "windows/has-parapet": [215,844.6],
+    "windows/hipped-roof": [1148,3736.8],
     "windows/house": [1290,4241.2],
     "windows/mapped-height": [2,9.1],
     "windows/paired-windows": [1173,1768.9],
-    "windows/party-walls": [1856,6389.7],
-    "windows/ribbon-windows": [303,1127.8],
-    "windows/shop-front": [962,3620.7],
+    "windows/party-walls": [1843,6371],
+    "windows/ribbon-windows": [244,1044.5],
+    "windows/shop-front": [949,3602],
     "windows/tall-windows": [980,4345.4],
     "windows/terrace": [1115,3590],
     "windows/town-hall": [8,33],
     "windows/worship": [30,220]
   },
-  "svg": {"bytes":659169,"sha1":"54dcf7d9abccb3a3"}
+  "svg": {"bytes":657702,"sha1":"a6d8caed4a576233"}
 }

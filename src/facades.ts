@@ -210,7 +210,7 @@ type Balcony = { m: number; hw: number; zf: number; d: number };
  */
 type Mode = 'full' | 'ticks' | 'rows';
 /** `f0` is how squarely the wall faces the equator, scaled by the façade's bias; `f` damps it on street fronts. */
-type Ctx = { B: Build; w: Wall; fa: Facade; dx: number; dy: number; f0: number; f: number; ops: Opening[]; bals: Balcony[]; along: number };
+type Ctx = { B: Build; w: Wall; fa: Facade; dx: number; dy: number; f0: number; f: number; ops: Opening[]; bals: Balcony[]; along: number; across: number };
 
 /** Windows, doors and balconies for one wall. */
 export function facadeLines(B: Build, w: Wall, fa: Facade, out: Solid): void {
@@ -225,7 +225,8 @@ export function facadeLines(B: Build, w: Wall, fa: Facade, out: Solid): void {
   // Outward normal (dy, -dx) against the equator: positive on the sunny side. Street fronts
   // keep most of their rhythm whichever way they face.
   const f0 = (dy * B.equator[0] - dx * B.equator[1]) * fa.bias;
-  const c: Ctx = { B, w, fa, dx, dy, f0, f: w.street ? f0 * 0.3 : f0, ops: [], bals: [], along };
+  const across = Math.abs(dx * cam.cb - dy * cam.sb);
+  const c: Ctx = { B, w, fa, dx, dy, f0, f: w.street ? f0 * 0.3 : f0, ops: [], bals: [], along, across };
   switch (fa.pattern) {
     case 'blank':
       break;
@@ -248,7 +249,7 @@ export function facadeLines(B: Build, w: Wall, fa: Facade, out: Solid): void {
   bigDoors(c);
   const mode: Mode = full ? 'full' : shows(cam, LOD.windowTick, tick(c, fa.h) * cam.ca) ? 'ticks' : 'rows';
   // Floors too close together on paper to tell apart: leave the wall plain.
-  if (mode === 'rows' && !shows(cam, LOD.floors, Math.min(storeyOf(c), w.z1 - w.z0) * cam.ca)) return;
+  if (mode === 'rows' && !shows(cam, LOD.floors, Math.min(storeyOf(c), w.z1 - w.z0) * cam.ca * across / along)) return;
   draw(c, mode, out);
 }
 
@@ -261,12 +262,12 @@ function tick(c: Ctx, h: number): number {
   return Math.min(atLeast(cam, LOD.windowTick, h * cam.ca) / cam.ca, Math.max(h, room));
 }
 
-/** Draw every `n`th floor's stroke, doubling `n` until the strokes stay apart on paper. */
+/** Keep every `n`th floor, measuring the perpendicular gap between projected floor lines. */
 function floorStep(c: Ctx): number {
   const { cam } = c.B;
-  const pitch = storeyOf(c) * cam.ca * cam.s;
+  const pitch = storeyOf(c) * cam.ca * cam.s * c.across / c.along;
   let n = 1;
-  while (pitch * n < cam.gap(1.2) && n < 64) n *= 2;
+  while (pitch * n < cam.gap(1.5) && n < 64) n *= 2;
   return n;
 }
 
@@ -370,7 +371,7 @@ function ribbon(c: Ctx): void {
   const { w, fa, ops } = c;
   const storey = storeyOf(c);
   const curtain = fa.pattern === 'curtain';
-  const margin = curtain ? 0.3 : Math.min(0.8, w.len * 0.1);
+  const margin = Math.max(curtain ? 0.3 : Math.min(0.8, w.len * 0.1), c.B.cam.nib * 1.5 / (c.B.cam.s * Math.max(c.across, 1e-6)));
   if (w.len - margin * 2 < 1.2) return;
   const dm = w.len / 2;
   const door = w.door && w.ground;
@@ -489,10 +490,10 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
   const P = (u: number, n: number, z: number) => [ax + dx * u + dy * n, ay + dy * u - dx * n, z];
   const L = (pen: number, pts: number[], closed?: boolean) => out.lines.push(closed ? { pen, pts, closed } : { pen, pts });
   const rect = (pen: number, u0: number, u1: number, z0: number, z1: number) => L(pen, [...P(u0, 0, z0), ...P(u1, 0, z0), ...P(u1, 0, z1), ...P(u0, 0, z1)], true);
-  // Spacing that stays open on paper, in metres.
+  // Spacing for doors and balconies; glazing also accounts for the wall's projection below.
   const open = (m: number, mm: number) => Math.max(m, B.cam.gap(mm) / B.cam.s);
   const storey = storeyOf(c);
-  const step = full ? 1 : floorStep(c);
+  const step = floorStep(c);
   const floorOf = (z: number) => (storey > 20 ? 0 : Math.floor((z - w.z0) / storey + 0.001));
   // One stroke along a floor, where that floor is kept and the stroke is long enough to read.
   const row = (u0: number, u1: number, z: number) => {
@@ -561,12 +562,13 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
         break;
       }
       case 'band': {
-        if (!full) {
+        if (!full || !shows(cam, LOD.window, (z1 - z0) * cam.ca * c.across / along)) {
           row(u0, u1, (z0 + z1) / 2);
           break;
         }
+        if (floorOf((z0 + z1) / 2) % step !== 0) break;
         rect(LINEWORK, u0, u1, z0, z1);
-        const n = Math.max(1, Math.round((u1 - u0) / open(o.div ?? 1.5, 0.7)));
+        const n = Math.max(1, Math.floor((u1 - u0) / Math.max(o.div ?? 1.5, cam.gap(1.2) / (cam.s * c.across))));
         for (let k = 1; k < n; k++) {
           const u = u0 + ((u1 - u0) * k) / n;
           L(LINEWORK, [...P(u, 0, z0), ...P(u, 0, z1)]);
@@ -579,8 +581,8 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
           for (let z = z0; z <= z1 + 0.01; z += o.rows ?? storey) row(u0, u1, z);
           break;
         }
-        for (let z = z0; z <= z1 + 0.01; z += o.rows ?? storey) L(LINEWORK, [...P(u0, 0, z), ...P(u1, 0, z)]);
-        const n = Math.max(1, Math.round((u1 - u0) / open(o.div ?? 1.5, 0.7)));
+        for (let z = z0; z <= z1 + 0.01; z += o.rows ?? storey) row(u0, u1, z);
+        const n = Math.max(1, Math.floor((u1 - u0) / Math.max(o.div ?? 1.5, cam.gap(1.2) / (cam.s * c.across))));
         for (let k = 0; k <= n; k++) {
           const u = u0 + ((u1 - u0) * k) / n;
           L(LINEWORK, [...P(u, 0, z0), ...P(u, 0, z1)]);

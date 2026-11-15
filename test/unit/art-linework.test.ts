@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { car, newSolid, type Build } from '@/buildings';
 import { Camera } from '@/camera';
+import { facadeLines, PLAIN, type Wall } from '@/facades';
 import { markings } from '@/infra';
 import { parkGrass } from '@/ground';
 import { treeSprite, type Masks } from '@/nature';
@@ -22,6 +23,27 @@ function build(more: Partial<Settings> = {}): Build {
     toAbs: (x, y) => [x, y],
   };
 }
+
+test.each([0.35, 0.7])('curtain grids keep projected spacing and corner clearance with a %s mm pen', (penWidth) => {
+  const B = build({ scale: 500, bearing: 0, tilt: 75, penWidth });
+  const len = 40, dx = Math.SQRT1_2, dy = Math.SQRT1_2;
+  const wall: Wall = { ax: 0, ay: 0, bx: dx * len, by: dy * len, len, z0: 3, z1: 60, ground: false, street: false, door: false, balconies: 0, shutters: -1 };
+  const out = newSolid();
+  facadeLines(B, wall, { ...PLAIN, pattern: 'curtain', storey: 3, bay: 1.5 }, out);
+  const horizontal = out.lines.filter(({ pts: p }) => p.length === 6 && p[2] === p[5]);
+  const vertical = out.lines.filter(({ pts: p }) => p.length === 6 && p[0] === p[3] && p[1] === p[4]);
+  expect(horizontal.length).toBeGreaterThan(2);
+  expect(vertical.length).toBeGreaterThan(2);
+  const { cam } = B;
+  const ux = cam.sx(wall.bx, wall.by) - cam.sx(0, 0);
+  const uy = cam.sy(wall.bx, wall.by, 0) - cam.sy(0, 0, 0);
+  const offsets = horizontal.map(({ pts: p }) => (ux * cam.sy(p[0], p[1], p[2]) - uy * cam.sx(p[0], p[1])) / Math.hypot(ux, uy)).sort((a, b) => a - b);
+  for (let i = 1; i < offsets.length; i++) expect(offsets[i] - offsets[i - 1]).toBeGreaterThanOrEqual(cam.gap(1.5) - 1e-8);
+  const xs = vertical.map(({ pts: p }) => cam.sx(p[0], p[1])).sort((a, b) => a - b);
+  for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(cam.gap(1.2) - 1e-8);
+  expect(xs[0] - cam.sx(0, 0)).toBeGreaterThanOrEqual(penWidth * 1.5 - 1e-8);
+  expect(cam.sx(wall.bx, wall.by) - xs[xs.length - 1]).toBeGreaterThanOrEqual(penWidth * 1.5 - 1e-8);
+});
 
 test.each([false, true])('tree crowns simplify at small print sizes (conifer: %s)', (conifer) => {
   const tree = { x: 0, y: 0, r: 3, h: 10, conifer };

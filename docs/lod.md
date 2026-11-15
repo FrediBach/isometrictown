@@ -50,6 +50,8 @@ Park hatching uses `cam.gap(1.8)` spacing, doubled under headstones and pitch ma
 
 The `treeCrown` rule gives large broadleaf crowns a gently lobed outline, varied by map position, and large conifers a three-tier silhouette. Smaller crowns retain a simple circle or triangle without interior marks. Conifers test the shorter of crown width and projected height, so a flattened view cannot squeeze branch tiers together. The same crown ring supplies the depth mask and the drawn outline.
 
+Merged window rows and curtain-wall floor lines keep at least `cam.gap(1.5)` between parallel strokes, measured perpendicular to the projected wall direction. Glazing mullions keep `cam.gap(1.2)` of horizontal separation. Ribbon bands too shallow to read collapse to a single floor stroke, and glazing bands start at least 1.5 pen widths inside the projected vertical corners. These rules reduce rows and columns coherently, without changing the building's inferred window pattern.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.
