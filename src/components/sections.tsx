@@ -184,7 +184,7 @@ export function TitleSection() {
           <Caption className="mt-4">Placing</Caption>
           <NumberSetting name="titleStreet" label="Street" min={1} max={8} step={1} hint="The best long, straight street across the view, or the next best ones." />
           <NumberSetting name="titleSlide" label="Slide" min={-1} max={1} step={0.01} hint="Along the street; facing the viewer, back and forth." />
-          <NumberSetting name="titleTurn" label="Turn" min={-80} max={80} step={1} />
+          <NumberSetting name="titleTurn" label="Turn" min={-90} max={90} step={1} />
           <NumberSetting name="titleReveal" label="Reveal" min={0} max={1} step={0.01} hint="Brings the letters forward along the line of sight, so buildings in front stop hiding them." />
           <KeyGrid>
             <BoolSetting name="titleFront" label="Face the viewer" />
