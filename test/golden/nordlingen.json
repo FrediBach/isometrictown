@@ -53,12 +53,12 @@
     "worship": 4
   },
   "plan": {
-    "lifts": 29303,
-    "rawLifts": 36343,
-    "inkMm": 113478.7,
-    "travelMm": 55909.6,
-    "minutes": 205.4,
-    "pens": [["Shadows",4407,9925.4],["Water",114,400.7],["Greenery",3608,17006.9],["Roofs",10669,43260.5],["Linework",10505,42885.1]]
+    "lifts": 29323,
+    "rawLifts": 36342,
+    "inkMm": 113408.3,
+    "travelMm": 56001.5,
+    "minutes": 205.5,
+    "pens": [["Shadows",4420,9945.9],["Water",114,400.7],["Greenery",3608,17006.9],["Roofs",10669,43260.5],["Linework",10512,42794.2]]
   },
   "features": {
     "buildings": [5317,20213.4],
@@ -67,21 +67,21 @@
     "cars:stations": [12,20.1],
     "details": [879,1192.8],
     "ground": [1203,5475.3],
-    "ground:campsites": [131,253.9],
+    "ground:campsites": [120,160.9],
     "lamps": [184,366.4],
     "life": [35,101.9],
     "markings": [61,60],
     "parks": [674,3237.8],
     "paths": [698,753.2],
     "power:powerLines": [16,61.1],
-    "rails": [69,621.8],
+    "rails": [68,622.2],
     "roofHatch": [6286,14826.9],
     "roofs": [9303,28300.5],
     "rooftops": [222,495],
-    "shadows": [4407,9925.4],
+    "shadows": [4420,9945.9],
     "streets:bridges": [14,43.7],
     "streets:busStops": [12,21.8],
-    "streets:kerbs": [1487,5987.2],
+    "streets:kerbs": [1485,5988.9],
     "streets:plazas": [95,315.3],
     "streets:railings": [32,99.3],
     "streets:squares": [27,44.6],
@@ -299,5 +299,5 @@
     "windows/town-hall": [5,22.7],
     "windows/worship": [13,15.4]
   },
-  "svg": {"bytes":1253376,"sha1":"f9a88d230279909b"}
+  "svg": {"bytes":1251768,"sha1":"6a88004f489b7861"}
 }

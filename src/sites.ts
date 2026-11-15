@@ -1,4 +1,4 @@
-import { newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, type Build, type Solid } from './buildings';
 import { pointInRing, ringArea } from './geo';
 import { onMask, place, rect, slab, type Extra } from './infra';
 import type { Masks } from './nature';
@@ -10,11 +10,11 @@ import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
 import { walk } from './streets';
-import { LOD, shows } from './lod';
-import { emergency, tractor } from './vehicles';
+import { LOD, shows, showsAt } from './lod';
+import { emergency, local, tractor } from './vehicles';
 
 /**
- * Things that belong to particular places: parasols on beaches, tents at campsites, swings
+ * Things that belong to particular places: parasols on beaches, tents and caravans at campsites, swings
  * on playgrounds, silos in farmyards, cranes and containers in ports, benches cut into
  * quarries. All made up, tied to map position and the seed like the rest.
  */
@@ -97,7 +97,163 @@ export function beaches(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 
 // ---------------------------------------------------------------- Campsites
 
-function tent(x: number, y: number, ux: number, uy: number, big: boolean): Solid {
+/*
+ * The map has a campsite as a point, sometimes a motorhome stop (caravan_site) rather than a
+ * camp_site, and no outline. Its ground is worked out: what lies within a radius of the
+ * point, short of the through roads, railways and water between, and of land that is
+ * something else. Pitches line the camp's own lanes, with rows across open ground between.
+ * Everything a pitch depends on comes from the map, so pitches don't move when the view does.
+ */
+
+/** Roads that bound a campsite rather than run through it. */
+const THROUGH = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor', 'raceway']);
+/** Land cover a campsite stops at, unless its point stands on it. */
+const NOT_CAMP = new Set(['farmland', 'vineyard', 'orchard', 'allotments', 'farmyard', 'wetland', 'rock', 'ice']);
+/** Pitch spacing along a lane and their depth back from it, in metres. */
+const PITCH = 9;
+const PITCH_DEPTH = 8;
+/** Pitch centres closer than this crowd each other: the later one in hash order goes. */
+const PITCH_GAP = 8.2;
+
+/** A pitch: its centre, the way a van on it faces (towards its lane), and its place in the order they are taken in. */
+type Pitch = { x: number; y: number; ux: number; uy: number; pri: number; vans: boolean };
+
+/** Does segment a–b cross any edge of the polyline p? */
+function crosses(ax: number, ay: number, bx: number, by: number, p: number[], closed = false): boolean {
+  const n = p.length;
+  for (let i = 0; i + 1 < n; i += 2) {
+    const j = i + 2 < n ? i + 2 : closed ? 0 : -1;
+    if (j < 0) break;
+    const cx = p[i], cy = p[i + 1], dx = p[j], dy = p[j + 1];
+    const d1 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const d2 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+    if (d1 > 0 === d2 > 0) continue;
+    const d3 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
+    const d4 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+    if (d3 > 0 !== d4 > 0) return true;
+  }
+  return false;
+}
+
+/** Is (x, y) within d of the polyline p? */
+function nearLine(p: number[], x: number, y: number, d: number): boolean {
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const ex = p[i + 2] - p[i];
+    const ey = p[i + 3] - p[i + 1];
+    const l2 = ex * ex + ey * ey;
+    const t = l2 ? Math.max(0, Math.min(1, ((x - p[i]) * ex + (y - p[i + 1]) * ey) / l2)) : 0;
+    if (Math.hypot(p[i] + ex * t - x, p[i + 1] + ey * t - y) < d) return true;
+  }
+  return false;
+}
+
+/** Does the bounding box of p come within d of (x, y)? */
+function boxNear(p: number[], x: number, y: number, d: number): boolean {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < p.length; i += 2) {
+    if (p[i] < x0) x0 = p[i];
+    if (p[i] > x1) x1 = p[i];
+    if (p[i + 1] < y0) y0 = p[i + 1];
+    if (p[i + 1] > y1) y1 = p[i + 1];
+  }
+  return x >= x0 - d && x <= x1 + d && y >= y0 - d && y <= y1 + d;
+}
+
+/** Candidate pitches for one campsite, and a test for whether a point is on its ground. */
+function campGround(B: Build, town: Town, c: { x: number; y: number; sub: string }, out: Pitch[]): void {
+  const vans = c.sub === 'caravan_site';
+  const R = vans ? 40 : 70;
+  const ways = town.nearby.ways.filter((w) => boxNear(w.pts, c.x, c.y, R + 20));
+  const barriers = ways.filter((w) => w.kind === 'rail' || (w.kind === 'road' && THROUGH.has(w.cls))).map((w) => w.pts);
+  for (const s of town.streams) if (boxNear(s.pts, c.x, c.y, R + 20)) barriers.push(s.pts);
+  // Car parks keep their bays for cars.
+  const aisles = ways.filter((w) => w.service === 'parking_aisle').map((w) => w.pts);
+  const shores = town.water.filter((s) => boxNear(s[0].pts, c.x, c.y, R)).map((s) => s[0].pts);
+  // Land that is something else, unless the campsite's point stands on it.
+  const others = [...town.nearby.landuse, ...town.cover.filter((a) => NOT_CAMP.has(a.cls))].filter((a) => boxNear(a.shape[0].pts, c.x, c.y, R) && !inside(a, c.x, c.y));
+  const ours = (x: number, y: number) =>
+    Math.hypot(x - c.x, y - c.y) <= R && !barriers.some((p) => crosses(c.x, c.y, x, y, p) || nearLine(p, x, y, 7)) && !aisles.some((p) => nearLine(p, x, y, 10)) && !shores.some((p) => crosses(c.x, c.y, x, y, p, true)) && !others.some((a) => inside(a, x, y));
+  const add = (x: number, y: number, ux: number, uy: number, rank: number) => {
+    if (!ours(x, y)) return;
+    const [k0, k1] = B.key(x, y);
+    out.push({ x, y, ux, uy, pri: rank + hash(k0, k1, B.set.seed, 7400), vans });
+  };
+
+  // Pitches either side of the camp's lanes, spaced from each lane's own ends.
+  const lanes = ways.filter((w) => !w.bridge && ((w.kind === 'road' && w.cls === 'service' && w.service !== 'parking_aisle') || (w.kind === 'path' && w.sub !== 'steps' && w.sub !== 'pier')));
+  let best = 0;
+  let gx = 1;
+  let gy = 0;
+  for (const w of lanes) {
+    const off = (w.kind === 'road' ? w.width / 2 : 1) + 0.8 + PITCH_DEPTH / 2;
+    for (const side of [1, -1])
+      walk(w.pts, PITCH / 2, PITCH, PITCH / 2, (x, y, ux, uy) => {
+        const nx = -uy * side;
+        const ny = ux * side;
+        add(x + nx * off, y + ny * off, -nx, -ny, 0);
+      });
+    // The longest stretch of lane on the ground sets the rows across open ground.
+    for (let i = 0; i + 3 < w.pts.length; i += 2) {
+      const dx = w.pts[i + 2] - w.pts[i];
+      const dy = w.pts[i + 3] - w.pts[i + 1];
+      const l = Math.hypot(dx, dy);
+      if (l > best && ours((w.pts[i] + w.pts[i + 2]) / 2, (w.pts[i + 1] + w.pts[i + 3]) / 2)) {
+        best = l;
+        gx = dx / l;
+        gy = dy / l;
+      }
+    }
+  }
+  // Rows over open ground, on a grid that turns with the camp, centred on its point.
+  const [c0, c1] = B.key(c.x, c.y);
+  if (!best) {
+    const a = hash(c0, c1, B.set.seed, 7401) * Math.PI;
+    gx = Math.cos(a);
+    gy = Math.sin(a);
+  }
+  const flip = hash(c0, c1, B.set.seed, 7402) < 0.5 ? 1 : -1;
+  const n = Math.ceil(R / PITCH);
+  for (let i = -n; i <= n; i++)
+    for (let j = -n; j <= n; j++) {
+      const u = i * PITCH;
+      const v = j * (PITCH_DEPTH + 1.5);
+      add(c.x + gx * u - gy * v, c.y + gy * u + gx * v, -gy * flip, gx * flip, 1);
+    }
+}
+
+/** A body of one cross-section: the convex profile `prof` ([a, z] pairs, in order round it) swept across from b0 to b1. */
+function extrude(s: Solid, P: (a: number, b: number, z: number) => number[], prof: number[][], b0: number, b1: number): void {
+  const side = (b: number) => prof.flatMap(([a, z]) => P(a, b, z));
+  const s0 = side(b0);
+  const s1 = side(b1);
+  s.faces.push([s0], [s1]);
+  s.lines.push({ pen: LINEWORK, pts: s0, closed: true }, { pen: LINEWORK, pts: s1, closed: true });
+  for (let i = 0; i < prof.length; i++) {
+    const [a, z] = prof[i];
+    const [a2, z2] = prof[(i + 1) % prof.length];
+    s.faces.push([[...P(a, b0, z), ...P(a2, b0, z2), ...P(a2, b1, z2), ...P(a, b1, z)]]);
+    s.lines.push({ pen: LINEWORK, pts: [...P(a, b0, z), ...P(a, b1, z)] });
+  }
+}
+
+/** An outline drawn on the side of a body at b: a window or a door. */
+function panel(s: Solid, P: (a: number, b: number, z: number) => number[], b: number, a0: number, a1: number, z0: number, z1: number): void {
+  s.lines.push({ pen: LINEWORK, pts: [...P(a0, b, z0), ...P(a1, b, z0), ...P(a1, b, z1), ...P(a0, b, z1)], closed: true });
+}
+
+/** An awning out from the side at b (d says which way), its edge on two poles; `a0`–`a1` along, from height z0 down to z1. */
+function awningOut(s: Solid, P: (a: number, b: number, z: number) => number[], b: number, d: number, a0: number, a1: number, z0: number, z1: number): void {
+  const o = b + d * 2.3;
+  const sheet = [...P(a0, b, z0), ...P(a1, b, z0), ...P(a1, o, z1), ...P(a0, o, z1)];
+  const valance = [...P(a0, o, z1), ...P(a1, o, z1), ...P(a1, o, z1 - 0.2), ...P(a0, o, z1 - 0.2)];
+  s.faces.push([sheet], [valance]);
+  (s.shade ??= []).push([sheet]);
+  s.lines.push({ pen: LINEWORK, pts: sheet, closed: true }, { pen: LINEWORK, pts: [...P(a0, o, z1 - 0.2), ...P(a1, o, z1 - 0.2)] });
+  for (const a of [a0 + 0.1, a1 - 0.1]) s.lines.push({ pen: LINEWORK, pts: [...P(a, o, z1 - 0.2), ...P(a, o, 0)] });
+}
+
+/** A ridge tent: two pitched sides and two triangular ends. */
+function ridgeTent(x: number, y: number, ux: number, uy: number, big: boolean): Solid {
   const s = newSolid();
   const L = big ? 1.6 : 1.2;
   const W = big ? 1.1 : 0.8;
@@ -117,32 +273,173 @@ function tent(x: number, y: number, ux: number, uy: number, big: boolean): Solid
     s.faces.push([f.flat()]);
     s.lines.push({ pen: LINEWORK, pts: f.flat(), closed: true });
   }
+  // The door: a slit up the front end.
   s.lines.push({ pen: ROOFS, pts: [...P(L, 0, 0), ...r1] });
   s.casts.push({ ring: [...P(-L, -W, 0), ...P(L, -W, 0), ...P(L, W, 0), ...P(-L, W, 0)].filter((_, i) => i % 3 !== 2), h: H * 0.6 });
   return s;
 }
 
-/** Tents and caravans round campsites. */
+/** A dome tent: a low six-sided dome, its poles showing as the creases. */
+function domeTent(x: number, y: number, ux: number, uy: number, r: number): Solid {
+  const s = newSolid();
+  const H = r * 0.85;
+  const base = Math.atan2(uy, ux);
+  const ring = (rad: number, z: number) => Array.from({ length: 6 }, (_, q) => [x + Math.cos(base + (q * Math.PI) / 3) * rad, y + Math.sin(base + (q * Math.PI) / 3) * rad, z]);
+  const rim = ring(r, 0);
+  const mid = ring(r * 0.72, H * 0.7);
+  const apex = [x, y, H];
+  for (let q = 0; q < 6; q++) {
+    const n = (q + 1) % 6;
+    s.faces.push([[...rim[q], ...rim[n], ...mid[n], ...mid[q]]], [[...mid[q], ...mid[n], ...apex]]);
+    s.lines.push({ pen: LINEWORK, pts: [...rim[q], ...mid[q], ...apex] });
+  }
+  s.lines.push({ pen: LINEWORK, pts: rim.flat(), closed: true }, { pen: LINEWORK, pts: mid.flat(), closed: true });
+  s.casts.push({ ring: rim.flatMap((p) => [p[0], p[1]]), h: H * 0.6 });
+  return s;
+}
+
+/** A touring caravan, front towards (ux, uy): rounded ends, windows, a door on side d, the drawbar, and an awning if wanted. */
+function caravan(B: Build, x: number, y: number, ux: number, uy: number, d: number, awning: boolean, fine: boolean): Solid {
+  const s = newSolid();
+  const { P, wheel } = local(B, s, x, y, ux, uy);
+  const W = 1.15;
+  extrude(s, P, [[-2.7, 0.35], [2.45, 0.35], [2.8, 0.95], [2.55, 2.2], [2.1, 2.5], [-2.55, 2.5], [-2.75, 2.25]], -W, W);
+  s.casts.push({ ring: place(x, y, ux, uy, rect(-2.75, 2.8, -W, W)), h: 2.5 });
+  // The drawbar, an A-frame to the hitch.
+  s.lines.push({ pen: LINEWORK, pts: [...P(2.6, -0.7, 0.4), ...P(3.9, 0, 0.42), ...P(2.6, 0.7, 0.4)] });
+  if (fine) {
+    const e = W + 0.02;
+    for (const b of [-e, e]) {
+      panel(s, P, b, -2.2, -0.9, 1.3, 1.95);
+      panel(s, P, b, 1.0, 2.05, 1.3, 1.95);
+    }
+    panel(s, P, d * e, -0.35, 0.3, 0.5, 2.05);
+    s.lines.push({ pen: LINEWORK, pts: [...P(3.7, 0, 0.42), ...P(3.7, 0, 0.05)] });
+    for (const b of [-W + 0.1, W - 0.1]) wheel(0, b, 0.32);
+  }
+  if (awning) awningOut(s, P, d * W, d, -1.9, 1.4, 2.4, 2.05);
+  return s;
+}
+
+/** An alcove motorhome, cab towards (ux, uy): a box body, the bed over the cab, a sloping cab front, a door on side d. */
+function motorhome(B: Build, x: number, y: number, ux: number, uy: number, d: number, awning: boolean, fine: boolean): Solid {
+  const s = newSolid();
+  const { P, wheel } = local(B, s, x, y, ux, uy);
+  const W = 1.15;
+  extrude(s, P, [[-3.4, 0.4], [1.7, 0.4], [1.7, 3.0], [-3.3, 3.0], [-3.45, 2.8]], -W, W);
+  extrude(s, P, [[1.7, 2.1], [2.75, 2.3], [2.6, 3.0], [1.7, 3.0]], -W, W);
+  extrude(s, P, [[1.7, 0.4], [3.5, 0.4], [3.55, 1.0], [2.5, 2.1], [1.7, 2.1]], -1.05, 1.05);
+  s.casts.push({ ring: place(x, y, ux, uy, rect(-3.45, 3.55, -W, W)), h: 3 });
+  if (fine) {
+    const e = W + 0.02;
+    for (const b of [-e, e]) {
+      panel(s, P, b, -2.8, -1.6, 1.5, 2.2);
+      panel(s, P, b, 0.1, 1.3, 1.5, 2.2);
+      panel(s, P, (b / e) * 1.07, 1.85, 2.45, 1.3, 1.95);
+    }
+    panel(s, P, d * e, -1.3, -0.65, 0.5, 2.3);
+    for (const a of [-1.9, 2.6]) for (const b of [-W + 0.12, W - 0.12]) wheel(a, b, 0.38);
+  }
+  // The awning in its case under the roof edge, wound out over the door if wanted.
+  s.lines.push({ pen: LINEWORK, pts: [...P(-2.6, d * (W + 0.05), 2.85), ...P(1.0, d * (W + 0.05), 2.85)] });
+  if (awning) awningOut(s, P, d * (W + 0.05), d, -2.6, 1.0, 2.85, 2.35);
+  return s;
+}
+
+/** Tents, caravans and motorhomes on the pitches of campsites and motorhome stops. */
 export function campsites(B: Build, paper: Paper, town: Town, M: Masks): Extra {
-  const camps = town.pois.filter((p) => p.cls === 'campsite');
-  if (!camps.length || !shows(B.cam, LOD.tent)) return { solids: [], draw: () => {} };
+  const { cam, set } = B;
+  const none = { solids: [], draw: () => {} };
+  // Points just off the sheet too, so a camp's edge is the same whichever side the view is.
+  const camps = town.nearby.pois.filter((p) => p.cls === 'campsite');
+  if (!camps.length || (!shows(cam, LOD.tent) && !shows(cam, LOD.caravan))) return none;
+  const all: Pitch[] = [];
+  for (const c of camps) campGround(B, town, c, all);
+  // Lane pitches first, each kind in hash order, so crowded pitches give way the same in every view.
+  all.sort((a, b) => a.pri - b.pri || a.x - b.x || a.y - b.y);
+  const pitches: Pitch[] = [];
+  for (const p of all) if (!pitches.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < PITCH_GAP)) pitches.push(p);
+
   const solids: Solid[] = [];
-  for (const c of camps) {
-    grid(B, { cx: c.x, cy: c.y, ux: 1, uy: 0, L: 90, w: 90 }, 8, 710, (x, y, h) => {
-      if (Math.hypot(x - c.x, y - c.y) > 45 || h(0) > 0.4) return;
-      if (!free(paper, M, x, y) || onMask(paper, M.wood, x, y)) return;
-      const a = h(1) * Math.PI;
-      const ux = Math.cos(a);
-      const uy = Math.sin(a);
-      if (h(2) < 0.3) {
-        const s = newSolid();
-        const ring = place(x, y, ux, uy, rect(-2.6, 2.6, -1.1, 1.1));
-        if (!free(paper, M, ring[0], ring[1]) || !free(paper, M, ring[4], ring[5])) return;
-        slab(B, s, ring, 0.35, 2.5);
-        s.casts.push({ ring, h: 2.5 });
-        solids.push(s);
-      } else solids.push(tent(x, y, ux, uy, h(3) < 0.4));
-    });
+  const clear = (x: number, y: number) => free(paper, M, x, y) && !onMask(paper, M.wood, x, y);
+  const clearRing = (ring: number[]) => {
+    for (let i = 0; i < ring.length; i += 2) if (!clear(ring[i], ring[i + 1])) return false;
+    return true;
+  };
+  // Room taken on the ground, as discs [x, y, r, …]. A thing is placed, or not, before its
+  // level of detail is asked, so what stands where is the same at every scale.
+  const taken: number[] = [];
+  const discs = (x: number, y: number, ux: number, uy: number, a0: number, a1: number, b0: number, b1: number) => {
+    const r = (b1 - b0) / 2;
+    const out: number[] = [];
+    const n = Math.max(1, Math.ceil((a1 - a0 - 2 * r) / r));
+    for (let i = 0; i <= n; i++) {
+      const a = a1 - a0 <= 2 * r ? (a0 + a1) / 2 : a0 + r + ((a1 - a0 - 2 * r) * i) / n;
+      out.push(x + ux * a - uy * (b0 + r), y + uy * a + ux * (b0 + r), r);
+    }
+    return out;
+  };
+  const claim = (cs: number[], ring: number[]) => {
+    if (!clearRing(ring)) return false;
+    for (let i = 0; i < cs.length; i += 3)
+      for (let j = 0; j < taken.length; j += 3) if (Math.hypot(cs[i] - taken[j], cs[i + 1] - taken[j + 1]) < cs[i + 2] + taken[j + 2]) return false;
+    taken.push(...cs);
+    return true;
+  };
+  const fine = shows(cam, LOD.campDetail);
+  // Doors and awnings are on the side away from the traffic.
+  const door = B.left ? 1 : -1;
+  for (const p of pitches) {
+    if (!clear(p.x, p.y)) continue;
+    const [k0, k1] = B.key(p.x, p.y);
+    const h = (k: number) => hash(k0, k1, set.seed, 7410 + k);
+    const roll = h(0);
+    // Across the pitch, towards the door side of a van facing the lane.
+    const sx = -p.uy * door;
+    const sy = p.ux * door;
+    const at = (u: number) => [p.x + sx * u, p.y + sy * u] as const;
+    const addCar = (u: number, salt: number) => {
+      if (set.cars <= 0 || h(salt) > 0.6) return;
+      const [cx, cy] = at(u);
+      if (!claim(discs(cx, cy, p.ux, p.uy, -2.3, 2.3, -1, 1), place(cx, cy, p.ux, p.uy, rect(-2.3, 2.3, -0.95, 0.95)))) return;
+      if (showsAt(cam, LOD.car, 4.4, [k0, k1], set.seed, 7420)) solids.push(car(B, cx, cy, p.ux, p.uy, h(salt + 1)));
+    };
+    const van = p.vans ? (roll < 0.6 ? 'motorhome' : roll < 0.75 ? 'caravan' : null) : roll < 0.28 ? null : roll < 0.62 ? 'tents' : roll < 0.84 ? 'caravan' : 'motorhome';
+    if (!van) continue;
+    if (van === 'tents') {
+      const count = h(1) < 0.35 ? 2 : 1;
+      for (let t = 0; t < count; t++) {
+        const kind = h(2 + t);
+        const [tx, ty] = at(t ? 2.6 : -0.5 + (h(4) - 0.5) * 2);
+        const depth = (h(5 + t) - 0.5) * 2.5;
+        const x = tx - p.ux * depth;
+        const y = ty - p.uy * depth;
+        const a = Math.atan2(p.uy, p.ux) + (h(7 + t) - 0.5) * 0.9;
+        const ux = Math.cos(a);
+        const uy = Math.sin(a);
+        const size = kind < 0.45 ? 2.2 : kind < 0.75 ? 2.4 : 3.2;
+        if (!claim([x, y, 1.9], place(x, y, ux, uy, rect(-1.6, 1.6, -1.2, 1.2))) || !shows(cam, LOD.tent, size, h(9 + t))) continue;
+        solids.push(kind < 0.45 ? domeTent(x, y, ux, uy, 1.1) : ridgeTent(x, y, ux, uy, kind >= 0.75));
+      }
+      addCar(-3.4, 11);
+      continue;
+    }
+    // Most vans face their lane; some were backed in.
+    const turn = h(13) < (van === 'caravan' ? 0.8 : 0.7) ? 1 : -1;
+    const ux = p.ux * turn;
+    const uy = p.uy * turn;
+    const len = van === 'caravan' ? 6.6 : 7;
+    const awning = h(14) < (van === 'caravan' ? 0.6 : 0.35) && shows(cam, LOD.awning, 2.3);
+    const d = door * turn;
+    const reach = awning ? 3.6 : 1.3;
+    const b0 = d > 0 ? -1.3 : -reach;
+    const b1 = d > 0 ? reach : 1.3;
+    const body = discs(p.x, p.y, ux, uy, -3.5, 3.9, -1.3, 1.3);
+    const side = awning ? discs(p.x, p.y, ux, uy, -2.6, 1.4, d > 0 ? 1.3 : -reach, d > 0 ? reach : -1.3) : [];
+    if (!claim([...body, ...side], place(p.x, p.y, ux, uy, rect(-3.5, 3.9, b0, b1)))) continue;
+    if (!showsAt(cam, LOD.caravan, len, [k0, k1], set.seed, 7421)) continue;
+    solids.push(van === 'caravan' ? caravan(B, p.x, p.y, ux, uy, d, awning, fine) : motorhome(B, p.x, p.y, ux, uy, d, awning, fine));
+    addCar(-3.3 * turn, 15);
   }
   return { solids, draw: () => {} };
 }

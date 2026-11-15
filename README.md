@@ -41,7 +41,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
   - Villages and suburbs often map only "residential" round their houses, with no gardens drawn. Where buildings cover less than 30% of such an area, the open ground is drawn as lawn with a few garden trees, and each house gets a plot fenced the local way: hedges, walls, fences or picket fences. Front gardens may have a driveway with a car on it, back gardens a shed or a trampoline.
   - Field edges get hedgerows with the odd tree, most of all in Britain and France.
   - Scrub gets bushes, allotments get plots and sheds, bare rock gets boulders and glaciers get crevasses.
-  - Beaches get parasols and towels, campsites get tents and caravans, playgrounds get swings and a slide, and quarries are cut into benches.
+  - Beaches get parasols and towels, campsites get pitches of tents, caravans and motorhomes along their lanes (motorhome stops only vans), playgrounds get swings and a slide, and quarries are cut into benches.
   - Open country the map says nothing about gets a light texture and a scattering of trees and bushes in the region's character: dry dots and scrub in deserts, lusher in the tropics, conifers in the north and the mountains.
   - Big barns out among the fields get a silo or two, stubble fields have bales lying in rows, and meadows have small herds: cows in the Alps and central Europe, sheep in Britain, Scandinavia and Australia.
   - Now and then a field is being worked: a tractor ploughing or spreading on ploughed land, a combine harvesting stubble with a tractor and trailer under its auger, or a baler; on a meadow without a herd, a tractor mowing with the cut grass in swaths behind it. Farmyards often have a tractor parked by the barn.

@@ -100,7 +100,9 @@ export const LOD = {
 
   // Sites and ground
   beach: { m: 2, mm: 0.8, what: 'Parasols and towels' },
-  tent: { m: 3, mm: 0.9, what: 'Tents and caravans' },
+  tent: { m: 2.4, mm: 0.9, what: 'Tents on campsites: length' },
+  caravan: { m: 6.8, mm: 1.8, what: 'Caravans and motorhomes on campsites: length' },
+  campDetail: { m: 0.6, mm: 0.7, what: 'Windows, doors and wheels on caravans and motorhomes: window height' },
   playground: { m: 3, mm: 1.35, what: 'Swings and slides' },
   farmyard: { m: 5, mm: 1, what: 'Silos and stacks in farmyards' },
   port: { m: 12, mm: 1.44, what: 'Quayside cranes and containers' },

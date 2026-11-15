@@ -1109,10 +1109,10 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'land',
     name: 'Campsites',
     source: ['map', 'invented'],
-    what: 'Tents and caravans.',
-    how: 'Within 45 m of the campsite points the map has.',
+    what: 'Ridge and dome tents, caravans with drawbars and awnings, alcove motorhomes, and a car on some pitches. Motorhome stops get only vans.',
+    how: 'The map has a campsite as a point. Its ground is what lies within 70 m (40 m for a motorhome stop), short of through roads, railways, water, car parks and other land. Pitches line the camp\'s own lanes, with rows across open ground between; doors face away from the traffic.',
     needs: ['ground'],
-    lod: ['tent'],
+    lod: ['tent', 'caravan', 'campDetail', 'awning', 'car'],
     strokes: ['ground:campsites'],
   },
   {
