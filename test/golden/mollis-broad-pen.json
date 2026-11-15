@@ -36,12 +36,12 @@
     "worship": 2
   },
   "plan": {
-    "lifts": 3398,
-    "rawLifts": 4458,
-    "inkMm": 23201.5,
-    "travelMm": 8020.5,
+    "lifts": 3395,
+    "rawLifts": 4455,
+    "inkMm": 23191.3,
+    "travelMm": 8023.6,
     "minutes": 28.3,
-    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",3398,23201.5]]
+    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",3395,23191.3]]
   },
   "features": {
     "buildings": [1171,6217.6],
@@ -55,7 +55,7 @@
     "shadows": [648,2560.1],
     "streets:kerbs": [328,1996.3],
     "streets:railings": [11,48.2],
-    "trees": [97,732.2],
+    "trees": [94,722],
     "water": [21,450.6],
     "windows": [5,16]
   },
@@ -141,9 +141,9 @@
     "rooftops/shutters": [6,33.1],
     "rooftops/terrace": [6,33.1],
     "trees/broadleaf": [91,679.7],
-    "trees/conifer": [6,52.5],
-    "trees/garden-trees": [63,473.5],
-    "trees/park-trees": [27,218.2],
+    "trees/conifer": [3,42.3],
+    "trees/garden-trees": [61,467.5],
+    "trees/park-trees": [26,214],
     "trees/street-trees": [7,40.5],
     "water/brooks": [2,96],
     "water/pools": [3,13],
@@ -154,5 +154,5 @@
     "windows/tall-windows": [5,16],
     "windows/worship": [5,16]
   },
-  "svg": {"bytes":153760,"sha1":"c669378cc52e9f85"}
+  "svg": {"bytes":153641,"sha1":"5a77528c47ce2495"}
 }

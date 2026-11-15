@@ -43,12 +43,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 22742,
-    "rawLifts": 25929,
-    "inkMm": 71192,
-    "travelMm": 50227.2,
-    "minutes": 153.8,
-    "pens": [["Shadows",2655,3438.6],["Water",84,425.4],["Greenery",13914,40260.6],["Roofs",1577,7047.2],["Linework",4512,20020.3]]
+    "lifts": 19836,
+    "rawLifts": 23009,
+    "inkMm": 68048.8,
+    "travelMm": 48855.8,
+    "minutes": 137.7,
+    "pens": [["Shadows",2655,3438.6],["Water",84,425.4],["Greenery",11008,37117.3],["Roofs",1577,7047.2],["Linework",4512,20020.3]]
   },
   "features": {
     "buildings": [2225,5385.4],
@@ -71,7 +71,7 @@
     "streets:kerbs": [672,4791.9],
     "streets:plazas": [28,175.8],
     "streets:railings": [38,116.9],
-    "trees": [11935,32454.3],
+    "trees": [9015,29311],
     "water": [210,1727.7],
     "windows": [4,3.2]
   },
@@ -191,12 +191,12 @@
     "rooftops/small-windows": [8,19.1],
     "trees/broadleaf": [5546,14811.6],
     "trees/bush": [125,264.4],
-    "trees/conifer": [6264,17378.3],
-    "trees/garden-trees": [215,540],
+    "trees/conifer": [3344,14235],
+    "trees/garden-trees": [201,526.2],
     "trees/hedgerows": [182,414.3],
-    "trees/park-trees": [10964,30082.5],
+    "trees/park-trees": [8110,27009],
     "trees/street-trees": [394,908.4],
-    "trees/wild-trees": [180,509.1],
+    "trees/wild-trees": [128,453],
     "water/brooks": [28,303.3],
     "water/pools": [8,8.6],
     "water/shores": [128,1304.1],
@@ -208,5 +208,5 @@
     "windows/tall-windows": [4,3.2],
     "windows/worship": [4,3.2]
   },
-  "svg": {"bytes":1482730,"sha1":"5896838023e919f3"}
+  "svg": {"bytes":1368131,"sha1":"beb7f4ff4e0a2573"}
 }

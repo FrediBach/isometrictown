@@ -48,6 +48,8 @@ Grass tufts and inferred park and wood trees use smooth, map-fixed density patch
 
 Park hatching uses `cam.gap(1.8)` spacing, doubled under headstones and pitch markings. Four clearance probes at 1.5 physical pen widths keep its strokes apart from park boundaries, roads, water, building footprints, shadows and visible objects in the depth buffer. The outline stays unchanged; narrow slivers may keep only their outline when the hatch has no room.
 
+The `treeCrown` rule gives large broadleaf crowns a gently lobed outline, varied by map position, and large conifers a three-tier silhouette. Smaller crowns retain a simple circle or triangle without interior marks. Conifers test the shorter of crown width and projected height, so a flattened view cannot squeeze branch tiers together. The same crown ring supplies the depth mask and the drawn outline.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.

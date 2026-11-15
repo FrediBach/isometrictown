@@ -48,6 +48,7 @@ export const LOD = {
   // Shadows and trees
   shadow: { m: 5, mm: 0.9, what: 'Cast shadows: length on the ground' },
   tree: { m: 5, mm: 1.1, what: 'Tree crowns: diameter. Smaller ones are drawn bigger, then thinned out' },
+  treeCrown: { m: 4, mm: 3, what: 'Shaped crowns and interior arcs: diameter, or the shorter projected dimension for conifers' },
   treeSpacing: { m: 6.5, mm: 2, what: 'Trees scattered in woods and parks: spacing. Closer ones are thinned out' },
   hedgerow: { m: 4, mm: 1, what: 'Hedgerow trees along field edges' },
   orchard: { m: 4, mm: 0.8, what: 'Orchards as rows of little trees' },

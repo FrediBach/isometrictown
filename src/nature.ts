@@ -1,6 +1,6 @@
 import type { Build } from './buildings';
 import type { Paper } from './raster';
-import { LOD, thin } from './lod';
+import { LOD, shows, thin } from './lod';
 import { hash, patch } from './rng';
 import { GREENERY } from './settings';
 
@@ -200,14 +200,22 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
     const yt = cam.sy(t.x, t.y, t.h);
     const w = t.r * s;
     const depth = cam.depth(t.x, t.y, (zb + t.h) / 2) - t.r * 0.6;
-    const ring = [sx - w, yb, sx + w, yb, sx, yt];
+    const detailed = shows(cam, LOD.treeCrown, Math.min(t.r * 2, (t.h - zb) * cam.ca));
+    const H = yb - yt;
+    // Three branch tiers carry the shape without another chevron inside the crown.
+    const ring = detailed ? [
+      sx - w, yb, sx + w, yb,
+      sx + w * 0.58, yb - H * 0.23, sx + w * 0.78, yb - H * 0.27,
+      sx + w * 0.32, yb - H * 0.51, sx + w * 0.5, yb - H * 0.55,
+      sx, yt,
+      sx - w * 0.5, yb - H * 0.55, sx - w * 0.32, yb - H * 0.51,
+      sx - w * 0.78, yb - H * 0.27, sx - w * 0.58, yb - H * 0.23,
+    ] : [sx - w, yb, sx + w, yb, sx, yt];
     return {
       ring,
       depth,
       draw: () => {
         paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true);
-        const ym = yb + (yt - yb) * 0.42;
-        paper.sheet(GREENERY, withDepth([sx - w * 0.6, ym, sx, ym + (yt - yb) * 0.22, sx + w * 0.6, ym], depth - 0.01));
         paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, zb]);
       },
     };
@@ -222,13 +230,26 @@ export function treeSprite(B: Build, paper: Paper, t: Tree): Sprite {
   const cy = cam.sy(t.x, t.y, t.h);
   const R = t.r * s;
   const depth = cam.depth(t.x, t.y, t.h) - t.r;
-  const ring = circle(sx, cy, R, cam.size(t.r) > 2 ? 22 : 14);
+  const detailed = shows(cam, LOD.treeCrown, t.r * 2);
+  const ring = circle(sx, cy, R, detailed ? 30 : 14);
+  if (detailed) {
+    const [k0, k1] = B.key(t.x, t.y);
+    const phase = hash(k0, k1, B.set.seed, 7934) * Math.PI * 2;
+    const breadth = 0.9 + hash(k0, k1, B.set.seed, 7935) * 0.1;
+    // Broad, smooth lobes vary the silhouette while staying inside its placement radius.
+    for (let i = 0; i < ring.length; i += 2) {
+      const a = i / ring.length * Math.PI * 2;
+      const r = R * (0.9 + 0.07 * Math.cos(a * 3 + phase) + 0.025 * Math.cos(a * 5 - phase));
+      ring[i] = sx + Math.cos(a) * r * breadth;
+      ring[i + 1] = cy + Math.sin(a) * r;
+    }
+  }
   return {
     ring,
     depth,
     draw: () => {
       paper.sheet(GREENERY, withDepth(ring, depth), paper.seen, true);
-      if (cam.size(t.r) > 0.9) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
+      if (detailed) paper.sheet(GREENERY, withDepth(circle(sx - R * 0.12, cy - R * 0.12, R * 0.62, 7, 0.15, 1.75), depth - 0.01));
       paper.line3(GREENERY, [t.x, t.y, 0, t.x, t.y, t.h]);
     },
   };

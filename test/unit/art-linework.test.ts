@@ -3,7 +3,7 @@ import { car, newSolid, type Build } from '@/buildings';
 import { Camera } from '@/camera';
 import { markings } from '@/infra';
 import { parkGrass } from '@/ground';
-import type { Masks } from '@/nature';
+import { treeSprite, type Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
@@ -22,6 +22,37 @@ function build(more: Partial<Settings> = {}): Build {
     toAbs: (x, y) => [x, y],
   };
 }
+
+test.each([false, true])('tree crowns simplify at small print sizes (conifer: %s)', (conifer) => {
+  const tree = { x: 0, y: 0, r: 3, h: 10, conifer };
+  const large = build({ scale: 1000 });
+  const small = build({ scale: 8000 });
+  const largeSprite = treeSprite(large, new Paper(large.cam), tree);
+  const paper = new Paper(small.cam);
+  const smallSprite = treeSprite(small, paper, tree);
+  expect(largeSprite.ring.length).toBeGreaterThan(smallSprite.ring.length);
+  const sheet = vi.spyOn(paper, 'sheet');
+  paper.fillSprite(smallSprite.ring, smallSprite.depth);
+  paper.finishDepth();
+  smallSprite.draw();
+  // The only sheet-space stroke is the crown outline; the trunk uses line3.
+  expect(sheet).toHaveBeenCalledTimes(1);
+  expect(sheet.mock.calls[0][3]).toBe(true);
+});
+
+test('broadleaf crowns vary by map position and stay inside their placement radius', () => {
+  const B = build({ scale: 500 });
+  const paper = new Paper(B.cam);
+  const tree = { x: 0, y: 0, r: 3, h: 8, conifer: false };
+  const ring = treeSprite(B, paper, tree).ring;
+  expect(treeSprite(B, paper, tree).ring).toEqual(ring);
+  const radii = ring.filter((_, i) => i % 2 === 0).map((x, i) => Math.hypot(x - B.cam.sx(0, 0), ring[i * 2 + 1] - B.cam.sy(0, 0, tree.h)));
+  expect(Math.max(...radii)).toBeLessThanOrEqual(tree.r * B.cam.s);
+  expect(Math.max(...radii) - Math.min(...radii)).toBeGreaterThan(0.1);
+  const moved = treeSprite(B, paper, { ...tree, x: 20 }).ring;
+  const shift = B.cam.sx(20, 0) - B.cam.sx(0, 0);
+  expect(moved.some((x, i) => i % 2 === 0 && Math.abs(x - shift - ring[i]) > 0.01)).toBe(true);
+});
 
 test.each([0.35, 0.7])('park hatch leaves a visible gap at lawn and road edges with a %s mm pen', (penWidth) => {
   const B = build({ penWidth });
