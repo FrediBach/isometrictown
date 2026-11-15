@@ -71,6 +71,14 @@ export function App() {
 
   const settings = useMemo(() => ({ set, change }), [set, change]);
 
+  // A shared link pasted into an open tab only changes the hash; start again from it.
+  // `persist()` uses replaceState, which does not fire this.
+  useEffect(() => {
+    const reload = () => location.reload();
+    window.addEventListener('hashchange', reload);
+    return () => window.removeEventListener('hashchange', reload);
+  }, []);
+
   function goTo(center: LngLat, name: string, extra: Partial<Settings> = {}): void {
     commit({ ...live.current, center, place: name, ...extra });
     locator.current?.setView(live.current.center, live.current.bearing);

@@ -57,6 +57,9 @@ export function loadSettings(): Settings {
   const parts = location.hash.slice(1).split('/');
   const h = parts.slice(0, 5).map(Number);
   if (h.length >= 2 && h.every((v) => Number.isFinite(v))) {
+    // A seventh part, even an empty one, means the link carries the whole drawing,
+    // so settings it leaves out are defaults, not whatever this browser last used.
+    if (parts.length >= 7) s = { ...s, ...shared(DEFAULT_SETTINGS), ...fromQuery(parts.slice(6).join('/')) };
     s.center = [h[1], h[0]];
     if (h.length >= 3) s.bearing = ((h[2] % 360) + 360) % 360;
     if (h.length >= 4 && h[3] >= 300) s.scale = h[3];
@@ -99,8 +102,81 @@ export function persist(set: Settings): void {
     /* ignore */
   }
   const [lng, lat] = set.center;
-  const hash = `#${lat.toFixed(5)}/${lng.toFixed(5)}/${Math.round(set.bearing)}/${Math.round(set.scale)}/${set.seed}/${encodeURIComponent(set.place)}`;
+  const hash = `#${lat.toFixed(5)}/${lng.toFixed(5)}/${Math.round(set.bearing)}/${Math.round(set.scale)}/${set.seed}/${encodeURIComponent(set.place)}/${toQuery(set)}`;
   history.replaceState(null, '', hash);
+}
+
+/** Keys the hash path already carries, or that belong to this machine rather than the drawing. */
+const UNSHARED = new Set<keyof Settings>(['center', 'place', 'bearing', 'scale', 'seed', 'speed']);
+const SHARED = (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).filter((k) => !UNSHARED.has(k));
+
+function shared(set: Settings): Partial<Settings> {
+  const out: Record<string, unknown> = {};
+  for (const k of SHARED) {
+    const v = set[k];
+    out[k] = Array.isArray(v) ? [...v] : v && typeof v === 'object' ? { ...v } : v;
+  }
+  return out as Partial<Settings>;
+}
+
+// Readable in the address bar: these are safe in a URL fragment.
+const esc = (v: string) => encodeURIComponent(v).replace(/%2C/g, ',').replace(/%3A/g, ':').replace(/%3B/g, ';');
+
+function encodeValue(k: keyof Settings, v: Settings[keyof Settings]): string {
+  if (k === 'pens') return (v as string[]).map((c) => c.replace('#', '')).join(',');
+  if (k === 'background') return (v as string).replace('#', '');
+  if (k === 'layerPens') return Object.entries(v as object).map(([l, p]) => `${l}:${p}`).join(',');
+  if (k === 'seedLocks') return Object.entries(v as object).map(([key, seed]) => `${key}:${seed}`).join(';');
+  if (typeof v === 'boolean') return v ? '1' : '0';
+  if (typeof v === 'number') return String(Number(v.toFixed(4)));
+  return esc(String(v));
+}
+
+/** The settings that differ from the defaults, as `key=value&…`. */
+function toQuery(set: Settings): string {
+  const out: string[] = [];
+  for (const k of SHARED) {
+    const v = encodeValue(k, set[k]);
+    if (v !== encodeValue(k, DEFAULT_SETTINGS[k])) out.push(`${k}=${v}`);
+  }
+  return out.join('&');
+}
+
+/** Read `toQuery()` back. Unknown keys and values of the wrong kind are dropped; `loadSettings()` validates the rest. */
+function fromQuery(query: string): Partial<Settings> {
+  const out: Record<string, unknown> = {};
+  for (const pair of query.split('&')) {
+    const at = pair.indexOf('=');
+    if (at < 1) continue;
+    const k = pair.slice(0, at) as keyof Settings;
+    const raw = pair.slice(at + 1);
+    if (!SHARED.includes(k)) continue;
+    let text: string;
+    try {
+      text = decodeURIComponent(raw);
+    } catch {
+      continue;
+    }
+    const def = DEFAULT_SETTINGS[k];
+    if (k === 'pens') {
+      const pens = text.split(',').map((c) => `#${c}`);
+      if (pens.length === PEN_COUNT && pens.every((c) => /^#[0-9a-f]{6}$/i.test(c))) out.pens = pens;
+    } else if (k === 'background') out.background = `#${text}`;
+    else if (k === 'layerPens' || k === 'seedLocks') {
+      const map: Record<string, number> = {};
+      for (const item of text.split(k === 'layerPens' ? ',' : ';')) {
+        const i = item.lastIndexOf(':');
+        if (i > 0) map[item.slice(0, i)] = Number(item.slice(i + 1));
+      }
+      out[k] = map;
+    } else if (typeof def === 'boolean') {
+      if (text === '1' || text === '0') out[k] = text === '1';
+    } else if (typeof def === 'number') {
+      const n = Number(text);
+      if (text !== '' && Number.isFinite(n)) out[k] = n;
+    } else if (typeof def === 'string') out[k] = text;
+  }
+  return out as Partial<Settings>;
 }
 
 // Scale slider is logarithmic between 1:400 and 1:12000.

@@ -51,8 +51,9 @@ It is loaded lazily on first open, because it imports the regional tables from t
 
 `app/model.ts`:
 
-- `persist()` writes all settings to `localStorage` (`isometrictown:settings`) and the view to the URL hash: `#lat/lng/bearing/scale/seed/place`.
-- `loadSettings()` merges defaults ← saved ← hash, then validates (`migratePens`, unknown sheet or style → default, malformed `seedLocks` entries dropped). Seed locks live in `localStorage` only, not in the URL hash.
+- `persist()` writes all settings to `localStorage` (`isometrictown:settings`) and the drawing to the URL hash: `#lat/lng/bearing/scale/seed/place/key=value&…`. The seventh part lists every setting that differs from `DEFAULT_SETTINGS` (`toQuery()`), seed locks and pens included, so a link reproduces the drawing. Only `speed` stays out, as it belongs to the plotter, not the drawing. Colours drop their `#`, pens are comma-separated, `layerPens` is `layer:pen,…` and `seedLocks` is `x,y:seed;…`.
+- `loadSettings()` merges defaults ← saved ← hash, then validates (`migratePens`, unknown sheet or style → default, malformed `seedLocks` entries dropped). A hash with the seventh part (even an empty one) first resets every shared setting to its default, so the receiver's own saved settings don't leak into a shared drawing. An old six-part hash only sets the view and keeps the rest from `localStorage`.
+- Pasting a link into an open tab fires `hashchange`, and `App` reloads to read it. `persist()` uses `replaceState`, which does not fire it.
 - New settings fields get their default from `DEFAULT_SETTINGS` automatically for old saved states. Renamed or reshaped fields need a migration in `loadSettings()`.
 
 ## Locator map
