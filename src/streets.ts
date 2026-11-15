@@ -7,6 +7,8 @@ import { LOD, shows, spaced } from './lod';
 
 /** Regions where most railways run under overhead wires. */
 export const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
+// The mask and its outline must use the same chords at road joints.
+const ROAD_JOINT_SIDES = 12;
 const LIT = new Set(['minor', 'tertiary', 'secondary', 'primary', 'trunk']);
 
 function polygon(cx: number, cy: number, r: number, n: number): number[] {
@@ -32,7 +34,7 @@ export function fillRoads(paper: Paper, ways: Way[], plazas: Shape[], mask: Uint
       const ny = ((bx - ax) / l) * hw;
       paper.fillMask(mask, [[ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny]]);
     }
-    for (let i = 0; i < p.length; i += 2) paper.fillMask(mask, [polygon(p[i], p[i + 1], hw, 12)]);
+    for (let i = 0; i < p.length; i += 2) paper.fillMask(mask, [polygon(p[i], p[i + 1], hw, ROAD_JOINT_SIDES)]);
   }
   for (const s of plazas) paper.fillMask(mask, s.map((r) => r.pts));
 }
@@ -106,13 +108,34 @@ export function curbs(paper: Paper, ways: Way[], M: Masks): void {
         const cos = (e1x * e2x + e1y * e2y) / (Math.hypot(e1x, e1y) * Math.hypot(e2x, e2y) || 1);
         if (cos > 0.9985) continue;
       }
-      const m = 16;
+      // Only the outside of a bend (or an end cap) belongs to the kerb. Testing the whole
+      // circle against the raster also admits tiny arcs beside the straight edges.
+      const planes: number[][] = [];
+      if (i > 0) planes.push([p[i * 2] - p[i * 2 - 2], p[i * 2 + 1] - p[i * 2 - 1]]);
+      if (i < n - 1) planes.push([p[i * 2] - p[i * 2 + 2], p[i * 2 + 1] - p[i * 2 + 3]]);
+      const m = ROAD_JOINT_SIDES;
       for (let k = 0; k < m; k++) {
         const a0 = (k / m) * Math.PI * 2;
         const a1 = ((k + 1) / m) * Math.PI * 2;
         const am = (a0 + a1) / 2;
+        const ax = Math.cos(a0) * hw;
+        const ay = Math.sin(a0) * hw;
+        const bx = Math.cos(a1) * hw;
+        const by = Math.sin(a1) * hw;
+        let lo = 0;
+        let hi = 1;
+        for (const [nx, ny] of planes) {
+          const d0 = ax * nx + ay * ny;
+          const d1 = bx * nx + by * ny;
+          if (d0 < 0 && d1 < 0) { hi = -1; break; }
+          if (d0 < 0) lo = Math.max(lo, d0 / (d0 - d1));
+          else if (d1 < 0) hi = Math.min(hi, d0 / (d0 - d1));
+        }
+        if (lo >= hi) { paper.end(); continue; }
+        if (lo > 0) paper.end();
         const test = edgeTest(paper, M.road, Math.cos(am), Math.sin(am));
-        groundSeg(paper, LINEWORK, p[i * 2] + Math.cos(a0) * hw, p[i * 2 + 1] + Math.sin(a0) * hw, p[i * 2] + Math.cos(a1) * hw, p[i * 2 + 1] + Math.sin(a1) * hw, test);
+        groundSeg(paper, LINEWORK, p[i * 2] + ax + (bx - ax) * lo, p[i * 2 + 1] + ay + (by - ay) * lo, p[i * 2] + ax + (bx - ax) * hi, p[i * 2 + 1] + ay + (by - ay) * hi, test);
+        if (hi < 1) paper.end();
       }
       paper.end();
     }

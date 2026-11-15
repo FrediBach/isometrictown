@@ -131,13 +131,15 @@ if (png) {
     console.log(`\nPNGs skipped: no browser (${e instanceof Error ? e.message.split('\n')[0] : e})`);
   }
   if (browser) {
-    const page = await browser.newPage();
     const shot = async (svg, vb, pxPerMm, out) => {
+      // A fresh page avoids stale compositor tiles when switching between sheets and crops.
+      const page = await browser.newPage();
       const [x, y, w, h] = vb;
       const cut = svg.replace(/width="[^"]*mm" height="[^"]*mm" viewBox="[^"]*"/, `width="${w * pxPerMm}" height="${h * pxPerMm}" viewBox="${x} ${y} ${w} ${h}"`);
       await page.setViewportSize({ width: Math.round(w * pxPerMm), height: Math.round(h * pxPerMm) });
       await page.setContent(`<html><body style="margin:0;background:#f2f1eb">${cut.replace(/^<\?xml[^>]*>/, '')}</body></html>`);
       await page.screenshot({ path: out });
+      await page.close();
     };
     for (const c of report.cases) {
       if (c.error) continue;

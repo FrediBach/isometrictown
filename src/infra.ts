@@ -728,6 +728,9 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
     const start = j0 ? 9 : 1.5;
     const stop = j1 ? 9 : 1.5;
     walk(p, start, 9, stop + 3, (x, y, ux, uy) => {
+      // A dash pointing into the view is shorter on paper than one across it.
+      const projected = Math.hypot(ux * B.cam.cb - uy * B.cam.sb, B.cam.sa * (ux * B.cam.sb + uy * B.cam.cb));
+      if (!shows(B.cam, LOD.centreLine, 3 * projected)) return;
       groundSeg(paper, LINEWORK, x, y, x + ux * 3, y + uy * 3, test);
       paper.end();
     });

@@ -81,6 +81,21 @@ function hatchable(B: Build, a: number[], b: number[]): boolean {
   return c.within('roofHatch', () => shows(c, LOD.roofHatch, len / c.s));
 }
 
+/** Keep roof texture clear of its outline, dropping strokes too short after the inset. */
+function hatch(B: Build, out: Solid, on: number[][] | undefined, pts: number[]): void {
+  const c = B.cam;
+  const len = Math.hypot(c.sx(pts[3], pts[4]) - c.sx(pts[0], pts[1]), c.sy(pts[3], pts[4], pts[5]) - c.sy(pts[0], pts[1], pts[2]));
+  const inset = c.nib * 1.25;
+  if (!c.within('roofHatch', () => shows(c, LOD.roofHatch, (len - 2 * inset) / c.s))) return;
+  const t = inset / len;
+  for (let i = 0; i < 3; i++) {
+    const d = (pts[i + 3] - pts[i]) * t;
+    pts[i] += d;
+    pts[i + 3] -= d;
+  }
+  out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts });
+}
+
 /** Outline of a decorated gable across the end wall, from v = -hw to v = +hw, as [v, z] pairs. */
 function gableProfile(kind: 1 | 2, hw: number, He: number, tan: number): [number, number][] {
   const Hr = He + hw * tan;
@@ -188,7 +203,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
         const u = -ue[0] + t;
         const inner = Math.max(0, d[0] - (u + ue[0]), d[1] - (ue[1] - u));
         if (outer - inner < 0.08) continue;
-        out.lines.push({ pen, layer: 'roofHatch', on: slope[s], pts: [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)] });
+        hatch(B, out, slope[s], [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)]);
       }
     }
     for (const k of [0, 1]) {
@@ -207,7 +222,7 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
         const v = -reach + t;
         const depth = reach - Math.abs(v);
         if (depth < 0.08) continue;
-        out.lines.push({ pen, layer: 'roofHatch', on: hipFace[k], pts: [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)] });
+        hatch(B, out, hipFace[k], [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)]);
       }
     }
   }
@@ -301,7 +316,7 @@ export function skirtRoof(B: Build, rings: { pts: number[]; seam: Uint8Array; pa
         const count = strokes(B, A[0], A[1], Bv[0], Bv[1], He, [A[0], A[1], He], A2);
         for (let k = 0; k < count; k++) {
           const t = (k + 0.5) / count;
-          out.lines.push({ pen, layer: 'roofHatch', on: side, pts: [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht] });
+          hatch(B, out, side, [A[0] + ex * t, A[1] + ey * t, He, A2[0] + (B2[0] - A2[0]) * t, A2[1] + (B2[1] - A2[1]) * t, Ht]);
         }
       }
       if (dormers && front && tan > 1.5 && ri === 0 && len >= 3.4) {
@@ -393,7 +408,7 @@ function hatchTop(B: Build, outer: { pts: number[]; seam: Uint8Array }, rings: n
       if (b - a < 0.3) continue;
       const x = ox + ex * t;
       const y = oy + ey * t;
-      out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts: [x + dx * a, y + dy * a, z, x + dx * b, y + dy * b, z] });
+      hatch(B, out, on, [x + dx * a, y + dy * a, z, x + dx * b, y + dy * b, z]);
     }
   }
 }
@@ -451,7 +466,7 @@ export function shedRoof(B: Build, rect: Rect, He: number, tan: number, out: Sol
     const count = strokes(B, lo0[0], lo0[1], lo1[0], lo1[1], He, at(0, -b, He), at(0, b, Hh));
     for (let k = 0; k < count; k++) {
       const u = -a + ((k + 0.5) / count) * L;
-      out.lines.push({ pen: ROOFS, layer: 'roofHatch', on: top, pts: [...at(u, -b, He), ...at(u, b, Hh)] });
+      hatch(B, out, top, [...at(u, -b, He), ...at(u, b, Hh)]);
     }
   }
 }

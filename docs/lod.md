@@ -40,7 +40,9 @@ if (shows(B.cam, LOD.chimney, width, hash(k0, k1, B.seed, SALT))) chimney(…);
 | `cam.gap(mm)` | Hatch and texture spacing: closed up by Detail, opened out by a broad pen. |
 | `cam.tone(mm)` | Tone hatching (shadows, shaded walls) and dash patterns: opened out by a broad pen only. |
 
-Some rules change *how* a thing is drawn rather than whether it is: windows step down from frames (`window`) to single upright strokes stretched to read (`windowTick`) to one stroke per floor (`windowRow`, every other floor where they crowd) and finally to a plain wall (`floors`), the same steps for every window pattern; narrow streams become a single line, pylons too small for their legs to stand apart become a flat A-frame, and battlements too small to read become a parapet.
+Some rules change *how* a thing is drawn rather than whether it is: cars lose their raised cabin and lower body edges when the cabin height no longer reads, keeping a roof outline and a windscreen stroke; windows step down from frames (`window`) to single upright strokes stretched to read (`windowTick`) to one stroke per floor (`windowRow`, every other floor where they crowd) and finally to a plain wall (`floors`), the same steps for every window pattern; narrow streams become a single line, pylons too small for their legs to stand apart become a flat A-frame, and battlements too small to read become a parapet.
+
+Road centre dashes are tested by their projected length, so dashes pointing into the view drop out before those across it. Roof hatching stops 1.25 pen widths short of each endpoint and is tested again at its shortened length, keeping small slopes clear rather than filling them with fragments.
 
 ## What `Paper` does for every stroke
 

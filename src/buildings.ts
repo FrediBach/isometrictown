@@ -819,7 +819,7 @@ function solar(B: Build, rect: Rect, z: number, inside: (x: number, y: number) =
   return rows > 0;
 }
 
-/** A parked car: a body and a cabin. */
+/** A car with a raised cabin when it reads, otherwise one body and a windscreen stroke. */
 export function car(B: Build, x: number, y: number, ux: number, uy: number, k: number): Solid {
   const s = newSolid();
   const vx = -uy;
@@ -831,8 +831,13 @@ export function car(B: Build, x: number, y: number, ux: number, uy: number, k: n
   };
   const van = k > 0.85;
   const len = van ? 2.6 : 2.2;
-  const body = box(-len, len, 0.9, 0, van ? 1.9 : 0.95, true);
-  if (!van) box(-1.25 + (k - 0.5) * 0.4, 0.95, 0.78, 0.95, 1.5, true);
+  const cabin = shows(B.cam, LOD.carCabin, 0.55 * B.cam.ca);
+  const top = van ? 1.9 : cabin ? 0.95 : 1.4;
+  const body = box(-len, len, 0.9, 0, top, true);
+  // At small sizes the roof outline carries the car; a second rim and short uprights blot it.
+  if (!cabin) s.lines = s.lines.filter((line) => line.pts.every((v, i) => i % 3 !== 2 || v === top));
+  if (!van && cabin) box(-1.25 + (k - 0.5) * 0.4, 0.95, 0.78, 0.95, 1.5, true);
+  else if (!van) s.lines.push({ pen: LINEWORK, pts: [x + ux * 0.95 - vx * 0.9, y + uy * 0.95 - vy * 0.9, 1.4, x + ux * 0.95 + vx * 0.9, y + uy * 0.95 + vy * 0.9, 1.4] });
   s.casts.push({ ring: body, h: van ? 1.9 : 1.4 });
   return s;
 }

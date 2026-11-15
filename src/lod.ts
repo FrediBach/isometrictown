@@ -57,6 +57,7 @@ export const LOD = {
   stream: { m: 2.5, mm: 0.9, what: 'Streams with two banks: width. Narrower ones are a single line' },
   footpath: { m: 25, mm: 3, what: 'Footpaths: length. Short stubs go first' },
   lamp: { m: 5, mm: 1.5, what: 'Street lamps: height' },
+  carCabin: { m: 0.55, mm: 0.5, what: 'Separate car cabins: projected height above the bonnet' },
   car: { m: 4.5, mm: 1.8, what: 'Vehicles: length' },
   centreLine: { m: 3, mm: 0.9, what: 'Road centre dashes' },
   zebra: { m: 1.5, mm: 0.9, what: 'Zebra crossings and traffic lights' },
