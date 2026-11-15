@@ -88,6 +88,10 @@ export type Settings = {
   /** Use the optional feature-to-pen overrides. */
   customLayerPens: boolean;
   layerPens: Partial<Record<LayerId, number>>;
+  /** Use the optional per-feature Detail overrides. */
+  customLayerDetail: boolean;
+  /** Detail per feature, in place of the drawing's Detail; missing features follow it. */
+  layerDetail: Partial<Record<LayerId, number>>;
   /** Paper colour for preview and SVG presentation, without a plotted fill. */
   customBackground: boolean;
   background: string;
@@ -186,6 +190,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pens: ['#a6b9dd', '#2149b8', '#21894a', '#d42f3a', '#1b1e23'],
   customLayerPens: false,
   layerPens: {},
+  customLayerDetail: false,
+  layerDetail: {},
   customBackground: false,
   background: '#f2f1eb',
   penWidth: 0.35,
@@ -221,6 +227,18 @@ export const LAYERS = {
   shadows: 'Shadows', shadeWalls: 'Wall shading', title: 'Cinematic title', margin: 'Frame and map notes',
 } as const;
 export type LayerId = keyof typeof LAYERS;
+
+/** Features whose drawing depends on Detail, so they can be given their own. Wall shading and the margin don't. */
+export const DETAIL_LAYERS: readonly LayerId[] = (Object.keys(LAYERS) as LayerId[]).filter((l) => l !== 'shadeWalls' && l !== 'margin');
+
+/** Detail settings a feature can be given, the same range as the Detail slider. */
+export const DETAIL_MIN = 0.25;
+export const DETAIL_MAX = 2;
+
+/** The Detail a feature is drawn at: its own when overrides are on and it has one, else the drawing's. */
+export function layerDetail(set: Pick<Settings, 'detail'> & Partial<Pick<Settings, 'customLayerDetail' | 'layerDetail'>>, layer: LayerId | undefined): number {
+  return (set.customLayerDetail && layer && set.layerDetail?.[layer]) || set.detail;
+}
 
 /** Resolve an optional feature override, preserving its original pen by default. */
 export function layerPen(set: Settings, layer: LayerId, pen: number): number {

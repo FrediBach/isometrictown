@@ -34,7 +34,7 @@ cam.depth(x, y, z)  // metres, larger = farther
 cam.ground(sx, sy)  // sheet → ground point at z = 0
 cam.up              // ground unit vector pointing up the sheet (away from viewer)
 cam.s               // mm per metre (1000 / scale)
-cam.lod             // cam.s × Detail × 0.35 / pen width, for level of detail
+cam.lod             // cam.s × Detail × 0.35 / pen width, for level of detail; per layer inside cam.within()
 cam.size(m)         // m metres on paper as level of detail sees it, mm
 cam.gap(mm)         // a hatch or texture spacing on paper, mm, scaled by Detail and pen width
 cam.tone(mm)        // a tone hatch or dash spacing, mm, scaled by pen width only

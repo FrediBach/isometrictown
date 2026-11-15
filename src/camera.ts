@@ -1,4 +1,4 @@
-import { mmPerMetre, sheetSize, type Settings } from './settings';
+import { mmPerMetre, sheetSize, type LayerId, type Settings } from './settings';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -20,11 +20,13 @@ export class Camera {
   /**
    * mm per metre as level of detail sees it: scaled up by the Detail setting and down by a pen
    * broader than `REF_NIB`. Compare level-of-detail thresholds against this (or use `size()`
-   * and `src/lod.ts`), never against `s`.
+   * and `src/lod.ts`), never against `s`. Changes inside `within()`.
    */
-  readonly lod: number;
-  /** The detail setting: above 1 draws hatching closer and keeps smaller things. */
-  readonly detail: number;
+  lod: number;
+  /** The detail in force: above 1 draws hatching closer and keeps smaller things. Changes inside `within()`. */
+  detail: number;
+  /** Per-feature Detail overrides, when they are switched on. */
+  private readonly over: Partial<Record<LayerId, number>>;
   /** Pen width, mm. */
   readonly nib: number;
   readonly cx: number;
@@ -33,7 +35,7 @@ export class Camera {
   readonly rect: [number, number, number, number];
   readonly sheet: [number, number];
 
-  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail' | 'penWidth'>>) {
+  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail' | 'penWidth' | 'customLayerDetail' | 'layerDetail'>>) {
     const b = (set.bearing * Math.PI) / 180;
     const a = (set.tilt * Math.PI) / 180;
     this.sb = Math.sin(b);
@@ -44,6 +46,7 @@ export class Camera {
     this.detail = clamp(set.detail ?? 1, 0.25, 2);
     this.nib = clamp(set.penWidth ?? REF_NIB, 0.1, 2);
     this.lod = (this.s * this.detail * REF_NIB) / this.nib;
+    this.over = (set.customLayerDetail && set.layerDetail) || {};
     this.sheet = sheetSize(set);
     const [w, h] = this.sheet;
     const m = Math.min(set.margin, w / 2 - 10, h / 2 - 10);
@@ -52,6 +55,24 @@ export class Camera {
     this.rect = [m, m, w - m, h - m - Math.max(0, foot)];
     this.cx = w / 2;
     this.cy = (this.rect[1] + this.rect[3]) / 2;
+  }
+
+  /**
+   * Run `fn` at a feature's own Detail, if it has one; otherwise at the Detail already in force,
+   * so details inside a feature (windows in a building) follow the feature unless set apart.
+   */
+  within<T>(layer: LayerId, fn: () => T): T {
+    const v = this.over[layer];
+    if (v === undefined) return fn();
+    const { detail, lod } = this;
+    this.detail = clamp(v, 0.25, 2);
+    this.lod = (this.s * this.detail * REF_NIB) / this.nib;
+    try {
+      return fn();
+    } finally {
+      this.detail = detail;
+      this.lod = lod;
+    }
   }
 
   /**

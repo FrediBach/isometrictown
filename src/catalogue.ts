@@ -7,7 +7,7 @@ import { COWS, SHEEP, WILD, WILD_DEFAULT } from './ground';
 import { coarsest, LOD, type RuleId } from './lod';
 import { CYPRESSES, PALMS } from './nature';
 import { OVERHEAD_TOWN } from './power';
-import { PEN_NAMES, type Settings } from './settings';
+import { LAYERS, layerDetail, PEN_NAMES, type LayerId, type Settings } from './settings';
 import { ELECTRIC } from './streets';
 import { BY_COUNTRY, BY_REGION, STYLE_IDS, STYLES, type Region, type Style, type StyleId } from './styles';
 
@@ -1518,7 +1518,20 @@ export function gateOn(set: Settings, g: Gate): boolean {
   return typeof v === 'number' ? v > 0 : !!v;
 }
 
-/** The coarsest scale (1:N) a rule's typical thing shows at, with these settings. */
-export function showsFrom(set: Settings, rule: RuleId): number {
-  return coarsest(LOD[rule], set.detail, set.penWidth);
+/** The coarsest scale (1:N) a rule's typical thing shows at, with these settings and the Detail of `layer`. */
+export function showsFrom(set: Settings, rule: RuleId, layer?: LayerId): number {
+  return coarsest(LOD[rule], layerDetail(set, layer), set.penWidth);
+}
+
+const isLayer = (k: string): k is LayerId => Object.hasOwn(LAYERS, k);
+
+/** The layer an entry is drawn in, for its Detail: where its strokes are filed, else its switch, else its group. */
+export function entryLayer(e: Entry): LayerId | undefined {
+  for (const pattern of e.strokes ?? []) {
+    const head = pattern.split('/')[0].replace(/^=/, '').split(':')[0];
+    if (isLayer(head)) return head;
+  }
+  const gate = e.needs?.find((g) => isLayer(g));
+  if (gate) return gate as LayerId;
+  return isLayer(e.group) ? e.group : undefined;
 }

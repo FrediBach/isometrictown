@@ -8,6 +8,10 @@ A pen plotter can't draw anything smaller than a few pen widths. Below that, lin
 
 `cam.lod` combines the three: `s × detail × 0.35 / penWidth`. `cam.size(m)` is how big `m` metres is in those terms, in mm.
 
+### Detail per layer
+
+With `customLayerDetail` on, `layerDetail` gives features (keyed by `LAYERS`, less wall shading and the margin, which don't depend on Detail) their own Detail in place of the slider. `cam.within(layer, fn)` runs `fn` with `cam.detail` and `cam.lod` switched to that layer's value and puts them back afterwards; a layer without an override keeps whatever is in force, so scopes nest. `render()` makes and draws every feature inside its layer's scope (the `at()` and `extra()` helpers and `withPen()`); inside a building, `tagLines(B, layer, …)` scopes windows, details and rooftops, roof shapes run as `roofs`, and roof hatching as `roofHatch`. Code that reads `cam.lod`, `cam.gap()` or a rule needs no change, as long as it runs inside its layer's scope: do the work there rather than keeping a value from outside it.
+
 ## Rules (`src/lod.ts`)
 
 Each kind of thing has a rule in `LOD`:
@@ -67,6 +71,7 @@ npm run lod -- --places mollis,amsterdam --scales 1000,4000
 npm run lod -- --name before                  # keep a run under a name
 npm run lod -- --name after --compare before  # what changed, per case and per feature
 npm run lod -- --detail 1.5 --pen 0.5         # another Detail or pen width
+npm run lod -- --layer-detail trees:0.5,windows:2   # Detail for some layers only
 npm run lod -- --no-png                       # numbers only
 ```
 

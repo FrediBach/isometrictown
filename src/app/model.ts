@@ -1,6 +1,6 @@
 import type { LngLat } from '../geo';
 import { PALETTES } from '../palettes';
-import { DEFAULT_SETTINGS, LAYERS, PEN_COUNT, SHEETS, type Settings } from '../settings';
+import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
 import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
@@ -71,6 +71,9 @@ export function loadSettings(): Settings {
   s.layerPens = Object.fromEntries(Object.entries(s.layerPens ?? {}).filter(([key, value]) =>
     Object.hasOwn(LAYERS, key) && Number.isInteger(value) && value >= 0 && value < PEN_COUNT));
   s.customLayerPens = s.customLayerPens === true;
+  s.layerDetail = Object.fromEntries(Object.entries(s.layerDetail ?? {}).filter(([key, value]) =>
+    DETAIL_LAYERS.includes(key as LayerId) && Number.isFinite(value) && value >= DETAIL_MIN && value <= DETAIL_MAX));
+  s.customLayerDetail = s.customLayerDetail === true;
   s.customBackground = s.customBackground === true;
   if (typeof s.background !== 'string' || !/^#[0-9a-f]{6}$/i.test(s.background)) s.background = DEFAULT_SETTINGS.background;
   s.seedLocks = Object.fromEntries(Object.entries(s.seedLocks ?? {}).filter(([key, value]) =>
@@ -125,7 +128,7 @@ const esc = (v: string) => encodeURIComponent(v).replace(/%2C/g, ',').replace(/%
 function encodeValue(k: keyof Settings, v: Settings[keyof Settings]): string {
   if (k === 'pens') return (v as string[]).map((c) => c.replace('#', '')).join(',');
   if (k === 'background') return (v as string).replace('#', '');
-  if (k === 'layerPens') return Object.entries(v as object).map(([l, p]) => `${l}:${p}`).join(',');
+  if (k === 'layerPens' || k === 'layerDetail') return Object.entries(v as object).map(([l, p]) => `${l}:${p}`).join(',');
   if (k === 'seedLocks') return Object.entries(v as object).map(([key, seed]) => `${key}:${seed}`).join(';');
   if (typeof v === 'boolean') return v ? '1' : '0';
   if (typeof v === 'number') return String(Number(v.toFixed(4)));
@@ -162,9 +165,9 @@ function fromQuery(query: string): Partial<Settings> {
       const pens = text.split(',').map((c) => `#${c}`);
       if (pens.length === PEN_COUNT && pens.every((c) => /^#[0-9a-f]{6}$/i.test(c))) out.pens = pens;
     } else if (k === 'background') out.background = `#${text}`;
-    else if (k === 'layerPens' || k === 'seedLocks') {
+    else if (k === 'layerPens' || k === 'layerDetail' || k === 'seedLocks') {
       const map: Record<string, number> = {};
-      for (const item of text.split(k === 'layerPens' ? ',' : ';')) {
+      for (const item of text.split(k === 'seedLocks' ? ';' : ',')) {
         const i = item.lastIndexOf(':');
         if (i > 0) map[item.slice(0, i)] = Number(item.slice(i + 1));
       }
@@ -190,7 +193,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,

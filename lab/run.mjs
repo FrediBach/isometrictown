@@ -9,6 +9,7 @@
  *   npm run lod -- --name before                  keep a run under a name
  *   npm run lod -- --name after --compare before  print what changed
  *   npm run lod -- --detail 1.5 --pen 0.5         other Detail or pen width
+ *   npm run lod -- --layer-detail trees:0.5       Detail for some layers only, as layer:detail,…
  *   npm run lod -- --no-png                       numbers only, faster
  *
  * Downloads are cached on disk in lab/.cache, so reruns don't touch the network.
@@ -35,6 +36,8 @@ const png = !flag('no-png');
 const detail = Number(opt('detail', '1'));
 const penWidth = Number(opt('pen', '0.35'));
 const tags = flag('tags');
+const layerDetailArg = opt('layer-detail', null);
+const layerDetail = layerDetailArg ? Object.fromEntries(layerDetailArg.split(',').map((p) => p.split(':')).map(([k, v]) => [k, Number(v)])) : undefined;
 const compare = opt('compare', null);
 
 // Downloads, cached on disk and a few at a time.
@@ -87,16 +90,16 @@ function die(msg) {
 }
 
 mkdirSync(outDir, { recursive: true });
-const report = { name, detail, penWidth, tags, at: new Date().toISOString(), cases: [] };
+const report = { name, detail, penWidth, tags, layerDetail, at: new Date().toISOString(), cases: [] };
 const fmt = (v, d = 0) => v.toLocaleString('en', { maximumFractionDigits: d, minimumFractionDigits: d });
 const pct = (v) => `${fmt(v * 100, 1)}%`;
 
-console.log(`LOD lab "${name}": ${places.length} places × ${scales.length} scales, Detail ${detail}, pen ${penWidth} mm\n`);
+console.log(`LOD lab "${name}": ${places.length} places × ${scales.length} scales, Detail ${detail}${layerDetailArg ? ` (${layerDetailArg})` : ''}, pen ${penWidth} mm\n`);
 for (const place of places) {
   for (const scale of scales) {
     const label = `${place.id} 1:${scale}`.padEnd(24);
     try {
-      const r = await lab.runCase(place, scale, { detail, penWidth, tags });
+      const r = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail });
       const file = `${place.id}-${scale}`;
       writeFileSync(path.join(outDir, `${file}.svg`), r.svg);
       const t = r.stats.total;

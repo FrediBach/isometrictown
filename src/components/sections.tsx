@@ -11,7 +11,7 @@ import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, type LayerId, type Settings, type SheetId } from '../settings';
+import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, type LayerId, type Settings, type SheetId } from '../settings';
 import { STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -70,6 +70,7 @@ export function ViewSection() {
       <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint="Bigger towns need a smaller scale. Small scales skip windows." />
       <NumberSetting name="heightScale" label="Building height" min={0.5} max={3} step={0.05} />
       <NumberSetting name="detail" label="Detail" min={0.25} max={2} step={0.05} hint="How close the hatching and textures are, and how small a thing can be before it is left out." />
+      <LayerDetail />
     </FoldingSection>
   );
 }
@@ -501,6 +502,52 @@ export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => vo
         </p>
       )}
     </Section>
+  );
+}
+
+/** Detail settings a feature can be given instead of the drawing's. */
+const DETAIL_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+
+/** Optional per-feature Detail, so one layer can be sparse while another is rich. */
+function LayerDetail() {
+  const { set, change } = useSettings();
+  return (
+    <div className="mb-4">
+      <KeyGrid>
+        <BoolSetting name="customLayerDetail" label="Custom layer detail" />
+      </KeyGrid>
+      {set.customLayerDetail && (
+        <>
+          <Hint>Give a feature its own Detail, or let it follow the slider above. Details on buildings follow the building unless set apart.</Hint>
+          <fieldset className="space-y-2">
+            <legend className="sr-only">Layer detail</legend>
+            {DETAIL_LAYERS.map((layer) => {
+              const label = LAYERS[layer];
+              return (
+                <div key={layer} className="grid grid-cols-[1fr_150px] items-center gap-2">
+                  <span className="text-[12px]">{label}</span>
+                  <Select value={String(set.layerDetail[layer] ?? 'default')} onValueChange={(value) => {
+                    const next = { ...set.layerDetail };
+                    if (value === 'default') delete next[layer];
+                    else next[layer] = Number(value);
+                    change('layerDetail', next);
+                  }}>
+                    <SelectTrigger aria-label={`${label} detail`} className="h-8 w-full bg-card"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      {DETAIL_STEPS.map((v) => (
+                        <SelectItem key={v} value={String(v)}><span className="readout">{FORMAT.detail(v)}</span></SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })}
+            <button type="button" className="text-[12px] underline underline-offset-4" onClick={() => change('layerDetail', {})}>Reset detail</button>
+          </fieldset>
+        </>
+      )}
+    </div>
   );
 }
 

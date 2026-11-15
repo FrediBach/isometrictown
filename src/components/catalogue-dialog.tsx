@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { metres, num } from '../app/model';
 import type { RenderResult } from '../app/renderer';
-import { ENTRIES, filed, GATE_LABEL, gateOn, GROUPS, matcher, showsFrom, SOURCES, type Entry, type Source } from '../catalogue';
+import { ENTRIES, entryLayer, filed, GATE_LABEL, gateOn, GROUPS, matcher, showsFrom, SOURCES, type Entry, type Source } from '../catalogue';
 import { LOD } from '../lod';
-import type { Settings } from '../settings';
+import type { LayerId, Settings } from '../settings';
 import type { Strokes } from '../worker';
 
 type Props = {
@@ -62,7 +62,8 @@ const scale = (n: number) => `1:${num(Math.round(n))}`;
 function absence(e: Entry, set: Settings): string {
   const off = (e.needs ?? []).filter((g) => !gateOn(set, g));
   if (off.length) return `Switched off: ${off.map((g) => GATE_LABEL[g] ?? g).join(', ')}.`;
-  const small = (e.lod ?? []).map((r) => [r, showsFrom(set, r)] as const).filter(([, from]) => from < set.scale);
+  const layer = entryLayer(e);
+  const small = (e.lod ?? []).map((r) => [r, showsFrom(set, r, layer)] as const).filter(([, from]) => from < set.scale);
   if (small.length && small.length === (e.lod ?? []).length) return `Too small at ${scale(set.scale)}: a typical one shows from ${scale(Math.max(...small.map(([, f]) => f)))} at this Detail and pen.`;
   return 'None in this view. The map may have none here, or the seed placed none.';
 }
@@ -253,11 +254,11 @@ function InDrawing({ entry: e, found: f, result, set }: Pick<DetailProps, 'entry
 }
 
 /** The level-of-detail rules an entry obeys, and whether a typical one shows at the scale drawn. */
-function Rules({ rules, set }: { rules: NonNullable<Entry['lod']>; set: Settings }) {
+function Rules({ rules, set, layer }: { rules: NonNullable<Entry['lod']>; set: Settings; layer: LayerId | undefined }) {
   return (
     <dd className="m-0 flex flex-col gap-1.5 text-[13.5px]">
       {rules.map((r) => {
-        const from = showsFrom(set, r);
+        const from = showsFrom(set, r, layer);
         const shows = from >= set.scale;
         return (
           <span key={r} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
@@ -333,7 +334,7 @@ function Detail({ entry: e, found: f, result, url, set, open, view, onView, onSt
         {!!e.lod?.length && (
           <div className={ROW}>
             <dt className={DT}>Level of detail</dt>
-            <Rules rules={e.lod} set={set} />
+            <Rules rules={e.lod} set={set} layer={entryLayer(e)} />
           </div>
         )}
         {e.facts?.map(([k, v]) => (

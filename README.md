@@ -59,6 +59,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 
 - Hidden lines are removed geometrically with a depth buffer before export, so nothing shows through a wall and nothing is drawn twice.
 - Each pen is its own Inkscape layer, in plot order: shadows, water, greenery, roofs, linework. Optional custom layer assignments route individual features to any of those five pens.
+- Detail can be set per layer too: keep roof hatching sparse while windows stay rich, or thin out trees without losing the ground textures.
 - An optional background colour appears in the preview and SVG presentation without adding a filled shape to plot.
 - Strokes that touch are joined, and the stroke order is sorted to cut pen-up travel.
 - The stats panel shows ink length, pen lifts and an estimated plot time for each pen.

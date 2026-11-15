@@ -136,7 +136,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
       const shop = !!o.shop && shows(cam, LOD.shopfront) && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
-      if (shop) tagLines(undefined, out, () => shopfront(B, ax, ay, bx, by, len, out), 'shopfront');
+      if (shop) tagLines(B, undefined, out, () => shopfront(B, ax, ay, bx, by, len, out), 'shopfront');
       if (o.windows && set.windows && len >= 2.4) {
         // French balconies run along the street front only.
         const toStreet = o.street ? ((by - ay) * o.street[0] - (bx - ax) * o.street[1]) / len > 0.55 : false;
@@ -187,7 +187,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
 
 /** Windows and doors in one wall, tagged as the windows layer. */
 function windows(B: Build, w: Wall, fa: Facade, out: Solid): void {
-  tagLines('windows', out, () => facadeLines(B, w, fa, out));
+  tagLines(B, 'windows', out, () => facadeLines(B, w, fa, out));
 }
 
 /** A shop front along a wall: wide windows, and striped awnings over most of them. */
@@ -303,17 +303,17 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
       const k = d > 0 ? 1 : 0;
       if (Math.abs(d) > 0.6 && ends[k] === 'gable') front = { end: k, kind: info.gableFront };
     }
-    const made = pitchedRoof(B, { rect: r, He, tan, ends, sides: [eave(0), eave(2)], o: style.overhang, front, hatch: set.roofHatch }, out);
+    const made = B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan, ends, sides: [eave(0), eave(2)], o: style.overhang, front, hatch: set.roofHatch }, out));
     if (i === 0) P = made;
   });
   out.casts.push({ ring: wall.pts, h: He + rise * 0.6 });
-  if (o.details && set.details) roofDetails(B, info, main, P!, He, tan, out);
+  if (o.details && set.details) B.cam.within('roofs', () => roofDetails(B, info, main, P!, He, tan, out));
   return { main, P: P!, He, tan };
 }
 
 /** Chimneys and dormers on a house's main roof. */
 function roofDetails(B: Build, info: Info, main: Part, P: Pitched, He: number, tan: number, out: Solid): void {
-  return tagLines('details', out, () => roofDetailsLines(B, info, main, P, He, tan, out));
+  return tagLines(B, 'details', out, () => roofDetailsLines(B, info, main, P, He, tan, out));
 }
 
 function roofDetailsLines(B: Build, info: Info, main: Part, P: Pitched, He: number, tan: number, out: Solid): void {
@@ -363,7 +363,7 @@ function skirtBlock(B: Build, rings: WallRing[], H: number, info: Info, steep: b
   for (const inset of steep ? [1.3, 0.9] : [3.2, 1.8]) {
     const rise = inset * tan;
     const He = Math.max(3, steep ? H - rise * 0.75 : H - rise * 0.5);
-    if (!skirtRoof(B, rings, He, inset, tan, steep && info.dormers && B.set.details, out)) continue;
+    if (!B.cam.within('roofs', () => skirtRoof(B, rings, He, inset, tan, steep && info.dormers && B.set.details, out))) continue;
     prism(B, rings, 0, He, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
     out.casts.push({ ring: rings[0].pts, h: He + rise * 0.7 });
     return true;
@@ -378,7 +378,7 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid);
   solid.casts.push({ ring: rings[0].pts, h: H });
   // Too small to tell merlon from gap, battlements close up into a black band: a parapet reads better.
-  if (info?.castle && set.details && shows(B.cam, LOD.battlements, 0.7)) battlements(B, rings[0], b.shape.slice(1), H, out);
+  if (info?.castle && set.details && B.cam.within('details', () => shows(B.cam, LOD.battlements, 0.7))) battlements(B, rings[0], b.shape.slice(1), H, out);
   else if ((info?.parapet || info?.castle) && set.details) parapet(B, rings, H, solid);
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
@@ -394,7 +394,7 @@ function oneWay(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   const tan = Math.tan((info.pitch * Math.PI) / 180);
   const He = info.roof === 'shed' ? Math.max(2.4, H - r.w * tan * 0.5) : Math.max(3, H - 1.4);
   prism(B, [{ pts: corners(r), seam: new Uint8Array(4) }], 0, He, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
-  if (info.roof === 'shed') shedRoof(B, r, He, tan, out);
+  if (info.roof === 'shed') B.cam.within('roofs', () => shedRoof(B, r, He, tan, out));
   else sawtoothRoof(r, He, out);
   out.casts.push({ ring: corners(r), h: He + 1.5 });
   return true;
@@ -428,7 +428,7 @@ function mosque(B: Build, b: Building, rings: WallRing[], info: Info, H: number,
   const He = Math.min(H, 12);
   flat(B, b, rings, info, 0, He, k, out);
   const r = Math.max(2.5, Math.min(14, Math.min(rect.w, rect.L) * 0.33));
-  dome(B, rect.cx, rect.cy, r, He, out[0]);
+  B.cam.within('roofs', () => dome(B, rect.cx, rect.cy, r, He, out[0]));
   if (Math.abs(ringArea(p)) > 120) {
     const vx = -rect.uy;
     const vy = rect.ux;
@@ -449,11 +449,11 @@ function temple(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   const He = Math.min(Math.max(3.5, H * 0.5), 7);
   const tan1 = Math.tan((27 * Math.PI) / 180);
   prism(B, [{ pts: corners(r), seam: new Uint8Array(4) }], 0, He, { roof: false, windows: true, pen: LINEWORK, facade: info.facade, street: info.toStreet }, out);
-  pitchedRoof(B, { rect: r, He, tan: tan1, ends: ['hip', 'hip'], sides: [1.1, 1.1], o: 1.1, hatch: B.set.roofHatch }, out);
+  B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan: tan1, ends: ['hip', 'hip'], sides: [1.1, 1.1], o: 1.1, hatch: B.set.roofHatch }, out));
   const inner = { ...r, L: r.L * 0.6, w: r.w * 0.6 };
   const He2 = He + (r.w / 2) * tan1 * 0.55 + 1.6;
   prism(B, [{ pts: corners(inner), seam: new Uint8Array(4) }], He, He2, { roof: false, windows: false, pen: LINEWORK }, out);
-  pitchedRoof(B, { rect: inner, He: He2, tan: Math.tan((30 * Math.PI) / 180), ends: ['hip', 'hip'], sides: [0.8, 0.8], o: 0.8, hatch: B.set.roofHatch }, out);
+  B.cam.within('roofs', () => pitchedRoof(B, { rect: inner, He: He2, tan: Math.tan((30 * Math.PI) / 180), ends: ['hip', 'hip'], sides: [0.8, 0.8], o: 0.8, hatch: B.set.roofHatch }, out));
   out.casts.push({ ring: corners(r), h: He2 + 1 });
   return true;
 }
@@ -487,7 +487,7 @@ export function building(B: Build, b: Building): Solid[] {
 
 /** A flagpole on the roof with the flag out. */
 function flag(B: Build, b: Building, out: Solid[]): void {
-  return tagLines('details', out, () => flagLines(B, b, out), 'flag');
+  return tagLines(B, 'details', out, () => flagLines(B, b, out), 'flag');
 }
 
 function flagLines(B: Build, b: Building, out: Solid[]): void {
@@ -563,7 +563,7 @@ function body(B: Build, b: Building): Solid[] {
 
 /** Battlements along a castle's outer walls, and pointed turrets at its corners. */
 function battlements(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
-  return tagLines('details', out, () => battlementsLines(B, ring, holes, z, out), 'battlements');
+  return tagLines(B, 'details', out, () => battlementsLines(B, ring, holes, z, out), 'battlements');
 }
 
 function battlementsLines(B: Build, ring: WallRing, holes: Ring[], z: number, out: Solid[]): void {
@@ -655,7 +655,7 @@ function cone(B: Build, s: Solid, ring: number[], z: number, apexZ: number, pen 
 
 /** A helipad on a hospital's flat roof: a ring with an H in it. */
 function helipad(B: Build, b: Building, z: number, out: Solid): boolean {
-  return tagLines('details', out, () => helipadLines(B, b, z, out), 'helipad');
+  return tagLines(B, 'details', out, () => helipadLines(B, b, z, out), 'helipad');
 }
 
 function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
@@ -690,7 +690,7 @@ export const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordi
 
 /** A small box on a flat roof: stair housing, plant room, water tank. */
 function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
-  return tagLines('rooftops', out, () => rooftopLines(B, b, z, k, out));
+  return tagLines(B, 'rooftops', out, () => rooftopLines(B, b, z, k, out));
 }
 
 function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
@@ -711,9 +711,9 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   const v = hash(k[0], k[1], B.seed, 21);
   const area = Math.abs(ringArea(outer));
   if (TANKS.has(B.style.id) && v < 0.4) {
-    if (tagLines(undefined, out, () => tanks(B, rect, z, k, inside, out), 'tanks')) return;
+    if (tagLines(B, undefined, out, () => tanks(B, rect, z, k, inside, out), 'tanks')) return;
   } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && shows(B.cam, LOD.solar)) {
-    if (tagLines(undefined, out, () => solar(B, rect, z, inside, out), 'solar')) return;
+    if (tagLines(B, undefined, out, () => solar(B, rect, z, inside, out), 'solar')) return;
   }
   const count = 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);
   for (let tries = 0, made = 0; tries < 8 && made < count; tries++) {
@@ -832,11 +832,12 @@ export function car(B: Build, x: number, y: number, ux: number, uy: number, k: n
 /**
  * Keep feature identity on appended lines without changing faces or shadows. `facet` also
  * names the detail for the catalogue; leave `layer` undefined to name it without moving its pen.
+ * The lines are made at the layer's own Detail, if it has one.
  */
-export function tagLines<T>(layer: LayerId | undefined, out: Solid | Solid[], draw: () => T, facet?: string): T {
+export function tagLines<T>(B: Build, layer: LayerId | undefined, out: Solid | Solid[], draw: () => T, facet?: string): T {
   const solids = Array.isArray(out) ? out : [out];
   const starts = solids.map((s) => s.lines.length);
-  const result = draw();
+  const result = layer ? B.cam.within(layer, draw) : draw();
   solids.forEach((s, i) => {
     for (let j = starts[i] ?? 0; j < s.lines.length; j++) {
       const l = s.lines[j];

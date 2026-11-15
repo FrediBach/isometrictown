@@ -79,4 +79,6 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 `customLayerPens` enables `layerPens`, a partial feature-to-pen mapping keyed by `LAYERS` in `settings.ts`. Missing entries retain the original mix of pens. Assignments redraw and replan so pen groups and statistics remain accurate. OSM roof tags are a data source, not a drawable feature, so they have no pen assignment. Disabling custom assignments keeps them saved; resetting clears them.
 
+`customLayerDetail` enables `layerDetail`, a partial feature-to-Detail mapping shown under the Detail slider in the View section (`DETAIL_LAYERS` in `settings.ts`). Each value replaces the slider for that feature; missing entries follow it. Details on a building follow the building's Detail unless they have their own (see [lod.md](lod.md)). It is stored and shared like `layerPens` (`layer:detail,…`). The catalogue's "shows from" scales use the Detail of the layer an entry is filed under.
+
 `customBackground` and `background` use `recolor()` without scheduling the worker, including in monochrome mode. The SVG root receives a CSS background colour; no filled geometry is added. Disabling it removes the style and restores transparent export. SVG viewers that ignore CSS backgrounds will show their own paper colour.
