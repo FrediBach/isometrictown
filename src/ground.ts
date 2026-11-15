@@ -376,7 +376,7 @@ export function lightly(G: Ground, paper: Paper, x: number, y: number): boolean 
 }
 
 /** Hatch the shadow union, leaving out tiny disconnected patches of visible ground tone. */
-export function castShadows(paper: Paper, M: Masks): void {
+export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array): void {
   const { cam, W, H, ppm } = paper;
   const visible = paper.mask();
   let count = 0;
@@ -385,7 +385,7 @@ export function castShadows(paper: Paper, M: Masks): void {
     const d = cam.groundDepth(sy);
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
-      if (M.shadow[i] && !M.water[i] && paper.seen(paper.x0 + (x + 0.5) / ppm, sy, d)) {
+      if (M.shadow[i] && !M.water[i] && !(paths?.[i] && !M.road[i]) && paper.seen(paper.x0 + (x + 0.5) / ppm, sy, d)) {
         visible[i] = 1;
         count++;
       }
@@ -414,9 +414,9 @@ export function castShadows(paper: Paper, M: Masks): void {
     }
     if (tail < minimum) for (let k = 0; k < tail; k++) visible[queue[k]] = 3;
   }
-  // Keep the original mask and visibility test at retained edges, without erosion or a halo.
+  // Retained edges keep their original shape; only drawable paths interrupt the tone.
   paper.hatchGround(SHADOWS, 62, cam.tone(0.85), (x, y) => paper.on(M.shadow, x, y)
-    && !paper.on(M.water, x, y) && paper.at(visible, x, y) !== 3);
+    && !paper.on(M.water, x, y) && !(paths && paper.on(paths, x, y) && !paper.on(M.road, x, y)) && paper.at(visible, x, y) !== 3);
 }
 
 /** Quiet park tone, inset from boundaries and visible objects so their outlines stay separate. */

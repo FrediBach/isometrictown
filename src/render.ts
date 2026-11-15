@@ -334,13 +334,13 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     });
     paper.facet('pools', () => pools(paper, M, town.pools));
   });
-  const paths = (set.parks || G) && set.paths ? at('paths', () => pathClearance(B, paper, town.ways)) : undefined;
+  const paths = (set.parks || G || set.shadows) && set.paths ? at('paths', () => pathClearance(B, paper, town.ways)) : undefined;
   if (set.parks) withPen('parks', () => {
     paper.facet('grass', () => parkGrass(paper, M, G, paths));
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
-  if (set.shadows) withPen('shadows', () => { castShadows(paper, M); });
+  if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
   withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');

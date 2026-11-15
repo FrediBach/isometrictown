@@ -573,3 +573,45 @@ test('hidden and water-covered shadow areas cannot keep a tiny visible island al
   castShadows(paper, M);
   expect(paper.pens[SHADOWS]).toHaveLength(0);
 });
+
+
+test.each([0.35, 0.7])('shadow hatching leaves a continuous path corridor with a %s mm pen', (penWidth) => {
+  const B = build({ penWidth, paths: true });
+  const paper = new Paper(B.cam);
+  const M = { shadow: paper.mask(), water: paper.mask(), road: paper.mask() } as Masks;
+  const rect = [[180, 120], [200, 120], [200, 140], [180, 140]].flatMap(([x, y]) => B.cam.ground(x, y));
+  paper.fillMask(M.shadow, [rect]);
+  const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(190, 110), ...B.cam.ground(190, 150)] }];
+  const mask = pathClearance(B, paper, ways);
+  paper.finishDepth();
+  castShadows(paper, M, mask);
+  expect(paper.pens[SHADOWS].length).toBeGreaterThan(5);
+  for (const line of paper.pens[SHADOWS]) {
+    const xs = line.filter((_, i) => i % 2 === 0);
+    expect(xs.every((x) => x < 190 - penWidth * 1.5) || xs.every((x) => x > 190 + penWidth * 1.5)).toBe(true);
+  }
+  paper.pens[SHADOWS].splice(0);
+  B.set.paths = false;
+  castShadows(paper, M, pathClearance(B, paper, ways));
+  const disabled = paper.pens[SHADOWS].splice(0);
+  castShadows(paper, M);
+  expect(paper.pens[SHADOWS]).toEqual(disabled);
+  paper.pens[SHADOWS].splice(0);
+  M.road.fill(1);
+  castShadows(paper, M, mask);
+  expect(paper.pens[SHADOWS]).toEqual(disabled);
+});
+
+test('path clearance removes the tiny shadow fragments it separates', () => {
+  const B = build({ paths: true });
+  const paper = new Paper(B.cam);
+  const M = { shadow: paper.mask(), water: paper.mask(), road: paper.mask() } as Masks;
+  paper.fillMask(M.shadow, [[[180, 120], [182.5, 120], [182.5, 122], [180, 122]].flatMap(([x, y]) => B.cam.ground(x, y))]);
+  paper.finishDepth();
+  castShadows(paper, M);
+  expect(paper.pens[SHADOWS].length).toBeGreaterThan(0);
+  paper.pens[SHADOWS].splice(0);
+  const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(181.25, 110), ...B.cam.ground(181.25, 150)] }]);
+  castShadows(paper, M, mask);
+  expect(paper.pens[SHADOWS]).toHaveLength(0);
+});
