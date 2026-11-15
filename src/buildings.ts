@@ -112,7 +112,6 @@ type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: num
  */
 export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: PrismOptions, out: Solid): void {
   const { set, cam } = B;
-  const s = cam.s;
   rings.forEach((ring, ri) => {
     const p = ring.pts;
     const n = p.length / 2;
@@ -152,18 +151,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
         const wall = { ax, ay, bx, by, len, z0: shop ? SHOP_H : zb, z1, ground: zb === 0 && !shop, street: toStreet, door: i === doorEdge && !shop, balconies: bal, shutters: o.shutters ?? -1 };
         windows(B, wall, o.facade ?? PLAIN, out);
       }
-      const away = ((bx - ax) * B.sun[1] - (by - ay) * B.sun[0]) / len;
-      if (set.shadeWalls && away > 0.2) {
-        const across = Math.abs((bx - ax) * cam.cb - (by - ay) * cam.sb);
-        const strength = Math.min(1, (away - 0.2) / 0.5);
-        const m = Math.floor(across * s * strength / cam.tone(SHADE_MM));
-        for (let k = 1; k < m; k++) {
-          const t = k / m;
-          const x = ax + (bx - ax) * t;
-          const y = ay + (by - ay) * t;
-          out.lines.push({ pen: SHADOWS, layer: 'shadeWalls', pts: [x, y, zb, x, y, z1] });
-        }
-      }
+      shadeWall(B, ax, ay, bx, by, zb, () => z1, out);
     }
     if (o.roof) runs(ring, z1, (i) => !ring.seam[i], o.topPen ?? o.pen, out.lines);
     runs(ring, z0, (i) => front[i] === 1 && next(i) <= z0, o.pen, out.lines);
@@ -192,6 +180,34 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
         return f;
       }),
     );
+  }
+}
+
+/** Shade a wall up to its profile, continuing existing strokes through the eaves where possible. */
+export function shadeWall(B: Build, ax: number, ay: number, bx: number, by: number, z0: number, top: (t: number) => number, out: Solid, extend = false): void {
+  const { cam, set } = B;
+  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy);
+  if (!set.shadeWalls || len < 1e-8 || !facing(B, ax, ay, bx, by)) return;
+  const away = (dx * B.sun[1] - dy * B.sun[0]) / len;
+  if (away <= 0.2) return;
+  if (extend) {
+    let continued = false;
+    for (const line of out.lines) {
+      const p = line.pts;
+      if (line.layer !== 'shadeWalls' || p.length !== 6 || Math.abs(p[5] - z0) > 1e-6) continue;
+      const t = ((p[0] - ax) * dx + (p[1] - ay) * dy) / (len * len);
+      if (t < 0 || t > 1 || Math.abs((p[0] - ax) * dy - (p[1] - ay) * dx) > 1e-6 * len) continue;
+      p[5] = top(t);
+      continued = true;
+    }
+    if (continued) return;
+  }
+  const across = Math.abs(dx * cam.cb - dy * cam.sb);
+  const strength = Math.min(1, (away - 0.2) / 0.5);
+  const m = Math.floor(across * cam.s * strength / cam.tone(SHADE_MM));
+  for (let k = 1; k < m; k++) {
+    const t = k / m, x = ax + dx * t, y = ay + dy * t;
+    out.lines.push({ pen: SHADOWS, layer: 'shadeWalls', pts: [x, y, z0, x, y, top(t)] });
   }
 }
 

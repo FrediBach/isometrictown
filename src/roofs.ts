@@ -1,4 +1,4 @@
-import { tagLines, prism, type Build, type Line3, type Solid } from './buildings';
+import { tagLines, prism, shadeWall, type Build, type Line3, type Solid } from './buildings';
 import { ringArea } from './geo';
 import { LOD, shows } from './lod';
 import { LINEWORK, ROOFS } from './settings';
@@ -62,10 +62,10 @@ function face(out: Solid, pts: number[][]): number[][] | undefined {
  * like p to q (local 3D points), and the gap is kept square to them and never under the set
  * spacing, so no roof face is hatched darker than another.
  */
-function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number, p: number[], q: number[]): number {
+function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number, p: number[], q: number[], endZ = z): number {
   const c = B.cam;
   const ex = c.sx(bx, by) - c.sx(ax, ay);
-  const ey = c.sy(bx, by, z) - c.sy(ax, ay, z);
+  const ey = c.sy(bx, by, endZ) - c.sy(ax, ay, z);
   const hx = c.sx(q[0], q[1]) - c.sx(p[0], p[1]);
   const hy = c.sy(q[0], q[1], q[2]) - c.sy(p[0], p[1], p[2]);
   const hl = Math.hypot(hx, hy);
@@ -156,7 +156,9 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
   const sv = [-1, 1];
   const sk = [-1, 1];
   const eaveZ = (s: number) => He - sides[s] * tan;
-  const C = (k: number, s: number) => at(sk[k] * ue[k], sv[s] * (hw + sides[s]), eaveZ(s));
+  // An inset side meets the hip before its outer end, keeping both faces on their pitched planes.
+  const extent = (k: number, s: number) => ue[k] - Math.max(0, d[k] - hw - sides[s]);
+  const C = (k: number, s: number) => at(sk[k] * extent(k, s), sv[s] * (hw + sides[s]), eaveZ(s));
   const E = (k: number, s: number) => {
     if (d[k] === 0) return R[k];
     if (d[k] >= hw + sides[s] - 1e-6) return C(k, s);
@@ -178,6 +180,19 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
       poly(out.lines, LINEWORK, prof);
     } else if (d[k] > 0) endFaces[k] = face(out, [at(u, -hw, He), at(u, -d[k], He + (hw - d[k]) * tan), at(u, d[k], He + (hw - d[k]) * tan), at(u, hw, He)]);
     else endFaces[k] = face(out, [at(u, -hw, He), at(u, 0, Hr), at(u, hw, He)]);
+    const a = at(u, -sk[k] * hw, He), b = at(u, sk[k] * hw, He);
+    const profile = decorated ? gableProfile(decorated, hw, He, tan) : undefined;
+    shadeWall(B, a[0], a[1], b[0], b[1], He, (t) => {
+      const v = sk[k] * hw * (2 * t - 1);
+      if (!profile) return He + (hw - Math.max(Math.abs(v), d[k])) * tan;
+      let z = He;
+      for (let i = 1; i < profile.length; i++) {
+        const [va, za] = profile[i - 1], [vb, zb] = profile[i];
+        if (Math.abs(vb - va) < 1e-8 || v < Math.min(va, vb) || v > Math.max(va, vb)) continue;
+        z = Math.max(z, za + (zb - za) * (v - va) / (vb - va));
+      }
+      return z;
+    }, out, true);
   }
 
   const edge = (pts: number[][], faces: (number[][] | undefined)[], roofJoin = false) => {
@@ -206,12 +221,12 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
       if (!hatchable(B, p, q)) continue;
       const [x0, y0] = C(0, s);
       const [x1, y1] = C(1, s);
-      const span = ue[0] + ue[1];
+      const span = extent(0, s) + extent(1, s);
       const count = strokes(B, x0, y0, x1, y1, eaveZ(s), p, q);
       const step = span / count;
       const outer = hw + sides[s];
       for (let t = step / 2; t < span; t += step) {
-        const u = -ue[0] + t;
+        const u = -extent(0, s) + t;
         const inner = Math.max(0, d[0] - (u + ue[0]), d[1] - (ue[1] - u));
         if (outer - inner < 0.08) continue;
         hatch(B, out, slope[s], [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)]);
@@ -219,21 +234,18 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
     }
     for (const k of [0, 1]) {
       if (d[k] === 0) continue;
-      const hip = ends[k] === 'hip';
-      const reach = hip ? hw + S.o : d[k];
-      const z0 = hip ? He - S.o * tan : He + (hw - d[k]) * tan;
-      const p = at(sk[k] * ue[k], 0, z0);
-      const q = at(sk[k] * (ue[k] - reach), 0, z0 + reach * tan);
-      if (!hatchable(B, p, q)) continue;
-      const [x0, y0] = at(sk[k] * ue[k], -reach, z0);
-      const [x1, y1] = at(sk[k] * ue[k], reach, z0);
-      const count = strokes(B, x0, y0, x1, y1, z0, p, q);
-      const step = (2 * reach) / count;
-      for (let t = step / 2; t < 2 * reach; t += step) {
-        const v = -reach + t;
-        const depth = reach - Math.abs(v);
-        if (depth < 0.08) continue;
-        hatch(B, out, hipFace[k], [...at(sk[k] * ue[k], v, z0), ...at(sk[k] * (ue[k] - depth), v, z0 + depth * tan)]);
+      const left = Math.min(d[k], hw + sides[0]), right = Math.min(d[k], hw + sides[1]);
+      const A = E(k, 0), Z = E(k, 1);
+      const mix = (a: number[], b: number[], t: number) => a.map((v, i) => v + (b[i] - v) * t);
+      const p = mix(A, Z, left / (left + right));
+      if (!hatchable(B, p, R[k])) continue;
+      const count = strokes(B, A[0], A[1], Z[0], Z[1], A[2], p, R[k], Z[2]);
+      const step = (left + right) / count;
+      for (let t = step / 2; t < left + right; t += step) {
+        const v = t - left;
+        const base = mix(A, Z, t / (left + right));
+        const tip = mix(R[k], v < 0 ? A : Z, Math.abs(v) / (v < 0 ? left : right));
+        hatch(B, out, hipFace[k], [...base, ...tip]);
       }
     }
   }
