@@ -70,6 +70,7 @@ export const LOD = {
   ruts: { m: 1.6, mm: 0.7, what: 'Farm tracks as twin ruts: their spacing' },
   twinRails: { m: 1.5, mm: 0.7, what: 'Both rails of a track: projected clear gauge after ink' },
   sleepers: { m: 2.6, mm: 1, what: 'Railway sleepers: spacing' },
+  contactWire: { m: 5.6, mm: 0.7, what: 'Contact wire: projected clearance outside the rails after ink' },
   catenary: { m: 7, mm: 2.1, what: 'Overhead line masts: height' },
   crossing: { m: 3.5, mm: 1.2, what: 'Level crossing barriers' },
   barrier: { m: 4, mm: 1, what: 'Motorway crash barriers and gantries' },

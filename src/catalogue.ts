@@ -772,11 +772,11 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'rail',
     name: 'Overhead wires',
     source: ['inferred'],
-    what: 'Masts carrying the contact wire over main lines; trams run under a wire hung from poles.',
+    what: 'Masts carrying the contact wire over main lines; trams run under a wire hung from poles. Wires that project into the rail corridor are omitted, leaving the supports.',
     how: 'Main lines in regions where most railways are electric, and every tramway.',
     regions: `Electric main lines: ${listed(ELECTRIC)}.`,
     needs: ['rails'],
-    lod: ['catenary'],
+    lod: ['catenary', 'contactWire'],
     strokes: ['=rails'],
   },
   {

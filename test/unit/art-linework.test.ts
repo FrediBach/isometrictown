@@ -515,3 +515,27 @@ test.each([0.35, 0.7])('rail pairs and sleepers keep visible separation with a %
   }
   expect(pairs).toBeGreaterThan(0);
 });
+
+
+function overheadLines(B: Build, pts: number[], sub?: string) {
+  const paper = new Paper(B.cam);
+  paper.finishDepth();
+  const line = vi.spyOn(paper, 'line3');
+  railways(B, paper, [{ kind: 'rail', cls: 'rail', width: 2, pts, sub }]);
+  return line.mock.calls.map((call) => call[1]).filter((p) => p.some((z, i) => i % 3 === 2 && z > 0));
+}
+
+test.each([0.35, 0.7])('overhead wires need clear projected separation with a %s mm pen', (penWidth) => {
+  for (const sub of [undefined, 'tram']) {
+    const B = build({ scale: 1000, tilt: 30, bearing: 0, penWidth });
+    const wire = (p: number[]) => p.every((z, i) => i % 3 !== 2 || z === 5.6);
+    const endOn = overheadLines(B, [0, -40, 0, 40], sub);
+    expect(endOn.some(wire)).toBe(false);
+    expect(endOn.length).toBeGreaterThan(0);
+    const sideOn = overheadLines(B, [-40, 0, 40, 0], sub);
+    expect(sideOn.filter(wire)).toHaveLength(1);
+    expect(sideOn.filter((p) => !wire(p))).toHaveLength(endOn.length);
+    // One compressed section simplifies the complete wire rather than leaving loose ends.
+    expect(overheadLines(B, [-40, 0, 0, 0, 0, 40], sub).some(wire)).toBe(false);
+  }
+});

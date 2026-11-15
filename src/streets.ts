@@ -217,7 +217,7 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
     for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
     if (tram) {
       if (!shows(cam, LOD.catenary, 6.4)) continue;
-      paper.line3(LINEWORK, shifted(p, 0, 5.6));
+      if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
       walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
         const side = k % 2 ? 1 : -1;
         const px = x - uy * 3.4 * side;
@@ -228,7 +228,7 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
     }
     // Overhead line: masts beside the track with an arm out over it, and the contact wire.
     if (ELECTRIC.has(B.style.id) && shows(cam, LOD.catenary) && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
-      paper.line3(LINEWORK, shifted(p, 0, 5.6));
+      if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
       walk(p, 20, 55, 10, (x, y, ux, uy) => {
         const px = x - uy * 3;
         const py = y + ux * 3;
@@ -241,6 +241,24 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
       walk(p, 1, pitch, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
     }
   }
+}
+
+/** Keep the contact wire only when it reads outside the projected rail corridor. */
+function clearContactWire(B: Build, p: number[], g: number): boolean {
+  const c = B.cam;
+  let clearance = Infinity;
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const dx = p[i + 2] - p[i], dy = p[i + 3] - p[i + 1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+    const ux = dx / len, uy = dy / len;
+    const x = ux * c.cb - uy * c.sb;
+    const along = Math.hypot(x, c.sa * (ux * c.sb + uy * c.cb));
+    // Vertical height separates parallel lines only across their projected direction.
+    const gap = (5.6 * c.ca * Math.abs(x) - g * c.sa) / along - c.nib / c.s;
+    clearance = Math.min(clearance, gap);
+  }
+  return Number.isFinite(clearance) && clearance * c.s >= c.nib && shows(c, LOD.contactWire, clearance);
 }
 
 /** Minimum perpendicular rail gauge and a shared sleeper pitch for the projected track. */
