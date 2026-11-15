@@ -131,3 +131,33 @@ test.each([true, false])('frame coordinates stay readable with a broad pen (land
   }
   expect(draw(2, 6).labels).toHaveLength(0);
 });
+
+
+test.each([true, false])('broad-pen footer keeps readable credit and stays on the sheet (landscape %s)', (landscape) => {
+  for (const margin of [10, 20, 30]) {
+    const set = { ...DEFAULT_SETTINGS, sheet: 'a4' as const, landscape, margin, penWidth: 0.7 };
+    const cam = new Camera(set);
+    const text = vi.spyOn(lettering, 'letter');
+    marginalia(set, cam, new Frame(set.center), new Date('2026-11-15T12:00:00Z'));
+    const labels = text.mock.calls.filter((call) => !call[3].dir);
+    text.mockRestore();
+    expect(labels.some(([line]) => line.includes('OPENSTREETMAP'))).toBe(true);
+    expect(labels.some(([line]) => line.includes('CONTRIBUTORS'))).toBe(true);
+    const boxes = labels.map(([line, x, y, options]) => {
+      const points = letter(line, x, y, options).flat();
+      const xs = points.filter((_, i) => i % 2 === 0), ys = points.filter((_, i) => i % 2 === 1);
+      return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+    });
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      expect(a[2] + cam.nib <= b[0] || b[2] + cam.nib <= a[0] || a[3] + cam.nib <= b[1] || b[3] + cam.nib <= a[1], JSON.stringify({ margin, a: labels[i][0], b: labels[j][0] })).toBe(true);
+    }
+    for (const [line, x, y, options] of labels) {
+      expect(options.h).toBeGreaterThanOrEqual(4.8 * cam.nib);
+      for (const points of letter(line, x, y, options)) for (let i = 0; i < points.length; i++) {
+        expect(points[i]).toBeGreaterThanOrEqual(cam.nib / 2);
+        expect(points[i]).toBeLessThanOrEqual(cam.sheet[i % 2] - cam.nib / 2);
+      }
+    }
+  }
+});

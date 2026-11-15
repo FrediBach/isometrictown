@@ -220,27 +220,48 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const room = bottom - top;
   if (room < 4.5) return out;
 
-  const s = clamp(room * 0.13, 1.2, 2.3);
+  const normalSize = clamp(room * 0.13, 1.2, 2.3);
+  const compact = 4.8 * cam.nib > normalSize;
+  const s = Math.max(normalSize, 4.8 * cam.nib);
+  const credit = '© OPENSTREETMAP CONTRIBUTORS';
+  const textWidth = compact ? measure(credit, s, 0.3) : 40;
   // Room for the N above or below the needle, whichever way north points.
   const r = Math.min(8, (room - 2.8 * s) / 2);
   let right = x1;
-  if (r >= 2.5) {
+  if (r >= 2.5 && (!compact || x1 - r * 2.4 - 6 - x0 >= textWidth)) {
     out.push(...northArrow(cam, x1 - r * 1.2, (top + bottom) / 2, r, s));
     right = x1 - r * 2.4 - 6;
   }
-  const bar = barLength(cam, Math.min(60, (x1 - x0) * 0.22, right - x0 - 40));
+  const bar = barLength(cam, Math.min(60, (x1 - x0) * 0.22, right - x0 - textWidth - (compact ? 16 : 0)));
   if (bar && room >= 3 * s + 2) {
     const bw = bar.m * cam.s;
     const lw = measure(distance(bar.m), s) / 2;
-    const bx = right - bw - lw;
-    out.push(...scaleBar(cam, set, bx, (top + bottom) / 2, bar, s));
-    right = bx - lw - 8;
+    const extent = compact ? Math.max(bw + lw, measure(`SCALE 1:${scaleText(set.scale)}`, s, 0.6)) : bw + lw;
+    const bx = compact ? right - extent : right - bw - lw;
+    if (!compact || bx - lw - 8 - x0 >= textWidth) {
+      out.push(...scaleBar(cam, set, bx, (top + bottom) / 2, bar, s));
+      right = bx - lw - 8;
+    }
   }
 
   const width = right - x0;
   if (width < 30) return out;
   const [clng, clat] = set.center;
   const place = letterable(set.place) ? set.place : `${lat(clat)} ${lng(clng)}`;
+  if (compact) {
+    // Keep the credit readable first, then fit the title and optional viewing note above it.
+    const credits = measure(credit, s, 0.3) <= width ? [credit] : ['© OPENSTREETMAP', 'CONTRIBUTORS'];
+    if (credits.some((line) => measure(line, s, 0.3) > width) || room < credits.length * 1.9 * s) return out;
+    const view = `LOOKING ${compassWord(set.bearing)} · TILT ${Math.round(set.tilt)}°`;
+    const showView = credits.length === 1 && room >= 4.1 * s + 1.4 * s * 1.5 && measure(view, s, 0.3) <= width;
+    const notes = showView ? [view, ...credits] : credits;
+    const noteRoom = (0.3 + 1.9 * notes.length) * s;
+    const titleHeight = Math.min(9, (room - noteRoom) / 1.4, width / measure(place, 1, 1.4));
+    const base = titleHeight >= s ? top + titleHeight * 1.4 : bottom - noteRoom;
+    if (titleHeight >= s) out.push(...letter(place, x0, base, { h: titleHeight, track: 1.4 }));
+    notes.forEach((line, i) => out.push(...letter(line, x0, base + (2.2 + i * 1.9) * s, { h: s, track: 0.3 })));
+    return out;
+  }
   // Headroom above the caps for accents, then the two small lines tucked under the title.
   const T = fit(place, Math.min(9, (room - 4.1 * s) / 1.4), width, 1.4, 2);
   const base = top + T * 1.4;
