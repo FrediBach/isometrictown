@@ -48,7 +48,7 @@ export const CASES: Case[] = [
   {
     id: 'mollis-portrait',
     what: 'Portrait sheet, steep tilt, shaded walls, forced Nordic style, another seed',
-    set: at('Mollis', MOLLIS, 0, 1200, { sheet: 'a4', landscape: false, tilt: 50, shadeWalls: true, sunAngle: 140, sunHeight: 25, heightScale: 1.5, style: 'nordic', seed: 7 }),
+    set: at('Mollis', MOLLIS, 0, 1200, { sheet: 'a4', landscape: false, tilt: 50, shadeWalls: true, autoSun: false, sunAngle: 140, sunHeight: 25, heightScale: 1.5, style: 'nordic', seed: 7 }),
   },
 ];
 

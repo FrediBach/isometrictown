@@ -51,7 +51,11 @@ export function loadSettings(): Settings {
   let s: Settings = { ...DEFAULT_SETTINGS, pens: [...DEFAULT_SETTINGS.pens] };
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) ?? 'null');
-    if (saved && typeof saved === 'object') s = { ...s, ...saved };
+    if (saved && typeof saved === 'object') {
+      s = { ...s, ...saved };
+      // Keep an explicitly adjusted sun from before automatic lighting was added.
+      if (saved.autoSun === undefined && typeof saved.sunAngle === 'number' && saved.sunAngle !== DEFAULT_SETTINGS.sunAngle) s.autoSun = false;
+    }
   } catch {
     /* storage can be unavailable */
   }
@@ -160,7 +164,7 @@ function toQuery(set: Settings): string {
   const out: string[] = [];
   for (const k of SHARED) {
     const v = encodeValue(k, set[k]);
-    if (v !== encodeValue(k, DEFAULT_SETTINGS[k])) out.push(`${k}=${v}`);
+    if (v !== encodeValue(k, DEFAULT_SETTINGS[k]) || (k === 'autoSun' && set.sunAngle !== DEFAULT_SETTINGS.sunAngle)) out.push(`${k}=${v}`);
   }
   return out.join('&');
 }
@@ -199,6 +203,7 @@ function fromQuery(query: string): Partial<Settings> {
       if (text !== '' && Number.isFinite(n)) out[k] = n;
     } else if (typeof def === 'string') out[k] = text;
   }
+  if (out.sunAngle !== undefined && out.autoSun === undefined) out.autoSun = false;
   return out as Partial<Settings>;
 }
 
@@ -213,7 +218,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,

@@ -79,6 +79,8 @@ export type Settings = {
   titleRound: boolean;
 
   shadows: boolean;
+  /** Keep the sun towards the equator and east, independent of the view. */
+  autoSun: boolean;
   /** Where the light comes from, relative to the view, in degrees clockwise from straight up the sheet. */
   sunAngle: number;
   sunHeight: number;
@@ -183,6 +185,7 @@ export const DEFAULT_SETTINGS: Settings = {
   titleRound: false,
 
   shadows: true,
+  autoSun: true,
   sunAngle: 55,
   sunHeight: 38,
   shadeWalls: true,
@@ -243,4 +246,9 @@ export function layerDetail(set: Pick<Settings, 'detail'> & Partial<Pick<Setting
 /** Resolve an optional feature override, preserving its original pen by default. */
 export function layerPen(set: Settings, layer: LayerId, pen: number): number {
   return set.customLayerPens ? (set.layerPens[layer] ?? pen) : pen;
+}
+
+/** Compass bearing towards the sun; automatic light stays east and towards the equator. */
+export function sunBearing(set: Pick<Settings, 'autoSun' | 'center' | 'bearing' | 'sunAngle'>): number {
+  return set.autoSun ? (set.center[1] >= 0 ? 135 : 45) : ((set.bearing + set.sunAngle) % 360 + 360) % 360;
 }

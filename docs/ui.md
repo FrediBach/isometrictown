@@ -75,6 +75,8 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 `components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
 
+Light defaults to Automatic sun: geographic south-east in the north and north-east in the south. Turning it off exposes the existing view-relative direction slider; the section summary always shows the resulting compass bearing. Old saved settings with an adjusted sun angle, and old share links with an explicit sun angle, retain manual lighting. Links carry `autoSun` explicitly alongside a non-default manual angle so automatic lighting can retain that angle without changing mode when shared.
+
 ## Optional drawing colours
 
 `customLayerPens` enables `layerPens`, a partial feature-to-pen mapping keyed by `LAYERS` in `settings.ts`. Missing entries retain the original mix of pens. Assignments redraw and replan so pen groups and statistics remain accurate. OSM roof tags are a data source, not a drawable feature, so they have no pen assignment. Disabling custom assignments keeps them saved; resetting clears them.

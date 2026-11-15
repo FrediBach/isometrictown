@@ -152,9 +152,11 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
         const wall = { ax, ay, bx, by, len, z0: shop ? SHOP_H : zb, z1, ground: zb === 0 && !shop, street: toStreet, door: i === doorEdge && !shop, balconies: bal, shutters: o.shutters ?? -1 };
         windows(B, wall, o.facade ?? PLAIN, out);
       }
-      if (set.shadeWalls && (by - ay) * B.sun[0] - (bx - ax) * B.sun[1] < 0) {
-        const ext = Math.abs((bx - ax) * cam.cb - (by - ay) * cam.sb) * s;
-        const m = Math.floor(ext / cam.tone(SHADE_MM));
+      const away = ((bx - ax) * B.sun[1] - (by - ay) * B.sun[0]) / len;
+      if (set.shadeWalls && away > 0.2) {
+        const across = Math.abs((bx - ax) * cam.cb - (by - ay) * cam.sb);
+        const strength = Math.min(1, (away - 0.2) / 0.5);
+        const m = Math.floor(across * s * strength / cam.tone(SHADE_MM));
         for (let k = 1; k < m; k++) {
           const t = k / m;
           const x = ax + (bx - ax) * t;

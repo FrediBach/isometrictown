@@ -11,7 +11,7 @@ import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, type LayerId, type Settings, type SheetId } from '../settings';
+import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
 import { STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -130,12 +130,15 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
 export function LightSection() {
   const { set } = useSettings();
   return (
-    <FoldingSection index={4} title="Light" defaultOpen summary={set.shadows ? `Sun ${FORMAT.sunAngle(set.sunAngle)} at ${FORMAT.sunHeight(set.sunHeight)}` : 'No shadows'}>
+    <FoldingSection index={4} title="Light" defaultOpen summary={set.shadows ? `Sun ${FORMAT.sunAngle(sunBearing(set))} at ${FORMAT.sunHeight(set.sunHeight)}` : 'No shadows'}>
       <KeyGrid className="mt-0 mb-4">
         <BoolSetting name="shadows" label="Shadows" />
         <BoolSetting name="shadeWalls" label="Shade walls" />
+        <BoolSetting name="autoSun" label="Automatic sun" />
       </KeyGrid>
-      <NumberSetting name="sunAngle" label="Sun direction" min={0} max={359} step={1} />
+      {set.autoSun
+        ? <Hint>Sun from the {set.center[1] >= 0 ? 'south-east' : 'north-east'}, fixed to the map.</Hint>
+        : <NumberSetting name="sunAngle" label="Sun direction" min={0} max={359} step={1} hint="Clockwise from the top of the view. The section summary shows the compass bearing." />}
       <NumberSetting name="sunHeight" label="Sun height" min={12} max={75} step={1} hint="A low sun casts long shadows." />
     </FoldingSection>
   );

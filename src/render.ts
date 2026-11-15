@@ -15,7 +15,7 @@ import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
-import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
+import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
@@ -91,7 +91,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.layer = part ? `${layer}:${part}` : layer;
     try { at(layer, draw); } finally { paper.penOverride = undefined; paper.layer = ''; }
   };
-  const A = ((set.bearing + set.sunAngle) * Math.PI) / 180;
+  const A = (sunBearing(set) * Math.PI) / 180;
   const sun: [number, number] = [Math.sin(A), Math.cos(A)];
   // Builders put more windows on the side facing the equator, the more so away from the tropics.
   const lat = set.center[1];

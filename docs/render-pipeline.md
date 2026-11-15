@@ -16,7 +16,7 @@ Most drawing functions take `B: Build` (`src/buildings.ts`) first:
 type Build = { cam; set; style; sun; left; key };
 ```
 
-`sun` is a horizontal unit vector toward the sun; `left` means traffic keeps left; `key` gives the stable position key for `hash()`.
+`sun` is a horizontal unit vector toward the sun; `left` means traffic keeps left; `key` gives the stable position key for `hash()`. `sunBearing(set)` supplies its compass bearing: with `autoSun` on (the default), 135° in the northern hemisphere and 45° in the southern hemisphere, independent of camera rotation. Manual lighting retains the view-relative `sunAngle`, added to the camera bearing. Cast shadows and wall tone use this same vector.
 
 ## Passes
 

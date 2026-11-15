@@ -472,7 +472,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Shaded walls',
     source: ['inferred'],
     what: 'Walls turned from the sun are hatched with upright strokes in the shadow pen.',
-    how: 'From the sun direction setting, wall by wall.',
+    how: 'From the sun direction setting, wall by wall. Walls nearly parallel to the sunlight stay plain; tone grows denser as a wall turns away from the sun, independently of wall size.',
     needs: ['shadeWalls'],
     strokes: ['shadeWalls'],
   },

@@ -30,6 +30,23 @@ function share(set: Settings): Settings {
 }
 
 describe('share links', () => {
+  test('automatic and manual sun settings round-trip, including a retained manual angle', () => {
+    for (const autoSun of [false, true]) {
+      const set = { ...base(), autoSun, sunAngle: 123 };
+      expect(share(set)).toEqual(set);
+    }
+  });
+
+  test('older custom sun directions keep manual lighting', () => {
+    loc.hash = '#47/9/35/1000/1/Mollis/sunAngle=123';
+    expect(loadSettings()).toMatchObject({ autoSun: false, sunAngle: 123 });
+    loc.hash = '';
+    store.set('isometrictown:settings', JSON.stringify({ sunAngle: 123 }));
+    expect(loadSettings()).toMatchObject({ autoSun: false, sunAngle: 123 });
+    store.set('isometrictown:settings', JSON.stringify({ sunAngle: 55 }));
+    expect(loadSettings().autoSun).toBe(true);
+  });
+
   test('defaults travel as a short link', () => {
     persist(base());
     expect(loc.hash).toBe('#47.09340/9.07440/35/1000/1/Mollis/');
