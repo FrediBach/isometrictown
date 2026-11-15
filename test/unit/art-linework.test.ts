@@ -7,7 +7,7 @@ import { castShadows, drawGround, FIELD, GARDEN, parkGrass, type Ground } from '
 import { treeSprite, type Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
-import { patch } from '@/rng';
+import { hash, patch } from '@/rng';
 import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, SHADOWS, type Settings } from '@/settings';
 import { curbs, fillRoads, footpaths, pathClearance, railways } from '@/streets';
 import { STYLES } from '@/styles';
@@ -614,4 +614,43 @@ test('path clearance removes the tiny shadow fragments it separates', () => {
   const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(181.25, 110), ...B.cam.ground(181.25, 150)] }]);
   castShadows(paper, M, mask);
   expect(paper.pens[SHADOWS]).toHaveLength(0);
+});
+
+/** A single eligible crossing, with unmarked branches establishing its junction. */
+function zebraSample(penWidth: number, bearing: number, detail = 1, tilt = 32) {
+  const seed = Array.from({ length: 64 }, (_, i) => i).find((i) => hash(0, 0, i, 430) <= 0.6)!;
+  const B = build({ scale: 500, penWidth, bearing, detail, seed, tilt });
+  B.key = () => [0, 0];
+  const paper = new Paper(B.cam);
+  const M = { road: paper.mask(), foot: paper.mask() } as Masks;
+  M.road.fill(1);
+  paper.finishDepth();
+  const lines = vi.spyOn(paper, 'line3');
+  markings(B, paper, [
+    { kind: 'road', cls: 'tertiary', width: 12, pts: [0, 0, 60, 0] },
+    { kind: 'road', cls: 'minor', width: 6, pts: [0, 0, 0, 60] },
+    { kind: 'road', cls: 'minor', width: 6, pts: [0, 0, -60, 0] },
+  ], M);
+  return { B, lines: lines.mock.calls.map((call) => call[1]) };
+}
+
+test.each([0.35, 0.7])('crossings keep centred, separated stripes with a %s mm pen', (penWidth) => {
+  for (const detail of [1, 2]) for (const bearing of [0, 30, 90]) {
+    const { B, lines } = zebraSample(penWidth, bearing, detail);
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines[0][1] + lines.at(-1)![1]).toBeCloseTo(0);
+    for (let i = 1; i < lines.length; i++) {
+      const a = lines[i - 1], b = lines[i], c = B.cam;
+      const dx = c.sx(a[3], a[4]) - c.sx(a[0], a[1]);
+      const dy = c.sy(a[3], a[4], 0) - c.sy(a[0], a[1], 0);
+      const nx = c.sx(b[0], b[1]) - c.sx(a[0], a[1]);
+      const ny = c.sy(b[0], b[1], 0) - c.sy(a[0], a[1], 0);
+      expect(Math.abs(dx * ny - dy * nx) / Math.hypot(dx, dy)).toBeGreaterThanOrEqual(2 * penWidth - 1e-8);
+    }
+  }
+});
+
+test('crossings omit groups with too few stripes or too little projected length', () => {
+  expect(zebraSample(2, 0, 2, 15).lines).toHaveLength(0);
+  expect(zebraSample(0.7, 90, 2, 5).lines).toHaveLength(0);
 });

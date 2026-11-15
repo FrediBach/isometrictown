@@ -645,7 +645,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Road markings and lights',
     source: ['inferred'],
     what: 'Centre dashes on main roads, zebra crossings a little way in from junctions, and traffic lights on the kerb to the right of traffic heading in.',
-    how: 'Motorways to tertiary roads at least 10 m wide get centre dashes. Zebras go near junctions of three or more ways, six in ten of them; busier classes get lights at their junctions.',
+    how: 'Motorways to tertiary roads at least 10 m wide get centre dashes. Zebras go near junctions of three or more ways, six in ten of them, where at least three stripes fit with clear projected spacing; busier classes get lights at their junctions.',
     needs: ['markings'],
     lod: ['centreLine', 'zebra'],
     strokes: ['=markings'],

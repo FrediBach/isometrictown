@@ -757,7 +757,6 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
         paper.line3(LINEWORK, [box[0], box[1], 2.2, box[2], box[3], 2.2, box[2], box[3], 3.3, box[0], box[1], 3.3], paper.seen, true);
       }
     }
-    const hw = w.width / 2;
     for (const [isJ, t] of [
       [j0, 5],
       [j1, L - 5],
@@ -767,9 +766,22 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       const [k0, k1] = B.key(x, y);
       // One zebra per spot, even where a road is split into pieces or carriageways.
       if (hash(k0, k1, B.set.seed, 430) > 0.6 || zebras.some(([zx, zy]) => Math.hypot(zx - x, zy - y) < 14)) continue;
+      const cam = B.cam;
+      const dx = cam.sx(x + ux, y + uy) - cam.sx(x, y);
+      const dy = cam.sy(x + ux, y + uy, 0) - cam.sy(x, y, 0);
+      const along = Math.hypot(dx, dy);
+      if (!shows(cam, LOD.zebra, 3 * along / cam.s) || 3 * along < 2 * cam.nib) continue;
+      const nx = cam.sx(x - uy, y + ux) - cam.sx(x, y);
+      const ny = cam.sy(x - uy, y + ux, 0) - cam.sy(x, y, 0);
+      const across = Math.abs(dx * ny - dy * nx) / along;
+      if (across < 1e-9) continue;
+      const step = Math.max(1.3, cam.gap(0.8) / across, 2 * cam.nib / across);
+      const count = Math.floor((w.width - 2) / step) + 1;
+      // Keep a centred group with clear paper between stripes; a pair no longer reads as a crossing.
+      if (count < 3) continue;
       zebras.push([x, y]);
-      // One stroke per stripe, so the crossing stays light on paper.
-      for (let v = -hw + 1.0; v <= hw - 1.0; v += 1.3) {
+      for (let i = 0; i < count; i++) {
+        const v = (i - (count - 1) / 2) * step;
         const [ax, ay, bx, by] = place(x, y, ux, uy, [
           [-1.5, v],
           [1.5, v],
