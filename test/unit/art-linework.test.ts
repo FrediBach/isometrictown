@@ -3,7 +3,7 @@ import { car, newSolid, type Build } from '@/buildings';
 import { Camera } from '@/camera';
 import { facadeLines, PLAIN, type Wall } from '@/facades';
 import { markings } from '@/infra';
-import { parkGrass } from '@/ground';
+import { drawGround, FIELD, GARDEN, parkGrass, type Ground } from '@/ground';
 import { treeSprite, type Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
@@ -338,4 +338,60 @@ test.each([0.35, 0.7])('park tone leaves a continuous path corridor with a %s mm
   B.set.paths = true;
   expect(pathClearance(B, paper, [{ ...ways[0], sub: 'platform' }]).some(Boolean)).toBe(false);
   expect(pathClearance(B, paper, [{ ...ways[0], pts: [0, 0, 0.1, 0] }]).some(Boolean)).toBe(false);
+});
+
+
+function textureGround(paper: Paper): Ground {
+  return { land: paper.mask(), farms: paper.mask(), farmShapes: [], covers: [], cemeteries: [], pitches: [], gardens: false, inTown: () => false };
+}
+
+test.each([0.35, 0.7])('paths omit whole lawn and wild-country symbols with a %s mm pen', (penWidth) => {
+  for (const garden of [false, true]) {
+    const B = build({ penWidth, paths: true });
+    const draw = (clear: boolean) => {
+      const paper = new Paper(B.cam);
+      const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+      const G = textureGround(paper);
+      if (garden) { G.land.fill(GARDEN); G.gardens = true; }
+      const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(200, 20), ...B.cam.ground(200, 263)] }];
+      const mask = clear ? pathClearance(B, paper, ways) : undefined;
+      paper.finishDepth();
+      drawGround(B, paper, M, G, B.toAbs, B.toAbs, mask);
+      return paper.pens.flat();
+    };
+    const before = draw(false), after = draw(true);
+    expect(after.length).toBeGreaterThan(10);
+    expect(after.length).toBeLessThan(before.length);
+    const whole = new Set(before.map((line) => JSON.stringify(line)));
+    for (const line of after) {
+      expect(whole.has(JSON.stringify(line))).toBe(true);
+      for (let i = 0; i < line.length; i += 2) expect(Math.abs(line[i] - 200)).toBeGreaterThan(penWidth * 1.5);
+    }
+  }
+});
+
+test('field rows break at path corridors while field boundaries stay intact', () => {
+  const B = build({ paths: true, scale: 1000 });
+  const paper = new Paper(B.cam);
+  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+  const G = textureGround(paper);
+  const shape = [{ pts: [-50, -50, 50, -50, 50, 50, -50, 50], seam: new Uint8Array(4) }];
+  G.covers.push({ shape, code: FIELD, rect: { cx: 0, cy: 0, ux: 1, uy: 0, L: 100, w: 100 } });
+  G.farmShapes.push(shape);
+  paper.fillMask(G.land, [shape[0].pts], FIELD);
+  paper.fillMask(G.farms, [shape[0].pts]);
+  const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(210, 20), ...B.cam.ground(210, 263)] }]);
+  paper.tally = new Map();
+  paper.layer = 'ground';
+  paper.finishDepth();
+  drawGround(B, paper, M, G, B.toAbs, B.toAbs, mask);
+  const rows = paper.tally.get('ground/fields')!;
+  expect(rows.length).toBeGreaterThan(10);
+  for (const line of rows) {
+    for (let i = 0; i < line.length; i += 2) expect(Math.abs(line[i] - 210)).toBeGreaterThan(B.cam.nib * 1.5);
+  }
+  expect(paper.tally.get('ground/farm-edges')!.some((line) => {
+    const xs = line.filter((_, i) => i % 2 === 0);
+    return Math.min(...xs) < 210 && Math.max(...xs) > 210;
+  })).toBe(true);
 });

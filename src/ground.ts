@@ -214,7 +214,7 @@ export const WILD: Record<string, { tuft: number; dot: number; trees: number; bu
 export const WILD_DEFAULT = { tuft: 0.4, dot: 0, trees: 0.06, bush: 0.06, conifer: 0.2 };
 
 /** A light texture of tufts and dots over open country the map leaves blank. */
-function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): void {
+function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], paths?: Uint8Array): void {
   const { cam, set } = B;
   const w = WILD[B.style.id] ?? WILD_DEFAULT;
   const box = cam.region(0);
@@ -240,9 +240,12 @@ function wildGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: numb
       const u = r(3);
       if (u < w.tuft) {
         const [X, Y] = toAbs(x, y);
-        if (r(5) < Math.max(0, (patch(X / (step * 5), Y / (step * 5), set.seed, 7931) - 0.25) * 1.8))
-          paper.sheet(GREENERY, (r(4) < 0.5 ? TUFT : SMALL_TUFT).flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
-      } else if (u < w.tuft + w.dot) paper.fine(() => paper.sheet(LINEWORK, DOT.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep));
+        const shape = r(4) < 0.5 ? TUFT : SMALL_TUFT;
+        if (r(5) < Math.max(0, (patch(X / (step * 5), Y / (step * 5), set.seed, 7931) - 0.25) * 1.8)
+          && clearTexture(paper, paths, sx, sy, shape, k))
+          paper.sheet(GREENERY, shape.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
+      } else if (u < w.tuft + w.dot && clearTexture(paper, paths, sx, sy, DOT, 1))
+        paper.fine(() => paper.sheet(LINEWORK, DOT.flatMap(([dx, dy]) => [sx + dx, sy + dy, d]), keep));
     }
 }
 
@@ -461,9 +464,9 @@ export function orchardTrees(B: Build, paper: Paper, G: Ground, M: Masks): Tree[
 }
 
 /** Draw every ground texture. Call after the depth buffer is finished. */
-export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): void {
+export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], paths?: Uint8Array): void {
   const open = (x: number, y: number) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y);
-  const flat = (code: number): Test => (x, y, d) => paper.at(G.land, x, y) === code && open(x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, d);
+  const flat = (code: number): Test => (x, y, d) => paper.at(G.land, x, y) === code && !(paths && paper.on(paths, x, y)) && open(x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, d);
   const standing: Test = (x, y, d) => open(x, y) && paper.seen(x, y, d);
 
   paper.facet('farm-edges', () => outline(paper, GREENERY, G.farmShapes, G.farms, open));
@@ -475,8 +478,8 @@ export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (
     else if (c.code === ORCHARD && !orchardsAsTrees(B)) paper.facet('orchards', () => dotted(B, paper, c, flat(ORCHARD)));
   }
 
-  symbols(B, paper, M, G, toAbs, fromAbs);
-  paper.facet('open-country', () => wildGround(B, paper, M, G, toAbs, fromAbs));
+  symbols(B, paper, M, G, toAbs, fromAbs, paths);
+  paper.facet('open-country', () => wildGround(B, paper, M, G, toAbs, fromAbs, paths));
   paper.facet('cemeteries', () => {
     for (const c of G.cemeteries) cemetery(B, paper, M, G, c.shape, c.rect, standing);
   });
@@ -553,8 +556,21 @@ function vineyard(B: Build, paper: Paper, c: Cover, ground: Test, standing: Test
   });
 }
 
+/** Keep a small texture symbol whole, or leave it out if any stroke touches a path corridor. */
+function clearTexture(paper: Paper, paths: Uint8Array | undefined, sx: number, sy: number, shape: number[][], k: number): boolean {
+  if (!paths) return true;
+  for (let i = 1; i < shape.length; i++) {
+    const [ax, ay] = shape[i - 1], [bx, by] = shape[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) * k / (paper.cam.nib * 0.5)));
+    for (let j = 0; j <= n; j++) {
+      if (paper.on(paths, sx + (ax + (bx - ax) * j / n) * k, sy + (ay + (by - ay) * j / n) * k)) return false;
+    }
+  }
+  return true;
+}
+
 /** Tufts on meadows, marsh dashes on wetland and stipple on sand, on a grid fixed to the map. */
-function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): void {
+function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number], paths?: Uint8Array): void {
   const { cam, set } = B;
   const box = cam.region(0);
   const has = new Set<number>(G.covers.map((c) => c.code));
@@ -562,6 +578,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
   // Symbols grow with a broad pen, as their spacing does, so they still read as what they are.
   const k = Math.max(1, cam.nib / REF_NIB);
   const mark = (pen: number, sx: number, sy: number, d: number, shape: number[][]) => {
+    if (!clearTexture(paper, paths, sx, sy, shape, k)) return;
     const draw = () => paper.sheet(pen, shape.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), keep);
     // Stipple is meant to be dots.
     if (shape === DOT) paper.fine(draw);

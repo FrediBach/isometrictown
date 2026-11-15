@@ -58,7 +58,7 @@ Balcony railings use `balconyRail` to test the perpendicular projected height. S
 
 Open shutters leave 1.5 physical pen widths of horizontal clearance from the window frame. Panels are trimmed towards their existing outer edges, then reduced to a single coloured stroke when their clear width fails `shutter`; if even the outer edge would touch the frame, the shutter is omitted. Closed shutters retain their coloured outline but draw a centre seam only when each half has enough clear width after allowing for ink.
 
-Park hatching leaves two physical pen widths from a visible path centre line, with extra room for stair treads and paired wheel ruts. The corridor is continuous through dash gaps and uses the paths layer’s Detail and length threshold. Disabling paths restores the hatch. This clearance affects park tone only; field textures, grass tufts and shadows retain their existing rules.
+Park hatching leaves two physical pen widths from a visible path centre line, with extra room for stair treads and paired wheel ruts. The corridor is continuous through dash gaps and uses the paths layer’s Detail and length threshold. Disabling paths restores the hatch. The same corridor interrupts flat crop rows and ground textures. Small symbols (tufts, marsh marks, sand stipple, rocks and crevasses) are omitted whole when a stroke touches it, so clearing the path does not leave half-symbols. Farm outlines, standing objects, sports markings and shadows retain their existing rules.
 
 ## What `Paper` does for every stroke
 
