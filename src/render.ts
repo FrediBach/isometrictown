@@ -15,7 +15,7 @@ import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { patch, sequence } from './rng';
 import { LINEWORK, SHADOWS, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
-import { curbs, fillRoads, footpaths, lamps, outline, railways } from './streets';
+import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
 import { trains } from './trains';
@@ -334,8 +334,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     });
     paper.facet('pools', () => pools(paper, M, town.pools));
   });
+  const paths = set.parks && set.paths ? at('paths', () => pathClearance(B, paper, town.ways)) : undefined;
   if (set.parks) withPen('parks', () => {
-    paper.facet('grass', () => parkGrass(paper, M, G));
+    paper.facet('grass', () => parkGrass(paper, M, G, paths));
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });

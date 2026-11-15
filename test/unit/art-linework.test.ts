@@ -9,7 +9,7 @@ import { Paper } from '@/raster';
 import { pitchedRoof } from '@/roofs';
 import { patch } from '@/rng';
 import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, type Settings } from '@/settings';
-import { curbs, fillRoads } from '@/streets';
+import { curbs, fillRoads, pathClearance } from '@/streets';
 import { STYLES } from '@/styles';
 import type { Way } from '@/tiles';
 
@@ -314,4 +314,28 @@ test('a right-angle kerb emits only the outside arc at its bend', () => {
     }
   }
   expect(arcs).toBeGreaterThan(0);
+});
+
+
+test.each([0.35, 0.7])('park tone leaves a continuous path corridor with a %s mm pen', (penWidth) => {
+  const B = build({ penWidth, paths: true });
+  const paper = new Paper(B.cam);
+  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+  const rect = [180, 120, 220, 120, 220, 150, 180, 150];
+  paper.fillMask(M.green, [rect.flatMap((v, i) => i % 2 ? [] : B.cam.ground(v, rect[i + 1]))]);
+  const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(200, 110), ...B.cam.ground(200, 160)] }];
+  const mask = pathClearance(B, paper, ways);
+  paper.finishDepth();
+  parkGrass(paper, M, null, mask);
+  expect(paper.pens[GREENERY].length).toBeGreaterThan(5);
+  for (const line of paper.pens[GREENERY]) {
+    for (let i = 0; i < line.length; i += 2) expect(Math.abs(line[i] - 200)).toBeGreaterThan(penWidth * 1.5);
+  }
+  expect(paper.on(mask, 200, 135)).toBe(true);
+  expect(paper.on(mask, 200 + penWidth * 3, 135)).toBe(false);
+  B.set.paths = false;
+  expect(pathClearance(B, paper, ways).some(Boolean)).toBe(false);
+  B.set.paths = true;
+  expect(pathClearance(B, paper, [{ ...ways[0], sub: 'platform' }]).some(Boolean)).toBe(false);
+  expect(pathClearance(B, paper, [{ ...ways[0], pts: [0, 0, 0.1, 0] }]).some(Boolean)).toBe(false);
 });

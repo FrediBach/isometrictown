@@ -242,7 +242,42 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
   }
 }
 
-/** Footpaths as dashed lines, away from roads and water. */
+/** Reserve a continuous, pen-scaled corridor through park tone for drawable paths. */
+export function pathClearance(B: Build, paper: Paper, ways: Way[]): Uint8Array {
+  const mask = paper.mask();
+  if (!B.set.paths) return mask;
+  const cam = B.cam;
+  const fill = (p: number[]) => {
+    const ground: number[] = [];
+    for (let i = 0; i < p.length; i += 2) ground.push(...cam.ground(p[i], p[i + 1]));
+    paper.fillMask(mask, [ground]);
+  };
+  for (const w of ways) {
+    if (!visiblePath(B, w)) continue;
+    // Treads and wheel ruts need room on both sides of the centre line.
+    const spread = w.sub === 'steps' && shows(cam, LOD.steps) ? 0.9
+      : w.cls === 'track' && shows(cam, LOD.ruts) ? 0.8 : 0;
+    const r = cam.nib * 2 + spread * cam.s;
+    const p = w.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const ax = cam.sx(p[i], p[i + 1]), ay = cam.sy(p[i], p[i + 1], 0);
+      const bx = cam.sx(p[i + 2], p[i + 3]), by = cam.sy(p[i + 2], p[i + 3], 0);
+      const len = Math.hypot(bx - ax, by - ay);
+      if (len < 1e-6) continue;
+      const nx = -(by - ay) / len * r, ny = (bx - ax) / len * r;
+      fill([ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny]);
+      fill(polygon(ax, ay, r, 12));
+      fill(polygon(bx, by, r, 12));
+    }
+  }
+  return mask;
+}
+
+function visiblePath(B: Build, w: Way): boolean {
+  return w.kind === 'path' && w.sub !== 'platform' && shows(B.cam, LOD.footpath, pathLength(w.pts));
+}
+
+/** Dashed paths, paired track ruts and stair treads. */
 export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const s = B.cam.s;
   // Dashes and gaps open out with a broad pen, so the gaps don't close up.
@@ -250,8 +285,7 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const gap = B.cam.tone(0.8) / s;
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
-    if (w.kind !== 'path' || w.sub === 'platform') continue;
-    if (!shows(B.cam, LOD.footpath, pathLength(w.pts))) continue;
+    if (!visiblePath(B, w)) continue;
     if (w.sub === 'steps' && shows(B.cam, LOD.steps)) {
       // Steps: treads across the path, spread out where real treads would run together.
       walk(w.pts, 0.2, spaced(B.cam, 0.55, 0.8), 0.2, (x, y, ux, uy) => {

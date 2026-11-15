@@ -373,13 +373,13 @@ export function lightly(G: Ground, paper: Paper, x: number, y: number): boolean 
 }
 
 /** Quiet park tone, inset from boundaries and visible objects so their outlines stay separate. */
-export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null): void {
+export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array): void {
   const cam = paper.cam;
   const inset = cam.nib * 1.5;
   const clear = (x: number, y: number) => paper.on(M.green, x, y)
     && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y)
     && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, cam.groundDepth(y));
-  const grass = (x: number, y: number) => clear(x, y)
+  const grass = (x: number, y: number) => !(paths && paper.on(paths, x, y)) && clear(x, y)
     && clear(x - inset, y) && clear(x + inset, y) && clear(x, y - inset) && clear(x, y + inset);
   paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
   // Every other line shares the same phase under headstones and pitch markings.

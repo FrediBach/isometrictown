@@ -677,7 +677,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'streets',
     name: 'Footpaths, tracks and steps',
     source: ['map'],
-    what: 'Footpaths are dashed, farm tracks two wheel ruts, steps have treads.',
+    what: 'Footpaths are dashed, farm tracks two wheel ruts, steps have treads. Park hatching leaves a narrow clear corridor around them.',
     how: 'Path, footway, cycleway, bridleway, track and steps from the map, kept off roads and water. Short stubs go first as the scale coarsens.',
     needs: ['paths'],
     lod: ['footpath', 'ruts', 'steps'],
