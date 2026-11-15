@@ -14,8 +14,10 @@ const ZOOM = 15;
 const MAX_CELLS = 24;
 const MAX_CACHED = 400;
 const TIMEOUT_MS = 9000;
-/** After a failure, leave Overpass alone for a while. */
+/** Leave a failing mirror alone, with longer pauses for repeated failures. */
 const BACKOFF_MS = 120000;
+const MAX_BACKOFF_MS = 1800000;
+const endpoints = ENDPOINTS.map((url) => ({ url, pausedUntil: 0, backoff: BACKOFF_MS }));
 
 const TYPES = 'house|detached|semidetached_house|bungalow|cabin|farm|terrace|apartments|residential|hotel|office|commercial|retail|garage|garages|shed|hut|carport|industrial|warehouse|barn|farm_auxiliary|school|university|college|hospital|public|civic|government|train_station|church|cathedral|chapel|mosque|temple|shrine|synagogue';
 
@@ -24,7 +26,6 @@ type Abs = { X: number; Y: number; building?: string; roof?: string; across?: bo
 const cache = new Map<string, Abs[]>();
 /** Cells with a request on the way, so quick re-renders don't ask twice. */
 const pending = new Map<string, Promise<void>>();
-let pausedUntil = 0;
 
 type Element = { center?: { lat: number; lon: number }; tags?: Record<string, string> };
 
@@ -32,21 +33,33 @@ async function query(s: number, w: number, n: number, e: number): Promise<Elemen
   const bbox = `${s.toFixed(6)},${w.toFixed(6)},${n.toFixed(6)},${e.toFixed(6)}`;
   const q = `[out:json][timeout:15];(way["building"]["roof:shape"](${bbox});way["building"]["roof:orientation"](${bbox});way["building"~"^(${TYPES})$"](${bbox}););out tags center;`;
   let last: unknown;
-  for (const url of ENDPOINTS) {
+  for (const endpoint of endpoints) {
+    if (Date.now() < endpoint.pausedUntil) continue;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    let retryAt = 0;
     try {
-      const r = await fetch(url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctrl.signal });
+      const r = await fetch(endpoint.url, { method: 'POST', body: new URLSearchParams({ data: q }), signal: ctrl.signal });
+      const retry = r.headers.get('Retry-After');
+      if (retry) {
+        const seconds = Number(retry);
+        retryAt = Number.isFinite(seconds) ? Date.now() + Math.max(0, seconds) * 1000 : Date.parse(retry);
+        if (!Number.isFinite(retryAt)) retryAt = 0;
+      }
       if (!r.ok) throw new Error(`Overpass ${r.status}`);
       const j = (await r.json()) as { elements?: Element[] };
+      endpoint.pausedUntil = 0;
+      endpoint.backoff = BACKOFF_MS;
       return j.elements ?? [];
     } catch (err) {
       last = err;
+      endpoint.pausedUntil = Math.max(Date.now() + endpoint.backoff, retryAt);
+      endpoint.backoff = Math.min(endpoint.backoff * 2, MAX_BACKOFF_MS);
     } finally {
       clearTimeout(timer);
     }
   }
-  throw last;
+  throw last ?? new Error('Overpass mirrors are cooling down');
 }
 
 const cellKey = (key: string) => `${LOCAL}overpass/${ZOOM}/${key}`;
@@ -96,7 +109,7 @@ export async function loadTags(frame: Frame, box: [number, number, number, numbe
     }),
   );
 
-  if (missing.length && Date.now() > pausedUntil) waits.add(fetchCells(missing, n, cell, cellY));
+  if (missing.length && endpoints.some((endpoint) => Date.now() >= endpoint.pausedUntil)) waits.add(fetchCells(missing, n, cell, cellY));
   await Promise.all(waits);
   // Overpass couldn't be reached: an old answer beats none.
   for (const [k, v] of stale) if (!cache.has(k)) remember(k, v);
@@ -147,7 +160,7 @@ function fetchCells(missing: [number, number][], n: number, cell: (mx: number) =
         void write(META, cellKey(k), JSON.stringify(v), 'application/json');
       }
     } catch {
-      pausedUntil = Date.now() + BACKOFF_MS;
+      // Each failed mirror has its own cooldown; stale tags remain usable below.
     }
   })().finally(() => {
     for (const [x, y] of missing) pending.delete(`${x}/${y}`);

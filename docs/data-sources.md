@@ -27,7 +27,8 @@ To use a new OpenMapTiles layer or attribute, decode it in `decode()`, add a fie
 ## Overpass (`osm.ts`)
 
 - Queried per z15 cell (max 24 cells), with an in-memory cache and a persistent one, and de-duplicated in-flight requests.
-- Tries each mirror in turn, 9 s timeout each; after a failure, Overpass is left alone for 2 minutes.
+- Tries available mirrors in turn, 9 s timeout each. Each failed mirror is skipped for 2 minutes even when a fallback succeeds. Consecutive failures double its pause up to 30 minutes; success resets it. A readable `Retry-After` header can extend the pause. Cooldowns live in the worker and reset on reload.
+- When all mirrors are cooling down, no requests are sent; cached tags and inference keep the drawing working.
 - The worker waits at most `TAG_GRACE_MS` (2.5 s) after the tiles are in. Late tags are simply missed this time and are cached for the next drawing.
 - `set.osmTags` turns it off.
 
