@@ -70,6 +70,43 @@ export function channelField(paths: number[][], distant = false): (x: number, y:
   };
 }
 
+/** Blend connected river and lake surfaces across a band in sheet millimetres. */
+export function riverBlend(paper: Paper, river: Uint8Array, lake: Uint8Array, width: number): (x: number, y: number) => number {
+  const step = Math.min(1, width / 8), W = Math.ceil((paper.x1 - paper.x0) / step), H = Math.ceil((paper.y1 - paper.y0) / step);
+  const kind = new Uint8Array(W * H), distance = new Float32Array(W * H).fill(width);
+  const queue = new Int32Array(W * H);
+  let head = 0, tail = 0;
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const x = paper.x0 + (i + 0.5) * step, y = paper.y0 + (j + 0.5) * step;
+    kind[j * W + i] = paper.on(lake, x, y) ? 2 : paper.on(river, x, y) ? 1 : 0;
+  }
+  // Only a shared wet edge starts a transition; opposite banks do not blend across land.
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const k = j * W + i;
+    if (!kind[k]) continue;
+    if ((i > 0 && kind[k - 1] && kind[k - 1] !== kind[k]) || (i + 1 < W && kind[k + 1] && kind[k + 1] !== kind[k])
+      || (j > 0 && kind[k - W] && kind[k - W] !== kind[k]) || (j + 1 < H && kind[k + W] && kind[k + W] !== kind[k])) {
+      distance[k] = 0; queue[tail++] = k;
+    }
+  }
+  while (head < tail) {
+    const k = queue[head++], i = k % W, j = Math.floor(k / W), d = distance[k] + step;
+    if (d >= width) continue;
+    for (let side = 0; side < 4; side++) {
+      const n = side === 0 ? (i > 0 ? k - 1 : -1) : side === 1 ? (i + 1 < W ? k + 1 : -1)
+        : side === 2 ? (j > 0 ? k - W : -1) : (j + 1 < H ? k + W : -1);
+      if (n < 0 || !kind[n] || distance[n] <= d) continue;
+      distance[n] = d; queue[tail++] = n;
+    }
+  }
+  return (x, y) => {
+    const i = Math.max(0, Math.min(W - 1, Math.floor((x - paper.x0) / step)));
+    const j = Math.max(0, Math.min(H - 1, Math.floor((y - paper.y0) / step))), k = j * W + i;
+    const t = 0.5 + (paper.on(lake, x, y) ? -1 : 1) * distance[k] / (2 * width);
+    return t * t * (3 - 2 * t);
+  };
+}
+
 /** Distinct sea crests, calm lake ripples and strokes following river channels. */
 export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water' | 'waterCls' | 'streams'>, streams: Shape[]): void {
   const cam = paper.cam, seed = B.set.seed;
@@ -93,6 +130,7 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
   });
   const mappedRiver = river.slice();
   for (const shape of streams) paper.fillMask(river, shape.map((r) => r.pts));
+  const blend = riverBlend(paper, river, lake, cam.gap(12));
   const kindAt = (x: number, y: number) => paper.on(sea, x, y) ? 'ocean' : paper.on(lake, x, y) ? 'lake' : 'river';
   const inset = cam.nib * 1.5;
   const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y)
@@ -103,27 +141,20 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
   // Anchor the sheet lattice to projected absolute metres, so panning does not reshuffle it.
   const [X, Y] = B.toAbs(0, 0), [X1] = B.toAbs(1, 0), k = 1 / (X1 - X);
   const ox = cam.sx(-X * k, -Y * k), oy = cam.sy(-X * k, -Y * k, 0);
-  for (const kind of ['lake', 'ocean'] as const) {
-    const ocean = kind === 'ocean', pitch = cam.gap(ocean ? 2.5 : 2.6), step = cam.gap(ocean ? 14 : 10);
-    for (let j = Math.floor((paper.y0 - oy) / pitch) - 1; j <= Math.ceil((paper.y1 - oy) / pitch); j++) {
-      const y = oy + (j + 0.5) * pitch;
-      for (let i = Math.floor((paper.x0 - ox) / step) - 1; i <= Math.ceil((paper.x1 - ox) / step); i++) {
-        const r = hash(i, j, seed, 7940), x = ox + (i + hash(j, seed, 7941) * 0.8) * step;
-        const len = step * (0.65 + r * 0.25), amp = cam.gap(ocean ? 0.28 + r * 0.18 : 0.025 + r * 0.035);
-        const pts: number[] = [], n = Math.ceil(len / 0.3);
-        for (let p = 0; p <= n; p++) {
-          const t = p / n, yy = y + Math.sin(t * Math.PI * 2) * amp;
-          pts.push(x + t * len, yy, cam.groundDepth(yy));
-        }
-        paper.sheet(WATER, pts, (x, y, d) => kindAt(x, y) === kind && keep(x, y, d));
-      }
-    }
-  }
   const centre = channelField(town.streams.map((s) => project(s.pts))), bank = channelField(banks, true);
   // River and canal centre lines take priority within mapped river areas. A small tributary
   // must not turn the main current sideways just because its endpoint is closer to a bank.
   const main = channelField(town.streams.filter((s) => s.width >= 7).map((s) => project(s.pts)));
-  const direction = (x: number, y: number) => (paper.on(mappedRiver, x, y) ? main(x, y) : undefined) ?? centre(x, y) ?? bank(x, y);
+  // Both textures turn through the same field at a mouth, avoiding a crossed hatch.
+  const channel = (x: number, y: number) => (paper.on(mappedRiver, x, y) ? main(x, y) : undefined) ?? centre(x, y) ?? bank(x, y);
+  const direction = (x: number, y: number): [number, number] | undefined => {
+    const dir = channel(x, y);
+    if (!dir) return undefined;
+    const weight = blend(x, y);
+    if (weight === 1) return dir;
+    const angle = Math.atan2(dir[1] * (dir[0] < 0 ? -1 : 1), Math.abs(dir[0])) * weight;
+    return [Math.cos(angle), Math.sin(angle)];
+  };
   const gap = cam.gap(1.2), occupied = new Map<string, number[]>();
   const cellKey = (i: number, j: number) => `${i},${j}`;
   const free = (x: number, y: number) => {
@@ -135,13 +166,48 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
     }
     return true;
   };
-  const keepRiver = (x: number, y: number) => paper.on(river, x, y) && kindAt(x, y) === 'river' && keep(x, y, cam.groundDepth(y));
+  for (const kind of ['lake', 'ocean'] as const) {
+    const ocean = kind === 'ocean', pitch = cam.gap(ocean ? 2.5 : 2.6), step = cam.gap(ocean ? 14 : 10);
+    for (let j = Math.floor((paper.y0 - oy) / pitch) - 1; j <= Math.ceil((paper.y1 - oy) / pitch); j++) {
+      const y = oy + (j + 0.5) * pitch;
+      for (let i = Math.floor((paper.x0 - ox) / step) - 1; i <= Math.ceil((paper.x1 - ox) / step); i++) {
+        const r = hash(i, j, seed, 7940), x = ox + (i + hash(j, seed, 7941) * 0.8) * step;
+        const len = step * (0.65 + r * 0.25), amp = cam.gap(ocean ? 0.28 + r * 0.18 : 0.025 + r * 0.035);
+        const pts: number[] = [], n = Math.ceil(len / 0.3);
+        let dx = 0, dy = 0;
+        for (let p = 0; p <= n; p++) {
+          const t = p / n, px = x + t * len + dx, py = y + dy;
+          const yy = py + Math.sin(t * Math.PI * 2) * amp;
+          pts.push(px, yy, cam.groundDepth(yy));
+          const weight = blend(px, py);
+          const dir = !ocean && weight > 0 && weight < 1 && paper.on(M.water, px, py) ? direction(px, py) : undefined;
+          const sign = dir && dir[0] < 0 ? -1 : 1;
+          dx += ((dir ? dir[0] * sign : 1) - 1) * len / n; dy += (dir ? dir[1] * sign : 0) * len / n;
+        }
+        const threshold = hash(i, j, seed, 7945);
+        const accepts = (x: number, y: number, d: number) => (ocean ? kindAt(x, y) === kind
+          : kindAt(x, y) !== 'ocean' && blend(x, y) < threshold) && keep(x, y, d);
+        paper.sheet(WATER, pts, accepts);
+        // Reserve lake strokes before tracing river strokes through the shared band.
+        if (!ocean) for (let p = 0; p < pts.length; p += 3) {
+          const x = pts[p], y = pts[p + 1];
+          if (blend(x, y) === 0 || !accepts(x, y, pts[p + 2])) continue;
+          const key = cellKey(Math.floor((x - ox) / gap), Math.floor((y - oy) / gap));
+          const points = occupied.get(key);
+          if (points) points.push(x, y); else occupied.set(key, [x, y]);
+        }
+      }
+    }
+  }
+  const keepRiver = (x: number, y: number) => (paper.on(river, x, y) || paper.on(lake, x, y)) && kindAt(x, y) !== 'ocean' && keep(x, y, cam.groundDepth(y));
   for (let j = Math.floor((paper.y0 - oy) / gap); j <= Math.ceil((paper.y1 - oy) / gap); j++) {
     for (let i = Math.floor((paper.x0 - ox) / gap); i <= Math.ceil((paper.x1 - ox) / gap); i++) {
       // Break alignment with the seeding lattice without moving decisions when the map pans.
       const x = ox + (i + 0.1 + hash(i, j, seed, 7943) * 0.8) * gap;
       const y = oy + (j + 0.1 + hash(i, j, seed, 7944) * 0.8) * gap;
-      if (!keepRiver(x, y) || !free(x, y)) continue;
+      const threshold = hash(i, j, seed, 7946);
+      const accepts = (x: number, y: number) => blend(x, y) > threshold && keepRiver(x, y);
+      if (!accepts(x, y) || !free(x, y)) continue;
       const first = direction(x, y);
       if (!first) continue;
       const len = cam.gap(3 + hash(i, j, seed, 7942) * 4), ds = Math.min(0.3, gap / 3);
@@ -155,7 +221,7 @@ export function waves(B: Build, paper: Paper, M: Masks, town: Pick<Town, 'water'
           if (!dir) break;
           if (dir[0] * prev[0] + dir[1] * prev[1] < 0) dir = [-dir[0], -dir[1]];
           const nx = px + dir[0] * ds, ny = py + dir[1] * ds;
-          if (!keepRiver(nx, ny) || !free(nx, ny)) break;
+          if (!accepts(nx, ny) || !free(nx, ny)) break;
           arm.push(nx, ny, cam.groundDepth(ny)); length += ds;
           px = nx; py = ny; prev = dir;
         }

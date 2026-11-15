@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { calm } from '@/ships';
 import { Camera } from '@/camera';
 import type { Build } from '@/buildings';
 import type { Masks } from '@/nature';
@@ -6,7 +7,7 @@ import { Paper } from '@/raster';
 import { DEFAULT_SETTINGS, WATER } from '@/settings';
 import { STYLES } from '@/styles';
 import type { Shape, Town } from '@/tiles';
-import { channelField, surfaceKind, waves, waterKind } from '@/water';
+import { channelField, riverBlend, surfaceKind, waves, waterKind } from '@/water';
 
 const shape = (pts: number[]): Shape => [{ pts, seam: new Uint8Array(pts.length / 2) }];
 
@@ -82,4 +83,38 @@ test('river strokes stay long and coverage stays comparable as the channel rotat
     expect(lengths[Math.floor(lengths.length / 2)]).toBeGreaterThan(3);
   }
   expect(Math.max(...counts) / Math.min(...counts)).toBeLessThan(1.5);
+});
+
+
+test('river mouths blend gradually, but a dry bank keeps neighbouring textures separate', () => {
+  const paper = new Paper(new Camera({ ...DEFAULT_SETTINGS, scale: 1000 }));
+  const river = paper.mask(), lake = paper.mask();
+  const fill = (mask: Uint8Array, x0: number, x1: number) => {
+    for (let j = 0; j < paper.H; j++) for (let i = 0; i < paper.W; i++) {
+      const x = paper.x0 + (i + 0.5) / paper.ppm;
+      if (x >= x0 && x < x1) mask[j * paper.W + i] = 1;
+    }
+  };
+  const mid = (paper.x0 + paper.x1) / 2, y = (paper.y0 + paper.y1) / 2;
+  fill(river, paper.x0, mid); fill(lake, mid, paper.x1);
+  const blend = riverBlend(paper, river, lake, 12);
+  const weights = [-16, -8, -2, 2, 8, 16].map(d => blend(mid + d, y));
+  expect(weights[0]).toBe(1); expect(weights[5]).toBe(0);
+  for (let i = 1; i < weights.length; i++) expect(weights[i]).toBeLessThan(weights[i - 1]);
+  river.fill(0); fill(river, paper.x0, mid - 4);
+  const separated = riverBlend(paper, river, lake, 12);
+  expect(separated(mid - 5, y)).toBe(1); expect(separated(mid + 1, y)).toBe(0);
+});
+
+test('ship clearance follows its pointed bow and restores ripples within the distant wake', () => {
+  const paper = new Paper(new Camera({ ...DEFAULT_SETTINGS, scale: 1000, bearing: 0 }));
+  const M = { calm: paper.mask() } as Masks;
+  const hull = [-15, -4.5, 7.5, -4.5, 15, 0, 7.5, 4.5, -15, 4.5];
+  calm(paper, M, 0, 0, 1, 0, 30, 9, 60, hull);
+  const cleared = (x: number, y: number) => paper.on(M.calm, paper.cam.sx(x, y), paper.cam.sy(x, y, 0));
+  expect(cleared(14, 0)).toBe(true);
+  expect(cleared(14, 4)).toBe(false);
+  expect(cleared(-18, 0)).toBe(true);
+  expect(cleared(-40, 0)).toBe(false);
+  expect(cleared(-40, 10)).toBe(false);
 });

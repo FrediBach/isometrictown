@@ -5,6 +5,7 @@ import { LOD, shows } from './lod';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
+import { offsetRing } from './shape';
 import { WATER } from './settings';
 import type { Town } from './tiles';
 import { local } from './vehicles';
@@ -146,12 +147,13 @@ export function ships(B: Build, paper: Paper, town: Town, M: Masks, toAbs: (x: n
             if (!water(px, py) || onMask(paper, M.calm, px, py)) fits = false;
           }
         if (!fits || !shipRoom(water, x, y, head, L, beam)) continue;
-        solids.push(ship(B, kind, x, y, ux, uy, L, beam, h));
+        const vessel = ship(B, kind, x, y, ux, uy, L, beam, h);
+        solids.push(vessel);
         // Big ships out at sea are often lying at anchor; the rest are moving.
         const anchored = cls === 'ocean' && L > 120 && h(8) < 0.3;
         const trail = anchored ? 0 : Math.min(L * 1.4, 260);
         if (trail) wakes.push([x - ux * L * 0.5, y - uy * L * 0.5, ux, uy, trail, beam]);
-        calm(paper, M, x, y, ux, uy, L, beam, trail);
+        calm(paper, M, x, y, ux, uy, L, beam, trail, vessel.casts[0].ring);
       }
   return {
     solids,
@@ -405,30 +407,18 @@ function ship(B: Build, kind: Kind, x: number, y: number, ux: number, uy: number
   return s;
 }
 
-/**
- * Mark the water a ship takes up, with a little room round its hull, and the V of its wake
- * (`trail` metres long, 0 for none), so waves leave it clear and other boats keep off.
- */
-export function calm(paper: Paper, M: Masks, x: number, y: number, ux: number, uy: number, L: number, beam: number, trail: number): void {
-  const vx = -uy;
-  const vy = ux;
-  const pad = Math.max(2, beam * 0.3);
-  const a = L / 2 + pad;
-  const b = beam / 2 + pad;
-  paper.fillMask(M.calm, [[x - ux * a - vx * b, y - uy * a - vy * b, x + ux * a - vx * b, y + uy * a - vy * b, x + ux * a + vx * b, y + uy * a + vy * b, x - ux * a + vx * b, y - uy * a + vy * b]]);
+/** Clear the padded hull and a short taper of churned water behind the stern. */
+export function calm(paper: Paper, M: Masks, x: number, y: number, ux: number, uy: number, L: number, beam: number, trail: number, hull?: number[]): void {
+  const vx = -uy, vy = ux, pad = Math.max(paper.cam.nib * 1.5 / paper.cam.s, beam * 0.08);
+  const ring = hull ?? [-L / 2, -beam / 2, L / 4, -beam / 2, L / 2, 0, L / 4, beam / 2, -L / 2, beam / 2]
+    .map((v, i, p) => i % 2 ? y + uy * p[i - 1] + vy * v : x + ux * v + vx * p[i + 1]);
+  paper.fillMask(M.calm, [offsetRing(ring, () => -pad) ?? ring]);
   if (!trail) return;
-  // The V between the wake's arms, from the stern back: the same angle as the arms in wake().
-  const sx = x - ux * L * 0.5;
-  const sy = y - uy * L * 0.5;
-  const back = Math.atan2(-uy, -ux);
-  const ring = [sx - vx * beam * 0.45, sy - vy * beam * 0.45];
-  for (const side of [-1, 1]) {
-    const t = back - side * WAKE_ANGLE;
-    const o = side * beam * 0.45;
-    ring.push(sx + vx * o + Math.cos(t) * trail, sy + vy * o + Math.sin(t) * trail);
-  }
-  ring.push(sx + vx * beam * 0.45, sy + vy * beam * 0.45);
-  paper.fillMask(M.calm, [ring]);
+  // The distant V keeps its ripples instead of cutting a broad blank wedge into the water.
+  const sx = x - ux * L * 0.5, sy = y - uy * L * 0.5;
+  const back = Math.min(trail, L * 0.45), half = beam * 0.45;
+  paper.fillMask(M.calm, [[sx - vx * half, sy - vy * half,
+    sx - ux * back, sy - uy * back, sx + vx * half, sy + vy * half]]);
 }
 
 /** Half the angle a wake opens out at behind the stern (about 20°, as for any ship in deep water). */

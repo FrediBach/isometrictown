@@ -224,10 +224,11 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     if (!onMask(paper, M.water, x, y)) continue;
     // Heading one way or the other along the route, leaving a wake.
     const dir = hash(k0, k1, B.set.seed, 411) < 0.5 ? 1 : -1;
-    solids.push(boat(B, x, y, ux * dir, uy * dir, 30, 9));
+    const vessel = boat(B, x, y, ux * dir, uy * dir, 30, 9);
+    solids.push(vessel);
     if (B.set.life) {
       wakes.push([x - ux * dir * 15, y - uy * dir * 15, ux * dir, uy * dir]);
-      calm(paper, M, x, y, ux * dir, uy * dir, 30, 9, 60);
+      calm(paper, M, x, y, ux * dir, uy * dir, 30, 9, 60, vessel.casts[0].ring);
     }
   }
   const s = B.cam.s;
