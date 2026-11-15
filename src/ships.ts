@@ -116,7 +116,9 @@ export function ships(B: Build, paper: Paper, town: Town, M: Masks, toAbs: (x: n
         const across = left + right;
         if (narrow && across > 32) continue;
         const harbour = harbours.some((p) => Math.hypot(p.x - x, p.y - y) < 1500);
-        const kind = pick(cls, best, across, harbour, h);
+        let kind = pickShipKind(cls, best, across, harbour, h);
+        // A local widening is not enough for a long vessel: its approach must stay open too.
+        if (kind && SIZE[kind][0] >= 40 && !shipRoom(water, x, y, head, SIZE[kind][1], kind === 'barge' ? 11.4 : SIZE[kind][1] * SIZE[kind][2])) kind = across >= 24 && cls !== 'ocean' ? 'tour' : 'motor';
         if (!kind) continue;
         const [l0, l1, k] = SIZE[kind];
         const L = l0 + (l1 - l0) * h(5);
@@ -143,7 +145,7 @@ export function ships(B: Build, paper: Paper, town: Town, M: Masks, toAbs: (x: n
             const py = y + uy * a * L + ux * bb;
             if (!water(px, py) || onMask(paper, M.calm, px, py)) fits = false;
           }
-        if (!fits) continue;
+        if (!fits || !shipRoom(water, x, y, head, L, beam)) continue;
         solids.push(ship(B, kind, x, y, ux, uy, L, beam, h));
         // Big ships out at sea are often lying at anchor; the rest are moving.
         const anchored = cls === 'ocean' && L > 120 && h(8) < 0.3;
@@ -159,8 +161,26 @@ export function ships(B: Build, paper: Paper, town: Town, M: Masks, toAbs: (x: n
   };
 }
 
+/** Whether a vessel has a continuous approach and bank clearance, not just room for its hull. */
+export function shipRoom(water: (x: number, y: number) => boolean, x: number, y: number, head: number, length: number, beam: number): boolean {
+  const large = length >= 40;
+  const halfWidth = Math.max(beam * (large ? 3 : 1.5), length * (large ? 0.45 : 0.3));
+  const reach = length * (large ? 1.5 : 0.8);
+  const ux = Math.cos(head), uy = Math.sin(head);
+  // Closely spaced samples catch necks and islands that the coarse direction search can skip.
+  const rows = Math.ceil(reach * 2 / 5), cols = Math.ceil(halfWidth * 2 / 5);
+  for (let i = 0; i <= rows; i++) {
+    const a = -reach + i / rows * reach * 2;
+    for (let j = 0; j <= cols; j++) {
+      const b = -halfWidth + j / cols * halfWidth * 2;
+      if (!water(x + ux * a - uy * b, y + uy * a + ux * b)) return false;
+    }
+  }
+  return true;
+}
+
 /** What kind of ship suits this water: its class, how far it runs, how wide it is, whether a harbour is near. */
-function pick(cls: string, run: number, across: number, harbour: boolean, h: (k: number) => number): Kind | null {
+export function pickShipKind(cls: string, run: number, across: number, harbour: boolean, h: (k: number) => number): Kind | null {
   const u = h(3);
   if (cls === 'ocean') {
     if (h(4) > (harbour ? 0.6 : 0.35)) return null;
@@ -196,8 +216,9 @@ function pick(cls: string, run: number, across: number, harbour: boolean, h: (k:
     return run > 40 ? 'motor' : null;
   }
   // Rivers, canals and docks.
-  if (across > 32 && run > 200) return u < 0.75 ? 'barge' : u < 0.9 ? 'tour' : 'motor';
-  if (across > 10 && run > 60) return u < 0.6 ? 'tour' : 'motor';
+  if (across >= 90 && run >= 400) return u < 0.75 ? 'barge' : u < 0.9 ? 'tour' : 'motor';
+  if (across >= 24 && run > 100) return u < 0.6 ? 'tour' : 'motor';
+  if (across >= 10 && run > 40) return 'motor';
   return null;
 }
 
