@@ -14,7 +14,7 @@ import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type T
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { finishRoofEdges } from './roofs';
-import { patch, sequence } from './rng';
+import { waves } from './water';
 import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
@@ -128,7 +128,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // Streams too narrow for two banks are a single line.
   const banked = at('water', () => town.streams.map((s) => shows(cam, LOD.stream, s.width)));
   const brooks = town.streams.filter((_, i) => !banked[i]);
-  const water = [...town.water, ...streamShapes(town.streams.filter((_, i) => banked[i]))];
+  const streams = streamShapes(town.streams.filter((_, i) => banked[i]));
+  const water = [...town.water, ...streams];
   const rounds = roundabouts(town);
   town.green.push(...rounds.islands);
 
@@ -329,7 +330,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // Lines, ground first
   onStage({ stage: 'lines', note: 'Ground and streets' });
   if (set.water) withPen('water', () => {
-    paper.facet('waves', () => waves(paper, M, set.seed));
+    paper.facet('waves', () => waves(B, paper, M, town, streams));
     paper.facet('shores', () => outline(paper, LINEWORK, water, M.water, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.under, x, y)));
     paper.facet('brooks', () => {
       for (const s of brooks) paper.line3(WATER, s.pts.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d));
@@ -404,35 +405,6 @@ function legible(B: Build, b: Town['buildings'][number]): boolean {
   const i = b.info;
   if (!i || KEEP.has(i.kind) || i.castle || i.townHall) return true;
   return showsAt(B.cam, LOD.building, Math.sqrt(Math.abs(ringArea(b.shape[0].pts))), i.seed, B.set.seed, 9106);
-}
-
-/** Short wavy strokes over open water. */
-function waves(paper: Paper, M: Masks, seed: number): void {
-  const rnd = sequence(seed * 7919 + 13);
-  const cam = paper.cam;
-  const inset = cam.nib * 1.5;
-  const keep = (x: number, y: number, d: number) => paper.on(M.water, x, y)
-    && paper.on(M.water, x - inset, y) && paper.on(M.water, x + inset, y)
-    && paper.on(M.water, x, y - inset) && paper.on(M.water, x, y + inset)
-    && !paper.on(M.pool, x, y) && !paper.on(M.road, x, y) && !paper.on(M.under, x, y) && !paper.on(M.calm, x, y) && paper.seen(x, y, d);
-  for (let y = paper.y0 + 0.8; y < paper.y1; y += cam.gap(2 + rnd() * 0.7)) {
-    let x = paper.x0 - rnd() * 8;
-    while (x < paper.x1) {
-      const len = cam.gap(4 + rnd() * 9);
-      const amp = cam.gap(0.08 + rnd() * 0.08);
-      const tilt = (rnd() - 0.5) * 0.025;
-      const pts: number[] = [];
-      const n = Math.max(2, Math.ceil(len / 0.4));
-      for (let k = 0; k <= n; k++) {
-        const t = k / n * len;
-        const yy = y + Math.sin(k / n * Math.PI * 2) * amp + t * tilt;
-        pts.push(x + t, yy, cam.groundDepth(yy));
-      }
-      if (patch((x + len / 2) / cam.gap(28), y / cam.gap(7), seed, 7933) > 0.38
-        && (paper.on(M.water, x + len / 2, y) || paper.on(M.water, x, y) || paper.on(M.water, x + len, y))) paper.sheet(WATER, pts, keep);
-      x += len + cam.gap(2 + rnd() * 6);
-    }
-  }
 }
 
 /** Swimming pools: a hard edge and close, level ripples instead of open-water waves. */
