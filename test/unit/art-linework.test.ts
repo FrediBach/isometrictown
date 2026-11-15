@@ -397,12 +397,12 @@ test('field rows break at path corridors while field boundaries stay intact', ()
 });
 
 
-function pathLines(B: Build, pts: number[], road = false) {
+function pathLines(B: Build, pts: number[], road = false, sub?: string) {
   const paper = new Paper(B.cam);
   const M = { road: paper.mask(), water: paper.mask() } as Masks;
   if (road) paper.fillMask(M.road, [[...B.cam.ground(198, 100), ...B.cam.ground(202, 100), ...B.cam.ground(202, 160), ...B.cam.ground(198, 160)]]);
   paper.finishDepth();
-  footpaths(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts }], M);
+  footpaths(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts, sub }], M);
   return paper.pens[LINEWORK];
 }
 
@@ -446,4 +446,32 @@ test('projected path dashes still stop at road masks', () => {
   const lines = pathLines(B, [...B.cam.ground(180, 130), ...B.cam.ground(220, 130)], true);
   expect(lines.length).toBeGreaterThan(10);
   for (const line of lines) for (let i = 0; i < line.length; i += 2) expect(Math.abs(line[i] - 200)).toBeGreaterThan(1.8);
+});
+
+
+test.each([0.35, 0.7])('stair treads keep perpendicular print clearance with a %s mm pen', (penWidth) => {
+  for (const angle of [0, Math.PI / 4, Math.PI / 2]) {
+    const B = build({ scale: 250, tilt: 25, penWidth, bearing: 0 });
+    const ux = Math.cos(angle), uy = Math.sin(angle);
+    const lines = pathLines(B, [-10 * ux, -10 * uy, 10 * ux, 10 * uy], false, 'steps');
+    expect(lines.length).toBeGreaterThan(5);
+    for (let i = 1; i < lines.length; i++) {
+      const a = lines[i - 1], b = lines[i];
+      const dx = a[a.length - 2] - a[0], dy = a[a.length - 1] - a[1];
+      const separation = Math.abs(dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / Math.hypot(dx, dy);
+      expect(separation).toBeGreaterThanOrEqual(Math.max(B.cam.gap(0.8), B.cam.nib * 2) - 1e-6);
+      expect(strokeLength(b)).toBeGreaterThan(B.cam.nib * 2);
+    }
+  }
+});
+
+test('narrow projected stairs fall back to the same readable dashes and corridor as a path', () => {
+  const B = build({ scale: 1000, tilt: 20, bearing: 0 });
+  const pts = [-30, 0, 30, 0];
+  const steps = pathLines(B, pts, false, 'steps');
+  expect(steps.length).toBeGreaterThan(10);
+  expect(steps).toEqual(pathLines(B, pts));
+  const paper = new Paper(B.cam);
+  const way: Way = { kind: 'path', cls: 'path', width: 1, pts };
+  expect(pathClearance(B, paper, [{ ...way, sub: 'steps' }])).toEqual(pathClearance(B, paper, [way]));
 });

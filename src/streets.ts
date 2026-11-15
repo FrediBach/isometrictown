@@ -3,7 +3,7 @@ import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
-import { LOD, shows, spaced } from './lod';
+import { LOD, shows } from './lod';
 
 /** Regions where most railways run under overhead wires. */
 export const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
@@ -255,7 +255,7 @@ export function pathClearance(B: Build, paper: Paper, ways: Way[]): Uint8Array {
   for (const w of ways) {
     if (!visiblePath(B, w)) continue;
     // Treads and wheel ruts need room on both sides of the centre line.
-    const spread = w.sub === 'steps' && shows(cam, LOD.steps) ? 0.9
+    const spread = w.sub === 'steps' && stairPitch(B, w.pts) > 0 ? 0.9
       : w.cls === 'track' && shows(cam, LOD.ruts) ? 0.8 : 0;
     const r = cam.nib * 2 + spread * cam.s;
     const p = w.pts;
@@ -285,9 +285,10 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
     if (!visiblePath(B, w)) continue;
-    if (w.sub === 'steps' && shows(B.cam, LOD.steps)) {
-      // Steps: treads across the path, spread out where real treads would run together.
-      walk(w.pts, 0.2, spaced(B.cam, 0.55, 0.8), 0.2, (x, y, ux, uy) => {
+    const pitch = w.sub === 'steps' ? stairPitch(B, w.pts) : 0;
+    if (pitch > 0) {
+      // Keep one rhythm for the whole flight, allowing for its most compressed direction.
+      walk(w.pts, 0.2, pitch, 0.2, (x, y, ux, uy) => {
         groundSeg(paper, LINEWORK, x + uy * 0.9, y - ux * 0.9, x - uy * 0.9, y + ux * 0.9, test);
         paper.end();
       });
@@ -300,6 +301,25 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
     }
     dashed(paper, w.pts, dash, gap, test);
   }
+}
+
+/** A flight's tread pitch in local metres, or zero when its projected width needs a dashed path. */
+function stairPitch(B: Build, p: number[]): number {
+  const c = B.cam;
+  let width = Infinity;
+  let separation = Infinity;
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const dx = p[i + 2] - p[i], dy = p[i + 3] - p[i + 1];
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-6) continue;
+    const ux = dx / len, uy = dy / len;
+    const across = Math.hypot(uy * c.cb + ux * c.sb, c.sa * (uy * c.sb - ux * c.cb));
+    width = Math.min(width, 1.8 * across);
+    // The projected ground area divided by tread length gives perpendicular spacing.
+    separation = Math.min(separation, c.s * c.sa / across);
+  }
+  if (!Number.isFinite(width) || !shows(c, LOD.steps, width) || width * c.s <= c.nib * 2) return 0;
+  return Math.max(0.55, Math.max(c.gap(0.8), c.nib * 2) / separation);
 }
 
 function pathLength(p: number[]): number {
