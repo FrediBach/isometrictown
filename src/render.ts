@@ -7,7 +7,7 @@ import { players, racing } from './sport';
 import { ships } from './ships';
 import { airfields, crossings, motorways, platforms, bridges, ferries, sailing, lifts, markings, moorings, parking, portals, roundabouts } from './infra';
 import { Camera } from './camera';
-import { ringArea, type Frame } from './geo';
+import { pointInRing, ringArea, type Frame } from './geo';
 import type { StageProgress } from './app/stages';
 import { atLeast, LOD, shows, showsAt } from './lod';
 import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
@@ -139,6 +139,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const solids: Solid[] = [];
   const pickKeys: string[] = [];
   const candidates = town.buildings.length;
+  const cleared: Town['buildings'] = [];
   for (let i = 0; i < candidates; i++) {
     const b = town.buildings[i];
     onStage({ stage: 'buildings', done: i, total: candidates, note: `${counts.buildings.toLocaleString('en')} in view` });
@@ -156,7 +157,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       syBot = Math.max(syBot, cam.sy(p[i], p[i + 1], 0));
     }
     if (sx1 < rx0 || sx0 > rx1 || syBot < ry0 || syTop > ry1) continue;
-    if (T?.clears(b)) continue;
+    if (T?.clears(b)) {
+      cleared.push(b);
+      continue;
+    }
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
     if (!legible(B, b)) continue;
     const made = building(B, b);
@@ -175,6 +179,24 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     solids.push(...made);
   }
 
+  // Buildings that made way for the title are gone for everything drawn after them, and so are
+  // helipads mapped on their roofs, which would otherwise hang in the air where the roof was.
+  if (cleared.length) {
+    const gone = new Set(cleared);
+    const onGone = (s: Shape) => {
+      const p = s[0].pts;
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < p.length; i += 2) {
+        cx += p[i];
+        cy += p[i + 1];
+      }
+      cx /= p.length / 2;
+      cy /= p.length / 2;
+      return cleared.some((b) => pointInRing(cx, cy, b.shape[0].pts));
+    };
+    town = { ...town, buildings: town.buildings.filter((b) => !gone.has(b)), helipads: town.helipads.filter((h) => !onGone(h)) };
+  }
   // Trees, cars and people keep out from under the title too.
   if (T) {
     paper.fillMask(M.foot, [T.footprint]);

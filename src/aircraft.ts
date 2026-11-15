@@ -408,7 +408,8 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const outer = h[0].pts;
     const area = Math.abs(ringArea(outer));
     const { rect: R } = bestRect(outer);
-    if (!R || area < 80 || area > 6000 || !onSheet(R.cx, R.cy)) continue;
+    // Pads under the cinematic title are left out; the letters stand there.
+    if (!R || area < 80 || area > 6000 || !onSheet(R.cx, R.cy) || onMask(paper, M.title, R.cx, R.cy)) continue;
     const rad = Math.min(R.w, R.L) / 2 - 1;
     if (rad < 4) continue;
     // Pads mapped on a building are on its roof.
