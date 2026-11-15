@@ -1,0 +1,36 @@
+# Type check, build and the test suite (unit tests and golden drawings) on every push and PR.
+# Tests run offline from recorded map data in test/fixtures, so they need no network.
+
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The goldens were made on Node 25; floating point in V8 is stable, but keep them in step.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 25
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      # When a golden fails, the drawings it was checking are worth a look.
+      - if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-drawings
+          path: test/out/

@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Test output: SVGs of the golden cases from the last run
+test/out/

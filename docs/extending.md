@@ -56,8 +56,8 @@ Read [render-pipeline.md](render-pipeline.md) first. Rules: masks something read
 
 ## Check your work
 
-- `npm run build` must pass (type check + bundle). There are no unit tests.
+- `npm run build` and `npm test` must pass. A drawing change changes goldens: check them and accept with `npm run test:update` (see [testing.md](testing.md)).
 - Look at the result in `npm run dev` with a few presets (Amsterdam, Nördlingen, Hallstatt, Shirakawa-go) and at both coarse (1:8000) and fine (1:500) scales.
 - For anything drawn, run `npm run lod -- --name before` first and `npm run lod -- --name after --compare before` after, and look at the close-ups (see [lod.md](lod.md#the-lod-lab)).
-- Pan a little and check that made-up detail stays put.
+- Pan a little and check that made-up detail stays put (`test/render/pan.test.ts` checks a few kinds of it).
 - Run `npm run doctor` after React changes.

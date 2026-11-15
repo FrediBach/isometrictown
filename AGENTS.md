@@ -12,9 +12,12 @@ npm run dev      # dev server
 npm run build    # tsc type check + vite build: run this to verify every change
 npm run doctor   # React Doctor; run after changing React code
 npm run lod      # LOD lab: draws test places at 1:500–1:8000 and scores wasted ink (docs/lod.md)
+npm test         # unit tests and golden drawings, offline, ~15 s (docs/testing.md)
+npm run test:update   # accept changed goldens once you've checked the change is meant
+npm run test:record   # fetch map data for new or moved test cases
 ```
 
-There is no test suite. `npm run build` passing is the minimum bar. For drawing changes, compare LOD lab runs before and after (`--name`, `--compare`), look at its close-ups, and say what you could not check by eye.
+`npm run build` and `npm test` must both pass. A drawing change shows up as changed goldens in `test/golden/`: read the diff, look at `test/out/*.svg`, and accept it with `npm run test:update` only if every change is meant. For drawing changes, also compare LOD lab runs before and after (`--name`, `--compare`), look at its close-ups, and say what you could not check by eye.
 
 ## Map of the code
 
@@ -25,6 +28,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 - `src/classify.ts`: infers building kind, height and roof. `src/styles.ts`: regional styles.
 - `src/lod.ts`: level-of-detail rules, one per kind of thing. `lab/`: the LOD lab.
 - `src/gcode.ts`: G-code for GRBL pen plotters (UUNA TEK 3.0). `src/app/grbl.ts` plots over Web Serial; the Pen Plot dialog is `src/components/plot-dialog.tsx`.
+- `test/`: Vitest. `unit/` for pure logic, `render/` draws the cases in `test/cases.ts` from recorded map data (`fixtures/net`) and checks them against `golden/`. See [docs/testing.md](docs/testing.md).
 - `src/catalogue.ts`: every thing detected, inferred or made up, with how it is found and where its strokes are filed. The catalogue dialog shows it against the drawing.
 - Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `ships`, `sport`, `vehicles`, `power`, `marginalia`.
 - UI: `src/App.tsx`, `src/app/` (state, renderer, persistence), `src/components/`. Visual rules are in [DESIGN.md](DESIGN.md).
@@ -52,7 +56,7 @@ There is no test suite. `npm run build` passing is the minimum bar. For drawing 
 
 Recipes are in [docs/extending.md](docs/extending.md):
 
-- **New drawn feature**: write an `Extra` in the right module and add it to `extras` in `render.ts`. Add an entry to `src/catalogue.ts` and a line to the README's "What it draws".
+- **New drawn feature**: write an `Extra` in the right module and add it to `extras` in `render.ts`. Add an entry to `src/catalogue.ts` (the tests fail on strokes no entry claims) and a line to the README's "What it draws".
 - **New setting**: add it to `Settings` and `DEFAULT_SETTINGS`, to `NumberKey`/`BoolKey` (plus `FORMAT` for numbers), and as a control in `sections.tsx`.
 - **New map data**: decode it in `tiles.ts` `decode()`, add it to `Town` and `empty()`, and carry it through `assemble()`.
 

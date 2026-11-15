@@ -1,0 +1,6 @@
+{
+ "url": "https://tiles.openfreemap.org/planet/20261101_080013_pt/14/8668/5637.pbf",
+ "method": "GET",
+ "status": 200,
+ "type": "application/vnd.mapbox-vector-tile"
+}

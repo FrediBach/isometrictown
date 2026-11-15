@@ -109,6 +109,16 @@ export function persist(set: Settings): void {
   history.replaceState(null, '', hash);
 }
 
+/** Every setting back to its default, staying at the same place. */
+export function defaultsAt(set: Settings): Settings {
+  return { ...structuredClone(DEFAULT_SETTINGS), center: set.center, place: set.place };
+}
+
+/** Whether anything but the place differs from the defaults. */
+export function isDefault(set: Settings): boolean {
+  return toQuery(set) === '' && (['bearing', 'scale', 'seed', 'speed'] as const).every((k) => set[k] === DEFAULT_SETTINGS[k]);
+}
+
 /** Keys the hash path already carries, or that belong to this machine rather than the drawing. */
 const UNSHARED = new Set<keyof Settings>(['center', 'place', 'bearing', 'scale', 'seed', 'speed']);
 const SHARED = (Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]).filter((k) => !UNSHARED.has(k));

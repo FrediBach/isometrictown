@@ -97,6 +97,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 | `src/lod.ts` | Level of detail: how small each kind of thing may get on paper before it's left out |
 | `src/catalogue.ts` | Everything detected, inferred or made up, with how it's found and where its strokes are filed, for the Catalogue |
 | `lab/` | The LOD lab: draws test places at several scales and scores wasted ink (`npm run lod`) |
+| `test/` | Unit tests and golden drawings from recorded map data (`npm test`, see [docs/testing.md](docs/testing.md)) |
 | `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
 | `src/title.ts` | The cinematic title: block letters traced from the single-stroke capitals, extruded and stood on the best straight street |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
@@ -111,6 +112,7 @@ More on how it fits together is in [docs/](docs/README.md).
 ```bash
 npm install
 npm run dev
+npm test      # unit tests and golden drawings, offline, see docs/testing.md
 npm run lod   # optional: the LOD lab, see docs/lod.md
 ```
 

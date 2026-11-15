@@ -3,11 +3,11 @@ import { Camera } from './camera';
 import { Frame, type LngLat } from './geo';
 import type { Locator } from './locator';
 import { cn } from '@/lib/utils';
-import { loadSettings, persist, REFIT_KEYS, slug, VIEW_KEYS } from './app/model';
+import { defaultsAt, loadSettings, persist, REFIT_KEYS, slug, VIEW_KEYS } from './app/model';
 import { Renderer, type RenderResult, type RenderStatus } from './app/renderer';
 import { SettingsContext, type Change } from './app/settings-context';
 import { AboutDialog } from './components/about-dialog';
-import { LightSection, PensSection, PlaceSection, SeedSection, SheetSection, TitleSection, TownSection, ViewSection } from './components/sections';
+import { LightSection, PensSection, PlaceSection, ResetSettings, SeedSection, SheetSection, TitleSection, TownSection, ViewSection } from './components/sections';
 import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
 import { recolor } from './plot';
@@ -36,6 +36,8 @@ export function App() {
   const [catalogueSeen, setCatalogueSeen] = useState(false);
   const [plotOpen, setPlotOpen] = useState(false);
   const [plotSeen, setPlotSeen] = useState(false);
+  // Bumped by a reset, so sections that keep their own drafts and undo history start afresh.
+  const [resets, setResets] = useState(0);
 
   const commit = useCallback((next: Settings) => {
     live.current = next;
@@ -137,6 +139,15 @@ export function App() {
     schedule(0);
   }
 
+  /** Every setting back to its default, staying where the drawing is. */
+  function resetAll(): void {
+    commit(defaultsAt(live.current));
+    setResets((n) => n + 1);
+    locator.current?.setView(live.current.center, live.current.bearing);
+    updateFootprint(true);
+    schedule(0);
+  }
+
   /** Pen colours only restyle the finished drawing, so they never send it back to the worker. */
   function recolorPens(): void {
     persist(live.current);
@@ -192,10 +203,11 @@ export function App() {
           <ViewSection />
           <TownSection region={result?.region} />
           <LightSection />
-          <TitleSection />
+          <TitleSection key={`text-${resets}`} />
           <SheetSection />
-          <PensSection onPalette={setPens} onPen={setPen} onPenCommit={recolorPens} />
-          <SeedSection onSeed={setSeed} onUnlock={unlockAll} />
+          <PensSection key={`pens-${resets}`} onPalette={setPens} onPen={setPen} onPenCommit={recolorPens} />
+          <SeedSection key={`seed-${resets}`} onSeed={setSeed} onUnlock={unlockAll} />
+          <ResetSettings onReset={resetAll} />
         </SettingsContext>
       </aside>
 

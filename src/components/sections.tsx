@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import type { LngLat } from '../geo';
 import type { Locator } from '../locator';
 import type { RenderResult } from '../app/renderer';
-import { FORMAT, MONO_INK, PRESETS, type BoolKey } from '../app/model';
+import { FORMAT, isDefault, MONO_INK, PRESETS, type BoolKey } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { harmonise, paletteSource, type Locks } from '../harmony';
@@ -502,6 +502,42 @@ export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => vo
         </p>
       )}
     </Section>
+  );
+}
+
+/** Puts every setting back to its default, keeping the place, after asking once. */
+export function ResetSettings({ onReset }: { onReset: () => void }) {
+  const { set } = useSettings();
+  const [asking, setAsking] = useState(false);
+  const clean = isDefault(set);
+  return (
+    <p className="mt-0 mb-0 flex min-h-12 items-center justify-between gap-3 border-t text-[12px]">
+      {asking && !clean ? (
+        <>
+          <span className="text-muted-foreground">Reset every setting? The place stays.</span>
+          <span className="flex gap-3">
+            <button type="button" className="underline underline-offset-4" onClick={() => setAsking(false)}>Cancel</button>
+            <button
+              type="button"
+              className="font-medium text-destructive underline underline-offset-4"
+              onClick={() => {
+                setAsking(false);
+                onReset();
+              }}
+            >
+              Reset
+            </button>
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="text-muted-foreground">{clean ? 'All settings are at their defaults.' : 'Some settings differ from the defaults.'}</span>
+          <button type="button" disabled={clean} className="underline underline-offset-4 disabled:no-underline disabled:opacity-40" onClick={() => setAsking(true)}>
+            Reset to defaults
+          </button>
+        </>
+      )}
+    </p>
   );
 }
 

@@ -10,7 +10,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "doctor": "react-doctor",
-    "lod": "node lab/run.mjs"
+    "lod": "node lab/run.mjs",
+    "test": "tsc -p test && vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:update": "vitest run --update",
+    "test:record": "RECORD=1 vitest run --project render"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -39,6 +44,7 @@
     "shadcn": "^4.23.0",
     "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
-    "vite": "^8.3.7"
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
   }
 }

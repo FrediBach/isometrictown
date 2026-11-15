@@ -10,4 +10,5 @@ How the app is put together, for anyone changing the code. What the app draws is
 | [lod.md](lod.md) | decide how small a thing can get before it's left out, or check a drawing for wasted ink with the LOD lab |
 | [data-sources.md](data-sources.md) | work on fetching: vector tiles, Overpass, place search, caching |
 | [ui.md](ui.md) | work on the React side: settings, the renderer, persistence, recolouring |
+| [testing.md](testing.md) | run or add tests, read a changed golden, or record map data for a new test case |
 | [extending.md](extending.md) | need a recipe: a new feature, setting, building style or palette |
