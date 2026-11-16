@@ -1,5 +1,5 @@
 import { newSolid, prism, tagLines, type Build, type Solid } from './buildings';
-import { CLIMATES, doorEdge } from './future';
+import { CLIMATES, doorEdge, motifBudget } from './future';
 import { LOD, shows, spaced } from './lod';
 import { hash } from './rng';
 import { GREENERY, LINEWORK, ROOFS } from './settings';
@@ -93,6 +93,8 @@ function frame(B: Build, b: Building, s: Solid): void {
   const every = shows(cam, LOD.floors, floor) ? 1 : 2;
   const postStep = Math.max(1, Math.ceil(spaced(cam, bw, 1.0) / bw - 1e-6));
   const flat = (pts: number[][]) => pts.flat();
+  // Washing hung out on a few balconies, close up only: signs of life come last.
+  const life = motifBudget(B, b) >= 3 && shows(cam, LOD.washing, bw);
   levels.forEach((z, li) => {
     s.faces.push([flat([P(u(0), 0, z), P(u(nb), 0, z), P(u(nb), D, z), P(u(0), D, z)])]);
     if (li % every && z !== top) return;
@@ -107,6 +109,17 @@ function frame(B: Build, b: Building, s: Solid): void {
         const z1 = z + floor - 0.3;
         s.faces.push([flat([P(u(k) + 0.05, D, z), P(u(k + 1) - 0.05, D, z), P(u(k + 1) - 0.05, D, z1), P(u(k) + 0.05, D, z1)])]);
         s.lines.push({ pen: LINEWORK, pts: flat([P(u(k), D, z1), P(u(k + 1), D, z1)]) }, { pen: LINEWORK, pts: flat([P(u(k + 0.5), D, z), P(u(k + 0.5), D, z1)]) });
+      } else if (life && h(12155) < 0.2) {
+        const a = u(k) + 0.3;
+        const c = u(k + 1) - 0.3;
+        const m = (a + c) / 2;
+        s.lines.push({ pen: LINEWORK, pts: flat([P(a, D - 0.3, z + 1.95), P(m, D - 0.3, z + 1.8), P(c, D - 0.3, z + 1.95)]) });
+        for (const t of [0.25, 0.5, 0.75]) {
+          if (h(12156 + t * 4) < 0.25) continue;
+          const x = a + (c - a) * t;
+          const top = z + 1.95 - 0.6 * (1 - Math.abs(2 * t - 1)) * 0.25;
+          s.lines.push({ pen: ROOFS, pts: flat([P(x - 0.25, D - 0.3, top), P(x - 0.25, D - 0.3, top - 0.55), P(x + 0.25, D - 0.3, top - 0.55), P(x + 0.25, D - 0.3, top)]) });
+        }
       } else if (f.wonder && rail && h(12152) < 0.6) {
         // The wonder's planters: plants spilling over the rail.
         const g: number[] = [];
@@ -282,7 +295,14 @@ export function yardPergolas(B: Build, paper: Paper, town: Town, M: Masks): Extr
         if (![-4.5, 0, 4.5].every((t) => [-2.6, 2.6].every((c) => clear(x + ux * t - uy * c, y + uy * t + ux * c)))) continue;
         const s = newSolid();
         pergola(B, s, x, y, ux, uy, 8, 4);
+        // An outdoor classroom: two benches under it, children about.
+        for (const c of [-0.9, 0.9]) {
+          const P = (a: number, z: number) => [x + ux * a - uy * c, y + uy * a + ux * c, z];
+          s.lines.push({ pen: LINEWORK, pts: [...P(-2.5, 0.45), ...P(2.5, 0.45)] });
+          for (const a of [-2.2, 2.2]) s.lines.push({ pen: LINEWORK, pts: [...P(a, 0), ...P(a, 0.45)] });
+        }
         solids.push(s);
+        B.future.gather.push([x, y, 4 + Math.floor(h(2) * 4), 6, true]);
         // Racks and people keep out from under it.
         paper.fillMask(M.foot, [place(x, y, ux, uy, rect(-4, 4, -2, 2))]);
         placed.push([p.x, p.y]);

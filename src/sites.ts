@@ -757,6 +757,7 @@ function publicRoom(B: Build, paper: Paper, M: Masks, outer: number[], r: Rect):
       const s = newSolid();
       tagLines(B, undefined, s, () => pergola(B, s, x, y, r.ux, r.uy, L, 3.4), 'pergola');
       out.push(s);
+      B.future!.gather.push([x, y, Math.max(2, Math.round(L / 6)), Math.min(L / 2 - 1, 5), false]);
       paper.fillMask(M.foot, [place(x, y, r.ux, r.uy, rect(-L / 2, L / 2, -1.7, 1.7))]);
     }
   }
@@ -769,8 +770,11 @@ function publicRoom(B: Build, paper: Paper, M: Masks, outer: number[], r: Rect):
       const y = r.cy + r.uy * t - vy * side * (r.w / 2 - 3.5);
       if (![[-1.4, -1], [1.4, -1], [-1.4, 1], [1.4, 1]].every(([a, d]) => fits(x + r.ux * a + vx * d, y + r.uy * a + vy * d))) continue;
       const s = newSolid();
-      tagLines(B, undefined, s, () => stall(s, x, y, r.ux, r.uy), 'stalls');
+      // The counter faces the middle of the square.
+      tagLines(B, undefined, s, () => stall(s, x, y, r.ux * side, r.uy * side), 'stalls');
       out.push(s);
+      // A shopper or two in front of the counter.
+      B.future!.gather.push([x + vx * side * 1.9, y + vy * side * 1.9, 1 + Math.floor(h(8 + i) * 2), 0.9, false]);
       paper.fillMask(M.foot, [place(x, y, r.ux, r.uy, rect(-1.4, 1.4, -1, 1))]);
     }
   }
@@ -965,7 +969,8 @@ export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const { cam, set } = B;
   if (!shows(cam, LOD.person) || !set.life) return { solids: [], draw: () => {} };
   const spots: { pts: number[]; area: number; chance: number }[] = [];
-  for (const sq of town.plazas) spots.push({ pts: sq[0].pts, area: Math.abs(ringArea(sq[0].pts)), chance: 0.1 });
+  // Solarpunk squares and streets are busier.
+  for (const sq of town.plazas) spots.push({ pts: sq[0].pts, area: Math.abs(ringArea(sq[0].pts)), chance: B.future ? 0.14 : 0.1 });
   for (const c of town.cover) if (c.cls === 'beach') spots.push({ pts: c.shape[0].pts, area: Math.abs(ringArea(c.shape[0].pts)), chance: 0.05 });
   const figures: [number, number, number][] = [];
   for (const sp of spots) {
@@ -984,25 +989,42 @@ export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     walk(w.pts, 2, 3.5, 2, (x, y, ux, uy) => {
       const [k0, k1] = B.key(x, y);
       const h = (k: number) => hash(k0, k1, set.seed, 795 + k);
-      if (h(0) > 0.15) return;
+      if (h(0) > (B.future ? 0.2 : 0.15)) return;
       const o = (h(1) - 0.5) * 3;
       const px = x - uy * o;
       const py = y + ux * o;
       if (!onMask(paper, M.foot, px, py)) figures.push([px, py, h(2)]);
     });
   }
+  // People at the places a solarpunk town made for them: stalls, pergolas, school yards.
+  const children: [number, number, number][] = [];
+  for (const [gx, gy, n, spread, child] of B.future?.gather ?? []) {
+    const [k0, k1] = B.key(gx, gy);
+    for (let i = 0; i < n; i++) {
+      const h = (k: number) => hash(k0, k1, set.seed, 12260 + i * 3 + k);
+      const a = h(0) * Math.PI * 2;
+      const d = spread * Math.sqrt(h(1));
+      const px = gx + Math.cos(a) * d;
+      const py = gy + Math.sin(a) * d;
+      // Under the pergola itself is fine; beyond it, keep off water and buildings, and children off roads.
+      // (Squares are in the road mask, so grown-ups there may stand on it.)
+      if ((child && onMask(paper, M.road, px, py)) || onMask(paper, M.water, px, py) || (d > 2.5 && onMask(paper, M.foot, px, py))) continue;
+      (child ? children : figures).push([px, py, h(2)]);
+    }
+  }
   return {
     solids: [],
     draw: (paper) => {
       for (const [x, y, v] of figures) figure(paper, x, y, v);
+      for (const [x, y, v] of children) figure(paper, x, y, v, 0.1, 0.7);
     },
   };
 }
 
 /** A standing figure at (x, y), its height varied by v in [0, 1): legs, body and a round head. Stride spreads the legs, for runners. */
-export function figure(paper: Paper, x: number, y: number, v: number, stride = 0.14): void {
+export function figure(paper: Paper, x: number, y: number, v: number, stride = 0.14, scale = 1): void {
   const cam = paper.cam;
-  const H = 1.55 + v * 0.3;
+  const H = (1.55 + v * 0.3) * scale;
   const [dx, dy] = [cam.cb * stride, -cam.sb * stride];
   paper.line3(LINEWORK, [x - dx, y - dy, 0, x, y, H * 0.5, x + dx, y + dy, 0]);
   paper.line3(LINEWORK, [x, y, H * 0.5, x, y, H * 0.85]);

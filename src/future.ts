@@ -33,16 +33,18 @@ export type Climate = {
   winter: number;
   /** Frames carry a shade rail under each floor, as open galleries. */
   gallery: boolean;
+  /** Water is short: kerb rain gardens become dry stone channels, without plants. */
+  dry: boolean;
 };
 
 export const CLIMATES: Record<ClimateId, Climate> = {
-  temperate: { label: 'Temperate, seasonally wet', greenRoof: 0.55, tanks: 0.5, streetTrees: 1.5 , porch: 'porch', winter: 0.25, gallery: false },
-  hot_dry: { label: 'Hot and dry', greenRoof: 0, tanks: 0.8, streetTrees: 0.6 , porch: 'arcade', winter: 0, gallery: true },
-  hot_humid: { label: 'Hot and humid', greenRoof: 0.5, tanks: 0.7, streetTrees: 1.5 , porch: 'veranda', winter: 0, gallery: true },
-  monsoonal: { label: 'Monsoonal', greenRoof: 0.4, tanks: 0.8, streetTrees: 1.4 , porch: 'veranda', winter: 0, gallery: true },
-  cold: { label: 'Cold, high latitude', greenRoof: 0.2, tanks: 0.25, streetTrees: 1 , porch: 'vestibule', winter: 0.6, gallery: false },
-  mountain: { label: 'Mountainous', greenRoof: 0.35, tanks: 0.4, streetTrees: 1 , porch: 'porch', winter: 0.2, gallery: false },
-  coastal: { label: 'Windy or coastal', greenRoof: 0.3, tanks: 0.45, streetTrees: 0.8 , porch: 'porch', winter: 0.15, gallery: false },
+  temperate: { label: 'Temperate, seasonally wet', greenRoof: 0.55, tanks: 0.5, streetTrees: 1.5 , porch: 'porch', winter: 0.25, gallery: false , dry: false },
+  hot_dry: { label: 'Hot and dry', greenRoof: 0, tanks: 0.8, streetTrees: 0.6 , porch: 'arcade', winter: 0, gallery: true , dry: true },
+  hot_humid: { label: 'Hot and humid', greenRoof: 0.5, tanks: 0.7, streetTrees: 1.5 , porch: 'veranda', winter: 0, gallery: true , dry: false },
+  monsoonal: { label: 'Monsoonal', greenRoof: 0.4, tanks: 0.8, streetTrees: 1.4 , porch: 'veranda', winter: 0, gallery: true , dry: false },
+  cold: { label: 'Cold, high latitude', greenRoof: 0.2, tanks: 0.25, streetTrees: 1 , porch: 'vestibule', winter: 0.6, gallery: false , dry: false },
+  mountain: { label: 'Mountainous', greenRoof: 0.35, tanks: 0.4, streetTrees: 1 , porch: 'porch', winter: 0.2, gallery: false , dry: false },
+  coastal: { label: 'Windy or coastal', greenRoof: 0.3, tanks: 0.45, streetTrees: 0.8 , porch: 'porch', winter: 0.15, gallery: false , dry: false },
 };
 export const CLIMATE_IDS = Object.keys(CLIMATES) as ClimateId[];
 
@@ -98,7 +100,14 @@ export type Future = {
 export type Addition = 'frame' | 'porch' | 'canopy' | 'fins' | 'trellis';
 
 /** District decisions shared by many features. */
-export type FutureTown = { climate: ClimateId };
+export type FutureTown = {
+  climate: ClimateId;
+  /**
+   * Places where people gather, filled in as the drawing makes them: in front of market stalls,
+   * under pergolas, in school yards. [x, y, how many, spread in metres, child]. people() draws them.
+   */
+  gather: [number, number, number, number, boolean][];
+};
 
 /** Heritage and landmarks keep their roofs as they are. */
 function recipeOf(kind: Kind, b: Building): RecipeId {
@@ -191,7 +200,7 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
     }
   }
   for (const [b] of wonders.values()) b.future!.wonder = true;
-  return { climate };
+  return { climate, gather: [] };
 }
 
 /** Recipes that take a balcony frame, a porch, an entrance canopy, fins or a trellis, and the chance they do at Intensity 0 and 1. */

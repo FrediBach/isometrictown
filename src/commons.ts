@@ -1,5 +1,5 @@
 import { newSolid, prism, type Build, type Solid } from './buildings';
-import { motifBudget } from './future';
+import { CLIMATES, motifBudget } from './future';
 import { hash } from './rng';
 import { BAY_D, BAY_W, bayUse, onMask, parkingBays, type Extra } from './infra';
 import { LOD, shows } from './lod';
@@ -150,7 +150,8 @@ export function kerbGardens(B: Build, paper: Paper, slots: KerbSlot[]): Extra {
         seg(P(2.8, lo), P(2.8, hi));
         // The water's way in, a short tick through the gap.
         seg(P(-1.8, lo - 0.5), P(-1.8, lo + 0.35), WATER);
-        // The dip, dashed at a spacing that reads on paper.
+        // The dip, dashed at a spacing that reads on paper; where water is short, a dry stone channel.
+        const dry = CLIMATES[B.future!.climate].dry;
         const dash = cam.tone(1.1) / cam.s;
         const gap = cam.tone(0.8) / cam.s;
         const ring = [P(-2.35, -0.55), P(2.35, -0.55), P(2.35, 0.65), P(-2.35, 0.65)];
@@ -160,10 +161,21 @@ export function kerbGardens(B: Build, paper: Paper, slots: KerbSlot[]): Extra {
           const len = Math.hypot(bx - ax, by - ay);
           for (let t = 0; t < len; t += dash + gap) {
             const t1 = Math.min(len, t + dash);
-            seg([ax + ((bx - ax) * t) / len, ay + ((by - ay) * t) / len], [ax + ((bx - ax) * t1) / len, ay + ((by - ay) * t1) / len], GREENERY);
+            seg([ax + ((bx - ax) * t) / len, ay + ((by - ay) * t) / len], [ax + ((bx - ax) * t1) / len, ay + ((by - ay) * t1) / len], dry ? LINEWORK : GREENERY);
           }
         }
         const kk = Math.max(1, cam.nib / 0.35);
+        if (dry) {
+          // A few stones along the bed instead of plants.
+          for (const u of [-1.6, -0.4, 0.8, 1.9]) {
+            const [x, y] = P(u, 0.05);
+            const sx = cam.sx(x, y);
+            const sy = cam.sy(x, y, 0);
+            paper.sheet(LINEWORK, [sx - 0.4 * kk, sy, cam.depth(x, y, 0), sx - 0.1 * kk, sy - 0.3 * kk, cam.depth(x, y, 0), sx + 0.35 * kk, sy - 0.2 * kk, cam.depth(x, y, 0), sx + 0.4 * kk, sy, cam.depth(x, y, 0)], test);
+            paper.end();
+          }
+          continue;
+        }
         for (const u of [-1.1, 1.1]) {
           const [x, y] = P(u, 0.05);
           const sx = cam.sx(x, y);

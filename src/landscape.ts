@@ -106,7 +106,10 @@ export function reeds(B: Build, paper: Paper, M: Masks, G: Ground | null, paths?
     if (dirs.some(([dx, dy]) => onMask(paper, M.road, x + dx * 1.7, y + dy * 1.7))) return;
     const bank = dirs.some(([dx, dy]) => onMask(paper, M.water, x + dx, y + dy));
     const h = hash(i, j, B.set.seed, 12212);
-    if (!(bank ? h < 0.6 : land === WETLAND && h < 0.22)) return;
+    // Selected stretches of shore, not a belt round every lake: patches fixed to the map.
+    const [X, Y] = B.toAbs(x, y);
+    const stretch = patch(X / 60, Y / 60, B.set.seed, 12213) > 0.55;
+    if (!(bank ? stretch && h < 0.5 : land === WETLAND && h < 0.08)) return;
     const d = cam.depth(x, y, 0);
     for (const [[ax, ay], [bx, by]] of REED) {
       paper.sheet(GREENERY, [sx + ax * k, sy + ay * k, d, sx + bx * k, sy + by * k, d], keep);
