@@ -2065,10 +2065,10 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'future',
     name: 'Sky gardens',
     source: ['invented'],
-    what: 'A double-height terrace cut into a tower at mid-height: the floors above stand on a glazed core set back 3 m, and the terrace round it has trees in planters.',
-    how: 'Flat-roofed towers over 60 m tall and close to a rectangle in plan, about half of them.',
+    what: 'Two to four nine-metre-high garden bands around a continuous core, with four-to-five-metre terraces, corner support columns, cultivation strips and small trees.',
+    how: 'Ordinary flat-roofed towers over 60 m tall and at least 20 m wide, about four fifths of them. Full terraces and supports stay inside the host; holes, tile cuts and irregular footprints decline.',
     needs: ['solarpunk', 'depth:visionary'],
-    lod: ['tree'],
+    lod: ['tree', 'terraceCrop', 'productionFrame'],
     strokes: ['planting/sky-garden'],
   },
   {

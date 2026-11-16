@@ -92,7 +92,7 @@ export type Future = {
   greenWalls?: boolean;
   /** Adaptive reuse (B23, I10): a big shed reopened as a market hall, its flat roof glazed with rows of rooflights (depth Visionary). */
   marketHall?: boolean;
-  /** A double-height planted terrace cut into a tower at mid-height (depth Visionary, B05). */
+  /** Two to four broad planted terraces cut into an ordinary tower (depth Visionary, B05). */
   skyGarden?: boolean;
   /** A glazed pavilion under a pergola on the roof, an occupied roof terrace (depth Visionary). */
   pavilion?: boolean;
@@ -220,7 +220,7 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
       const crown = planGardenCrown(b);
       if (crown) { b.future.gardenCrown = crown; delete b.future.pavilion; }
     }
-    if (deeper(set, 'visionary') && flat && b.h > 60 && mine(7) < 0.5) b.future.skyGarden = true;
+    if (deeper(set, 'visionary') && flat && recipe === 'B05' && b.h > 60 && mine(7) < 0.8) b.future.skyGarden = true;
     if (deeper(set, 'visionary') && flat && area > 1500 && b.h <= 15 && (recipe === 'B19' || recipe === 'B07') && mine(8) < 0.5) b.future.marketHall = true;
     // Green walls where there are blank walls to plant: rows and blocks with party walls, shops in them, windowless works. Towers keep their windows.
     if (bold && b.h <= 30 && !KEEP_ROOF.has(recipe) && (i.party.some((v) => v > 0) || (recipe === 'B19' && i.facade.pattern === 'blank')) && mine(5) < 0.4 + 0.5 * f) b.future.greenWalls = true;

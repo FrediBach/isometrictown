@@ -11,6 +11,7 @@ import { GREENERY, LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerI
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import { futureRoof, roofPanels, sawtoothPanels } from './solar';
 import { overlaps, productionRoof } from './production';
+import { towerDeck, towerGardens } from './tower-gardens';
 import { gardenCrown } from './garden-building';
 import { additions } from './additions';
 import { bicycle } from './vehicles';
@@ -453,14 +454,19 @@ function skirtBlock(B: Build, rings: WallRing[], H: number, info: Info, steep: b
 function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, z0: number, H: number, k: [number, number], out: Solid[]): void {
   const { set } = B;
   const solid = out[0];
-  const sky = B.future && b.future?.skyGarden ? skyBand(b, z0, H) : null;
+  const sky = B.future && b.future?.skyGarden ? towerGardens(b, z0, H) : null;
   if (sky) {
-    // A sky garden: the tower is cut at mid-height by a double-height terrace round a glazed core.
-    const [za, zb, core] = sky;
-    prism(B, rings, z0, za, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid);
-    prism(B, [{ pts: core, seam: new Uint8Array(core.length / 2) }], za, zb, { roof: false, windows: true, pen: LINEWORK, facade: info?.facade }, solid);
-    tagLines(B, 'planting', solid, () => skyGarden(B, rings[0].pts, core, za, solid), 'sky-garden');
-    prism(B, rings, zb, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: undefined, door: false }, solid);
+    let base = z0;
+    for (const [za, zb] of sky.bands) {
+      prism(B, rings, base, za, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: base === 0 ? shopSide(info) : undefined, door: base === 0 ? hasDoor(info) : false }, solid);
+      prism(B, [{ pts: sky.core, seam: new Uint8Array(sky.core.length / 2) }], za, zb, { roof: false, windows: false, pen: LINEWORK, door: false }, solid);
+      tagLines(B, 'planting', solid, () => {
+        towerDeck(B, sky, za, zb, solid);
+        skyGarden(B, rings[0].pts, sky.core, za, sky.depth, solid);
+      }, 'sky-garden');
+      base = zb;
+    }
+    prism(B, rings, base, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: undefined, door: false }, solid);
   } else prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid);
   const roofFace = solid.faces[solid.faces.length - 1];
   solid.casts.push({ ring: rings[0].pts, h: H });
@@ -485,18 +491,8 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
 }
 
-/** Where a tower's sky garden goes: two storeys at mid-height round a core set back 3 m, if the tower is near enough to a rectangle. */
-function skyBand(b: Building, z0: number, H: number): [number, number, number[]] | null {
-  if (H < 60 || H - z0 < 40 || b.shape.length > 1) return null;
-  const { rect, fill } = bestRect(b.shape[0].pts);
-  if (!rect || fill < 0.85 || rect.w < 16) return null;
-  const za = z0 + Math.round(((H - z0) * 0.5) / 3.5) * 3.5;
-  const r = { ...rect, L: rect.L - 6, w: rect.w - 6 };
-  return [za, za + 7, corners(r)];
-}
-
 /** Trees in planters round a sky garden terrace, between the tower's edge and its glazed core: crowns facing the viewer. */
-function skyGarden(B: Build, outer: number[], core: number[], z: number, s: Solid): void {
+function skyGarden(B: Build, outer: number[], core: number[], z: number, depth: number, s: Solid): void {
   const { cam } = B;
   if (!shows(cam, LOD.tree, 3)) return;
   const n = core.length / 2;
@@ -505,9 +501,9 @@ function skyGarden(B: Build, outer: number[], core: number[], z: number, s: Soli
     const [ax, ay, bx, by] = [core[e * 2], core[e * 2 + 1], core[j * 2], core[j * 2 + 1]];
     const len = Math.hypot(bx - ax, by - ay);
     // Outward from the core (corners() runs counter-clockwise), halfway to the tower's edge.
-    const nx = ((by - ay) / len) * 1.5;
-    const ny = (-(bx - ax) / len) * 1.5;
-    for (let t = 2.5; t < len - 1.5; t += 5.5) {
+    const nx = ((by - ay) / len) * depth / 2;
+    const ny = (-(bx - ax) / len) * depth / 2;
+    for (let t = 3.5; t < len - 1.5; t += 11) {
       const x = ax + ((bx - ax) * t) / len + nx;
       const y = ay + ((by - ay) * t) / len + ny;
       if (!pointInRing(x, y, outer)) continue;
@@ -517,7 +513,7 @@ function skyGarden(B: Build, outer: number[], core: number[], z: number, s: Soli
       const ring: number[] = [];
       for (let k = 0; k < 12; k++) {
         const a = (k / 12) * Math.PI * 2;
-        ring.push(x + cam.cb * Math.cos(a) * r, y - cam.sb * Math.cos(a) * r, z + trunk + (r + Math.sin(a) * r) / Math.max(0.3, cam.ca));
+        ring.push(x + cam.cb * Math.cos(a) * r, y - cam.sb * Math.cos(a) * r, z + trunk + (r + Math.sin(a) * r));
       }
       s.faces.push([ring]);
       s.lines.push({ pen: GREENERY, pts: ring, closed: true }, { pen: GREENERY, pts: [x, y, z + 0.6, x, y, z + trunk] });

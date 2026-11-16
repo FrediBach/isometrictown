@@ -140,3 +140,16 @@ describe('planFuture', () => {
     expect(plans(b).slice(1)).toEqual(plans(a).slice(1));
   });
 });
+
+test('repeated tower gardens are Visionary and leave civic and heritage towers intact', () => {
+  for (const depth of ['retrofit', 'transform', 'visionary'] as const) {
+    const t = town();
+    t.buildings = Array.from({ length: 20 }, (_, i) => building(i * 60, 0, 35, { kind: 'tall', roof: 'flat' }));
+    const protectedTowers = [{ hospital: true }, { townHall: true }, { castle: true }, { kind: 'worship' as const }].map(info => building(0, 100, 35, { kind: 'tall', roof: 'flat', ...info }));
+    t.buildings.push(...protectedTowers);
+    t.buildings.forEach(b => { b.h = 120; });
+    planFuture(t, set({ depth }), 'central', key);
+    expect(protectedTowers.every(b => !b.future!.skyGarden)).toBe(true);
+    expect(t.buildings.some(b => b.future!.skyGarden)).toBe(depth === 'visionary');
+  }
+});

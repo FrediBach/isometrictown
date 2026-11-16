@@ -1,6 +1,7 @@
 import { newSolid, prism, tagLines, type Build, type Solid } from './buildings';
 import { CLIMATES, doorEdge, motifBudget, showpiece } from './future';
 import { LOD, shows, spaced } from './lod';
+import { towerGardens } from './tower-gardens';
 import { hash } from './rng';
 import { deeper, GREENERY, LINEWORK, ROOFS } from './settings';
 import { onMask, place, rect, type Extra } from './infra';
@@ -198,6 +199,8 @@ function fins(B: Build, b: Building, s: Solid): void {
   const ring = b.shape[0];
   const p = ring.pts;
   const H = eave(B, b);
+  // Garden bands replace the continuous fin screen so their openings remain legible.
+  if (b.future?.skyGarden && towerGardens(b, Math.min(b.min * B.set.heightScale, H - 1), H)) return;
   const [upx, upy] = cam.up;
   const [sx, sy] = B.sun;
   const step = spaced(cam, 1.5, 0.9);
