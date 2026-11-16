@@ -1,9 +1,9 @@
 {
   "region": {"country":"England","code":"GB","style":"british","left":true},
-  "counts": {"buildings":289,"houses":192,"trees":2554,"cars":272,"lamps":40},
+  "counts": {"buildings":289,"houses":192,"trees":2568,"cars":272,"lamps":40},
   "census": {
     "apartment": 15,
-    "broadleaf": 803,
+    "broadleaf": 817,
     "bush": 1737,
     "chimneys": 222,
     "church-roof": 3,
@@ -31,6 +31,7 @@
     "house": 109,
     "kerb-trees": 29,
     "mapped-height": 1,
+    "median-trees": 14,
     "paired-windows": 67,
     "park-trees": 30,
     "party-walls": 163,
@@ -52,12 +53,12 @@
     "worship": 3
   },
   "plan": {
-    "lifts": 18171,
-    "rawLifts": 20144,
-    "inkMm": 86228.1,
-    "travelMm": 46141.7,
-    "minutes": 136.4,
-    "pens": [["Shadows",3898,12505.7],["Water",30,163.9],["Greenery",2510,10514.6],["Roofs",4193,24488.9],["Linework",7540,38555]]
+    "lifts": 18178,
+    "rawLifts": 20153,
+    "inkMm": 86250.5,
+    "travelMm": 46192.9,
+    "minutes": 136.5,
+    "pens": [["Shadows",3898,12505.7],["Water",31,165.2],["Greenery",2513,10524.6],["Roofs",4193,24488.9],["Linework",7543,38566.1]]
   },
   "features": {
     "additions": [179,927.8],
@@ -65,11 +66,12 @@
     "cars": [339,974.6],
     "cars:parking": [31,45.4],
     "details": [528,1982.1],
-    "ground": [1943,6044],
+    "ground": [1949,6063.1],
     "lamps": [30,159.2],
     "markings": [39,167.2],
     "markings:parking": [56,154.8],
     "parks": [340,2302.7],
+    "parks:commons": [3,3.4],
     "paths": [204,222.9],
     "planting": [27,69.4],
     "planting:beds": [188,399.4],
@@ -190,11 +192,12 @@
     "details/tank-planned": [153,566.2],
     "details/terrace": [222,966.8],
     "details/town-hall": [3,12],
-    "ground/allotment-sheds": [46,120.7],
+    "ground/allotment-sheds": [52,139.7],
     "ground/allotments": [530,969.5],
     "ground/lawns": [640,1327.4],
     "ground/plots": [727,3626.4],
     "ground/rain-tank": [16,20.4],
+    "ground/trellis": [6,19],
     "markings/cycle-lanes": [8,103.6],
     "parks/grass": [155,1635.4],
     "parks/park-edges": [33,350],
@@ -412,5 +415,5 @@
     "windows/town-hall": [6,12.1],
     "windows/worship": [27,86.5]
   },
-  "svg": {"bytes":698625,"sha1":"451c758b2b581714"}
+  "svg": {"bytes":698998,"sha1":"dae48a8e29424496"}
 }

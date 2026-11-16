@@ -1,4 +1,4 @@
-import type { Build, Solid } from './buildings';
+import { newSolid, type Build, type Solid } from './buildings';
 import { REF_NIB } from './camera';
 import { motifBudget } from './future';
 import { GARDEN, MEADOW, WETLAND, textured, type Ground } from './ground';
@@ -7,8 +7,8 @@ import { LOD, shows } from './lod';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
 import { hash, patch } from './rng';
-import { GREENERY } from './settings';
-import { groundSeg } from './streets';
+import { GREENERY, LINEWORK, WATER } from './settings';
+import { groundSeg, walk } from './streets';
 import type { Town } from './tiles';
 
 /*
@@ -226,4 +226,106 @@ export function worksHedges(B: Build, paper: Paper, town: Town, M: Masks): Tree[
     }
   }
   return out;
+}
+
+/**
+ * Solarpunk parks: benches beside the paths, every thirty metres or so, and shallow rain-garden
+ * dips on open grass, a dashed contour with low plants and a mark where the water runs in.
+ */
+export function parkCommons(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  if (!B.future || !B.set.parks) return NONE;
+  const { cam, set } = B;
+  const green = (x: number, y: number) => onMask(paper, M.green, x, y) && !onMask(paper, M.wood, x, y) && !onMask(paper, M.road, x, y) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
+  const solids: Solid[] = [];
+  if (shows(cam, LOD.bench, 1.6))
+    for (const w of town.ways) {
+      if (w.kind !== 'path' || w.sub === 'steps' || w.bridge) continue;
+      walk(w.pts, 8, 30, 8, (x, y, ux, uy) => {
+        const [k0, k1] = B.key(x, y);
+        const h = (salt: number) => hash(k0, k1, set.seed, 12280 + salt);
+        if (h(0) > 0.6) return;
+        const side = h(1) < 0.5 ? 1 : -1;
+        // Beside the path, facing it.
+        const nx = -uy * side;
+        const ny = ux * side;
+        const bx = x + nx * 1.5;
+        const by = y + ny * 1.5;
+        if (!green(bx - ux * 0.9, by - uy * 0.9) || !green(bx + ux * 0.9, by + uy * 0.9) || !green(bx + nx * 0.5, by + ny * 0.5)) return;
+        const s = newSolid();
+        const P = (a: number, c: number, z: number) => [bx + ux * a + nx * c, by + uy * a + ny * c, z];
+        s.lines.push({ pen: LINEWORK, pts: [...P(-0.8, 0, 0.45), ...P(0.8, 0, 0.45)] }, { pen: LINEWORK, pts: [...P(-0.8, 0.25, 0.9), ...P(0.8, 0.25, 0.9)] });
+        for (const a of [-0.7, 0.7]) s.lines.push({ pen: LINEWORK, pts: [...P(a, 0, 0), ...P(a, 0, 0.45), ...P(a, 0.25, 0.9)] });
+        solids.push(s);
+      });
+    }
+  // Dips on a 70 m grid fixed to the map, where the grass is open all round.
+  const dips: [number, number, number, number][] = [];
+  const box = cam.region(0);
+  const [ox, oy] = B.toAbs(0, 0);
+  const metre = B.toAbs(1, 0)[0] - ox;
+  const step = 70 * metre;
+  const [A0x, A0y] = B.toAbs(box[0], box[1]);
+  const [A1x, A1y] = B.toAbs(box[2], box[3]);
+  for (let i = Math.floor(A0x / step); i <= Math.ceil(A1x / step); i++)
+    for (let j = Math.floor(A0y / step); j <= Math.ceil(A1y / step); j++) {
+      const h = (salt: number) => hash(i, j, set.seed, 12285 + salt);
+      if (h(0) > 0.6) continue;
+      const x = ((i + 0.2 + 0.6 * h(1)) * step - ox) / metre;
+      const y = ((j + 0.2 + 0.6 * h(2)) * step - oy) / metre;
+      const a = h(3) * Math.PI;
+      const ux = Math.cos(a);
+      const uy = Math.sin(a);
+      let ok = true;
+      for (let q = 0; q < 12 && ok; q++) {
+        const t = (q / 12) * Math.PI * 2;
+        ok = green(x + ux * Math.cos(t) * 4.5 - uy * Math.sin(t) * 2.5, y + uy * Math.cos(t) * 4.5 + ux * Math.sin(t) * 2.5);
+      }
+      if (ok) dips.push([x, y, ux, uy]);
+    }
+  return {
+    solids,
+    draw: () => {
+      if (!dips.length || !shows(cam, LOD.kerbGarden, 3)) return;
+      const test: Test = (x, y, d) => paper.seen(x, y, d) && !paper.on(M.shadow, x, y);
+      const k = Math.max(1, cam.nib / REF_NIB);
+      const dash = cam.tone(1.1) / cam.s;
+      for (const [x, y, ux, uy] of dips) {
+        const P = (t: number, f = 1): [number, number] => [x + ux * Math.cos(t) * 3.5 * f - uy * Math.sin(t) * 1.8 * f, y + uy * Math.cos(t) * 3.5 * f + ux * Math.sin(t) * 1.8 * f];
+        // The dashed contour of the dip, by arc length on the ground.
+        // Each dash is one stroke, so it isn't dropped as a speck piece by piece.
+        const n = 48;
+        let run = 0;
+        let on = true;
+        let pts: number[] = [];
+        for (let q = 0; q <= n; q++) {
+          const a = P((q / n) * Math.PI * 2);
+          if (on) pts.push(a[0], a[1], 0);
+          if (q === n) break;
+          const b = P(((q + 1) / n) * Math.PI * 2);
+          run += Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (run >= dash) {
+            if (on) {
+              pts.push(b[0], b[1], 0);
+              paper.line3(GREENERY, pts, test);
+              pts = [];
+            }
+            run = 0;
+            on = !on;
+          }
+        }
+        if (pts.length >= 6) paper.line3(GREENERY, pts, test);
+        // Where the water runs in, from the uphill end.
+        const [ix, iy] = P(Math.PI, 1);
+        groundSeg(paper, WATER, ix - ux * 1.2, iy - uy * 1.2, ix + ux * 0.4, iy + uy * 0.4, test);
+        paper.end();
+        for (const f of [-0.4, 0.4]) {
+          const [tx, ty] = P(f * Math.PI, 0.35);
+          const sx = cam.sx(tx, ty);
+          const sy = cam.sy(tx, ty, 0);
+          paper.sheet(GREENERY, TUFT.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, cam.depth(tx, ty, 0)]), test);
+          paper.end();
+        }
+      }
+    },
+  };
 }

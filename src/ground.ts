@@ -1207,6 +1207,20 @@ export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Sol
         prism(B, [{ pts, seam: new Uint8Array(4) }], 0, 2.2, { roof: true, windows: false, pen: LINEWORK }, s);
         s.casts.push({ ring: pts, h: 2.2 });
         out.push(s);
+        // Some solarpunk plots grow beans or vines up a trellis across the plot.
+        if (B.future && hash(k0, k1, set.seed, 12252) < 0.35) {
+          const t = newSolid();
+          const mx = x - r.ux * 5;
+          const my = y - r.uy * 5;
+          const P = (b: number, z: number) => [mx + vx * b, my + vy * b, z];
+          for (const b of [-1.6, 0, 1.6]) t.lines.push({ pen: LINEWORK, pts: [...P(b, 0), ...P(b, 1.8)] });
+          for (const z of [0.9, 1.8]) t.lines.push({ pen: LINEWORK, pts: [...P(-1.6, z), ...P(1.6, z)] });
+          const g: number[] = [];
+          for (let b = -1.5, q = 0; b <= 1.5; b += 0.3, q++) g.push(...P(b, q % 2 ? 1.5 : 0.6));
+          t.lines.push({ pen: GREENERY, pts: g });
+          for (const l of t.lines) l.facet = 'trellis';
+          out.push(t);
+        }
         // Solarpunk plots catch the shed's rain in a tank beside it.
         if (B.future && hash(k0, k1, set.seed, 12250) < 0.6) {
           const tx = x + r.ux * (hl + 0.6);

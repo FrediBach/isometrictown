@@ -2,7 +2,11 @@
 
 This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.json` (103 recipes) and `Solarpunk Transformation Atlas.pdf` into work on this codebase. The mode is a switch that draws the same place, at the same view and seed, as a settled solarpunk future. The guide was written without knowing the renderer, so this plan also says which of its rules carry over directly, which need a different form, and which this renderer can't support yet.
 
-**Status (2026-11-16):** M0 to M5 are built, and most of the open items after them (cycle lanes, cargo bikes at shops, station forecourts, paddocks and troughs, allotment tanks, shore power; the app checked in the browser): the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires; then balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches, verandas, arcades and vestibules, entrance canopies, sun fins, trellises, shop awnings everywhere, square pergolas and market stalls, and school-yard pergolas; then park meadow patches, reeds on banks and in marshes, food beds behind houses, hedged works edges, crop strips with margins, more hedgerows and mixed-age orchards; then people at stalls, pergolas and school yards, washing on balcony frames, dry stone channels where it is hot and dry, a climate pass (`npm run lod -- --climate …`) and a final ink check: against the default drawing, plot time rises 0–26% at any lab place and scale (most under 10%), and wasted ink by at most 1.3 points. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
+**Status (2026-11-16):** all six milestones (M0–M5) are built, with tests and goldens, and the app has been checked in the browser. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers to the questions in §14 are recorded there and applied throughout.
+
+- **Built:** the toolbar switch, climate and intensity, planner, catalogue and imprint label; roof panels, green roofs and rain tanks; cycles, fewer cars, kerb rain gardens and tree pits, street trees, cycle lanes, planted medians, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, station forecourts and racks, electrified lines and buried town wires; balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches and their climate variants, entrance canopies, sun fins, trellises, awnings, square pergolas and stalls, school pergolas; park meadows, benches and dips, reeds, food beds, works hedges, crop strips, hedgerows, orchards, paddocks, allotment tanks and trellises, shore power; people at stalls, pergolas and schools, washing lines, cargo bikes at shops, dry stone channels in hot dry places.
+- **Ink:** against the default drawing, plot time rises 0–26% at any LOD lab place and scale (most under 10%), and wasted ink by at most 1.4 points.
+- **Open:** checking each climate on a fitting preset town (needs map data that isn't recorded), and showpiece versions of schools, stations and squares beyond their pergolas and canopies.
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
@@ -464,7 +468,7 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 - LOD rules `pvPatch`, `pvGrid`, `pvRows`, `rainTank`, `greenRoof`, `futureTwo`, `futureDetail`.
 - Cases: add `midtown-solarpunk` and `emmental-solarpunk`.
 
-**M2: Streets and mobility** *(done, cycle lanes included; a planted median is still open, as are rain-garden kerb breaks in `curbs()`: the new kerb is drawn with its gap instead)*
+**M2: Streets and mobility** *(done, cycle lanes and planted medians included; the rain garden's inlet gap is in its own new kerb, so the street's kerb, now its back edge, rightly keeps no break)*
 
 - `StreetPlan`: tree pits and spacing, rain gardens with kerb breaks, fewer kerb cars. Traffic reduction plus cycles. Parking-lot PV canopies, beds and racks.
 - Fuel → charging. Bus-stop green roofs. Station canopy module grids and cycle racks. Catenary everywhere. Town poles (per the decision in §14).
@@ -478,7 +482,7 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 - Market stalls on squares. `M.foot` filling for additions.
 - LOD rules `frame`, `framePost`, `porch`, `trellis`, `fins`, `pergola`, `stall`.
 
-**M4: Landscape** *(done, paddocks, allotment tanks and shore power included; allotment trellises and park rain-garden basins and benches are still open)*
+**M4: Landscape** *(done, all of it: paddocks, allotment tanks and trellises, park benches and rain-garden dips, shore power)*
 
 - Park mosaic and rain-garden basins. Crop strips with margins. Rotational meadow fences and troughs. Orchard gaps and ages. Reed margins at rivers, lakes and marsh. Garden beds in residential gardens. Allotment tanks and trellises. Industrial planted margins. Port shore power.
 - LOD rules `reed`, `bed`.

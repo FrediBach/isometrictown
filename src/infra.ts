@@ -8,6 +8,7 @@ import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
 import { calm, wake } from './ships';
+import { hasMedian } from './future';
 
 /**
  * Things that come with the transport network: cable cars and ski lifts, ferries, tunnel
@@ -764,7 +765,8 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
         }
       });
     }
-    walk(p, start, 9, stop + 3, (x, y, ux, uy) => {
+    // A planted median takes the place of the centre line.
+    if (!hasMedian(B, w)) walk(p, start, 9, stop + 3, (x, y, ux, uy) => {
       // A dash pointing into the view is shorter on paper than one across it.
       const projected = Math.hypot(ux * B.cam.cb - uy * B.cam.sb, B.cam.sa * (ux * B.cam.sb + uy * B.cam.cb));
       if (!shows(B.cam, LOD.centreLine, 3 * projected)) return;

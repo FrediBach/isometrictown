@@ -1,13 +1,13 @@
 import { newSolid, prism, type Build, type Solid } from './buildings';
-import { CLIMATES, motifBudget } from './future';
+import { CLIMATES, hasMedian, MEDIAN, motifBudget } from './future';
 import { hash } from './rng';
-import { BAY_D, BAY_W, bayUse, onMask, parkingBays, type Extra } from './infra';
+import { at, BAY_D, BAY_W, bayUse, measure, onMask, parkingBays, type Extra } from './infra';
 import { LOD, shows } from './lod';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
 import { GREENERY, LINEWORK, WATER } from './settings';
-import { groundSeg } from './streets';
-import type { Town } from './tiles';
+import { groundSeg, walk } from './streets';
+import type { Town, Way } from './tiles';
 import type { KerbSlot } from './traffic';
 import type { Tree } from './nature';
 import { bicycle } from './vehicles';
@@ -290,4 +290,84 @@ export function cycleRacks(B: Build, paper: Paper, town: Town, M: Masks): Extra 
     solids.push(s);
   }
   return { solids, draw: () => {} };
+}
+
+/** Roads with a planted median, and how far in from each end it starts: well clear of a junction. */
+function medianWays(B: Build, town: Town): [Way, number, number][] {
+  const key = (x: number, y: number) => `${Math.round(x * 2)},${Math.round(y * 2)}`;
+  const degree = new Map<string, number>();
+  for (const w of town.ways) {
+    if (w.kind !== 'road') continue;
+    for (const k of [key(w.pts[0], w.pts[1]), key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])]) degree.set(k, (degree.get(k) ?? 0) + 1);
+  }
+  const trim = (x: number, y: number) => ((degree.get(key(x, y)) ?? 0) >= 3 ? 12 : 1);
+  const out: [Way, number, number][] = [];
+  for (const w of town.ways) {
+    if (!hasMedian(B, w)) continue;
+    const p = w.pts;
+    const a = trim(p[0], p[1]);
+    const b = trim(p[p.length - 2], p[p.length - 1]);
+    const cum = measure(p);
+    // A short stub of median reads as a parked bar, not a planted strip.
+    if (cum[cum.length - 1] - a - b > 20) out.push([w, a, b]);
+  }
+  return out;
+}
+
+/** Trees down the middle of planted medians, every ten metres from the road's own end. */
+export function medianTrees(B: Build, town: Town): Tree[] {
+  const out: Tree[] = [];
+  if (!B.future || B.set.trees <= 0) return out;
+  for (const [w, a, b] of medianWays(B, town))
+    walk(w.pts, a + 4, 10, b + 4, (x, y) => {
+      const [k0, k1] = B.key(x, y);
+      const r = 1.6 + hash(k0, k1, B.set.seed, 12271) * 0.5;
+      out.push({ x, y, r, h: r + 3.6 + hash(k0, k1, B.set.seed, 12272) * 1.2, conifer: false, from: 'median-trees' });
+    });
+  return out;
+}
+
+/** The kerbs of planted medians, with low planting along them between the trees. */
+export function medians(B: Build, paper: Paper, town: Town): Extra {
+  if (!B.future) return NONE;
+  const list = medianWays(B, town);
+  if (!list.length) return NONE;
+  const { cam } = B;
+  return {
+    solids: [],
+    draw: () => {
+      if (!shows(cam, LOD.kerbGarden, MEDIAN * 2)) return;
+      const test = (x: number, y: number, d: number) => paper.seen(x, y, d);
+      for (const [w, a, b] of list) {
+        const p = w.pts;
+        const cum = measure(p);
+        const L = cum[cum.length - 1];
+        for (const side of [1, -1]) {
+          const pts: number[] = [];
+          walk(p, a, 2, b, (x, y, ux, uy) => pts.push(x - uy * side * MEDIAN, y + ux * side * MEDIAN, 0));
+          if (pts.length >= 6) paper.line3(LINEWORK, pts, test);
+          paper.end();
+        }
+        // Rounded noses at both ends.
+        for (const [t, dir] of [[a, -1], [L - b, 1]] as const) {
+          const [x, y, ux, uy] = at(p, cum, t);
+          const nose: number[] = [];
+          for (let q = 0; q <= 6; q++) {
+            const ang = (q / 6) * Math.PI;
+            nose.push(x - uy * Math.cos(ang) * MEDIAN + ux * dir * Math.sin(ang) * MEDIAN, y + ux * Math.cos(ang) * MEDIAN + uy * dir * Math.sin(ang) * MEDIAN, 0);
+          }
+          paper.line3(LINEWORK, nose, test);
+          paper.end();
+        }
+        // Low planting: tufts between the trees.
+        const kk = Math.max(1, cam.nib / 0.35);
+        walk(p, a + 9, 10, b + 4, (x, y) => {
+          const sx = cam.sx(x, y);
+          const sy = cam.sy(x, y, 0);
+          paper.sheet(GREENERY, TUFT.flatMap(([dx, dy]) => [sx + dx * kk, sy + dy * kk, cam.depth(x, y, 0)]), test);
+          paper.end();
+        });
+      }
+    },
+  };
 }

@@ -67,6 +67,7 @@ export const LOD = {
   stall: { m: 2, mm: 1.6, what: 'Market stalls in squares: depth' },
   washing: { m: 3.4, mm: 4, what: 'Washing lines on balcony frames: the span between posts' },
   paddock: { m: 3, mm: 1.6, what: 'Paddock fences and troughs on solarpunk meadows: post spacing' },
+  bench: { m: 1.6, mm: 2.4, what: 'Benches beside solarpunk park paths: length' },
   reed: { m: 1.5, mm: 0.75, what: 'Reed clusters on banks and in marshes: a cluster' },
   bed: { m: 1.1, mm: 0.8, what: 'Food beds behind houses: width' },
   rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },

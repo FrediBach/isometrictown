@@ -1,5 +1,6 @@
 import { car, newSolid, prism, type Build, type Solid } from './buildings';
 import { bicycle } from './vehicles';
+import { hasMedian, MEDIAN } from './future';
 import { at, measure } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
@@ -169,7 +170,8 @@ function lanes(B: Build, w: Way, park: boolean): Lane[] {
     return out;
   }
   const n = big ? Math.max(1, Math.floor((hw - 0.5) / 3.4)) : 1;
-  const inner = 0.3;
+  // Lanes keep clear of a solarpunk road's planted median.
+  const inner = hasMedian(B, w) ? MEDIAN + 0.5 : 0.3;
   const kerb = hw - 0.4 - (park ? 2.2 : 0);
   const lw = (kerb - inner) / n;
   for (const dir of [1, -1] as const) for (let i = 0; i < n; i++) out.push({ o: side(dir) * (kerb - (i + 0.5) * lw), dir, outer: i === 0 });

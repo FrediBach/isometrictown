@@ -6,7 +6,7 @@ import { LOD, shows } from './lod';
 import { hash } from './rng';
 import { seedFor, type Settings } from './settings';
 import type { StyleId } from './styles';
-import type { Building, Town } from './tiles';
+import type { Building, Town, Way } from './tiles';
 
 /*
  * Solarpunk mode: the same place as a settled, repaired and inhabited future (see
@@ -371,3 +371,18 @@ export function motifBudget(B: Build, b: Building): 1 | 2 | 3 {
   if (!shows(B.cam, LOD.futureDetail, size)) return 2;
   return 3;
 }
+
+/**
+ * Whether a solarpunk main road has a planted strip down its middle: two-way primary roads wide
+ * enough to give it room, most of them, decided per road by the cell its middle lies in.
+ */
+export function hasMedian(B: Build, w: Way): boolean {
+  if (!B.future || w.kind !== 'road' || w.oneway || w.bridge || w.cls !== 'primary' || w.width < 13) return false;
+  const p = w.pts;
+  const mid = Math.floor(p.length / 4) * 2;
+  const [c0, c1] = B.cell(p[mid], p[mid + 1], 20);
+  return hash(c0, c1, B.set.seed, 12270) < 0.3 + 0.5 * Math.max(0, Math.min(1, B.set.future));
+}
+
+/** Half the width of a planted median, metres. */
+export const MEDIAN = 1.1;
