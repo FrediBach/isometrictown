@@ -4,6 +4,7 @@ import { LOD, shows, spaced } from './lod';
 import { corridor, GroundIndex, overlaps } from './production';
 import { deeper, GREENERY, LINEWORK, WATER, type Settings } from './settings';
 import { corners, type Rect } from './shape';
+import { storageVessel } from './shared-water';
 import { panel } from './solar';
 import type { Building, Town } from './tiles';
 
@@ -72,6 +73,16 @@ export function growingFrame(B: Build, r: Rect, H: number, s: Solid): void {
   const top = H + 1.6;
   const bays = Math.max(2, Math.round(r.L / 7)), bw = r.L / bays, u = (i: number) => -r.L / 2 + i * bw;
   const glazed = !CLIMATES[B.future!.climate].gallery && !CLIMATES[B.future!.climate].dry;
+  // Shared stores sit on the already reserved ground, below the first growing deck.
+  const tankTop = Math.min(2.2, floor - 0.5);
+  if (shows(B.cam, LOD.sharedCistern, 4)) {
+    for (const t of [u(0.5), u(bays - 0.5)]) {
+      const [x, y] = P(t, 0, 0);
+      storageVessel(B, s, x, y, 2, 0, tankTop);
+    }
+    s.lines.push({ pen: WATER, pts: [...P(u(bays), -2.5, tankTop), ...P(u(bays - 0.5), -2.5, tankTop), ...P(u(bays - 0.5), 0, tankTop)] });
+    s.lines.push({ pen: WATER, pts: [...P(u(0.5), -2, 0.5), ...P(u(0.5), -2.3, 0.5), ...P(u(bays - 0.5), -2.3, 0.5), ...P(u(bays - 0.5), -2, 0.5)] });
+  }
   for (const z of levels) {
     const deck = quad(u(0), u(bays), z).flat();
     s.faces.push([deck]);

@@ -97,7 +97,7 @@ export function planPublicEnergy(B: Build, town: Town): PublicRoof[] {
 }
 
 /** Keep tree crowns outside the roof without closing the occupied ground beneath it. */
-export function underPublicRoof(roofs: PublicRoof[], x: number, y: number, radius = 0): boolean {
+export function underPublicRoof(roofs: readonly { envelope: Rect }[], x: number, y: number, radius = 0): boolean {
   return roofs.some(({ envelope: r }) => Math.abs((x - r.cx) * r.ux + (y - r.cy) * r.uy) < r.L / 2 + radius && Math.abs(-(x - r.cx) * r.uy + (y - r.cy) * r.ux) < r.w / 2 + radius);
 }
 

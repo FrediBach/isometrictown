@@ -54,15 +54,15 @@
     "worship": 3
   },
   "plan": {
-    "lifts": 20402,
-    "rawLifts": 22376,
-    "inkMm": 95379.5,
-    "travelMm": 49899.4,
-    "minutes": 152.1,
-    "pens": [["Shadows",4611,15118.8],["Water",143,843],["Greenery",3369,15126.7],["Roofs",4184,23932.1],["Linework",8095,40358.9]]
+    "lifts": 20410,
+    "rawLifts": 22384,
+    "inkMm": 95404.6,
+    "travelMm": 49954.9,
+    "minutes": 152.2,
+    "pens": [["Shadows",4607,15111.4],["Water",152,870.6],["Greenery",3369,15126.7],["Roofs",4184,23932.1],["Linework",8098,40363.8]]
   },
   "features": {
-    "additions": [316,1518.4],
+    "additions": [328,1550.9],
     "buildings": [1583,13045.5],
     "cars": [178,553.7],
     "cars:parking": [32,79.3],
@@ -86,7 +86,7 @@
     "roofs": [1590,9787.7],
     "rooftops": [96,472.1],
     "shadeWalls": [592,3837.4],
-    "shadows": [2835,7618.1],
+    "shadows": [2831,7610.6],
     "solar": [2041,9205.8],
     "solar:canopies": [10,63.8],
     "streets:cycle-tracks": [11,26.7],
@@ -95,31 +95,31 @@
     "windows": [3355,6511.4]
   },
   "facets": {
-    "additions/apartment": [121,721.1],
-    "additions/chimneys": [279,1324.5],
+    "additions/apartment": [133,753.5],
+    "additions/chimneys": [291,1356.9],
     "additions/civic": [11,41.7],
     "additions/dormers": [31,110.1],
     "additions/entrance-canopy": [11,41.7],
-    "additions/flat-roof": [175,874],
+    "additions/flat-roof": [187,906.4],
     "additions/frame": [152,645.7],
     "additions/future-B01": [27,91.1],
     "additions/future-B02": [157,664.6],
-    "additions/future-B04": [121,721.1],
+    "additions/future-B04": [133,753.5],
     "additions/future-B14": [11,41.7],
     "additions/gabled-roof": [35,186.8],
     "additions/glazing-bars": [142,544],
     "additions/green-roof-planned": [9,8],
     "additions/grid-windows": [81,351.3],
-    "additions/growing-frame": [121,721.1],
-    "additions/guessed-height": [316,1518.4],
+    "additions/growing-frame": [133,753.5],
+    "additions/guessed-height": [328,1550.9],
     "additions/has-parapet": [9,25.4],
     "additions/hipped-roof": [106,457.7],
     "additions/house": [27,91.1],
     "additions/paired-windows": [76,277.5],
     "additions/party-walls": [157,664.6],
     "additions/porch": [32,110],
-    "additions/pv-planned": [273,1394.5],
-    "additions/ribbon-windows": [100,640.7],
+    "additions/pv-planned": [285,1426.9],
+    "additions/ribbon-windows": [112,673.1],
     "additions/tall-windows": [59,249],
     "additions/tank-planned": [79,359.5],
     "additions/terrace": [157,664.6],
@@ -431,5 +431,5 @@
     "windows/town-hall": [6,12.1],
     "windows/worship": [27,86.2]
   },
-  "svg": {"bytes":834882,"sha1":"e183c9235e149cac"}
+  "svg": {"bytes":835384,"sha1":"f35a020242225fa4"}
 }

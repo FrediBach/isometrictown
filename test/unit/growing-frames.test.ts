@@ -102,6 +102,8 @@ describe('productive apartment frames', () => {
       expect(s.lines.every(l => l.pts.every(Number.isFinite))).toBe(true);
       expect(s.lines.some(l => l.pts.some((v, i) => i % 3 === 2 && v === 0))).toBe(true);
       expect(s.shade).toHaveLength(1);
+      const tankTop = Math.min(2.2, a.B.style.floor - 0.5);
+      expect(s.faces.filter(f => f.every(p => p.every((v, i) => i % 3 !== 2 || v <= tankTop)))).toHaveLength(50);
       for (const f of s.faces) for (const p of f) for (let i = 0; i < p.length; i += 3) {
         expect(Math.abs((p[i] - r.cx) * r.ux + (p[i + 1] - r.cy) * r.uy)).toBeLessThanOrEqual(r.L / 2 + 1e-6);
         expect(Math.abs(-(p[i] - r.cx) * r.uy + (p[i + 1] - r.cy) * r.ux)).toBeLessThanOrEqual(r.w / 2 + 1e-6);

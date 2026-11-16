@@ -34,6 +34,7 @@ These are small and exact, for the parts that are pure functions.
 | `wind.test.ts` | Wind sites across pans, scale and bearing; rotor separation, complete clearance, mapped meadow subclasses, depth/settings gates, off-sheet bases and visible shaft simplification |
 | `public-energy.test.ts` | Public roof envelopes, interior-patch search, column/path clearance, holes and obstacles, open skylight depth, gates, pans, canonical axes and duplicate source polygons |
 | `production.test.ts` | Productive-property footprints, roof holes, enclosed obstacles, mapped paths, overlapping neighbours, gates and view-independent plans |
+| `shared-water.test.ts` | Water courts and campuses: complete clearance, source identity, conflicts, scale/pan stability, gates, bounded geometry and visible space beneath elevated storage |
 | `growing-frames.test.ts` | Productive galleries: full context obstacles, conflicting neighbours, stable plans, gates, bounded geometry and greenhouse depth versus open hot-climate bays |
 | `tower-gardens.test.ts` | Repeated tower openings: spacing, supported footprints, holes, seams, pan stability and visible columns at multiple scales and bearings |
 | `garden-building.test.ts` | Stepped rooftop farms: full support, holes and seams, height limits, roof coordination, stable plans across pans and projection, finite geometry at 1:1000–1:8000 |

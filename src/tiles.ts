@@ -43,8 +43,8 @@ export type Town = {
   powerContext?: PowerContext;
   /** Pedestrian polygons in raw tiles, distinct from runways, piers and vehicle surfaces. */
   publicSquares?: Shape[];
-  /** Complete ordinary-tile context for public energy roofs. */
-  publicContext?: { squares: Shape[]; obstacles: Shape[]; buildings: Shape[]; ways: Way[]; streams: Stream[] };
+  /** Complete ordinary-tile context for public roofs and shared water infrastructure. */
+  publicContext?: { squares: Shape[]; waterSites?: Shape[]; waterObstacles?: Shape[]; obstacles: Shape[]; buildings: Shape[]; ways: Way[]; streams: Stream[] };
   /** Tile green polygons and protected areas excluding explicitly mapped meadows; used during assembly. */
   windGreen?: Shape[];
   /** Ordinary loaded-tile context for wind sites, independent of the power-line context fetch. */
@@ -610,7 +610,7 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   town.productionContext = production;
   const wind: NonNullable<Town['windContext']> = { land: [], obstacles: [], buildings: [], ways: [], streams: [] };
   town.windContext = wind;
-  const publicSpace: NonNullable<Town['publicContext']> = { squares: [], obstacles: [], buildings: [], ways: [], streams: [] };
+  const publicSpace: NonNullable<Town['publicContext']> = { squares: [], waterSites: [], waterObstacles: [], obstacles: [], buildings: [], ways: [], streams: [] };
   town.publicContext = publicSpace;
   const powerShape = (s: Shape): Shape => s.map((r) => ({ pts: r.pts.map((v, i) => i % 2 ? frame.y(v) : frame.x(v)), seam: r.seam }));
   const powerPoints = (p: number[]) => p.map((v, i) => i % 2 ? frame.y(v) : frame.x(v));
@@ -630,6 +630,8 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   }
   for (const t of tiles) {
     publicSpace.squares.push(...(t.publicSquares ?? []).map(powerShape));
+    publicSpace.waterSites!.push(...t.landuse.filter(a => ['school', 'university', 'college'].includes(a.cls)).map(a => powerShape(a.shape)));
+    publicSpace.waterObstacles!.push(...[...t.cover.map(a => a.shape), ...t.landuse.filter(a => ['pitch', 'track', 'stadium', 'playground', 'cemetery', 'military', 'railway'].includes(a.cls)).map(a => a.shape)].map(powerShape));
     publicSpace.obstacles.push(...[...t.water, ...t.pools, ...t.wood, ...t.green, ...t.aprons,
       ...t.plazas.filter((s) => !t.publicSquares?.includes(s))].map(powerShape));
     publicSpace.buildings.push(...t.buildings.map((b) => powerShape(b.shape)));

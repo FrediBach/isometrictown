@@ -669,12 +669,12 @@ export function quarries(_B: Build, paper: Paper, town: Town, M: Masks): Extra {
 // ---------------------------------------------------------------- Squares
 
 /** A fountain or a statue in the middle of each town square big enough to hold one. */
-export function squares(B: Build, paper: Paper, town: Town, M: Masks, roofs: PublicRoof[] = []): Extra {
+export function squares(B: Build, paper: Paper, town: Town, M: Masks, roofs: PublicRoof[] = [], waterCourts: readonly string[] = []): Extra {
   const solids: Solid[] = [];
   const lines: { pen: number; pts: number[] }[] = [];
   // Fountains and statues fade out at coarse scales; an energy canopy is big enough to stay.
   const small = shows(B.cam, LOD.fountain);
-  if (!small && !roofs.length) return { solids, draw: () => {} };
+  if (!small && !roofs.length && !waterCourts.length) return { solids, draw: () => {} };
   for (const sq of town.plazas) {
     const outer = sq[0].pts;
     const area = Math.abs(ringArea(outer));
@@ -686,7 +686,7 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks, roofs: Pub
     const [k0, k1] = B.key(r.cx, r.cy);
     const h = (k: number) => hash(k0, k1, B.set.seed, 760 + k);
     const { cx: x, cy: y } = r;
-    if (roofs.some((roof) => roof.key === squareKey(B, r))) {
+    if (roofs.some((roof) => roof.key === squareKey(B, r)) || waterCourts.includes(squareKey(B, r))) {
       solids.push(...publicRoom(B, paper, M, outer, r));
       continue;
     }
