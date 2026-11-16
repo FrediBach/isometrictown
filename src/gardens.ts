@@ -1,6 +1,7 @@
 import { car, newSolid, prism, type Build, type Solid } from './buildings';
 import { FIELD, GARDEN, MEADOW, type Ground } from './ground';
 import { ringArea } from './geo';
+import { CLIMATES } from './future';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
 import { LOD, shows } from './lod';
@@ -382,7 +383,9 @@ const AVENUE_CLASSES = new Set(['primary', 'secondary', 'tertiary', 'minor']);
 export function streetTrees(B: Build, paper: Paper, ways: Way[], M: Masks): Tree[] {
   const { cam, set, style } = B;
   const out: Tree[] = [];
-  const chance = AVENUES[style.id] * Math.min(1, set.trees / 0.7);
+  // Solarpunk streets are planted more often, as much as the climate allows.
+  const avenue = B.future ? Math.min(0.8, (AVENUES[style.id] + 0.15) * CLIMATES[B.future.climate].streetTrees) : AVENUES[style.id];
+  const chance = avenue * Math.min(1, set.trees / 0.7);
   if (set.trees <= 0 || !chance) return out;
   const clear = (x: number, y: number) => {
     const sx = cam.sx(x, y);

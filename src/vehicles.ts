@@ -269,3 +269,36 @@ export function emergency(B: Build, x: number, y: number, ux: number, uy: number
   }
   return s;
 }
+
+// ---------------------------------------------------------------- Cycles
+
+/**
+ * A bicycle with its rider, or a cargo bike with a box in front, for solarpunk streets. Wheels
+ * stand upright; the frame, rider and head are single strokes. Length about 1.8 m, cargo 2.4 m.
+ */
+export function bicycle(B: Build, x: number, y: number, ux: number, uy: number, cargo: boolean, ridden = true): Solid {
+  const s = newSolid();
+  s.facet = cargo ? 'cargo-bike' : 'cycle';
+  const { P, wheel, line, box } = local(B, s, x, y, ux, uy);
+  const r = 0.34;
+  const back = cargo ? -0.75 : -0.52;
+  const front = cargo ? 0.95 : 0.52;
+  wheel(back, 0, r);
+  wheel(front, 0, cargo ? 0.26 : r);
+  if (cargo) box(0.25, 0.85, -0.38, 0.38, 0.3, 0.78);
+  const bar = cargo ? 0.1 : 0.42;
+  line([back, 0, r], [-0.1, 0, 0.85], [bar, 0, 0.88], [front, 0, cargo ? 0.26 : r]);
+  line([bar, -0.25, 1.02], [bar, 0.25, 1.02]);
+  line([bar, 0, 0.88], [bar, 0, 1.02]);
+  if (ridden) {
+    line([0, 0, 0.15], [0.12, 0, 0.5], [-0.1, 0, 0.88], [0.04, 0, 1.45], [bar, 0, 1.02]);
+    const head: number[] = [];
+    for (let q = 0; q < 8; q++) {
+      const t = (q / 8) * Math.PI * 2;
+      head.push(...P(0.07 + Math.cos(t) * 0.12, 0, 1.62 + Math.sin(t) * 0.12));
+    }
+    s.lines.push({ pen: LINEWORK, pts: head, closed: true });
+  }
+  s.casts.push({ ring: place(x, y, ux, uy, [[back, -0.2], [front, -0.2], [front, 0.2], [back, 0.2]]), h: ridden ? 1.6 : 1 });
+  return s;
+}

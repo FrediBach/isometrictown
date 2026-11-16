@@ -19,14 +19,15 @@ The **Today | Solarpunk** switch in the preview toolbar draws the same place as 
    - `oneWay()`: `sawtoothPanels()` covers the opaque tooth slopes.
    - Each records its wall height in `b.future.eave`.
    - Rain tanks are an `Extra` (`commons.ts`), placed once every footprint is in `M.foot`, beside houses that were built.
-4. **Budget.** `motifBudget()` says how much of a building's future shows: the main change alone, with its supporting change (rules `futureTwo`), or with close-scale fittings (`futureDetail`).
+4. **Streets** (M2). `traffic()` swaps some private cars for bicycles and cargo bikes (`vehicles.ts` `bicycle()`) and leaves some out, deciding per car by position with salt 12100. Fewer kerb stretches keep parking (`KERB_FREED`); `freedKerbs()` walks the same kerb slots and returns the freed ones, which become trees in pits (`kerbTrees()`, added to the tree list) or rain gardens (`kerbGardens()`, ground marks). Car park bays come from `parkingBays()` (shared with `parking()`); `bayUse()` makes some racks or beds (`lotCommons()`), and `lotCanopies()` roofs straight rows of bays. `fuel()`, `busStops()` and `platforms()` add chargers, planted roofs and panels while `B.future` is set; `streets.ts`, `trains.ts` and `power.ts` electrify every main line and bury town wires.
+5. **Budget.** `motifBudget()` says how much of a building's future shows: the main change alone, with its supporting change (rules `futureTwo`), or with close-scale fittings (`futureDetail`).
 
 ## Layers and pens
 
 | Layer | Holds | Pens |
 | --- | --- | --- |
-| `solar` | panels on pitched, flat and sawtooth roofs | outline `LINEWORK`, a sparse grid every two modules in `SHADOWS` |
-| `planting` | green roofs, rain tanks | `GREENERY`; downpipes `WATER` |
+| `solar` | panels on pitched, flat and sawtooth roofs; canopies over car park rows | outline `LINEWORK`, a sparse grid every two modules in `SHADOWS` |
+| `planting` | green roofs, rain tanks, rain gardens and tree pits, car park beds and racks | `GREENERY`; downpipes `WATER` |
 | `additions` | frames and canopies (to come) | `LINEWORK`, `ROOFS` |
 
 Panels stand a little off the roof (`standoff()`), so the depth buffer hides the roof hatching under them. When rows on a flat roof are too close to tell apart (`pvRows`), the array becomes one outlined patch. Patches test their shorter side (`pvPatch`) and keep a pen-scaled inset from the roof edge, so they don't blot at coarse scales.

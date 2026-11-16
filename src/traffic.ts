@@ -1,4 +1,5 @@
 import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { bicycle } from './vehicles';
 import { at, measure } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
@@ -109,12 +110,15 @@ export function urbanity(town: Town, toAbs: (x: number, y: number) => [number, n
   };
 }
 
-type Kind = 'car' | 'bus' | 'truck';
+/** `none` holds a car's place in the chain where a solarpunk street has one car fewer. */
+type Kind = 'car' | 'bus' | 'truck' | 'bike' | 'cargo' | 'none';
 
 /** Length of a vehicle, bumper to bumper. */
 function length(kind: Kind, k: number): number {
   if (kind === 'bus') return 12;
   if (kind === 'truck') return 10.5 + k * 5.5;
+  if (kind === 'bike') return 1.8;
+  if (kind === 'cargo') return 2.4;
   return k > 0.85 ? 5.2 : 4.4;
 }
 
@@ -129,6 +133,7 @@ function box(B: Build, s: Solid, x: number, y: number, ux: number, uy: number, a
 /** A vehicle centred on x, y with its front towards ux, uy. */
 function vehicle(B: Build, x: number, y: number, ux: number, uy: number, kind: Kind, k: number): Solid {
   if (kind === 'car') return car(B, x, y, ux, uy, k);
+  if (kind === 'bike' || kind === 'cargo') return bicycle(B, x, y, ux, uy, kind === 'cargo');
   const s = newSolid();
   const L = length(kind, k) / 2;
   if (kind === 'bus') {
@@ -248,10 +253,22 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   };
   const crossing = roadSurfaces(town.ways, degree, key);
   const put = (w: Way, x: number, y: number, ux: number, uy: number, kind: Kind, k: number, parked = false) => {
-    if (!fits(w, x, y) || crossing(w, x, y, parked)) return;
+    if (kind === 'none' || !fits(w, x, y) || crossing(w, x, y, parked)) return;
     // Cars go before buses and lorries as the scale coarsens: each one only while it reads as a vehicle.
     const [ka, kb] = B.key(x, y);
-    if (showsAt(cam, LOD.car, length(kind, k), [ka, kb], set.seed, 9104)) out.push(vehicle(B, x, y, ux, uy, kind, k));
+    const cycle = kind === 'bike' || kind === 'cargo';
+    if (showsAt(cam, cycle ? LOD.cycle : LOD.car, length(kind, k), [ka, kb], set.seed, cycle ? 9201 : 9104)) out.push(vehicle(B, x, y, ux, uy, kind, k));
+  };
+  // Solarpunk streets: some private cars become bicycles and cargo bikes, and some are gone.
+  const f = B.future ? Math.max(0, Math.min(1, set.future)) : 0;
+  const swap = 0.3 + 0.2 * f;
+  const drop = 0.15 + 0.1 * f;
+  const future = (w: Way, ka: number, kb: number, kind: Kind): Kind => {
+    if (!B.future || kind !== 'car') return kind;
+    const v = hash(ka, kb, set.seed, 12100);
+    if (w.cls === 'motorway' || w.cls === 'trunk') return v < drop ? 'none' : kind;
+    if (v < swap) return hash(ka, kb, set.seed, 12101) < 0.25 ? 'cargo' : 'bike';
+    return v < swap + drop ? 'none' : kind;
   };
 
   for (const w of town.ways) {
@@ -279,7 +296,8 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
           const cy = y + ux * s * off;
           // Parking comes in stretches, broken by driveways, loading bays and bus stops.
           const [sa, sb] = B.cell(cx, cy, 40);
-          if (hash(sa, sb, set.seed, 474 + s) < 0.4) continue;
+          // Solarpunk streets keep fewer stretches of parking; the rest become kerb gardens (freedKerbs).
+          if (hash(sa, sb, set.seed, 474 + s) < (B.future ? KERB_FREED : 0.4)) continue;
           const [ka, kb] = B.key(cx, cy);
           const chance = Math.min(0.85, set.cars * 1.8) * Math.min(1, (urban(cx, cy) - PARK_FROM[w.cls] + 0.15) / 0.4);
           if (hash(ka, kb, set.seed, 470 + s) >= chance) continue;
@@ -309,7 +327,7 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
         if (w.cls === 'busway') return ['bus', k];
         if (lane.outer && BUSES.has(w.cls) && urban(x, y) > 0.35 && v < 0.035) return ['bus', k];
         if (lane.outer && v > 1 - (TRUCKS[w.cls] ?? 0) * (1.2 - urban(x, y) * 0.6)) return ['truck', k];
-        return ['car', k];
+        return [future(w, ka, kb, 'car'), k];
       };
 
       // A queue at a red light where a busier road meets a junction in town.
@@ -357,6 +375,69 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
         const [wa, wb] = B.cell(x, y, 150);
         const wave = 0.35 + 1.4 * hash(wa, wb, set.seed, 464);
         tau += len + 5 + -Math.log(1 - hash(ka, kb, set.seed, 462) * 0.999) * mean * wave;
+      }
+    }
+  }
+  return out;
+}
+
+/** Below this, a stretch of kerb parking is left out in solarpunk mode; from 0.4 up to it, it becomes a kerb garden. */
+export const KERB_FREED = 0.7;
+
+/** A car's length of parking lane freed in solarpunk mode: where, along which way, and which way the kerb lies (nx, ny). */
+export type KerbSlot = { x: number; y: number; ux: number; uy: number; nx: number; ny: number; tree: boolean; first: boolean };
+
+/**
+ * The parking places a solarpunk street gives up: the stretches `traffic()` would have filled
+ * with parked cars and now leaves empty, a slot per car. Each stretch is planted as a whole:
+ * either a row of trees in pits, or rain gardens. Same streets, slots and checks as the parking.
+ */
+export function freedKerbs(B: Build, paper: Paper, town: Town, M: Masks): KerbSlot[] {
+  const { set, cam } = B;
+  const out: KerbSlot[] = [];
+  if (!B.future) return out;
+  const urban = urbanity(town, B.toAbs);
+  const key = (x: number, y: number) => `${Math.round(x * 2)},${Math.round(y * 2)}`;
+  const degree = new Map<string, number>();
+  for (const w of town.ways) {
+    if (w.kind !== 'road') continue;
+    for (const k of [key(w.pts[0], w.pts[1]), key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])]) degree.set(k, (degree.get(k) ?? 0) + 1);
+  }
+  const crossing = roadSurfaces(town.ways, degree, key);
+  const fits = (w: Way, x: number, y: number) => {
+    const sx = cam.sx(x, y);
+    const sy = cam.sy(x, y, 0);
+    return paper.on(M.road, sx, sy) && !paper.on(M.foot, sx, sy) && (w.bridge || !paper.on(M.water, sx, sy));
+  };
+  for (const w of town.ways) {
+    if (w.kind !== 'road' || !GAP[w.cls] || PRIVATE.has(w.service ?? '') || w.bridge) continue;
+    const p = w.pts;
+    const cum = measure(p);
+    const L = cum[cum.length - 1];
+    if (L < 6) continue;
+    const [mx, my] = at(p, cum, L / 2);
+    if (PARK_FROM[w.cls] === undefined || urban(mx, my) <= PARK_FROM[w.cls] || w.width < 8) continue;
+    const sides: number[] = w.oneway ? (w.width >= 10 ? [1, -1] : [B.left ? w.oneway : -w.oneway]) : [1, -1];
+    const off = w.width / 2 - 1.05;
+    for (const s of sides) {
+      let last: string | null = null;
+      for (let t = 9; t <= L - 9; t += 6.3) {
+        const [x, y, ux, uy] = at(p, cum, t);
+        const cx = x - uy * s * off;
+        const cy = y + ux * s * off;
+        const [sa, sb] = B.cell(cx, cy, 40);
+        const h = hash(sa, sb, set.seed, 474 + s);
+        if (h < 0.4 || h >= KERB_FREED) {
+          last = null;
+          continue;
+        }
+        if (!fits(w, cx, cy) || crossing(w, cx, cy, true)) {
+          last = null;
+          continue;
+        }
+        const cell = `${sa},${sb}`;
+        out.push({ x: cx, y: cy, ux, uy, nx: -uy * s, ny: ux * s, tree: hash(sa, sb, set.seed, 12110 + s) < 0.55, first: cell !== last });
+        last = cell;
       }
     }
   }

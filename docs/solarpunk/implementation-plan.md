@@ -2,7 +2,7 @@
 
 This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.json` (103 recipes) and `Solarpunk Transformation Atlas.pdf` into work on this codebase. The mode is a switch that draws the same place, at the same view and seed, as a settled solarpunk future. The guide was written without knowing the renderer, so this plan also says which of its rules carry over directly, which need a different form, and which this renderer can't support yet.
 
-**Status (2026-11-16):** M0 and M1 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks, with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
+**Status (2026-11-16):** M0, M1 and M2 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
@@ -464,7 +464,7 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 - LOD rules `pvPatch`, `pvGrid`, `pvRows`, `rainTank`, `greenRoof`, `futureTwo`, `futureDetail`.
 - Cases: add `midtown-solarpunk` and `emmental-solarpunk`.
 
-**M2: Streets and mobility**
+**M2: Streets and mobility** *(done; a painted cycle lane on boulevards and a planted median are still open, as are rain-garden kerb breaks in `curbs()`: the new kerb is drawn with its gap instead)*
 
 - `StreetPlan`: tree pits and spacing, rain gardens with kerb breaks, fewer kerb cars. Traffic reduction plus cycles. Parking-lot PV canopies, beds and racks.
 - Fuel → charging. Bus-stop green roofs. Station canopy module grids and cycle racks. Catenary everywhere. Town poles (per the decision in §14).

@@ -1,4 +1,7 @@
-import { tagLines, type Build, type Solid } from './buildings';
+import { newSolid, tagLines, type Build, type Solid } from './buildings';
+import { BAY_D, BAY_W, parkingBays, slab, type Bay, type Extra } from './infra';
+import type { Masks } from './nature';
+import type { Paper } from './raster';
 import { REF_NIB } from './camera';
 import type { Info } from './classify';
 import { pointInRing, ringArea } from './geo';
@@ -7,7 +10,7 @@ import { hash } from './rng';
 import type { Pitched } from './roofs';
 import { GREENERY, LINEWORK, SHADOWS } from './settings';
 import { bestRect, type Part, type Rect } from './shape';
-import type { Building } from './tiles';
+import type { Building, Town } from './tiles';
 
 /*
  * Solarpunk roofs (docs/solarpunk/implementation-plan.md §7.1): coherent panel groups on the
@@ -289,4 +292,61 @@ function sawtoothPanelLines(B: Build, rect: Rect, He: number, out: Solid): void 
       panel(B, out, [at(ua, v0, za), at(ua, v1, za), at(ub, v1, zb), at(ub, v0, zb)], each);
     }
   }
+}
+
+/** Runs of side-by-side bays in one straight row, for a canopy each. */
+function bayRuns(bays: Bay[]): Bay[][] {
+  const runs: Bay[][] = [];
+  let run: Bay[] = [];
+  for (const b of bays) {
+    const prev = run[run.length - 1];
+    const next = prev && b.nx === prev.nx && b.ny === prev.ny && Math.abs(b.ux * prev.ux + b.uy * prev.uy) > 0.995 && Math.abs(Math.hypot(b.x - prev.x, b.y - prev.y) - BAY_W) < 0.15;
+    if (!next && run.length) {
+      runs.push(run);
+      run = [];
+    }
+    run.push(b);
+  }
+  if (run.length) runs.push(run);
+  return runs;
+}
+
+/**
+ * Solar canopies over rows of car park bays: a thin roof on a line of posts at the back of the
+ * bays, its modules divided every two bays. Rows are chosen whole, by a cell fixed to the map.
+ */
+export function lotCanopies(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+  const solids: Solid[] = [];
+  const none = { solids, draw: () => {} };
+  if (!B.future || !shows(B.cam, LOD.canopy, BAY_D)) return none;
+  const f = Math.max(0, Math.min(1, B.set.future));
+  for (const run of bayRuns(parkingBays(B, paper, town.ways, M))) {
+    if (run.length < 3) continue;
+    const a = run[0];
+    const z = run[run.length - 1];
+    const [c0, c1] = B.cell(a.x + a.nx * (a.v0 + BAY_D / 2), a.y + a.ny * (a.v0 + BAY_D / 2), 30);
+    if (hash(c0, c1, B.set.seed, 12122) >= 0.35 + 0.35 * f) continue;
+    const s = newSolid();
+    const P = (b: Bay, u: number, d: number): [number, number] => [b.x + b.ux * u + b.nx * (b.v0 + d), b.y + b.uy * u + b.ny * (b.v0 + d)];
+    const ring = [...P(a, 0, 0.2), ...P(z, BAY_W, 0.2), ...P(z, BAY_W, BAY_D + 0.2), ...P(a, 0, BAY_D + 0.2)];
+    const h0 = 3.0;
+    const h1 = 3.2;
+    slab(B, s, ring, h0, h1);
+    s.casts.push({ ring, h: h1 });
+    // Posts along the back of the bays, every two bays and at both ends.
+    for (let i = 0; i <= run.length; i += 2) {
+      const b = run[Math.min(i, run.length - 1)];
+      const [px, py] = P(b, i >= run.length ? BAY_W : 0, BAY_D - 0.3);
+      s.lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, h0] });
+    }
+    if (shows(B.cam, LOD.pvGrid, BAY_W * 2)) {
+      for (let i = 2; i < run.length; i += 2) {
+        const [x0, y0] = P(run[i], 0, 0.2);
+        const [x1, y1] = P(run[i], 0, BAY_D + 0.2);
+        s.lines.push({ pen: SHADOWS, pts: [x0, y0, h1, x1, y1, h1] });
+      }
+    }
+    solids.push(s);
+  }
+  return none;
 }

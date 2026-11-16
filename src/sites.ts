@@ -1,11 +1,11 @@
-import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, tagLines, type Build, type Solid } from './buildings';
 import { pointInRing, ringArea } from './geo';
 import { onMask, place, rect, slab, type Extra } from './infra';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { dome } from './roofs';
-import { LINEWORK, ROOFS, WATER } from './settings';
+import { GREENERY, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
@@ -767,6 +767,18 @@ export function busStops(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       s.lines.push({ pen: LINEWORK, pts: side.flat(), closed: true });
     }
     slab(B, s, place(x, y, r.ux, r.uy, rect(-2, 2, -0.4, 0.9).map(([a, c]) => [a, c * 1])), 2.3, 2.45);
+    if (B.future) {
+      // Solarpunk shelters: low planting on the roof and a bench inside.
+      tagLines(B, undefined, s, () => {
+        const green: number[] = [];
+        for (let a = -1.75, i = 0; a <= 1.75; a += 0.35, i++) green.push(...P(a, 0.25, i % 2 ? 2.68 : 2.47));
+        s.lines.push({ pen: GREENERY, pts: green });
+      }, 'green-roof');
+      tagLines(B, undefined, s, () => {
+        s.lines.push({ pen: LINEWORK, pts: [...P(-1.3, 0.45, 0.45), ...P(1.3, 0.45, 0.45)] });
+        for (const a of [-1.1, 1.1]) s.lines.push({ pen: LINEWORK, pts: [...P(a, 0.45, 0), ...P(a, 0.45, 0.45)] });
+      }, 'bench');
+    }
     // The stop sign at the kerb end.
     const [sx, sy] = P(2.6, -1.2, 0);
     s.lines.push({ pen: LINEWORK, pts: [sx, sy, 0, sx, sy, 2.6] });
@@ -815,8 +827,21 @@ export function fuel(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       const [cx, cy] = [x + r.ux * a - r.uy * c, y + r.uy * a + r.ux * c];
       s.lines.push({ pen: LINEWORK, pts: [cx, cy, 0, cx, cy, 4.6] });
       slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.4, 0.4, -1.6, 1.6)), 0, 0.2);
-      slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.3, 0.3, -0.5, 0.5)), 0.2, 1.6);
+      // A solarpunk forecourt charges vehicles: two posts on each island in place of the pump.
+      if (B.future) tagLines(B, undefined, s, () => {
+        if (!shows(B.cam, LOD.charger, 0.4)) return;
+        for (const e of [-0.9, 0.9]) {
+          const [px, py] = [cx - r.uy * e, cy + r.ux * e];
+          slab(B, s, place(px, py, r.ux, r.uy, rect(-0.2, 0.2, -0.15, 0.15)), 0.2, 1.5);
+          s.lines.push({ pen: LINEWORK, pts: [px + r.ux * 0.2, py + r.uy * 0.2, 1.3, px + r.ux * 0.55, py + r.uy * 0.55, 0.9, px + r.ux * 0.45, py + r.uy * 0.45, 0.5] });
+        }
+      }, 'charging');
+      else slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.3, 0.3, -0.5, 0.5)), 0.2, 1.6);
     }
+    // The canopy roof carries panels, divided every few metres.
+    if (B.future && shows(B.cam, LOD.pvGrid, 2.33)) tagLines(B, undefined, s, () => {
+      for (let a = -7 + 2.33; a < 7 - 0.1; a += 2.33) s.lines.push({ pen: SHADOWS, pts: [...[-4.5, 4.5].flatMap((c) => [x + r.ux * a - r.uy * c, y + r.uy * a + r.ux * c, 5.4])] });
+    }, 'charging');
     s.casts.push({ ring: place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), h: 5.2 });
     solids.push(s);
   }

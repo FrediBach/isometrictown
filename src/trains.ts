@@ -108,7 +108,8 @@ function reversed(p: number[]): number[] {
 
 /** What runs on a track: a composition of cars. r gives stable random numbers. */
 function compose(B: Build, fam: Family, r: (salt: number) => number, atPlatform: boolean): Train {
-  const electric = ELECTRIC.has(B.style.id);
+  // In solarpunk mode every main line has been electrified.
+  const electric = ELECTRIC.has(B.style.id) || !!B.future;
   const cars: Car[] = [];
   const n = (lo: number, hi: number, salt: number) => lo + Math.floor(r(salt) * (hi - lo + 1));
   if (fam === 'tram') {

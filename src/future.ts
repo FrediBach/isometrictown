@@ -24,16 +24,18 @@ export type Climate = {
   greenRoof: number;
   /** Share of houses that get a rain tank by the back wall. */
   tanks: number;
+  /** How much more often streets are lined with trees: fewer where water is short or wind exposes them. */
+  streetTrees: number;
 };
 
 export const CLIMATES: Record<ClimateId, Climate> = {
-  temperate: { label: 'Temperate, seasonally wet', greenRoof: 0.55, tanks: 0.5 },
-  hot_dry: { label: 'Hot and dry', greenRoof: 0, tanks: 0.8 },
-  hot_humid: { label: 'Hot and humid', greenRoof: 0.5, tanks: 0.7 },
-  monsoonal: { label: 'Monsoonal', greenRoof: 0.4, tanks: 0.8 },
-  cold: { label: 'Cold, high latitude', greenRoof: 0.2, tanks: 0.25 },
-  mountain: { label: 'Mountainous', greenRoof: 0.35, tanks: 0.4 },
-  coastal: { label: 'Windy or coastal', greenRoof: 0.3, tanks: 0.45 },
+  temperate: { label: 'Temperate, seasonally wet', greenRoof: 0.55, tanks: 0.5, streetTrees: 1.5 },
+  hot_dry: { label: 'Hot and dry', greenRoof: 0, tanks: 0.8, streetTrees: 0.6 },
+  hot_humid: { label: 'Hot and humid', greenRoof: 0.5, tanks: 0.7, streetTrees: 1.5 },
+  monsoonal: { label: 'Monsoonal', greenRoof: 0.4, tanks: 0.8, streetTrees: 1.4 },
+  cold: { label: 'Cold, high latitude', greenRoof: 0.2, tanks: 0.25, streetTrees: 1 },
+  mountain: { label: 'Mountainous', greenRoof: 0.35, tanks: 0.4, streetTrees: 1 },
+  coastal: { label: 'Windy or coastal', greenRoof: 0.3, tanks: 0.45, streetTrees: 0.8 },
 };
 export const CLIMATE_IDS = Object.keys(CLIMATES) as ClimateId[];
 

@@ -1,4 +1,4 @@
-import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, tagLines, type Build, type Solid } from './buildings';
 import { ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
@@ -467,6 +467,12 @@ export function platforms(B: Build, town: Town): Extra {
       const uy = (y1 - y0) / l;
       slab(B, s, place(x0, y0, ux, uy, rect(0, l, -2.2, 2.2)), 3.6, 3.85, ROOFS);
       s.lines.push({ pen: LINEWORK, pts: [x0, y0, 0.8, x0, y0, 3.6] });
+      // Solarpunk platform canopies carry panels: a line down the middle and divisions across.
+      if (B.future && shows(B.cam, LOD.pvGrid, 2.5)) tagLines(B, undefined, s, () => {
+        const P = (a: number, c: number) => [x0 + ux * a - uy * c, y0 + uy * a + ux * c, 3.85];
+        s.lines.push({ pen: SHADOWS, pts: [...P(0.3, 0), ...P(l - 0.3, 0)] });
+        for (let a = 2.5; a < l - 0.5; a += 2.5) s.lines.push({ pen: SHADOWS, pts: [...P(a, -2.2), ...P(a, 2.2)] });
+      }, 'pv-canopy');
     }
     const [ex, ey] = at(p, cum, c1);
     s.lines.push({ pen: LINEWORK, pts: [ex, ey, 0.8, ex, ey, 3.6] });
@@ -815,12 +821,18 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
 // ---------------------------------------------------------------- Parking
 
 /** Bays either side of parking aisles: painted lines, and cars in most of them. */
-export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
-  const { set, cam } = B;
-  type Bay = { x: number; y: number; ux: number; uy: number; nx: number; ny: number; v0: number };
+/** A parking bay along a car park aisle: its corner on the aisle edge, the aisle direction, the way into the bay (nx, ny) and its distance from the aisle's centre line. */
+export type Bay = { x: number; y: number; ux: number; uy: number; nx: number; ny: number; v0: number };
+/** Width and depth of a parking bay, metres. */
+export const BAY_W = 2.6;
+export const BAY_D = 5;
+
+/** Bays along both sides of every car park aisle, where they are clear of roads, buildings and water. */
+export function parkingBays(B: Build, paper: Paper, ways: Way[], M: Masks): Bay[] {
+  const { cam } = B;
   const bays: Bay[] = [];
-  const W = 2.6;
-  const D = 5;
+  const W = BAY_W;
+  const D = BAY_D;
   const clear = (x: number, y: number) => {
     const sx = cam.sx(x, y);
     const sy = cam.sy(x, y, 0);
@@ -840,13 +852,30 @@ export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
       });
     }
   }
+  return bays;
+}
+
+/** What a solarpunk car park bay is now: still for a car, a cycle rack, or a planted bed. */
+export function bayUse(B: Build, b: Bay): 'car' | 'rack' | 'bed' {
+  const [k0, k1] = B.key(b.x + b.ux * (BAY_W / 2) + b.nx * (b.v0 + BAY_D / 2), b.y + b.uy * (BAY_W / 2) + b.ny * (b.v0 + BAY_D / 2));
+  const h = hash(k0, k1, B.set.seed, 12120);
+  return h < 0.1 ? 'rack' : h < 0.25 ? 'bed' : 'car';
+}
+
+export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
+  const { set, cam } = B;
+  const W = BAY_W;
+  const D = BAY_D;
+  const bays = parkingBays(B, paper, ways, M);
   const solids: Solid[] = [];
   // Packed bays turn into a dark mass on paper at small scales, so fewer cars there.
-  const full = Math.min(0.6, set.cars * 1.4) * (cam.s >= 1 ? 1 : cam.s >= 0.5 ? 0.5 : 0.25);
+  // Solarpunk car parks keep a few cars; some bays hold cycles or plants instead.
+  const full = Math.min(0.6, set.cars * 1.4) * (cam.s >= 1 ? 1 : cam.s >= 0.5 ? 0.5 : 0.25) * (B.future ? 0.45 : 1);
   if (set.cars > 0)
     for (const b of bays) {
       const cx = b.x + b.ux * (W / 2) + b.nx * (b.v0 + D / 2);
       const cy = b.y + b.uy * (W / 2) + b.ny * (b.v0 + D / 2);
+      if (B.future && bayUse(B, b) !== 'car') continue;
       const [k0, k1] = B.key(cx, cy);
       if (hash(k0, k1, set.seed, 440) < full && showsAt(cam, LOD.car, 4.4, [k0, k1], set.seed, 9104)) solids.push(car(B, cx, cy, b.nx, b.ny, hash(k0, k1, set.seed, 441)));
     }

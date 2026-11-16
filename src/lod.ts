@@ -54,6 +54,11 @@ export const LOD = {
   pvGrid: { m: 2.1, mm: 1.6, what: 'Divisions in solarpunk solar panels, every two modules: their spacing' },
   pvRows: { m: 3.4, mm: 2.2, what: 'Solarpunk panel rows on flat roofs told apart: row spacing. Closer, the rows become one outlined patch' },
   greenRoof: { m: 14, mm: 6, what: 'Low planting on flat roofs: square root of the roof area' },
+  cycle: { m: 1.8, mm: 2.4, what: 'Bicycles and cargo bikes, with their riders: length. From the scale people show at' },
+  rackBikes: { m: 0.75, mm: 1.1, what: 'Bicycles parked side by side in racks: their spacing. Closer, the rack stands empty' },
+  canopy: { m: 5, mm: 1.5, what: 'Solar canopies over parking rows: depth' },
+  kerbGarden: { m: 2, mm: 1.1, what: 'Rain gardens and tree pits in kerb extensions: width' },
+  charger: { m: 0.6, mm: 0.5, what: 'Charging posts: width' },
   rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },
 
   // Shadows and trees

@@ -232,7 +232,8 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
 function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[], terrain: Terrain): void {
   const { set, style } = B;
   const urban = urbanity({ ...town, ways: terrain.roads }, B.toAbs);
-  const townToo = OVERHEAD_TOWN.has(style.id);
+  // A solarpunk town has put its wires underground; country roads keep their poles.
+  const townToo = OVERHEAD_TOWN.has(style.id) && !B.future;
   const american = style.id === 'american' || style.id === 'antipodean';
   const asian = style.id === 'eastAsian';
   const spacing = asian ? 30 : 38;

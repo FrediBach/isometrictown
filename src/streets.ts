@@ -227,7 +227,8 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
       continue;
     }
     // Overhead line: masts beside the track with an arm out over it, and the contact wire.
-    if (ELECTRIC.has(B.style.id) && shows(cam, LOD.catenary) && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
+    // In solarpunk mode every main line has been electrified.
+    if ((ELECTRIC.has(B.style.id) || !!B.future) && shows(cam, LOD.catenary) && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
       if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
       walk(p, 20, 55, 10, (x, y, ux, uy) => {
         const px = x - uy * 3;
