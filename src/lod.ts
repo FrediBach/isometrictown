@@ -61,6 +61,7 @@ export const LOD = {
   canopy: { m: 5, mm: 1.5, what: 'Solar canopies over parking rows: depth' },
   kerbGarden: { m: 2, mm: 1.1, what: 'Rain gardens and tree pits in kerb extensions: width' },
   charger: { m: 0.6, mm: 0.5, what: 'Charging posts: width' },
+  growingFrame: { m: 5, mm: 1.1, what: 'Deep productive apartment galleries: full depth' },
   frame: { m: 2.4, mm: 1.2, what: 'Solarpunk balcony frames on slabs: depth. Smaller, only the roof and ground changes show' },
   porch: { m: 1.7, mm: 1.0, what: 'Porches, verandas, arcades, vestibules and entrance canopies: depth' },
   fins: { m: 1.5, mm: 0.9, what: 'Sun fins on towers: spacing' },

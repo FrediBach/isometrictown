@@ -1,7 +1,7 @@
 import type { Build } from './buildings';
 import type { Kind } from './classify';
 import { pointInRing, ringArea } from './geo';
-import { bestRect } from './shape';
+import { bestRect, type Rect } from './shape';
 import { LOD, shows } from './lod';
 import { hash } from './rng';
 import { deeper, seedFor, type Settings } from './settings';
@@ -83,6 +83,8 @@ export type Future = {
   production?: Production;
   /** Stepped rooftop growing rooms, replacing the ordinary roof composition in Visionary. */
   gardenCrown?: GardenCrown;
+  /** Deep growing galleries with complete ground clearance, planned before production plots. */
+  growingFrames?: Rect[];
   recipe: RecipeId;
   /** Solar panels on the roof: a patch on the sunny slope, rows on a flat roof, or modules on sawtooth slopes. */
   roofPv: boolean;

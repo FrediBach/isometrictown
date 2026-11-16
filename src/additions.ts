@@ -1,6 +1,8 @@
 import { newSolid, prism, tagLines, type Build, type Solid } from './buildings';
 import { CLIMATES, doorEdge, motifBudget, showpiece } from './future';
 import { LOD, shows, spaced } from './lod';
+import { growingFrame } from './growing-frames';
+import { corners } from './shape';
 import { towerGardens } from './tower-gardens';
 import { hash } from './rng';
 import { deeper, GREENERY, LINEWORK, ROOFS } from './settings';
@@ -51,6 +53,12 @@ export function additions(B: Build, b: Building, out: Solid[]): void {
   const s = newSolid();
   switch (f.addition) {
     case 'frame':
+      if (f.growingFrames) {
+        f.strip = corners(f.growingFrames[0]);
+        f.strip2 = f.growingFrames[1] ? corners(f.growingFrames[1]) : undefined;
+        for (const r of f.growingFrames) tagLines(B, 'additions', s, () => growingFrame(B, r, eave(B, b), s), 'growing-frame');
+        break;
+      }
       tagLines(B, 'additions', s, () => (f.strip = frame(B, b, s, f.side!)), f.wonder ? 'frame/wonder' : 'frame');
       if (f.side2 !== undefined) tagLines(B, 'additions', s, () => (f.strip2 = frame(B, b, s, f.side2!)), 'frame');
       break;

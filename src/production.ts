@@ -31,19 +31,19 @@ const meets = (a: Box, b: Box) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] &
 export class GroundIndex {
   private cells = new Map<string, number[]>();
   private big: number[] = [];
-  private rings: { p: number[]; box: Box }[] = [];
-  add(p: number[]): void {
-    const box = bounds(p), id = this.rings.push({ p, box }) - 1;
+  private rings: { p: number[]; box: Box; owner?: Building }[] = [];
+  add(p: number[], owner?: Building): void {
+    const box = bounds(p), id = this.rings.push({ p, box, owner }) - 1;
     if ((box[2] - box[0]) * (box[3] - box[1]) > 1e6) { this.big.push(id); return; }
     for (let x = Math.floor(box[0] / 40); x <= Math.floor(box[2] / 40); x++) for (let y = Math.floor(box[1] / 40); y <= Math.floor(box[3] / 40); y++) {
       const k = `${x},${y}`, ids = this.cells.get(k);
       if (ids) ids.push(id); else this.cells.set(k, [id]);
     }
   }
-  clear(p: number[]): boolean {
+  clear(p: number[], ignore?: Building): boolean {
     const box = bounds(p), ids = new Set(this.big);
     for (let x = Math.floor(box[0] / 40); x <= Math.floor(box[2] / 40); x++) for (let y = Math.floor(box[1] / 40); y <= Math.floor(box[3] / 40); y++) for (const id of this.cells.get(`${x},${y}`) ?? []) ids.add(id);
-    for (const id of ids) { const r = this.rings[id]; if (meets(box, r.box) && overlaps(p, r.p)) return false; }
+    for (const id of ids) { const r = this.rings[id]; if ((!ignore || r.owner !== ignore) && meets(box, r.box) && overlaps(p, r.p)) return false; }
     return true;
   }
 }
@@ -94,6 +94,7 @@ export function planProduction(town: Town, set: Settings): ProductionStats {
     // Keep a service strip round walls, including the space occupied by balcony frames.
     corridor(ground, [...b.shape[0].pts, ...b.shape[0].pts.slice(0, 2)], b.future?.addition === 'frame' ? 3.2 : 0.8);
     const f = b.future;
+    for (const r of f?.growingFrames ?? []) ground.add(corners(r));
     if ((f?.addition === 'porch' || f?.addition === 'canopy') && f.side !== undefined && f.side >= 0) {
       const p = b.shape[0].pts, q = f.side * 2, j = (q + 2) % p.length;
       corridor(ground, [p[q], p[q + 1], p[j], p[j + 1]], 3.2);

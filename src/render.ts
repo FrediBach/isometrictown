@@ -4,6 +4,7 @@ import { pocketCommons, coreMarkets, cycleRacks, kerbGardens, kerbTrees, lotComm
 import { planFuture, type ClimateId } from './future';
 import { canopyTrees } from './canopy';
 import { planPublicEnergy, publicEnergy, underPublicRoof } from './public-energy';
+import { planGrowingFrames } from './growing-frames';
 import { corners } from './shape';
 import { planProduction, productionFoot, productiveGardens, type ProductionStats } from './production';
 import { bankTrees, cycleTracks, groveTrees, lotTrees, stopFootprints, tramStops, reshapeTown, stripGrass, stripTrees } from './reshape';
@@ -135,6 +136,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   classify(town, style, set, B.key);
   // The solarpunk plan takes in the context buildings too, so district decisions agree from every view.
   B.future = set.solarpunk ? planFuture(town, set, style.id, B.key, B.cell) : null;
+  if (B.future) planGrowingFrames(town, set);
   const production = B.future && deeper(set, 'transform') ? planProduction(town, set) : undefined;
   const wind = planWind(B, town);
   const publicRoofs = planPublicEnergy(B, town);
@@ -189,7 +191,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   for (let i = 0; i < candidates; i++) {
     const b = town.buildings[i];
     onStage({ stage: 'buildings', done: i, total: candidates, note: `${counts.buildings.toLocaleString('en')} in view` });
-    const p = b.shape[0].pts;
+    const p = B.future && b.future?.growingFrames ? [...b.shape[0].pts, ...b.future.growingFrames.flatMap(corners)] : b.shape[0].pts;
     let sx0 = Infinity;
     let sx1 = -Infinity;
     let syTop = Infinity;
