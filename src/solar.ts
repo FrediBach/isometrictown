@@ -2,6 +2,7 @@ import { newSolid, tagLines, type Build, type Solid } from './buildings';
 import { BAY_D, BAY_W, parkingBays, slab, type Bay, type Extra } from './infra';
 import type { Masks, Tree } from './nature';
 import { onMask } from './infra';
+import { showpiece } from './future';
 import type { Paper } from './raster';
 import { REF_NIB } from './camera';
 import type { Info } from './classify';
@@ -366,37 +367,56 @@ export function forecourtCanopies(B: Build, paper: Paper, town: Town, M: Masks, 
     if (p.cls !== 'railway' || placed.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 120)) continue;
     const [k0, k1] = B.key(p.x, p.y);
     const h = (salt: number) => hash(k0, k1, B.set.seed, 12190 + salt);
-    search: for (let r = 8; r <= 40; r += 4)
-      for (let q = 0; q < 12; q++) {
-        const a = ((q + h(0)) / 12) * Math.PI * 2;
-        const x = p.x + Math.cos(a) * r;
-        const y = p.y + Math.sin(a) * r;
-        const ux = Math.cos(a + Math.PI / 2);
-        const uy = Math.sin(a + Math.PI / 2);
-        const P = (u: number, v: number): [number, number] => [x + ux * u - uy * v, y + uy * u + ux * v];
-        if (![-6, 0, 6].every((u) => [-3, 3].every((v) => clear(...P(u, v))))) continue;
-        // Clear of the crowns of trees already standing there.
-        if (trees.some((t) => Math.hypot(t.x - x, t.y - y) < 6.7 + t.r)) continue;
-        const s = newSolid();
-        const ring = [...P(-6, -3), ...P(6, -3), ...P(6, 3), ...P(-6, 3)];
-        slab(B, s, ring, 3.4, 3.65);
-        s.casts.push({ ring, h: 3.65 });
-        for (const u of [-5.5, 0, 5.5]) for (const v of [-2.5, 2.5]) {
-          const [px, py] = P(u, v);
-          s.lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, 3.4] });
+    // A showpiece station gets a big canopy on branching posts, a public room; if it doesn't fit, the usual one.
+    const big = showpiece(B, p.x, p.y);
+    for (const [A, V] of big ? [[8, 4], [6, 3]] : [[6, 3]]) {
+      if (placed.some(([x, y]) => x === p.x && y === p.y)) break;
+      search: for (let r = 8; r <= 40; r += 4)
+        for (let q = 0; q < 12; q++) {
+          const a = ((q + h(0)) / 12) * Math.PI * 2;
+          const x = p.x + Math.cos(a) * r;
+          const y = p.y + Math.sin(a) * r;
+          const ux = Math.cos(a + Math.PI / 2);
+          const uy = Math.sin(a + Math.PI / 2);
+          const P = (u: number, v: number): [number, number] => [x + ux * u - uy * v, y + uy * u + ux * v];
+          if (![-A, 0, A].every((u) => [-V, V].every((v) => clear(...P(u, v))))) continue;
+          // Clear of the crowns of trees already standing there.
+          if (trees.some((t) => Math.hypot(t.x - x, t.y - y) < Math.hypot(A, V) + t.r)) continue;
+          const s = newSolid();
+          const ring = [...P(-A, -V), ...P(A, -V), ...P(A, V), ...P(-A, V)];
+          const z = A > 6 ? 4.2 : 3.4;
+          slab(B, s, ring, z, z + 0.25);
+          s.casts.push({ ring, h: z + 0.25 });
+          if (A > 6) {
+            // Posts that branch like trees to hold the roof.
+            for (const u of [-A / 2, A / 2]) for (const v of [-V / 2, V / 2]) {
+              const [px, py] = P(u, v);
+              s.lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, z - 1.4] });
+              for (const [du, dv] of [[-1.4, -0.8], [1.4, -0.8], [0, 1.2]]) {
+                const [tx, ty] = P(u + du, v + dv);
+                s.lines.push({ pen: LINEWORK, pts: [px, py, z - 1.4, tx, ty, z] });
+              }
+            }
+            for (const l of s.lines) l.facet = 'showpiece';
+          } else
+            for (const u of [-5.5, 0, 5.5]) for (const v of [-2.5, 2.5]) {
+              const [px, py] = P(u, v);
+              s.lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, z] });
+            }
+          if (shows(B.cam, LOD.pvGrid, 2.4))
+            for (let u = -A + 2.4; u < A - 0.1; u += 2.4) {
+              const [ax, ay] = P(u, -V);
+              const [bx, by] = P(u, V);
+              s.lines.push({ pen: SHADOWS, pts: [ax, ay, z + 0.25, bx, by, z + 0.25] });
+            }
+          solids.push(s);
+          placed.push([p.x, p.y]);
+          // Racks and people keep out from under it; people gather under a showpiece.
+          paper.fillMask(M.foot, [ring]);
+          if (A > 6) B.future.gather.push([x, y, 6, 5, false]);
+          break search;
         }
-        if (shows(B.cam, LOD.pvGrid, 2.4))
-          for (let u = -6 + 2.4; u < 6 - 0.1; u += 2.4) {
-            const [ax, ay] = P(u, -3);
-            const [bx, by] = P(u, 3);
-            s.lines.push({ pen: SHADOWS, pts: [ax, ay, 3.65, bx, by, 3.65] });
-          }
-        solids.push(s);
-        placed.push([p.x, p.y]);
-        // Racks and people keep out from under it.
-        paper.fillMask(M.foot, [ring]);
-        break search;
-      }
+    }
   }
   return none;
 }

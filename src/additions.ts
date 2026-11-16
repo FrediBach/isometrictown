@@ -1,12 +1,12 @@
 import { newSolid, prism, tagLines, type Build, type Solid } from './buildings';
-import { CLIMATES, doorEdge, motifBudget } from './future';
+import { CLIMATES, doorEdge, motifBudget, showpiece } from './future';
 import { LOD, shows, spaced } from './lod';
 import { hash } from './rng';
 import { GREENERY, LINEWORK, ROOFS } from './settings';
 import { onMask, place, rect, type Extra } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
-import type { Building, Town } from './tiles';
+import type { Building, Town, Way } from './tiles';
 
 /*
  * Solarpunk additions to buildings (docs/solarpunk/implementation-plan.md §7.2): balcony frames
@@ -237,12 +237,21 @@ function trellis(B: Build, b: Building, s: Solid): void {
  * where they keep apart on paper. Where it is hot and dry, shade cloth over it casts a shadow.
  * Centred on x, y, length L along ux, uy, width W, top at z.
  */
-export function pergola(B: Build, s: Solid, x: number, y: number, ux: number, uy: number, L: number, W: number, z = 2.8): void {
+export function pergola(B: Build, s: Solid, x: number, y: number, ux: number, uy: number, L: number, W: number, z = 2.8, climbers = false): void {
   const P = (a: number, c: number, h: number) => [x + ux * a - uy * c, y + uy * a + ux * c, h];
   const n = Math.max(1, Math.round(L / 3));
   for (const c of [-W / 2, W / 2]) {
     s.lines.push({ pen: LINEWORK, pts: [...P(-L / 2, c, z), ...P(L / 2, c, z)] });
-    for (let k = 0; k <= n; k++) s.lines.push({ pen: LINEWORK, pts: [...P(-L / 2 + (L * k) / n, c, 0), ...P(-L / 2 + (L * k) / n, c, z)] });
+    for (let k = 0; k <= n; k++) {
+      const a = -L / 2 + (L * k) / n;
+      s.lines.push({ pen: LINEWORK, pts: [...P(a, c, 0), ...P(a, c, z)] });
+      // A showpiece's posts carry climbers up to the slats.
+      if (climbers) {
+        const g: number[] = [];
+        for (let h = 0.3, q = 0; h <= z; h += 0.4, q++) g.push(...P(a + (q % 2 ? 0.2 : -0.2), c, h));
+        s.lines.push({ pen: GREENERY, pts: g });
+      }
+    }
   }
   const step = spaced(B.cam, 0.6, 1.0);
   if (step * 4 < L) for (let a = -L / 2 + step / 2; a < L / 2; a += step) s.lines.push({ pen: ROOFS, pts: [...P(a, -W / 2 - 0.3, z + 0.12), ...P(a, W / 2 + 0.3, z + 0.12)] });
@@ -269,6 +278,21 @@ export function stall(s: Solid, x: number, y: number, ux: number, uy: number): v
   s.shade = [...(s.shade ?? []), [roof]];
 }
 
+/** Whether a point is within a path's width of any of these paths. */
+function onPath(paths: Way[], x: number, y: number): boolean {
+  for (const w of paths) {
+    const p = w.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const dx = p[i + 2] - p[i];
+      const dy = p[i + 3] - p[i + 1];
+      const l2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - p[i]) * dx + (y - p[i + 1]) * dy) / l2));
+      if (Math.hypot(p[i] + dx * t - x, p[i + 1] + dy * t - y) < 1.5) return true;
+    }
+  }
+  return false;
+}
+
 /** Places a shaded outdoor classroom goes: schools and kindergartens. */
 const YARDS = new Set(['school', 'kindergarten']);
 
@@ -280,34 +304,43 @@ export function yardPergolas(B: Build, paper: Paper, town: Town, M: Masks): Extr
   const f = Math.max(0, Math.min(1, B.set.future));
   const clear = (x: number, y: number) => !onMask(paper, M.road, x, y) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
   const placed: [number, number][] = [];
+  // Footpaths aren't in the masks: keep the pergola off them by their mapped lines.
+  const paths = town.ways.filter((w) => w.kind === 'path');
   for (const p of town.pois) {
     if (!YARDS.has(p.cls) || placed.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 80)) continue;
     const [k0, k1] = B.key(p.x, p.y);
     const h = (salt: number) => hash(k0, k1, B.set.seed, 12170 + salt);
     if (h(0) >= 0.5 + 0.4 * f) continue;
-    search: for (let r = 10; r <= 50; r += 5)
-      for (let q = 0; q < 12; q++) {
-        const a = ((q + h(1)) / 12) * Math.PI * 2;
-        const x = p.x + Math.cos(a) * r;
-        const y = p.y + Math.sin(a) * r;
-        const ux = Math.cos(a + Math.PI / 2);
-        const uy = Math.sin(a + Math.PI / 2);
-        if (![-4.5, 0, 4.5].every((t) => [-2.6, 2.6].every((c) => clear(x + ux * t - uy * c, y + uy * t + ux * c)))) continue;
-        const s = newSolid();
-        pergola(B, s, x, y, ux, uy, 8, 4);
-        // An outdoor classroom: two benches under it, children about.
-        for (const c of [-0.9, 0.9]) {
-          const P = (a: number, z: number) => [x + ux * a - uy * c, y + uy * a + ux * c, z];
-          s.lines.push({ pen: LINEWORK, pts: [...P(-2.5, 0.45), ...P(2.5, 0.45)] });
-          for (const a of [-2.2, 2.2]) s.lines.push({ pen: LINEWORK, pts: [...P(a, 0), ...P(a, 0.45)] });
+    // A showpiece school gets a long outdoor learning arcade; if there's no room for it, the usual pergola.
+    const big = showpiece(B, p.x, p.y);
+    for (const [L, W] of big ? [[16, 5], [8, 4]] : [[8, 4]]) {
+      if (placed.some(([x, y]) => x === p.x && y === p.y)) break;
+      search: for (let r = 10; r <= 50; r += 5)
+        for (let q = 0; q < 12; q++) {
+          const a = ((q + h(1)) / 12) * Math.PI * 2;
+          const x = p.x + Math.cos(a) * r;
+          const y = p.y + Math.sin(a) * r;
+          const ux = Math.cos(a + Math.PI / 2);
+          const uy = Math.sin(a + Math.PI / 2);
+          const corners = [-L / 2 - 0.5, 0, L / 2 + 0.5].flatMap((t) => [-W / 2 - 0.6, 0, W / 2 + 0.6].map((c) => [x + ux * t - uy * c, y + uy * t + ux * c]));
+          if (!corners.every(([cx, cy]) => clear(cx, cy) && !onPath(paths, cx, cy))) continue;
+          const s = newSolid();
+          pergola(B, s, x, y, ux, uy, L, W, 2.8, L > 8);
+          // An outdoor classroom: two benches under it, children about.
+          for (const c of [-0.9, 0.9]) {
+            const P = (a: number, z: number) => [x + ux * a - uy * c, y + uy * a + ux * c, z];
+            s.lines.push({ pen: LINEWORK, pts: [...P(-L / 2 + 1.5, 0.45), ...P(L / 2 - 1.5, 0.45)] });
+            for (const a of [-L / 2 + 1.8, L / 2 - 1.8]) s.lines.push({ pen: LINEWORK, pts: [...P(a, 0), ...P(a, 0.45)] });
+          }
+          if (L > 8) for (const l of s.lines) l.facet = 'showpiece';
+          solids.push(s);
+          B.future.gather.push([x, y, (L > 8 ? 8 : 4) + Math.floor(h(2) * 4), L > 8 ? 10 : 6, true]);
+          // Racks and people keep out from under it.
+          paper.fillMask(M.foot, [place(x, y, ux, uy, rect(-L / 2, L / 2, -W / 2, W / 2))]);
+          placed.push([p.x, p.y]);
+          break search;
         }
-        solids.push(s);
-        B.future.gather.push([x, y, 4 + Math.floor(h(2) * 4), 6, true]);
-        // Racks and people keep out from under it.
-        paper.fillMask(M.foot, [place(x, y, ux, uy, rect(-4, 4, -2, 2))]);
-        placed.push([p.x, p.y]);
-        break search;
-      }
+    }
   }
   return none;
 }

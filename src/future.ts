@@ -386,3 +386,12 @@ export function hasMedian(B: Build, w: Way): boolean {
 
 /** Half the width of a planted median, metres. */
 export const MEDIAN = 1.1;
+
+/**
+ * Whether a school, station or square is one of the town's moments of wonder, drawn bigger and
+ * more generously than the rest: a few in each district, by the 200 m cell it stands in.
+ */
+export function showpiece(B: Build, x: number, y: number): boolean {
+  const [c0, c1] = B.cell(x, y, 200);
+  return hash(c0, c1, B.set.seed, 12290) < 0.2 + 0.3 * Math.max(0, Math.min(1, B.set.future));
+}

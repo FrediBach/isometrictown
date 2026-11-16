@@ -6,6 +6,7 @@ import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { dome } from './roofs';
 import { pergola, stall } from './additions';
+import { showpiece } from './future';
 import { GREENERY, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
@@ -759,14 +760,16 @@ function publicRoom(B: Build, paper: Paper, M: Masks, outer: number[], r: Rect):
   const vx = -r.uy;
   const vy = r.ux;
   const side = h(0) < 0.5 ? 1 : -1;
-  const L = Math.min(r.L * 0.6, 24);
+  // A showpiece square gets a long shaded edge grown over with climbers.
+  const big = showpiece(B, r.cx, r.cy);
+  const L = big ? Math.min(r.L * 0.85, 36) : Math.min(r.L * 0.6, 24);
   const c = side * (r.w / 2 - 4);
   if (L >= 6 && r.w >= 18 && h(1) < 0.5 + 0.4 * f && shows(B.cam, LOD.pergola, 3)) {
     const x = r.cx + vx * c;
     const y = r.cy + vy * c;
     if ([-L / 2, 0, L / 2].every((t) => [-1.8, 1.8].every((d) => fits(x + r.ux * t + vx * d, y + r.uy * t + vy * d)))) {
       const s = newSolid();
-      tagLines(B, undefined, s, () => pergola(B, s, x, y, r.ux, r.uy, L, 3.4), 'pergola');
+      tagLines(B, undefined, s, () => pergola(B, s, x, y, r.ux, r.uy, L, 3.4, 2.8, big), big ? 'pergola/showpiece' : 'pergola');
       out.push(s);
       B.future!.gather.push([x, y, Math.max(2, Math.round(L / 6)), Math.min(L / 2 - 1, 5), false]);
       paper.fillMask(M.foot, [place(x, y, r.ux, r.uy, rect(-L / 2, L / 2, -1.7, 1.7))]);

@@ -6,7 +6,9 @@ This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.js
 
 - **Built:** the toolbar switch, climate and intensity, planner, catalogue and imprint label; roof panels, green roofs and rain tanks; cycles, fewer cars, kerb rain gardens and tree pits, street trees, cycle lanes, planted medians, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, station forecourts and racks, electrified lines and buried town wires; balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches and their climate variants, entrance canopies, sun fins, trellises, awnings, square pergolas and stalls, school pergolas; park meadows, benches and dips, reeds, food beds, works hedges, crop strips, hedgerows, orchards, paddocks, allotment tanks and trellises, shore power; people at stalls, pergolas and schools, washing lines, cargo bikes at shops, dry stone channels in hot dry places.
 - **Ink:** against the default drawing, plot time rises 0–26% at any LOD lab place and scale (most under 10%), and wasted ink by at most 1.4 points.
-- **Open:** checking each climate on a fitting preset town (needs map data that isn't recorded), and showpiece versions of schools, stations and squares beyond their pergolas and canopies.
+- **Showpieces:** besides one balcony frame per 200 m, a few schools (a long learning arcade), stations (a large canopy on branching posts) and squares (a long pergola with climbers) are showpieces, by a 200 m cell (`showpiece()`).
+- **Climates checked in the app:** Jumeirah Village Circle (hot and dry), Pointe-Noire (hot and humid) and Kowloon (monsoonal) drawn at 1:1000 in the browser, without errors. No test case covers these places: their map data isn't recorded.
+- **Open:** nothing from the plan; see §13 for what would need new data (lifecycle, terrain, seasons).
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
