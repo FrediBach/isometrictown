@@ -56,10 +56,11 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | `traffic.ts` | `urbanity()` and vehicle density/placement |
 | `ground.ts` | `planGround()`: land-cover codes, inferred gardens, in-town test; then field and pitch textures |
 | `future.ts` | Solarpunk mode: climate profiles and `planFuture()`, which writes `Building.future` (see [solarpunk.md](solarpunk.md)) |
+| `reshape.ts` | Solarpunk at depth Transform: `reshapeTown()` narrows streets into garden streets and boulevards before any mask is filled, and records their planted strips and cycle tracks |
 
 **Things drawn** (each takes `Build` and returns solids and/or draws onto `Paper`)
 
-`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `ships.ts`, `sport.ts` (players and racing), `vehicles.ts` (models of working vehicles), `power.ts`, `solar.ts`, `commons.ts` and `additions.ts` (solarpunk panels and green roofs; rain tanks, kerb gardens and racks; balcony frames, porches, fins, trellises, pergolas and stalls), `landscape.ts` (solarpunk park meadows, reeds, food beds, works hedges), `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals), `title.ts` (the cinematic title: those capitals thickened into extruded block letters on a street).
+`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `ships.ts`, `sport.ts` (players and racing), `vehicles.ts` (models of working vehicles), `power.ts`, `solar.ts`, `commons.ts` and `additions.ts` (solarpunk panels and green roofs; rain tanks, kerb gardens and racks; balcony frames, porches, fins, trellises, pergolas and stalls), `landscape.ts` (solarpunk park meadows, reeds, food beds, works hedges), `canopy.ts` (the solarpunk urban canopy: groves and courtyard trees), `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals), `title.ts` (the cinematic title: those capitals thickened into extruded block letters on a street).
 
 **Interface**
 

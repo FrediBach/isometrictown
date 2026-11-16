@@ -50,16 +50,24 @@ export const CASES: Case[] = [
     what: 'Portrait sheet, steep tilt, shaded walls, forced Nordic style, another seed',
     set: at('Mollis', MOLLIS, 0, 1200, { sheet: 'a4', landscape: false, tilt: 50, shadeWalls: true, autoSun: false, sunAngle: 140, sunHeight: 25, heightScale: 1.5, style: 'nordic', seed: 7 }),
   },
-  // Solarpunk mode on places already recorded: the same map data, drawn as a possible future.
-  { id: 'mollis-solarpunk', what: 'Solarpunk village: panels on pitched roofs, rain tanks, a mountain climate', set: at('Mollis', MOLLIS, 35, 1000, { solarpunk: true }) },
-  { id: 'amsterdam-solarpunk', what: 'Solarpunk canal city: gabled fronts kept, panels on the rows behind them', set: at('Amsterdam', [4.8862, 52.3727], 35, 1000, { solarpunk: true }) },
-  { id: 'midtown-solarpunk', what: 'Solarpunk towers: rows of panels and green roofs on flat tops', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true }) },
-  { id: 'hallstatt-solarpunk', what: 'Solarpunk lake village: solar canopies, racks and beds in the car parks', set: at('Hallstatt', [13.6493, 47.5617], 300, 800, { solarpunk: true }) },
-  { id: 'rye-solarpunk', what: 'Solarpunk market town: food beds, park meadows and crop strips', set: at('Rye', [0.7335, 50.9503], 25, 900, { solarpunk: true }) },
-  { id: 'emmental-solarpunk', what: 'Solarpunk farmland at a coarse scale: barn roofs must not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true }) },
+  // Solarpunk mode on places already recorded: the same map data, drawn as a possible future. These
+  // keep to depth Retrofit, which must not change as the bolder depths are built.
+  { id: 'mollis-solarpunk', what: 'Solarpunk village: panels on pitched roofs, rain tanks, a mountain climate', set: at('Mollis', MOLLIS, 35, 1000, { solarpunk: true, depth: 'retrofit' }) },
+  { id: 'amsterdam-solarpunk', what: 'Solarpunk canal city: gabled fronts kept, panels on the rows behind them', set: at('Amsterdam', [4.8862, 52.3727], 35, 1000, { solarpunk: true, depth: 'retrofit' }) },
+  { id: 'midtown-solarpunk', what: 'Solarpunk towers: rows of panels and green roofs on flat tops', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true, depth: 'retrofit' }) },
+  { id: 'hallstatt-solarpunk', what: 'Solarpunk lake village: solar canopies, racks and beds in the car parks', set: at('Hallstatt', [13.6493, 47.5617], 300, 800, { solarpunk: true, depth: 'retrofit' }) },
+  { id: 'rye-solarpunk', what: 'Solarpunk market town: food beds, park meadows and crop strips', set: at('Rye', [0.7335, 50.9503], 25, 900, { solarpunk: true, depth: 'retrofit' }) },
+  { id: 'emmental-solarpunk', what: 'Solarpunk farmland at a coarse scale: barn roofs must not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true, depth: 'retrofit' }) },
+  // The same places at depth Transform (docs/solarpunk/bolder-plan.md): reshaped streets, boulevards and a real canopy.
+  { id: 'mollis-transform', what: 'Transform village: garden streets, groves, a mountain canopy', set: at('Mollis', MOLLIS, 35, 1000, { solarpunk: true }) },
+  { id: 'amsterdam-transform', what: 'Transform canal city: canal streets narrowed to a lane between tree rows', set: at('Amsterdam', [4.8862, 52.3727], 35, 1000, { solarpunk: true }) },
+  { id: 'midtown-transform', what: 'Transform towers: avenues as boulevards with cycle tracks, courtyard trees', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true }) },
+  { id: 'hallstatt-transform', what: 'Transform lake village: groves on steep ground between houses', set: at('Hallstatt', [13.6493, 47.5617], 300, 800, { solarpunk: true }) },
+  { id: 'rye-transform', what: 'Transform market town: garden streets and a temperate canopy', set: at('Rye', [0.7335, 50.9503], 25, 900, { solarpunk: true }) },
+  { id: 'emmental-transform', what: 'Transform farmland at a coarse scale: groves must thin, not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true }) },
 ];
 
-/** The base for switching solarpunk mode off: the village with it on. */
+/** The base for switching solarpunk mode off, or its depth down to Retrofit: the village with it on at the default depth. */
 export const SOLARPUNK_BASE: Settings = at('Mollis', MOLLIS, 35, 1000, { solarpunk: true });
 
 /**

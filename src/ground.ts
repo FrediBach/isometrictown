@@ -423,7 +423,8 @@ export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array): void {
 export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array, meadow?: (x: number, y: number) => boolean): void {
   const cam = paper.cam;
   const inset = cam.nib * 1.5;
-  const clear = (x: number, y: number) => paper.on(M.green, x, y)
+  // Solarpunk street strips are hatched with their own planting (src/reshape.ts).
+  const clear = (x: number, y: number) => paper.on(M.green, x, y) && !paper.on(M.strip, x, y)
     && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y)
     && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, cam.groundDepth(y));
   // Solarpunk parks leave patches to grow as meadow; parkMeadow() tufts them instead.

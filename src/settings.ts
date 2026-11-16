@@ -55,6 +55,8 @@ export type Settings = {
   future: number;
   /** Climate the solarpunk future is designed for, or 'auto' to work it out from the region. */
   climate: 'auto' | ClimateId;
+  /** How far the solarpunk future goes: retrofits only, a reshaped town, or district landmarks as well. */
+  depth: Depth;
 
   /** The place name in giant 3D block letters standing on a long street, as in a film's opening shot. */
   title: boolean;
@@ -180,6 +182,7 @@ export const DEFAULT_SETTINGS: Settings = {
   solarpunk: false,
   future: 0.5,
   climate: 'auto',
+  depth: 'transform',
 
   title: false,
   titleText: '',
@@ -217,6 +220,15 @@ export const DEFAULT_SETTINGS: Settings = {
   seed: 1,
   seedLocks: {},
 };
+
+/** Depths of intervention, from the least to the most changed (docs/solarpunk/bolder-plan.md §2). */
+export const DEPTHS = ['retrofit', 'transform', 'visionary'] as const;
+export type Depth = (typeof DEPTHS)[number];
+
+/** Whether the solarpunk future goes at least as far as `d`. Only meaningful while the mode is on. */
+export function deeper(set: Pick<Settings, 'depth'>, d: Depth): boolean {
+  return DEPTHS.indexOf(set.depth) >= DEPTHS.indexOf(d);
+}
 
 /** The key a building's seed lock is stored under: its terrace's or its own position key. */
 export function lockKey(k: readonly [number, number]): string {

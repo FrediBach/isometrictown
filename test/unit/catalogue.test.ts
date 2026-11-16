@@ -16,7 +16,7 @@ describe('catalogue', () => {
     expect(e.source.length).toBeGreaterThan(0);
     for (const g of e.needs ?? []) {
       expect(GATE_LABEL[g], `gate ${g}`).toBeDefined();
-      expect(g in DEFAULT_SETTINGS, `gate ${g} is a setting`).toBe(true);
+      expect(g.split(':')[0] in DEFAULT_SETTINGS, `gate ${g} is a setting`).toBe(true);
     }
     for (const r of e.lod ?? []) expect(LOD[r], `rule ${r}`).toBeDefined();
     for (const p of e.strokes ?? []) expect(p).toMatch(/^(=?[a-zA-Z*][\w:-]*)(\/[\w-]+)*$/);

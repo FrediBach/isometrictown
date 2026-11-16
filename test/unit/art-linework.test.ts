@@ -204,7 +204,7 @@ test('broadleaf crowns vary by map position and stay inside their placement radi
 test.each([0.35, 0.7])('park hatch leaves a visible gap at lawn and road edges with a %s mm pen', (penWidth) => {
   const B = build({ penWidth });
   const paper = new Paper(B.cam);
-  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title', 'strip'].map((key) => [key, paper.mask()])) as Masks;
   const rect = (x0: number, y0: number, x1: number, y1: number) =>
     [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].flatMap(([x, y]) => B.cam.ground(x, y));
   paper.fillMask(M.green, [rect(180, 120, 220, 150)]);
@@ -281,7 +281,7 @@ test('foreshortened road dashes disappear before equally long transverse dashes'
   const strokes = (pts: number[]) => {
     const B = build({ scale: 3000, bearing: 0 });
     const paper = new Paper(B.cam);
-    const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+    const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title', 'strip'].map((key) => [key, paper.mask()])) as Masks;
     const ways: Way[] = [{ kind: 'road', cls: 'primary', width: 12, pts }];
     fillRoads(paper, ways, [], M.road);
     paper.finishDepth();
@@ -320,7 +320,7 @@ test('a right-angle kerb emits only the outside arc at its bend', () => {
 test.each([0.35, 0.7])('park tone leaves a continuous path corridor with a %s mm pen', (penWidth) => {
   const B = build({ penWidth, paths: true });
   const paper = new Paper(B.cam);
-  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title', 'strip'].map((key) => [key, paper.mask()])) as Masks;
   const rect = [180, 120, 220, 120, 220, 150, 180, 150];
   paper.fillMask(M.green, [rect.flatMap((v, i) => i % 2 ? [] : B.cam.ground(v, rect[i + 1]))]);
   const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(200, 110), ...B.cam.ground(200, 160)] }];
@@ -350,7 +350,7 @@ test.each([0.35, 0.7])('paths omit whole lawn and wild-country symbols with a %s
     const B = build({ penWidth, paths: true });
     const draw = (clear: boolean) => {
       const paper = new Paper(B.cam);
-      const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+      const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title', 'strip'].map((key) => [key, paper.mask()])) as Masks;
       const G = textureGround(paper);
       if (garden) { G.land.fill(GARDEN); G.gardens = true; }
       const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(200, 20), ...B.cam.ground(200, 263)] }];
@@ -373,7 +373,7 @@ test.each([0.35, 0.7])('paths omit whole lawn and wild-country symbols with a %s
 test('field rows break at path corridors while field boundaries stay intact', () => {
   const B = build({ paths: true, scale: 1000 });
   const paper = new Paper(B.cam);
-  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
+  const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title', 'strip'].map((key) => [key, paper.mask()])) as Masks;
   const G = textureGround(paper);
   const shape = [{ pts: [-50, -50, 50, -50, 50, 50, -50, 50], seam: new Uint8Array(4) }];
   G.covers.push({ shape, code: FIELD, rect: { cx: 0, cy: 0, ux: 1, uy: 0, L: 100, w: 100 } });

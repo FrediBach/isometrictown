@@ -2,6 +2,8 @@ import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
 import { cycleRacks, kerbGardens, kerbTrees, lotCommons, medians, medianTrees, rainTanks } from './commons';
 import { planFuture, type ClimateId } from './future';
+import { canopyTrees } from './canopy';
+import { cycleTracks, reshapeTown, stripGrass, stripTrees } from './reshape';
 import { forecourtCanopies, lotCanopies } from './solar';
 import { yardPergolas } from './additions';
 import { gardenBeds, meadowPatches, parkCommons, parkMeadow, reeds, worksHedges } from './landscape';
@@ -20,7 +22,7 @@ import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
-import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
+import { LINEWORK, GREENERY, ROOFS, WATER, deeper, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { freedKerbs, traffic } from './traffic';
 import { title } from './title';
@@ -122,7 +124,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       return [Math.round(X), Math.round(Y)];
     },
   };
-  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask(), title: paper.mask() };
+  const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask(), title: paper.mask(), strip: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
 
   onStage({ stage: 'ground' });
@@ -131,6 +133,9 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   B.future = set.solarpunk ? planFuture(town, set, style.id, B.key, B.cell) : null;
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
+  // From depth Transform, streets are reshaped before any mask is filled, so everything downstream follows.
+  const R = B.future && deeper(set, 'transform') ? reshapeTown(town, B) : null;
+  if (R) town = R.town;
   // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.
   at('streets', () => { for (const w of town.ways) if (w.kind === 'road') w.width = atLeast(cam, LOD.road, w.width); });
   // Streams too narrow for two banks are a single line.
@@ -148,6 +153,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.fillMask(M.pool, s.map((r) => r.pts));
   }
   for (const s of town.green) paper.fillMask(M.green, s.map((r) => r.pts));
+  for (const s of R?.strips ?? []) {
+    paper.fillMask(M.green, s.map((r) => r.pts));
+    paper.fillMask(M.strip, s.map((r) => r.pts));
+  }
   for (const s of town.wood) paper.fillMask(M.wood, s.map((r) => r.pts));
   fillRoads(paper, town.ways, town.plazas, M.road);
   fillRoads(paper, town.runways, town.aprons, M.road);
@@ -241,6 +250,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (G) list = [...list.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
     if (B.future) list.push(...from('kerb-trees', kerbTrees(B, kerbs)), ...worksHedges(B, paper, town, M), ...medianTrees(B, town));
+    if (R) list.push(...from('strip-trees', stripTrees(B, paper, R, M)), ...canopyTrees(B, paper, town, G, M, box, toAbs, fromAbs));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
@@ -265,6 +275,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
+  if (R) extras.push(extra('streets', 'cycle-tracks', () => cycleTracks(B, paper, R, M)));
   if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('planting', 'medians', () => medians(B, paper, town)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('solar', 'forecourts', () => forecourtCanopies(B, paper, town, M, trees)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('additions', 'pergolas', () => yardPergolas(B, paper, town, M)), extra('planting', 'beds', () => gardenBeds(B, paper, town, G, M)), extra('parks', 'commons', () => parkCommons(B, paper, town, M)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.
@@ -359,6 +370,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
+  if (R) withPen('planting', () => { stripGrass(paper, M, R, paths); }, 'strips');
   if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
   if (B.future && set.water) withPen('planting', () => { reeds(B, paper, M, G, paths); }, 'reeds');

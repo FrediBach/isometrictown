@@ -22,7 +22,7 @@ type Build = { cam; set; style; sun; left; key; future? };
 
 | Stage (`app/stages.ts`) | What happens |
 | --- | --- |
-| `ground` | `classify()` fills `Building.info`. In solarpunk mode `planFuture()` then fills `Building.future`, context buildings included, and puts the district plan on `B.future`. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`). |
+| `ground` | `classify()` fills `Building.info`. In solarpunk mode `planFuture()` then fills `Building.future`, context buildings included, and puts the district plan on `B.future`. From depth Transform, `reshapeTown()` then swaps reshaped streets for narrower copies and returns their planted strips, which go into the `green` and `strip` masks. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`). |
 | `buildings` | The cinematic title (if on) is placed first, so buildings it stands in can be left out. Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints, and the title's, go into `M.foot`. |
 | `life` | Trees (placed, then filtered by ground plan, plus orchards, gardens, scrub, hedgerows, street trees), traffic, parking, trains, then all the **extras** (lifts, ferries, bridges, airfields, aircraft, power, sites…). |
 | `light` | Trim pitched-roof end outlines where another pitched face continues the same plane. Every solid face and tree sprite is rasterised into the **depth buffer**; `finishDepth()`. Then shadows are swept into `M.shadow`. |

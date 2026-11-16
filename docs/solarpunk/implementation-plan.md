@@ -9,6 +9,7 @@ This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.js
 - **Showpieces:** besides one balcony frame per 200 m, a few schools (a long learning arcade), stations (a large canopy on branching posts) and squares (a long pergola with climbers) are showpieces, by a 200 m cell (`showpiece()`).
 - **Climates checked in the app:** Jumeirah Village Circle (hot and dry), Pointe-Noire (hot and humid) and Kowloon (monsoonal) drawn at 1:1000 in the browser, without errors. No test case covers these places: their map data isn't recorded.
 - **Open:** nothing from the plan; see §13 for what would need new data (lifecycle, terrain, seasons).
+- **Next:** the result is careful but subtle; [bolder-plan.md](bolder-plan.md) plans the follow-up with much more visible changes.
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 

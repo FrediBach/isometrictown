@@ -15,12 +15,16 @@ const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), osmTags: false, be
 const lat = set.center[1];
 const pan = (m: number, from: Settings = set): Settings => ({ ...from, center: [from.center[0] + (m / (EARTH * Math.cos((lat * Math.PI) / 180))) * 360, lat] });
 
+/** Tone hatching inside a feature, laid on the sheet's grid rather than the map's. */
+const TONE = /\/strip-planting\b/;
+
 /** Segments of a feature inside a window, rounded to 0.05 mm, as a set of keys. */
 function segments(s: Sheet, prefix: string, dx: number, win: [number, number, number, number]): Set<string> {
   const out = new Set<string>();
   const q = (v: number) => Math.round(v * 20);
   for (const [name, lines] of s.tally) {
-    if (!name.startsWith(prefix)) continue;
+    // Tone hatching is laid on the sheet's own grid, as park grass is.
+    if (!name.startsWith(prefix) || TONE.test(name)) continue;
     for (const l of lines)
       for (let i = 2; i < l.length; i += 2) {
         const x0 = l[i - 2] + dx;

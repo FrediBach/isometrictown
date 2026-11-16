@@ -1,6 +1,6 @@
 import type { LngLat } from '../geo';
 import { PALETTES } from '../palettes';
-import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
+import { DEFAULT_SETTINGS, DEPTHS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
 import { CLIMATES } from '../future';
 import { STYLES } from '../styles';
 
@@ -88,6 +88,7 @@ export function loadSettings(): Settings {
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   if (s.climate !== 'auto' && !CLIMATES[s.climate]) s.climate = 'auto';
   s.solarpunk = s.solarpunk === true;
+  if (!DEPTHS.includes(s.depth)) s.depth = DEFAULT_SETTINGS.depth;
   if (!Number.isFinite(s.future) || s.future < 0 || s.future > 1) s.future = DEFAULT_SETTINGS.future;
   return s;
 }

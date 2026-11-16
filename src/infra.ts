@@ -746,7 +746,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const zebras: [number, number][] = [];
   const test: Test = (x, y, d) => paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && paper.seen(x, y, d);
   for (const w of ways) {
-    if (w.kind !== 'road' || !MARKED.has(w.cls) || w.width < 10) continue;
+    if (w.kind !== 'road' || !MARKED.has(w.cls) || (w.was ?? w.width) < 10) continue;
     const p = w.pts;
     const cum = measure(p);
     const L = cum[cum.length - 1];

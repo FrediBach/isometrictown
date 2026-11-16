@@ -8,7 +8,7 @@ import { CLIMATE_IDS, CLIMATES, climateOf } from './future';
 import { coarsest, LOD, type RuleId } from './lod';
 import { CYPRESSES, PALMS } from './nature';
 import { OVERHEAD_TOWN } from './power';
-import { LAYERS, layerDetail, PEN_NAMES, type LayerId, type Settings } from './settings';
+import { deeper, LAYERS, layerDetail, PEN_NAMES, type Depth, type LayerId, type Settings } from './settings';
 import { ELECTRIC } from './streets';
 import { BY_COUNTRY, BY_REGION, STYLE_IDS, STYLES, type Region, type Style, type StyleId } from './styles';
 
@@ -50,8 +50,8 @@ export const GROUPS: { id: GroupId; title: string }[] = [
   { id: 'styles', title: 'Regional styles' },
 ];
 
-/** Settings that switch things on: keys, or sliders that switch off at 0. */
-export type Gate = BoolKey | 'trees' | 'cars';
+/** Settings that switch things on: keys, sliders that switch off at 0, or the least solarpunk depth (`depth:transform`). */
+export type Gate = BoolKey | 'trees' | 'cars' | `depth:${Exclude<Depth, 'retrofit'>}`;
 
 export const GATE_LABEL: Partial<Record<Gate, string>> = {
   windows: 'Windows',
@@ -74,6 +74,7 @@ export const GATE_LABEL: Partial<Record<Gate, string>> = {
   marginalia: 'Map notes',
   title: 'Cinematic title',
   solarpunk: 'Solarpunk',
+  'depth:transform': 'Depth Transform or more',
   trees: 'Trees',
   cars: 'Traffic',
 };
@@ -113,6 +114,7 @@ export type Entry = {
   now?: (c: { set: Settings; region?: Region }) => string | undefined;
 };
 
+const DEPTH_NAME: Record<Depth, string> = { retrofit: 'Retrofit', transform: 'Transform', visionary: 'Visionary' };
 const styleName = (id: string) => STYLES[id as StyleId]?.label ?? id;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 /** Styles in a set, by name. */
@@ -1437,11 +1439,11 @@ const ENTRIES_BY_HAND: Entry[] = [
     how: 'Each building is matched to a recipe from what it was worked out to be (house, row, block, works, landmark…), then given at most one main change and one supporting one, keyed to its seed and position. Heritage, places of worship, hospitals and castles keep their roofs. Nothing is decided from the scale: zooming shows more of the same future.',
     needs: ['solarpunk'],
     lod: ['futureTwo', 'futureDetail'],
-    facts: [['Climates', CLIMATE_IDS.map((id) => CLIMATES[id].label).join(', ')], ['Intensity', 'How many eligible places take an optional change; never where it doesn’t fit']],
+    facts: [['Climates', CLIMATE_IDS.map((id) => CLIMATES[id].label).join(', ')], ['Depth', 'Retrofit: changes to what is there. Transform: streets reshaped and a real canopy. Visionary: reserved for district landmarks'], ['Intensity', 'How many eligible places take an optional change; never where it doesn’t fit']],
     now: ({ set, region }) => {
       if (!set.solarpunk) return 'Solarpunk is off';
       const id = set.climate !== 'auto' ? set.climate : region ? climateOf(set.style === 'auto' ? region.style : set.style, set.center) : undefined;
-      return id && `Designed for a ${CLIMATES[id].label.toLowerCase()} climate${set.climate === 'auto' ? ', from the region' : ''}`;
+      return id && `${DEPTH_NAME[set.depth]}, designed for a ${CLIMATES[id].label.toLowerCase()} climate${set.climate === 'auto' ? ', from the region' : ''}`;
     },
   },
   {
@@ -1840,6 +1842,68 @@ const ENTRIES_BY_HAND: Entry[] = [
     how: 'The overhead line and the wooden poles follow their usual rules, as in a region where both are the habit and the other is not.',
     needs: ['solarpunk'],
   },
+  {
+    id: 'garden-streets',
+    group: 'future',
+    name: 'Garden streets',
+    source: ['invented'],
+    what: 'Residential streets narrowed to one shared 3.6 m lane, still continuous for deliveries and emergencies, with the rest of the carriageway planted on both sides: low planting hatched like a park and edged where the old kerb ran. Boulevards keep a planted buffer between their lanes and the cycle tracks. Strips stop short of junctions, so corners stay paved for turning and crossing.',
+    how: 'Minor streets at least 7 m wide on built-up land, not bridges, not car park aisles. Strips stop 6 m short of any crossing road or railway; a street is narrowed only where at least a third of its length can be planted, so tram streets and short links stay as they are. Decided from each street’s own centre line and its neighbours’, so the view never changes it.',
+    needs: ['solarpunk', 'depth:transform'],
+    lod: ['gardenStrip'],
+    strokes: ['planting:strips'],
+  },
+  {
+    id: 'strip-trees',
+    group: 'future',
+    name: 'Garden-street trees',
+    source: ['invented'],
+    what: 'A row of trees down each planted strip of a garden street, the two sides alternating, about a third of them young.',
+    how: 'Every 8 to 22 m along the strip, as closely as the climate allows: closest in temperate and humid places, widest where it is hot and dry.',
+    needs: ['solarpunk', 'depth:transform', 'trees'],
+    lod: ['tree'],
+    strokes: ['*/strip-trees'],
+    count: ['strip-trees'],
+    unit: 'tree',
+  },
+  {
+    id: 'boulevards',
+    group: 'future',
+    name: 'Boulevards and cycle tracks',
+    source: ['invented'],
+    what: 'Main roads rebuilt within their corridor: one lane each way either side of a planted median, a planted buffer, then a kerb-protected cycle track with a dashed line between its two directions and riders on it, and a row of trees on the pavement.',
+    how: 'Primary and secondary roads at least 12 m wide in town, not bridges. The painted cycle lanes and kerb parking go; buses and lorries stay.',
+    needs: ['solarpunk', 'depth:transform'],
+    lod: ['cycleTrack', 'cycle'],
+    strokes: ['streets:cycle-tracks'],
+  },
+  {
+    id: 'canopy-trees',
+    group: 'future',
+    name: 'Urban canopy',
+    source: ['invented'],
+    what: 'Groves of three to seven trees, big and small mixed, on the free ground of town: backs of blocks, open plots, yards and works edges. Groves read as canopy at a distance, where single trees fade.',
+    how: 'On an 18 m grid fixed to the map, gathered by smooth noise, wherever the ground is clear of buildings, roads, water, parks, woods, fields, pitches, cemeteries and allotments. How many follows the climate’s canopy target and the Intensity.',
+    needs: ['solarpunk', 'depth:transform', 'trees'],
+    lod: ['tree', 'treeSpacing'],
+    strokes: ['*/canopy-trees'],
+    count: ['canopy-trees'],
+    unit: 'tree',
+    facts: [['Canopy target', CLIMATE_IDS.map((id) => `${CLIMATES[id].label} ${pct(CLIMATES[id].canopy)}`).join(', ')]],
+  },
+  {
+    id: 'courtyard-trees',
+    group: 'future',
+    name: 'Courtyard trees',
+    source: ['invented'],
+    what: 'One to three big trees in the courtyard of a perimeter block.',
+    how: 'Courts over 300 m² inside apartment blocks, where the crown fits clear of the walls.',
+    needs: ['solarpunk', 'depth:transform', 'trees'],
+    lod: ['tree'],
+    strokes: ['*/courtyard-trees'],
+    count: ['courtyard-trees'],
+    unit: 'tree',
+  },
 ];
 
 const RIDGE: Record<Style['ridge'], string> = { street: 'Along the street', gableToStreet: 'Gable end to the street', long: 'Along the long side' };
@@ -1929,9 +1993,33 @@ export function matcher(pattern: string): (f: Filed) => boolean {
   };
 }
 
+/** Stroke patterns of everything solarpunk mode adds or swaps: every entry in the Solarpunk group. */
+export const FUTURE_STROKES: string[] = ENTRIES.filter((e) => e.group === 'future').flatMap((e) => e.strokes ?? []);
+const futureMatchers = FUTURE_STROKES.map(matcher);
+
+/** Whether a tally name is ink that solarpunk mode adds (see `FUTURE_STROKES`). */
+export function isFuture(name: string): boolean {
+  const f = filed(name);
+  return futureMatchers.some((m) => m(f));
+}
+
+/** Share of a drawing's ink, by length, filed under solarpunk features: how much of the sheet is new. */
+export function futureShare(tally: Map<string, number[][]>): number {
+  let all = 0;
+  let mine = 0;
+  for (const [name, lines] of tally) {
+    let len = 0;
+    for (const l of lines) for (let i = 2; i < l.length; i += 2) len += Math.hypot(l[i] - l[i - 2], l[i + 1] - l[i - 1]);
+    all += len;
+    if (isFuture(name)) mine += len;
+  }
+  return all ? mine / all : 0;
+}
+
 /** Whether a gate is on in these settings. */
 export function gateOn(set: Settings, g: Gate): boolean {
-  const v = set[g];
+  if (g.startsWith('depth:')) return deeper(set, g.slice(6) as Depth);
+  const v = set[g as Exclude<Gate, `depth:${string}`>];
   return typeof v === 'number' ? v > 0 : !!v;
 }
 

@@ -37,7 +37,7 @@ These are small and exact, for the parts that are pure functions.
 
 These draw whole sheets with the real pipeline (`loadTown` → `render` → `plan` → `toSvg`, as the worker does) from map data recorded in `test/fixtures/net`.
 
-- **`sheets.test.ts`** draws each case in `test/cases.ts`: nineteen places and settings (six of them in solarpunk mode, on places already recorded) that between them reach almost every feature, regional style and tricky setting. For each one it checks:
+- **`sheets.test.ts`** draws each case in `test/cases.ts`: twenty-five places and settings (twelve of them in solarpunk mode, on places already recorded: six at depth Retrofit, which must not change as the bolder depths are built, and their Transform twins) that between them reach almost every feature, regional style and tricky setting. For each one it checks:
   - the golden (below),
   - every stroke is a finite polyline on the sheet, and every feature stays inside the drawing area,
   - every stroke is filed in the tally (only the frame and map notes are not),
@@ -47,8 +47,8 @@ These draw whole sheets with the real pipeline (`loadTown` → `render` → `pla
 
   At the end it draws the first case again and requires the identical SVG, which catches state leaking between drawings.
 - **`gates.test.ts`** switches each setting that switches something on (Windows, Trees, Life, Markings…) off in turn. Whatever the catalogue says needs that setting must then be gone, and the setting must have had something to take away.
-- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid. A second pair of drawings in solarpunk mode checks panels, green roofs and rain tanks the same way.
-- **`future.test.ts`** checks that the solarpunk settings change nothing while the mode is off, and that the mode adds its panels and imprint.
+- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid. A second pair of drawings in solarpunk mode checks panels, green roofs, rain tanks, garden-street strips and groves the same way; the strips' planting hatch is tone and left out.
+- **`future.test.ts`** checks that the solarpunk settings change nothing while the mode is off, that the mode adds its panels and imprint, and that every stroke only the mode draws is claimed by the catalogue's Solarpunk group, so the lab's new-ink share counts it.
 
 The imprint in the margin dates each sheet, so drawing tests pin the clock to `DRAWN_ON` in `test/support/clock.ts`.
 

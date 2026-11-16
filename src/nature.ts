@@ -34,8 +34,9 @@ export function regionalTrees(B: Build, trees: Tree[], wild: (t: Tree) => boolea
 }
 /** `under` is the sheet area hidden by the sides and arches of bridges over water. */
 /** `calm` is water a ship or its wake lies on: waves leave it clear, and small boats keep off it. */
+/** `strip` is the planted strips of solarpunk streets (also in `green`), which keep their own trees and hatching. */
 /** Screen-space masks shared by every pass; `title` is the ground under the cinematic title and a little round it, which overhead wires keep off. */
-export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under' | 'calm' | 'title', Uint8Array>;
+export type Masks = Record<'road' | 'water' | 'green' | 'wood' | 'foot' | 'shadow' | 'pool' | 'under' | 'calm' | 'title' | 'strip', Uint8Array>;
 
 /**
  * Scatter trees over parks and woods on a grid fixed to the map,
@@ -69,7 +70,7 @@ export function placeTrees(B: Build, paper: Paper, M: Masks, box: [number, numbe
         const sx = cam.sx(x, y);
         const sy = cam.sy(x, y, 0);
         if (!paper.on(pass.mask, sx, sy) || paper.on(M.road, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.foot, sx, sy)) continue;
-        if (pass.mask === M.green && paper.on(M.wood, sx, sy)) continue;
+        if (pass.mask === M.green && (paper.on(M.wood, sx, sy) || paper.on(M.strip, sx, sy))) continue;
         // Keep the edge readable, with groves and quieter openings further inside.
         const edge = !paper.on(pass.mask, cam.sx(x + pass.cell, y), cam.sy(x + pass.cell, y, 0))
           || !paper.on(pass.mask, cam.sx(x - pass.cell, y), cam.sy(x - pass.cell, y, 0))

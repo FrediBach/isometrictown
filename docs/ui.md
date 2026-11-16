@@ -73,7 +73,7 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 ## Panel sections
 
-`components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The Town section ends with the solarpunk climate and Intensity; the mode itself is switched in the preview toolbar (`components/stage.tsx`). The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
+`components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The Town section ends with the solarpunk depth (Retrofit, Transform, Visionary), climate and Intensity; the mode itself is switched in the preview toolbar (`components/stage.tsx`). The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
 
 Light defaults to Automatic sun: geographic south-east in the north and north-east in the south. Turning it off exposes the existing view-relative direction slider; the section summary always shows the resulting compass bearing. Old saved settings with an adjusted sun angle, and old share links with an explicit sun angle, retain manual lighting. Links carry `autoSun` explicitly alongside a non-default manual angle so automatic lighting can retain that angle without changing mode when shared.
 

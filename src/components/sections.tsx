@@ -12,7 +12,7 @@ import { useNativeChange } from '../app/use-native-change';
 import { CLIMATE_IDS, CLIMATES, climateOf } from '../future';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
+import { DEPTHS, DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type Depth, type LayerId, type Settings, type SheetId } from '../settings';
 import { STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -22,6 +22,13 @@ import { PlaceSearch } from './place-search';
 import { PenDot } from './title-block';
 
 const SEP = ' · ';
+
+const DEPTH_LABEL: Record<Depth, string> = { retrofit: 'Retrofit', transform: 'Transform', visionary: 'Visionary' };
+const DEPTH_HINT: Record<Depth, string> = {
+  retrofit: 'Retrofit: the town as it is, with panels, planting, tanks and additions on what is there.',
+  transform: 'Transform: streets narrow to a lane between planted strips, main roads get cycle tracks, and trees fill the town.',
+  visionary: 'Visionary: everything Transform does, with district landmarks, new transit and car-free cores.',
+};
 
 /** The presets in alphabetical order, for the dropdown. */
 const TRY_PLACES = [...PRESETS].sort((a, b) => a.name.localeCompare(b.name));
@@ -125,6 +132,14 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
         ))}
       </KeyGrid>
       <Caption className="mt-4">Solarpunk</Caption>
+      <Segmented
+        aria-label="Depth of intervention"
+        className="mb-1 w-full"
+        value={set.depth}
+        onValueChange={(v) => change('depth', v)}
+        items={DEPTHS.map((d) => ({ value: d, label: DEPTH_LABEL[d] }))}
+      />
+      <Hint>{DEPTH_HINT[set.depth]}</Hint>
       <Select value={set.climate} onValueChange={(v) => change('climate', v as Settings['climate'])}>
         <SelectTrigger aria-label="Solarpunk climate" className="mb-1 h-9 w-full rounded-md bg-card">
           <SelectValue />

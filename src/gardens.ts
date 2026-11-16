@@ -394,12 +394,13 @@ export function streetTrees(B: Build, paper: Paper, ways: Way[], M: Masks): Tree
     return !paper.on(M.road, sx, sy) && !paper.on(M.water, sx, sy) && !paper.on(M.foot, sx, sy) && !paper.on(M.wood, sx, sy);
   };
   for (const w of ways) {
-    if (w.kind !== 'road' || !AVENUE_CLASSES.has(w.cls)) continue;
+    // Garden streets plant their own strips (src/reshape.ts); boulevards always have a row on the pavement.
+    if (w.kind !== 'road' || !AVENUE_CLASSES.has(w.cls) || w.future === 'garden') continue;
     const p = w.pts;
     const mid = Math.floor(p.length / 4) * 2;
     const [m0, m1] = B.cell(p[mid], p[mid + 1], 20);
-    if (hash(m0, m1, set.seed, 530) >= (w.cls === 'minor' ? chance * 0.5 : chance)) continue;
-    const off = w.width / 2 + 1.5;
+    if (w.future !== 'boulevard' && hash(m0, m1, set.seed, 530) >= (w.cls === 'minor' ? chance * 0.5 : chance)) continue;
+    const off = (w.was ?? w.width) / 2 + 1.5;
     walk(p, 5, 9, 5, (x, y, ux, uy) => {
       for (const side of [1, -1]) {
         const nx = -uy * side;

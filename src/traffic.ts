@@ -283,7 +283,8 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
     if (L < 6) continue;
     const [mx, my] = at(p, cum, L / 2);
     const uw = urban(mx, my);
-    const park = PARK_FROM[w.cls] !== undefined && uw > PARK_FROM[w.cls] && w.width >= 8;
+    // Reshaped solarpunk streets have given their parking lanes to planting.
+    const park = PARK_FROM[w.cls] !== undefined && uw > PARK_FROM[w.cls] && w.width >= 8 && w.was === undefined;
     const j0 = junction(p[0], p[1]);
     const j1 = junction(p[p.length - 2], p[p.length - 1]);
     const hw = w.width / 2;
@@ -419,7 +420,7 @@ export function freedKerbs(B: Build, paper: Paper, town: Town, M: Masks): KerbSl
     const L = cum[cum.length - 1];
     if (L < 6) continue;
     const [mx, my] = at(p, cum, L / 2);
-    if (PARK_FROM[w.cls] === undefined || urban(mx, my) <= PARK_FROM[w.cls] || w.width < 8) continue;
+    if (PARK_FROM[w.cls] === undefined || urban(mx, my) <= PARK_FROM[w.cls] || w.width < 8 || w.was !== undefined) continue;
     const sides: number[] = w.oneway ? (w.width >= 10 ? [1, -1] : [B.left ? w.oneway : -w.oneway]) : [1, -1];
     const off = w.width / 2 - 1.05;
     for (const s of sides) {

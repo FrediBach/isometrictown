@@ -12,11 +12,17 @@
  *   npm run lod -- --layer-detail trees:0.5       Detail for some layers only, as layer:detail,…
  *   npm run lod -- --solarpunk                    draw every place in solarpunk mode
  *   npm run lod -- --climate hot_dry              solarpunk mode designed for one climate everywhere
+ *   npm run lod -- --depth visionary              solarpunk mode at a depth of intervention (default transform)
+ *
+ * Solarpunk runs also draw each case as it is today, and report the share of ink that is new,
+ * the share of preview pixels that differ (with the two thumbnails side by side) and plot time
+ * against today.
  *   npm run lod -- --no-png                       numbers only, faster
  *
  * Downloads are cached on disk in lab/.cache, so reruns don't touch the network.
  */
 import { createHash } from 'node:crypto';
+import { deflateSync } from 'node:zlib';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +46,8 @@ const penWidth = Number(opt('pen', '0.35'));
 const tags = flag('tags');
 const solarpunk = flag('solarpunk');
 const climate = opt('climate', undefined);
+const depth = opt('depth', undefined);
+const future = solarpunk || !!climate || !!depth;
 const layerDetailArg = opt('layer-detail', null);
 const layerDetail = layerDetailArg ? Object.fromEntries(layerDetailArg.split(',').map((p) => p.split(':')).map(([k, v]) => [k, Number(v)])) : undefined;
 const compare = opt('compare', null);
@@ -94,18 +102,28 @@ function die(msg) {
 }
 
 mkdirSync(outDir, { recursive: true });
-const report = { name, detail, penWidth, tags, layerDetail, solarpunk, climate, at: new Date().toISOString(), cases: [] };
+const report = { name, detail, penWidth, tags, layerDetail, solarpunk: future, climate, depth: future ? (depth ?? 'transform') : undefined, at: new Date().toISOString(), cases: [] };
 const fmt = (v, d = 0) => v.toLocaleString('en', { maximumFractionDigits: d, minimumFractionDigits: d });
 const pct = (v) => `${fmt(v * 100, 1)}%`;
 
-console.log(`LOD lab "${name}": ${places.length} places × ${scales.length} scales, Detail ${detail}${layerDetailArg ? ` (${layerDetailArg})` : ''}, pen ${penWidth} mm${solarpunk || climate ? `, solarpunk${climate ? ` (${climate})` : ''}` : ''}\n`);
+console.log(`LOD lab "${name}": ${places.length} places × ${scales.length} scales, Detail ${detail}${layerDetailArg ? ` (${layerDetailArg})` : ''}, pen ${penWidth} mm${future ? `, solarpunk ${depth ?? 'transform'}${climate ? ` (${climate})` : ''}` : ''}\n`);
 for (const place of places) {
   for (const scale of scales) {
     const label = `${place.id} 1:${scale}`.padEnd(24);
     try {
-      const r = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail, solarpunk, climate });
+      const r = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail, solarpunk, climate, depth });
       const file = `${place.id}-${scale}`;
       writeFileSync(path.join(outDir, `${file}.svg`), r.svg);
+      // Against today: the same case with the mode off, at preview size.
+      let vs = null;
+      if (future) {
+        const today = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail });
+        vs = { share: r.future, diff: lab.difference(r.thumb, today.thumb, r.rect, sheetWidth(r.svg)), time: r.stats.total.seconds / today.stats.total.seconds, waste: r.stats.total.waste - today.stats.total.waste };
+        if (png) {
+          writeFileSync(path.join(outDir, `${file}-thumb.png`), lab.png(r.thumb, deflateSync));
+          writeFileSync(path.join(outDir, `${file}-today.png`), lab.png(today.thumb, deflateSync));
+        }
+      }
       const t = r.stats.total;
       const worst = Object.entries(r.stats.layers)
         .filter(([, s]) => s.seconds > t.seconds * 0.01)
@@ -113,10 +131,10 @@ for (const place of places) {
         .slice(0, 3)
         .map(([k, s]) => `${k} ${pct(s.waste)}`)
         .join(', ');
-      console.log(`${label} ${fmt(t.strokes).padStart(8)} strokes ${fmt(t.ink / 1000, 1).padStart(7)} m ${fmt(t.seconds / 60, 1).padStart(6)} min  waste ${pct(t.waste).padStart(6)}  solid ${pct(r.stats.solid).padStart(6)}  ${fmt(r.ms)} ms  worst: ${worst}`);
+      console.log(`${label} ${fmt(t.strokes).padStart(8)} strokes ${fmt(t.ink / 1000, 1).padStart(7)} m ${fmt(t.seconds / 60, 1).padStart(6)} min  waste ${pct(t.waste).padStart(6)}  solid ${pct(r.stats.solid).padStart(6)}  ${fmt(r.ms)} ms  ${vs ? `new ${pct(vs.share)}  differs ${pct(vs.diff)}  time ×${fmt(vs.time, 2)}  ` : ''}worst: ${worst}`);
       const { marks, ...stats } = r.stats;
       if (png) writeFileSync(path.join(outDir, `${file}-waste.svg`), wasteSvg(r.svg, marks, penWidth));
-      report.cases.push({ place: place.id, name: place.name, kind: place.kind, scale, file, ms: r.ms, rect: r.rect, stats });
+      report.cases.push({ place: place.id, name: place.name, kind: place.kind, scale, file, ms: r.ms, rect: r.rect, stats, vs });
     } catch (e) {
       console.log(`${label} failed: ${e instanceof Error ? e.message : e}`);
       report.cases.push({ place: place.id, name: place.name, kind: place.kind, scale, error: String(e) });
@@ -187,8 +205,14 @@ if (compare) {
       .slice(0, 4)
       .map(([k, d]) => `${k} ${d > 0 ? '+' : ''}${fmt(d / 60, 1)}m`)
       .join(', ');
-    console.log(`${`${c.place} 1:${c.scale}`.padEnd(24)} time ${delta(t.seconds, u.seconds).padStart(5)}  strokes ${delta(t.strokes, u.strokes).padStart(5)}  waste ${pct(u.waste)} → ${pct(t.waste)}  ${moved}`);
+    const shift = c.vs && b.vs ? `  new ${pct(b.vs.share)} → ${pct(c.vs.share)}  differs ${pct(b.vs.diff)} → ${pct(c.vs.diff)}` : '';
+    console.log(`${`${c.place} 1:${c.scale}`.padEnd(24)} time ${delta(t.seconds, u.seconds).padStart(5)}  strokes ${delta(t.strokes, u.strokes).padStart(5)}  waste ${pct(u.waste)} → ${pct(t.waste)}${shift}  ${moved}`);
   }
+}
+
+/** Width of the sheet an SVG was drawn on, mm. */
+function sheetWidth(svg) {
+  return Number(svg.match(/viewBox="0 0 ([\d.]+) /)[1]);
 }
 
 /** The drawing greyed out, with specks in magenta and solid 1 mm cells shaded red: where the waste is. */
@@ -212,7 +236,7 @@ function html(r, withPng, rules) {
     const ok = cases.filter((c) => c.stats);
     const layers = [...new Set(ok.flatMap((c) => Object.keys(c.stats.layers)))].sort((a, b) => Math.max(...ok.map((c) => c.stats.layers[b]?.seconds ?? 0)) - Math.max(...ok.map((c) => c.stats.layers[a]?.seconds ?? 0)));
     body += `<section><h2>${esc(cases[0].name)} <small>${esc(cases[0].kind)}</small></h2><div class="scroll"><table><thead><tr><th>Feature</th>${cases.map((c) => `<th>1:${c.scale}</th>`).join('')}</tr></thead><tbody>`;
-    body += `<tr class="total"><td>All</td>${cases.map((c) => (c.stats ? `<td class="${shade(c.stats.total.waste)}">${fmt(c.stats.total.seconds / 60, 1)} min · ${fmt(c.stats.total.strokes)}<br><span>waste ${pct(c.stats.total.waste)} · solid ${pct(c.stats.solid)}</span></td>` : `<td class="bad">${esc(c.error)}</td>`)).join('')}</tr>`;
+    body += `<tr class="total"><td>All</td>${cases.map((c) => (c.stats ? `<td class="${shade(c.stats.total.waste)}">${fmt(c.stats.total.seconds / 60, 1)} min · ${fmt(c.stats.total.strokes)}<br><span>waste ${pct(c.stats.total.waste)} · solid ${pct(c.stats.solid)}</span>${c.vs ? `<br><span>new ${pct(c.vs.share)} · differs ${pct(c.vs.diff)} · time ×${fmt(c.vs.time, 2)}</span>` : ''}</td>` : `<td class="bad">${esc(c.error)}</td>`)).join('')}</tr>`;
     for (const k of layers) {
       body += `<tr><td>${esc(k)}</td>${cases
         .map((c) => {
@@ -227,6 +251,11 @@ function html(r, withPng, rules) {
       body += '<div class="shots">';
       for (const c of ok) body += `<figure><a href="${c.file}.svg"><img src="${c.file}.png" alt="${esc(c.name)} at 1:${c.scale}" loading="lazy"></a><div class="close"><img src="${c.file}-hot.png" alt="Busiest window" loading="lazy"><img src="${c.file}-mid.png" alt="Centre" loading="lazy"><img src="${c.file}-waste.png" alt="Waste in the busiest window" loading="lazy"></div><figcaption>1:${c.scale}: whole sheet; the busiest and the middle 30 × 20 mm at true pen width; the busiest again with specks in magenta and solid cells in red</figcaption></figure>`;
       body += '</div>';
+      if (ok.some((c) => c.vs)) {
+        body += '<div class="shots">';
+        for (const c of ok) if (c.vs) body += `<figure><div class="pair"><img src="${c.file}-today.png" alt="Today at 1:${c.scale}" loading="lazy"><img src="${c.file}-thumb.png" alt="Solarpunk at 1:${c.scale}" loading="lazy"></div><figcaption>1:${c.scale} at preview size, today and solarpunk: ${pct(c.vs.diff)} of pixels differ, ${pct(c.vs.share)} of the ink is new</figcaption></figure>`;
+        body += '</div>';
+      }
     }
     body += '</section>';
   }
@@ -238,7 +267,7 @@ h1{font-size:18px}h2{font-size:15px;margin:32px 0 8px}small,span,figcaption{colo
 .scroll{overflow-x:auto}table{border-collapse:collapse}td,th{border:1px solid var(--line);padding:4px 8px;text-align:right;white-space:nowrap;vertical-align:top}
 td:first-child,th:first-child{text-align:left}.warn{background:var(--warn)}.bad{background:var(--bad)}.none{color:var(--mute)}.total td{font-weight:600}
 .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:12px}figure{margin:0}img{width:100%;display:block;border:1px solid var(--line);background:#f2f1eb}
-.close{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:4px}
+.close{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:4px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 </style></head><body><h1>LOD lab: ${esc(r.name)}</h1><p>Detail ${r.detail}, pen ${r.penWidth} mm, OSM tags ${r.tags ? 'on' : 'off'}, ${esc(r.at)}. Each cell: plotting minutes · strokes, then ink, specks (strokes under two pen widths across) and waste (time on specks and on ink laid where the paper is already solid). Amber from 10% waste, red from 25%.</p>${body}${ruleTable(rules)}</body></html>`;
 }
 

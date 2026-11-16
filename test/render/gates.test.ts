@@ -5,7 +5,7 @@
  */
 import { beforeAll, describe, expect, test } from 'vitest';
 import { ENTRIES, filed, GATE_LABEL, matcher, type Gate } from '@/catalogue';
-import type { Settings } from '@/settings';
+import { DEPTHS, type Settings } from '@/settings';
 import { CASES, GATE_BASE, RURAL_BASE, SOLARPUNK_BASE } from '../cases';
 import { pinClock } from '../support/clock';
 import { draw, type Sheet } from '../support/draw';
@@ -16,7 +16,12 @@ pinClock();
 const SKIP = new Set<Gate>(['frame', 'marginalia', 'osmTags']);
 const GATES = (Object.keys(GATE_LABEL) as Gate[]).filter((g) => !SKIP.has(g));
 
-const off = (set: Settings, g: Gate): Settings => ({ ...set, [g]: typeof set[g] === 'number' ? 0 : false });
+/** A depth gate is off one depth below the one it names. */
+const off = (set: Settings, g: Gate): Settings => {
+  if (g.startsWith('depth:')) return { ...set, depth: DEPTHS[DEPTHS.indexOf(g.slice(6) as Settings['depth']) - 1] };
+  const k = g as keyof Settings;
+  return { ...set, [k]: typeof set[k] === 'number' ? 0 : false };
+};
 
 /** Tally names on a sheet that some entry needing this gate claims. */
 function gated(s: Sheet, g: Gate): string[] {
@@ -30,7 +35,7 @@ function gated(s: Sheet, g: Gate): string[] {
 const RURAL = new Set<Gate>(['rails']);
 // This recorded city has supported roadside wires; rural transmission runs may be rejected.
 const POWER_BASE = CASES.find(c => c.id === 'midtown')!.set;
-const baseSet = (g: Gate) => g === 'power' ? POWER_BASE : g === 'solarpunk' ? SOLARPUNK_BASE : (RURAL.has(g) ? RURAL_BASE : GATE_BASE);
+const baseSet = (g: Gate) => g === 'power' ? POWER_BASE : g === 'solarpunk' || g.startsWith('depth:') ? SOLARPUNK_BASE : (RURAL.has(g) ? RURAL_BASE : GATE_BASE);
 const bases = new Map<Settings, Promise<Sheet>>();
 const baseFor = (g: Gate) => bases.get(baseSet(g)) ?? bases.set(baseSet(g), draw(baseSet(g))).get(baseSet(g))!;
 

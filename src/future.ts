@@ -35,16 +35,18 @@ export type Climate = {
   gallery: boolean;
   /** Water is short: kerb rain gardens become dry stone channels, without plants. */
   dry: boolean;
+  /** Share of town the tree canopy aims to cover at depth Transform: concentrated shade where it is dry, open where it is windy. */
+  canopy: number;
 };
 
 export const CLIMATES: Record<ClimateId, Climate> = {
-  temperate: { label: 'Temperate, seasonally wet', greenRoof: 0.55, tanks: 0.5, streetTrees: 1.5 , porch: 'porch', winter: 0.25, gallery: false , dry: false },
-  hot_dry: { label: 'Hot and dry', greenRoof: 0, tanks: 0.8, streetTrees: 0.6 , porch: 'arcade', winter: 0, gallery: true , dry: true },
-  hot_humid: { label: 'Hot and humid', greenRoof: 0.5, tanks: 0.7, streetTrees: 1.5 , porch: 'veranda', winter: 0, gallery: true , dry: false },
-  monsoonal: { label: 'Monsoonal', greenRoof: 0.4, tanks: 0.8, streetTrees: 1.4 , porch: 'veranda', winter: 0, gallery: true , dry: false },
-  cold: { label: 'Cold, high latitude', greenRoof: 0.2, tanks: 0.25, streetTrees: 1 , porch: 'vestibule', winter: 0.6, gallery: false , dry: false },
-  mountain: { label: 'Mountainous', greenRoof: 0.35, tanks: 0.4, streetTrees: 1 , porch: 'porch', winter: 0.2, gallery: false , dry: false },
-  coastal: { label: 'Windy or coastal', greenRoof: 0.3, tanks: 0.45, streetTrees: 0.8 , porch: 'porch', winter: 0.15, gallery: false , dry: false },
+  temperate: { label: 'Temperate, seasonally wet', greenRoof: 0.55, tanks: 0.5, streetTrees: 1.5 , porch: 'porch', winter: 0.25, gallery: false , dry: false , canopy: 0.3 },
+  hot_dry: { label: 'Hot and dry', greenRoof: 0, tanks: 0.8, streetTrees: 0.6 , porch: 'arcade', winter: 0, gallery: true , dry: true , canopy: 0.1 },
+  hot_humid: { label: 'Hot and humid', greenRoof: 0.5, tanks: 0.7, streetTrees: 1.5 , porch: 'veranda', winter: 0, gallery: true , dry: false , canopy: 0.35 },
+  monsoonal: { label: 'Monsoonal', greenRoof: 0.4, tanks: 0.8, streetTrees: 1.4 , porch: 'veranda', winter: 0, gallery: true , dry: false , canopy: 0.35 },
+  cold: { label: 'Cold, high latitude', greenRoof: 0.2, tanks: 0.25, streetTrees: 1 , porch: 'vestibule', winter: 0.6, gallery: false , dry: false , canopy: 0.2 },
+  mountain: { label: 'Mountainous', greenRoof: 0.35, tanks: 0.4, streetTrees: 1 , porch: 'porch', winter: 0.2, gallery: false , dry: false , canopy: 0.2 },
+  coastal: { label: 'Windy or coastal', greenRoof: 0.3, tanks: 0.45, streetTrees: 0.8 , porch: 'porch', winter: 0.15, gallery: false , dry: false , canopy: 0.15 },
 };
 export const CLIMATE_IDS = Object.keys(CLIMATES) as ClimateId[];
 
@@ -377,6 +379,8 @@ export function motifBudget(B: Build, b: Building): 1 | 2 | 3 {
  * enough to give it room, most of them, decided per road by the cell its middle lies in.
  */
 export function hasMedian(B: Build, w: Way): boolean {
+  // Two-way boulevards always have one (src/reshape.ts).
+  if (B.future && w.future === 'boulevard') return !w.oneway;
   if (!B.future || w.kind !== 'road' || w.oneway || w.bridge || w.cls !== 'primary' || w.width < 13) return false;
   const p = w.pts;
   const mid = Math.floor(p.length / 4) * 2;
