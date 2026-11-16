@@ -2011,9 +2011,9 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Community wind turbines',
     source: ['invented'],
     what: 'A tall turbine on open land: a tapering tower, a nacelle turned to the prevailing wind and three blades.',
-    how: 'On fields, meadows and open country at least 300 m from any building, outside town, one per 700 m cell fixed to the map at most, and never more than three on a sheet. Made up: the guide warns against inventing wind farms, so they are only drawn at depth Visionary.',
-    needs: ['solarpunk', 'depth:visionary'],
-    lod: ['turbine'],
+    how: 'From Transform, 35 m machines on mapped fields, meadows, farmyards and industrial land. Grassland, heath, fell and mapped protected areas are excluded. Visionary upgrades selected field and meadow sites to 72 m. Map-fixed 360 m Mercator cells, at least 100 true metres apart, with no per-sheet cap. Full swept envelopes clear routes, water, woodland and other land uses; building clearance is 35 m, or 80 m for larger machines.',
+    needs: ['solarpunk', 'depth:transform', 'ground'],
+    lod: ['turbine', 'turbineDetail'],
     strokes: ['power:turbines'],
   },
   {

@@ -28,7 +28,7 @@ const bounds = (p: number[]): Box => {
 const meets = (a: Box, b: Box) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 
 /** A small spatial index for full footprints, including neighbours outside the sheet. */
-class GroundIndex {
+export class GroundIndex {
   private cells = new Map<string, number[]>();
   private big: number[] = [];
   private rings: { p: number[]; box: Box }[] = [];
@@ -71,7 +71,8 @@ export function fits(r: Rect, shape: Shape): boolean {
   return p.every((_, i) => i % 2 || pointInRing(p[i], p[i + 1], outer)) && !edgesMeet(p, outer) && shape.slice(1).every((h) => !overlaps(p, h.pts));
 }
 
-function corridor(index: GroundIndex, pts: number[], radius: number): void {
+/** Reserve the complete width of a mapped linear obstacle. */
+export function corridor(index: GroundIndex, pts: number[], radius: number): void {
   for (let i = 0; i + 3 < pts.length; i += 2) {
     const dx = pts[i + 2] - pts[i], dy = pts[i + 3] - pts[i + 1], len = Math.hypot(dx, dy);
     if (!len) continue;

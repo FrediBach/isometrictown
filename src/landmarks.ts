@@ -1,72 +1,93 @@
 import { newSolid, type Build, type Solid } from './buildings';
-import { FIELD, MEADOW, WETLAND, type Ground } from './ground';
 import type { Extra } from './infra';
 import { LOD, shows } from './lod';
-import type { Masks } from './nature';
-import type { Paper } from './raster';
 import { hash } from './rng';
-import { GREENERY, LINEWORK } from './settings';
+import { deeper, GREENERY, LINEWORK } from './settings';
 import { pointInRing } from './geo';
 import { at, measure } from './infra';
-import type { Town } from './tiles';
+import type { Area, Town } from './tiles';
+import { corridor, fits, GroundIndex, productionFoot } from './production';
+import { corners, type Rect } from './shape';
 
 /*
- * District landmarks at depth Visionary (docs/solarpunk/bolder-plan.md §7): rare by design, and
- * labelled in the catalogue as made up: community wind turbines on open land, and planted
+ * Productive wind infrastructure from Transform, and Visionary garden bridges,
+ * labelled in the catalogue as made up: community wind turbines on productive land, and planted
  * footbridges between tall buildings across side streets.
  */
 
-/** Side of the cells turbines are placed in, Web Mercator metres: at most one per cell. */
-const CELL = 700;
-/** Clearance from any building, metres. */
-const CLEAR = 300;
-/** Hub height and blade length, metres. */
-const HUB = 78;
-const BLADE = 38;
+/** A wind site and its complete swept-ground clearance, planned before masks and trees. */
+export type WindSite = { x: number; y: number; phase: number; hub: number; blade: number; envelope: Rect };
 
-/**
- * One to three community wind turbines on open land at the edge of town, at least 300 m from
- * any building, one per 700 m cell at most, on cells fixed to the map. The guide warns against
- * inventing wind farms, so there are never more than three on a sheet.
- */
-export function windTurbines(B: Build, paper: Paper, town: Town, G: Ground | null, M: Masks): Extra {
-  const solids: Solid[] = [];
-  const none = { solids, draw: () => {} };
-  if (!B.future || !G || !shows(B.cam, LOD.turbine)) return none;
-  const { cam } = B;
-  const [x0, y0, x1, y1] = cam.region(0);
-  const [A0x, A0y] = B.toAbs(x0, y0);
-  const [A1x, A1y] = B.toAbs(x1, y1);
-  const metre = B.toAbs(1, 0)[0] - B.toAbs(0, 0)[0];
-  const built = town.density.built;
-  const sites: [number, number, number][] = [];
-  for (let i = Math.floor(Math.min(A0x, A1x) / CELL); i <= Math.ceil(Math.max(A0x, A1x) / CELL); i++)
-    for (let j = Math.floor(Math.min(A0y, A1y) / CELL); j <= Math.ceil(Math.max(A0y, A1y) / CELL); j++) {
-      const h = (k: number) => hash(i, j, B.set.seed, 12430 + k);
-      if (h(0) > 0.55) continue;
-      const X = (i + 0.2 + 0.6 * h(1)) * CELL;
-      const Y = (j + 0.2 + 0.6 * h(2)) * CELL;
-      const x = (X - B.toAbs(0, 0)[0]) / metre;
-      const y = (Y - B.toAbs(0, 0)[1]) / metre;
-      const sx = cam.sx(x, y);
-      const sy = cam.sy(x, y, 0);
-      if (sx < paper.x0 || sx > paper.x1 || sy < paper.y0 || sy > paper.y1) continue;
-      const code = paper.at(G.land, sx, sy);
-      if (!(code === 0 || code === FIELD || code === MEADOW || code === WETLAND)) continue;
-      if (paper.on(M.road, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.wood, sx, sy) || paper.on(M.foot, sx, sy) || G.inTown(x, y, sx, sy)) continue;
-      let near = false;
-      for (let q = 0; q < built.length && !near; q += 3) near = Math.hypot(built[q] - x, built[q + 1] - y) < CLEAR;
-      if (!near) sites.push([x, y, h(3)]);
+/** Cell spacing in Web Mercator metres; neighbours also obey a true-metre separation. */
+const CELL = 360;
+const productive = (a: Area) => ['farmland', 'farmyard', 'industrial'].includes(a.cls) || (a.cls === 'meadow' && a.sub === 'meadow');
+
+/** Map-fixed wind sites on mapped productive land, with no sheet-ranked count limit. */
+export function planWind(B: Build, town: Town): WindSite[] {
+  if (!B.future || !B.set.ground || !deeper(B.set, 'transform')) return [];
+  const context = town.windContext;
+  const land = context?.land ?? [...town.nearby.landuse, ...town.cover];
+  const parcels = land.filter(productive);
+  if (!parcels.length) return [];
+  const ground = new GroundIndex();
+  for (const s of context?.obstacles ?? [...town.water, ...town.pools, ...town.wood, ...town.green, ...town.plazas, ...town.aprons,
+    ...town.cover.filter((a) => !productive(a)).map((a) => a.shape)]) ground.add(s[0].pts);
+  // An industrial land-use polygon may overlap residential or protected ground: decline it.
+  for (const a of land) if (!productive(a)) ground.add(a.shape[0].pts);
+  for (const w of context?.ways ?? [...town.nearby.ways, ...town.runways]) corridor(ground, w.pts, Math.max(w.width / 2, 2) + 5);
+  for (const w of context?.streams ?? town.streams) corridor(ground, w.pts, w.width / 2 + 5);
+  for (const b of town.buildings) { const foot = productionFoot(b); if (foot) ground.add(foot); }
+  const buildings = (context?.buildings ?? town.buildings.map((b) => b.shape)).map((s) => {
+    const p = s[0].pts;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let q = 0; q < p.length; q += 2) { x0 = Math.min(x0, p[q]); y0 = Math.min(y0, p[q + 1]); x1 = Math.max(x1, p[q]); y1 = Math.max(y1, p[q + 1]); }
+    return [x0, y0, x1, y1];
+  });
+  const [ox, oy] = B.toAbs(0, 0), metre = B.toAbs(1, 0)[0] - ox;
+  const point = (i: number, j: number) => {
+    const h = (k: number) => hash(i, j, B.set.seed, 12520 + k);
+    return { x: ((i + 0.35 + 0.3 * h(1)) * CELL - ox) / metre, y: ((j + 0.35 + 0.3 * h(2)) * CELL - oy) / metre, rank: h(0), phase: h(3), large: h(4) < 0.4 };
+  };
+  const [x0, y0, x1, y1] = B.cam.region(80);
+  const [ax, ay] = B.toAbs(x0, y0), [bx, by] = B.toAbs(x1, y1);
+  const sites: WindSite[] = [], reach = Math.ceil(100 * metre / CELL) + 1;
+  for (let i = Math.floor(Math.min(ax, bx) / CELL); i <= Math.ceil(Math.max(ax, bx) / CELL); i++) {
+    for (let j = Math.floor(Math.min(ay, by) / CELL); j <= Math.ceil(Math.max(ay, by) / CELL); j++) {
+      const p = point(i, j);
+      if (p.rank >= 0.8) continue;
+      // Compare even ineligible neighbours: removing a map feature never promotes another site.
+      let crowded = false;
+      for (let di = -reach; di <= reach && !crowded; di++) for (let dj = -reach; dj <= reach; dj++) {
+        if (!di && !dj) continue;
+        const q = point(i + di, j + dj);
+        if ((q.rank < p.rank || (q.rank === p.rank && (di < 0 || (!di && dj < 0)))) && Math.hypot(p.x - q.x, p.y - q.y) < 100) { crowded = true; break; }
+      }
+      if (crowded) continue;
+      for (const large of deeper(B.set, 'visionary') && p.large ? [true, false] : [false]) {
+        const hub = large ? 48 : 24, blade = large ? 24 : 11, radius = blade + 6;
+        const envelope = { cx: p.x, cy: p.y, ux: 1, uy: 0, L: radius * 2, w: radius * 2 };
+        if (!parcels.some((a) => (!large || a.cls === 'farmland' || (a.cls === 'meadow' && a.sub === 'meadow')) && fits(envelope, a.shape)) || !ground.clear(corners(envelope))) continue;
+        const clearance = large ? 80 : 35;
+        if (buildings.some(([a, b, c, d]) => Math.hypot(Math.max(a - p.x, 0, p.x - c), Math.max(b - p.y, 0, p.y - d)) < clearance)) continue;
+        sites.push({ x: p.x, y: p.y, phase: p.phase, hub, blade, envelope });
+        break;
+      }
     }
-  sites.sort((a, b) => a[2] - b[2]);
-  for (const [x, y, v] of sites.slice(0, 3)) solids.push(turbine(B, x, y, v));
-  return none;
+  }
+  return sites;
+}
+
+/** Draw the planned machines; changing level of detail never selects another site. */
+export function windTurbines(B: Build, sites: WindSite[]): Extra {
+  const solids = sites.filter((p) => shows(B.cam, LOD.turbine, p.blade)).map((p) => turbine(B, p.x, p.y, p.phase, p.hub, p.blade));
+  return { solids, draw: () => {} };
 }
 
 /** A turbine: a tapering tower, the nacelle, and three blades turned to the wind, at an angle fixed by `v`. */
-function turbine(B: Build, x: number, y: number, v: number): Solid {
+function turbine(B: Build, x: number, y: number, v: number, HUB: number, BLADE: number): Solid {
   const s = newSolid();
   const { cam } = B;
+  const scale = HUB / 78;
   // The rotor faces the prevailing wind; its disc is drawn edge-on to that direction.
   const wx = 0.8;
   const wy = 0.6;
@@ -75,19 +96,36 @@ function turbine(B: Build, x: number, y: number, v: number): Solid {
   // Tower: two tapering lines, as seen across the view.
   const ax = cam.cb;
   const ay = -cam.sb;
-  s.lines.push({ pen: LINEWORK, pts: [x - ax * 2.2, y - ay * 2.2, 0, x - ax * 1.1, y - ay * 1.1, HUB - 1.6] });
-  s.lines.push({ pen: LINEWORK, pts: [x + ax * 2.2, y + ay * 2.2, 0, x + ax * 1.1, y + ay * 1.1, HUB - 1.6] });
-  s.casts.push({ ring: [x - 2, y - 2, x + 2, y - 2, x + 2, y + 2, x - 2, y + 2], h: HUB });
+  if (shows(cam, LOD.turbineDetail, 2.2 * scale)) {
+    for (const sign of [-1, 1]) s.lines.push({ pen: LINEWORK, pts: [x + sign * ax * 2.2 * scale, y + sign * ay * 2.2 * scale, 0, x + sign * ax * 1.1 * scale, y + sign * ay * 1.1 * scale, HUB - 1.6 * scale] });
+  } else {
+    // Put the single stroke on the near surface, so the shaft does not hide its own centre line.
+    s.lines.push({ pen: LINEWORK, pts: [x - cam.sb * 2.2 * scale, y - cam.cb * 2.2 * scale, 0, x - cam.sb * 1.1 * scale, y - cam.cb * 1.1 * scale, HUB - 1.6 * scale] });
+  }
+  const foot: number[] = [];
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4, b = (k + 1) * Math.PI / 4;
+    const at = (a: number, r: number, z: number) => [x + Math.cos(a) * r * scale, y + Math.sin(a) * r * scale, z];
+    foot.push(...at(a, 2.2, 0).slice(0, 2));
+    s.faces.push([[...at(a, 2.2, 0), ...at(b, 2.2, 0), ...at(b, 1.1, HUB), ...at(a, 1.1, HUB)]]);
+  }
+  s.casts.push({ ring: foot, h: HUB });
   // Nacelle: a box along the wind.
-  const box = (u: number, w: number, z: number) => [x + wx * u + px * w, y + wy * u + py * w, z];
+  const box = (u: number, w: number, z: number) => [x + (wx * u + px * w) * scale, y + (wy * u + py * w) * scale, HUB + (z - HUB) * scale];
   const corners = [box(-5, -1.6, HUB - 1.6), box(5, -1.6, HUB - 1.6), box(5, 1.6, HUB - 1.6), box(-5, 1.6, HUB - 1.6)];
-  const tops = corners.map(([cx, cy]) => [cx, cy, HUB + 1.6]);
-  for (const ring of [corners, tops]) s.lines.push({ pen: LINEWORK, pts: ring.flat(), closed: true });
-  for (let k = 0; k < 4; k++) s.lines.push({ pen: LINEWORK, pts: [...corners[k], ...tops[k]] });
-  s.faces.push([corners.flat()], [tops.flat()]);
+  const tops = corners.map(([cx, cy]) => [cx, cy, HUB + 1.6 * scale]);
+  if (shows(cam, LOD.turbineDetail, 3.2 * scale)) {
+    for (const ring of [corners, tops]) s.lines.push({ pen: LINEWORK, pts: ring.flat(), closed: true });
+    for (let k = 0; k < 4; k++) s.lines.push({ pen: LINEWORK, pts: [...corners[k], ...tops[k]] });
+    s.faces.push([corners.flat()], [tops.flat()]);
+    for (let k = 0; k < 4; k++) s.faces.push([[...corners[k], ...corners[(k + 1) % 4], ...tops[(k + 1) % 4], ...tops[k]]]);
+  } else {
+    // A narrow nacelle becomes a coupling stroke, keeping rotor and shaft visibly joined.
+    s.lines.push({ pen: LINEWORK, pts: [x - cam.sb * 1.1 * scale, y - cam.cb * 1.1 * scale, HUB - 1.6 * scale, ...box(5.6, 0, HUB)] });
+  }
   // Blades in the rotor plane (across the wind, vertical), from the hub in front of the nacelle.
-  const hx = x + wx * 5.6;
-  const hy = y + wy * 5.6;
+  const hx = x + wx * 5.6 * scale;
+  const hy = y + wy * 5.6 * scale;
   const phase = v * Math.PI * 2;
   for (let k = 0; k < 3; k++) {
     const a = phase + (k / 3) * Math.PI * 2;
@@ -95,9 +133,12 @@ function turbine(B: Build, x: number, y: number, v: number): Solid {
       const c = Math.cos(a);
       const sn = Math.sin(a);
       // Along the blade (r) and across it (off), in the rotor plane.
-      return [hx + px * (c * r - sn * off), hy + py * (c * r - sn * off), HUB + sn * r + c * off];
+      return [hx + px * (c * r - sn * off * scale), hy + py * (c * r - sn * off * scale), HUB + sn * r + c * off * scale];
     };
-    s.lines.push({ pen: LINEWORK, pts: [...at(1, 0.9), ...at(BLADE * 0.3, 1.4), ...at(BLADE, 0.2), ...at(BLADE, -0.2), ...at(BLADE * 0.3, -0.6), ...at(1, -0.9)], closed: true });
+    const blade = [...at(1, 0.9), ...at(BLADE * 0.3, 1.4), ...at(BLADE, 0.2), ...at(BLADE, -0.2), ...at(BLADE * 0.3, -0.6), ...at(1, -0.9)];
+    s.faces.push([blade]);
+    if (shows(cam, LOD.turbineDetail, 2 * scale)) s.lines.push({ pen: LINEWORK, pts: blade, closed: true });
+    else s.lines.push({ pen: LINEWORK, pts: [...at(0, 0), ...at(BLADE, 0)] });
   }
   return s;
 }

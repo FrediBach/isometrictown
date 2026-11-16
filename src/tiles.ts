@@ -29,7 +29,7 @@ export type Lift = { pts: number[]; cls: string };
 /** A point of interest, e.g. a place of worship with its religion as `sub`. */
 export type Poi = { x: number; y: number; cls: string; sub: string };
 /** A land-use area such as residential or industrial. */
-export type Area = { shape: Shape; cls: string };
+export type Area = { shape: Shape; cls: string; sub?: string };
 /** A waterway centre line: canal, stream, ditch. */
 export type Stream = { pts: number[]; width: number };
 
@@ -41,6 +41,10 @@ export type PowerContext = { land: Shape[]; water: Shape[]; buildings: Shape[]; 
 
 export type Town = {
   powerContext?: PowerContext;
+  /** Tile green polygons and protected areas excluding explicitly mapped meadows; used during assembly. */
+  windGreen?: Shape[];
+  /** Ordinary loaded-tile context for wind sites, independent of the power-line context fetch. */
+  windContext?: { land: Area[]; obstacles: Shape[]; buildings: Shape[]; ways: Way[]; streams: Stream[] };
   /** Uncropped ground obstacles from the ordinary loaded tiles, for productive rear plots. */
   productionContext?: { shapes: Shape[]; streams: Stream[]; runways: Way[] };
   buildings: Building[];
@@ -237,7 +241,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], culverts: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
+  return { windGreen: [], buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], culverts: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -368,8 +372,14 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
   // The park layer also holds national parks and protected areas, which can cover a whole town; only real parks count.
   each('park', (f, _m, ext) => {
-    if (f.properties.class !== 'park') return;
-    for (const s of polygons(f, ext)) town.green.push(scaleShape(s, ext));
+    if (f.properties.class !== 'park') {
+      for (const s of polygons(f, ext)) town.windGreen?.push(scaleShape(s, ext));
+      return;
+    }
+    for (const s of polygons(f, ext)) {
+      const shape = scaleShape(s, ext);
+      town.green.push(shape); town.windGreen?.push(shape);
+    }
   });
 
   each('aeroway', (f, toMerc, ext) => {
@@ -397,18 +407,26 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
 
   each('landcover', (f, _m, ext) => {
     const c = String(f.properties.class);
-    const cover = coverKind(c, String(f.properties.subclass ?? ''));
-    if (cover) for (const s of polygons(f, ext)) town.cover.push({ shape: scaleShape(s, ext), cls: cover });
+    const sub = String(f.properties.subclass ?? '');
+    const cover = coverKind(c, sub);
+    if (cover) for (const s of polygons(f, ext)) town.cover.push({ shape: scaleShape(s, ext), cls: cover, sub });
     const target = c === 'wood' ? town.wood : GREEN_COVER.has(c) ? town.green : null;
     if (!target) return;
-    for (const s of polygons(f, ext)) target.push(scaleShape(s, ext));
+    for (const s of polygons(f, ext)) {
+      const shape = scaleShape(s, ext);
+      target.push(shape);
+      if (target === town.green && !(c === 'grass' && sub === 'meadow')) town.windGreen?.push(shape);
+    }
   });
 
   each('landuse', (f, _m, ext) => {
     const cls = String(f.properties.class);
     if (BUILT_LANDUSE.has(cls)) for (const s of polygons(f, ext)) town.landuse.push({ shape: scaleShape(s, ext), cls });
     if (!GREEN_LANDUSE.has(cls)) return;
-    for (const s of polygons(f, ext)) town.green.push(scaleShape(s, ext));
+    for (const s of polygons(f, ext)) {
+      const shape = scaleShape(s, ext);
+      town.green.push(shape); town.windGreen?.push(shape);
+    }
   });
 
   each('transportation', (f, toMerc, ext) => {
@@ -582,6 +600,8 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   town.powerContext = power;
   const production: NonNullable<Town['productionContext']> = { shapes: [], streams: [], runways: [] };
   town.productionContext = production;
+  const wind: NonNullable<Town['windContext']> = { land: [], obstacles: [], buildings: [], ways: [], streams: [] };
+  town.windContext = wind;
   const powerShape = (s: Shape): Shape => s.map((r) => ({ pts: r.pts.map((v, i) => i % 2 ? frame.y(v) : frame.x(v)), seam: r.seam }));
   const powerPoints = (p: number[]) => p.map((v, i) => i % 2 ? frame.y(v) : frame.x(v));
   for (const t of [...tiles, ...context]) {
@@ -599,6 +619,12 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     }
   }
   for (const t of tiles) {
+    wind.land.push(...[...t.landuse, ...t.cover].map((a) => ({ cls: a.cls, sub: a.sub, shape: powerShape(a.shape) })));
+    wind.obstacles.push(...[...t.water, ...t.pools, ...t.wood, ...(t.windGreen ?? t.green), ...t.plazas, ...t.aprons,
+      ...t.cover.filter((a) => !['farmland', 'farmyard', 'industrial'].includes(a.cls) && !(a.cls === 'meadow' && a.sub === 'meadow')).map((a) => a.shape)].map(powerShape));
+    wind.buildings.push(...t.buildings.map((b) => powerShape(b.shape)));
+    wind.ways.push(...[...t.ways, ...t.runways.map((w) => ({ ...w, width: Math.max(60, w.width) }))].map((w) => ({ ...w, pts: powerPoints(w.pts) })));
+    wind.streams.push(...t.streams.map((w) => ({ ...w, pts: powerPoints(w.pts) })));
     // Rear plots can extend beyond the ground box; retain obstacles before the view filter.
     production.shapes.push(...[...t.water, ...t.pools, ...t.wood, ...t.green, ...t.plazas, ...t.aprons, ...t.cover.map((a) => a.shape)].map(powerShape));
     production.streams.push(...t.streams.map((w) => ({ ...w, pts: powerPoints(w.pts) })));
@@ -624,7 +650,7 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     for (const key of ['landuse', 'cover'] as const) {
       for (const a of t[key]) {
         const s = shape(a.shape);
-        if (s) town[key].push({ shape: s, cls: a.cls });
+        if (s) town[key].push({ shape: s, cls: a.cls, sub: a.sub });
         const near = key === 'landuse' && (s ?? shape(a.shape, CONTEXT_PAD));
         if (near) town.nearby.landuse.push({ shape: near, cls: a.cls });
       }

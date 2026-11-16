@@ -61,17 +61,17 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 22121,
-    "rawLifts": 25714,
-    "inkMm": 73847.5,
-    "travelMm": 48861.4,
-    "minutes": 151.6,
-    "pens": [["Shadows",1186,2023.5],["Water",161,629],["Greenery",14164,44462.7],["Roofs",1465,7126.1],["Linework",5145,19606.2]]
+    "lifts": 22124,
+    "rawLifts": 25721,
+    "inkMm": 73876.8,
+    "travelMm": 48684.9,
+    "minutes": 151.5,
+    "pens": [["Shadows",1186,2023.5],["Water",161,629],["Greenery",14155,44443.5],["Roofs",1465,7126.1],["Linework",5157,19654.7]]
   },
   "features": {
     "buildings": [2225,5184.1],
     "details": [7,6.5],
-    "ground": [1829,3802.9],
+    "ground": [1820,3783.6],
     "ground:farmyards": [28,58.1],
     "life": [52,250.3],
     "life:moorings": [88,148.3],
@@ -79,6 +79,7 @@
     "paths": [1642,1775.5],
     "planting": [69,142],
     "planting:strips": [231,445.5],
+    "power:turbines": [16,48.5],
     "rails": [44,427.8],
     "roofHatch": [230,406.7],
     "roofs": [3104,6686.9],
@@ -153,7 +154,7 @@
     "details/tank-planned": [1,0.8],
     "details/terrace": [7,6.5],
     "ground/lawns": [142,270.4],
-    "ground/meadows": [1414,2955.1],
+    "ground/meadows": [1405,2935.8],
     "ground/open-country": [241,379],
     "ground/pitches": [32,198.4],
     "ground/soccer": [32,198.4],
@@ -336,5 +337,5 @@
     "windows/tall-windows": [4,3.2],
     "windows/worship": [4,3.2]
   },
-  "svg": {"bytes":1729115,"sha1":"e0ca94f3c8360b96"}
+  "svg": {"bytes":1728873,"sha1":"af317bfb50c0cacb"}
 }
