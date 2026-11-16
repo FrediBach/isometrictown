@@ -1,5 +1,7 @@
 # Solarpunk mode, part 2: bolder changes
 
+The next proposal is [part 3: a town that produces its own future](next-plan.md): widespread energy, water and food systems, larger architectural changes and a visibly different Visionary skyline.
+
 The first plan ([implementation-plan.md](implementation-plan.md)) is built. It is careful and correct, but subtle: a solarpunk drawing looks like today's drawing with small things added. This plan builds on it to make the future obvious at a glance, at the size the drawing is actually seen, while keeping the place recognisable.
 
 Read [../solarpunk.md](../solarpunk.md) first: it explains the planner, the layers and the rules the code keeps. Recipe ids such as `T01` refer to `Solarpunk Recipes.json`.

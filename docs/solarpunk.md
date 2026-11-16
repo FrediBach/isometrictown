@@ -1,6 +1,6 @@
 # Solarpunk mode
 
-The **Today | Solarpunk** switch in the preview toolbar draws the same place as a settled, repaired and inhabited future. The art direction is in [solarpunk/intro.md](solarpunk/intro.md) and its recipes; the first plan, all built, is [solarpunk/implementation-plan.md](solarpunk/implementation-plan.md), and the bolder follow-up, in progress, is [solarpunk/bolder-plan.md](solarpunk/bolder-plan.md).
+The **Today | Solarpunk** switch in the preview toolbar draws the same place as a settled, repaired and inhabited future. The art direction is in [solarpunk/intro.md](solarpunk/intro.md) and its recipes; the first plan, all built, is [solarpunk/implementation-plan.md](solarpunk/implementation-plan.md). The bolder follow-up and its implementation status are in [solarpunk/bolder-plan.md](solarpunk/bolder-plan.md). The next proposal, [a town that produces its own future](solarpunk/next-plan.md), calls for widespread productive systems and larger changes to architecture and public space; it is not implemented yet.
 
 **Depth** (`set.depth`, the Retrofit | Transform | Visionary selector in the Town section) says how far the future goes. `retrofit` is everything in the first plan, and its golden drawings must not change. `transform`, the default, also reshapes streets and plants a canopy. `visionary` adds district landmarks and new transit (see 16 below), and turns every car park into a park. Code asks `deeper(set, 'transform')`; catalogue entries name the least depth they need as a gate, `depth:transform`.
 
