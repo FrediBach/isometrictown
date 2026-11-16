@@ -1,0 +1,1448 @@
+{
+  "title": "Solarpunk Transformation Atlas - Object Recipes",
+  "schema_version": "1.0",
+  "created": "2026-11-16",
+  "purpose": "Qualitative art-direction rules for a speculative isometric map renderer.",
+  "usage_note": "OSM hints are illustrative human-readable matching guidance, not an executable or exhaustive tag schema. Conditions are qualitative design checks, not engineering certification. Use the accompanying atlas for worldbuilding, climate, network, uncertainty and rendering rules.",
+  "defaults": {
+    "intervention": "retrofit",
+    "preserve_source_data": true,
+    "major_use_change": "requires_explicit_scenario_choice",
+    "unknown_structural_capacity": "limit_additions_and_roof_loads",
+    "unknown_feature_use": "preserve_known_form_and_use_generic_recipe",
+    "climate": "declared_regional_profile_required_for_specific_planting",
+    "detail_budget": "one_primary_transformation_plus_one_supporting_system_for_small_objects",
+    "generation_order": [
+      "source_semantics_and_geometry",
+      "district_networks",
+      "object_identity",
+      "space_reservations",
+      "transformation_selection",
+      "feasibility_checks",
+      "line_art_and_level_of_detail"
+    ],
+    "stable_variation": [
+      "source_identity",
+      "scenario_version",
+      "rule_identity"
+    ]
+  },
+  "climate_profiles": [
+    {
+      "id": "temperate_wet",
+      "visual_language": "Seasonal deciduous canopies, rain gardens, sheltered and open seating, carefully ventilated sunspaces."
+    },
+    {
+      "id": "hot_dry",
+      "visual_language": "Deep shade, arcades, screened courtyards, covered storage, sparse drought-adapted planting, mineral ground and dry seasonal channels."
+    },
+    {
+      "id": "hot_humid",
+      "visual_language": "Deep eaves, ventilated roofs, shaded verandas, permeable screens, clear drainage and air paths."
+    },
+    {
+      "id": "cold_high_latitude",
+      "visual_language": "Compact envelopes, protected entrances, selected sunspaces, seasonal growing structures and clear snow storage."
+    },
+    {
+      "id": "monsoonal_flood_exposed",
+      "visual_language": "Clear drainage and overflow routes, appropriate raised critical services and floodable public ground."
+    },
+    {
+      "id": "windy_coastal",
+      "visual_language": "Low robust planting, sheltered courts, compact supported canopies and shore treatments fitted to exposure."
+    },
+    {
+      "id": "mountainous",
+      "visual_language": "Contour-following terraces, retained walls, compact clusters, modest spans and protected drainage."
+    }
+  ],
+  "invariants": [
+    "Preserve recognizable geometry and landmarks unless the scenario explicitly changes them.",
+    "Preserve operational and accessible routes and avoid network breaks.",
+    "Match vegetation to biome, water, soil, climate and scenario growth stage.",
+    "Reserve mature crown space separately from the rendered tree age.",
+    "Keep source building form separate from present use and lifecycle.",
+    "Keep generation, storage, distribution and demand as separate functions.",
+    "Do not infer quantitative energy, food, water or emissions performance from appearance.",
+    "Preserve conservation, heritage and cultural meaning as explicit constraints."
+  ],
+  "recipes": [
+    {
+      "id": "B01",
+      "title": "Detached houses and bungalows",
+      "family": "building",
+      "osm_hints": "building=house, detached, bungalow.",
+      "preserve": "The domestic scale, footprint, roof pitch, front door and relationship to the garden.",
+      "transform": "Repair the envelope; add climate-appropriate shutters, a modest shaded porch, selected roof solar and a rainwater tank. Replace some paving with planted soil. Give an existing shed a useful workshop or bicycle-storage role.",
+      "draw": "A clean roof-aligned panel rectangle, thin porch posts, a visible water downpipe and paths through a varied garden.",
+      "conditions": "Keep the house recognizable. Do not automatically add storeys, flatten its roof or turn an ordinary home into an extravagant villa.",
+      "references": []
+    },
+    {
+      "id": "B02",
+      "title": "Terraced and row houses",
+      "family": "building",
+      "osm_hints": "building=terrace; adjoining building=house polygons.",
+      "preserve": "Party walls, narrow plots, repeated roof bays and the rhythm of individual front doors.",
+      "transform": "Coordinate roof-energy systems and street shade while allowing varied shutters, repairs and planting. Reuse rear outbuildings for tools, cycles or small workshops. Shared rear space is an optional scenario where access and ownership are deliberately addressed.",
+      "draw": "A continuous recognizable frontage with small differences between homes; a sequence of awnings, pots and roof modules.",
+      "conditions": "Do not merge every house into one palace, invent passages through occupied rooms or erase all plot boundaries.",
+      "references": []
+    },
+    {
+      "id": "B03",
+      "title": "Historic tenements and perimeter blocks",
+      "family": "building",
+      "osm_hints": "building=apartments; perimeter geometry; historic=* where available.",
+      "preserve": "Cornices, masonry, street wall, window proportions, pitched roofs and the central courtyard.",
+      "transform": "Restore the public façade; concentrate visible additions in the courtyard and on secondary roofs. Introduce a shaded communal garden, careful rear balconies and useful ground-floor rooms. Retain generous circulation and daylight.",
+      "draw": "The old façade as the dominant layer, with lighter contemporary frames behind it and tree crowns rising within the court.",
+      "conditions": "Avoid foliage covering architectural detail. Heritage-sensitive changes should reflect the whole building and its context.",
+      "references": [
+        10
+      ]
+    },
+    {
+      "id": "B04",
+      "title": "Modern apartment slabs",
+      "family": "building",
+      "osm_hints": "building=apartments, residential; long rectangular massing.",
+      "preserve": "The long building bar, floor rhythm, stair cores and principal entrances.",
+      "transform": "Add a visibly supported outer frame for balconies, adaptable winter gardens or shaded galleries. Improve entrances and vertical access. Replace selected surrounding paving with shared gardens, play spaces and sheltered sitting areas.",
+      "draw": "Regular new posts reaching the ground, repeated terrace bays and varied occupied spaces behind a coherent frame.",
+      "conditions": "Match enclosure to climate: a sealed glass buffer is unsuitable as a universal treatment. Preserve access and daylight rather than packing every bay with trees.",
+      "references": []
+    },
+    {
+      "id": "B05",
+      "title": "Residential towers",
+      "family": "building",
+      "osm_hints": "building=apartments, residential; height=*; building:levels=*.",
+      "preserve": "Tower height, slenderness, structural rhythm, core and skyline role.",
+      "transform": "Introduce shading screens and a few structurally credible terrace zones. Make the podium and ground-level surroundings welcoming with sheltered entrances, shared rooms and substantial soil-based planting.",
+      "draw": "One or two memorable inhabited terraces, a continuous fine screen pattern and a visibly active base. Leave the tower's silhouette readable above its gardens.",
+      "conditions": "Large elevated trees need deep soil, strong supports and maintenance access. Prefer restrained high-level planting to an unsupported forest on every floor.",
+      "references": []
+    },
+    {
+      "id": "B06",
+      "title": "Offices and business campuses",
+      "family": "building",
+      "osm_hints": "building=office, commercial; office=*.",
+      "preserve": "Major volumes, structural grid, courtyards and the skyline profile of taller buildings.",
+      "transform": "Retrofit façades with suitable external shading; create comfortable ground-floor meeting spaces and walking connections. Reuse suitable portions for education, research or shared work. Depave surplus surface parking while retaining service access.",
+      "draw": "Fine sunshade bands, open sheltered entrances and linked courtyards. A tower can remain an office tower with a more generous public base.",
+      "conditions": "Deep floor plates are not automatically suitable for homes. Do not imply housing conversion solely through balcony decoration.",
+      "references": []
+    },
+    {
+      "id": "B07",
+      "title": "Shops and mixed-use streets",
+      "family": "building",
+      "osm_hints": "building=retail; shop=*; amenity=cafe, restaurant; mixed-use frontages.",
+      "preserve": "Individual storefronts, plot widths, upper-floor homes and entrances.",
+      "transform": "Add durable awnings, repair and refill activities, shaded waiting places and small delivery areas. Support active everyday commerce, including food shops, pharmacies, workshops and ordinary services.",
+      "draw": "Open counters, goods beneath shade, cargo cycles, a repair bench and a few tables. Keep signage simple and secondary to architecture.",
+      "conditions": "Not every shop becomes a café. Preserve loading, access to upper floors and enough clear pavement for people with different mobility needs.",
+      "references": []
+    },
+    {
+      "id": "B08",
+      "title": "Supermarkets and large retail sheds",
+      "family": "building",
+      "osm_hints": "building=supermarket, retail; shop=supermarket.",
+      "preserve": "The broad roof span, main entrance, delivery side and recognizable single-storey mass.",
+      "transform": "Combine ordinary retail with repair, collection or refill services. Add roof solar where suitable and a sheltered public frontage. Convert some parking into shade, stormwater planting and outdoor market space.",
+      "draw": "A large coherent roof array, a shaded entrance canopy, orderly market stalls and a retained loading bay.",
+      "conditions": "Leave room for refrigeration equipment, deliveries and maintenance. A broad roof does not establish capacity for a heavy rooftop farm or public park.",
+      "references": []
+    },
+    {
+      "id": "B09",
+      "title": "Shopping malls",
+      "family": "building",
+      "osm_hints": "shop=mall; building=retail; large connected commercial complex.",
+      "preserve": "Main halls, structural spans, atria and recognizable entrance volumes.",
+      "transform": "Mix retail with public rooms, learning, repair and indoor markets. Strengthen pedestrian connections to surrounding streets. A more intensive scenario may selectively open a courtyard or replace an expendable wing with a garden.",
+      "draw": "Distinct welcoming entrances, airy reused halls and one deliberate new opening in the original mass.",
+      "conditions": "Courtyard cuts require a major structural transformation. Do not depict deep interior housing or spontaneous roof removal as effortless cosmetic changes.",
+      "references": []
+    },
+    {
+      "id": "B10",
+      "title": "Schools",
+      "family": "building",
+      "osm_hints": "amenity=school, kindergarten; building=school.",
+      "preserve": "Classroom wings, assembly hall, entrances and usable play areas.",
+      "transform": "Shade hard yards; introduce outdoor classrooms, modest teaching gardens and sheltered cycle parking. Add roof energy systems where suitable. Give the street approach a clear, comfortable pedestrian emphasis.",
+      "draw": "A pergola or robust shade canopy, clustered trees, children-sized activity areas and visibly open routes between buildings.",
+      "conditions": "Keep sports, play and essential access functioning. Gardens complement education; they should not consume every playground or force routes through working growing beds.",
+      "references": []
+    },
+    {
+      "id": "B11",
+      "title": "Universities and research campuses",
+      "family": "building",
+      "osm_hints": "amenity=university, college; building=university; research-related uses.",
+      "preserve": "Distinct laboratories, lecture halls, historic courts and campus axes.",
+      "transform": "Add shaded pedestrian connections, shared workshops, teaching gardens and suitable civic-facing facilities. Show energy and water systems as practical campus infrastructure. Reuse buildings for new disciplines without homogenizing them.",
+      "draw": "A varied family of buildings connected by clear routes, with a few demonstration structures or experimental growing plots.",
+      "conditions": "Laboratories retain servicing, equipment and controlled areas. Public accessibility can increase selectively without making every technical building an open pavilion.",
+      "references": []
+    },
+    {
+      "id": "B12",
+      "title": "Hospitals and clinics",
+      "family": "building",
+      "osm_hints": "amenity=hospital, clinic; healthcare=*; building=hospital.",
+      "preserve": "Treatment blocks, ward wings, emergency entrances and the medical complex's organizational structure.",
+      "transform": "Add sheltered accessible arrival, recovery courtyards, climate-responsive façades and visible reliable energy infrastructure. Plant appropriate gardens where they support comfort without displacing operations.",
+      "draw": "A welcoming main entrance, quiet garden courts, covered links and an unobstructed ambulance approach.",
+      "conditions": "Preserve emergency access, servicing and roof plant. Medical infrastructure remains substantial and functional; vines and gardens do not replace treatment, ventilation or utility systems.",
+      "references": []
+    },
+    {
+      "id": "B13",
+      "title": "Care homes and assisted living",
+      "family": "building",
+      "osm_hints": "amenity=social_facility; social_facility=*; healthcare-related context.",
+      "preserve": "Residential scale, familiar entrances and direct relationships with outdoor space.",
+      "transform": "Add sheltered verandas, frequent resting places, accessible communal rooms and manageable growing beds. Form short garden loops with clear destinations rather than an elaborate maze.",
+      "draw": "Continuous level routes, shaded benches, handrails where appropriate and several small groups using the surroundings.",
+      "conditions": "Shared spaces should not depend on stairs. Keep quiet, privacy and easy navigation legible; dramatic roof gardens are secondary to comfortable everyday access.",
+      "references": []
+    },
+    {
+      "id": "B14",
+      "title": "Libraries, town halls and community centres",
+      "family": "building",
+      "osm_hints": "amenity=library, townhall, community_centre.",
+      "preserve": "The civic entrance, principal hall, reading-room volumes and public forecourt.",
+      "transform": "Add shaded meeting space, a tool-lending or repair room where appropriate, comfortable seating and clear accessible routes. Retrofit the existing shell while making daily public use more visible.",
+      "draw": "Open doors, a covered edge, a small gathering area and an outdoor table framed by trees or a pergola.",
+      "conditions": "Retain the building's primary civic role and architectural character. Social generosity can appear through ordinary usable spaces rather than an enormous new monument.",
+      "references": []
+    },
+    {
+      "id": "B15",
+      "title": "Museums and performance buildings",
+      "family": "building",
+      "osm_hints": "tourism=museum; amenity=theatre, cinema, arts_centre.",
+      "preserve": "Distinctive hall shapes, stage and service blocks, historic features and ceremonial entrances.",
+      "transform": "Improve the envelope and arrival spaces; reuse spare rooms for workshops or learning. Add a sheltered public courtyard or small outdoor performance space where the site allows.",
+      "draw": "A coherent large roof, a lively forecourt and a few carefully placed secondary structures.",
+      "conditions": "Exhibition and performance halls have particular lighting, acoustic and servicing needs. Avoid arbitrary roof openings or gardens blocking equipment and deliveries.",
+      "references": []
+    },
+    {
+      "id": "B16",
+      "title": "Religious and ceremonial buildings",
+      "family": "building",
+      "osm_hints": "amenity=place_of_worship; building=church, mosque, temple, synagogue; religion=*.",
+      "preserve": "The specific sacred silhouette, symbols, orientation, courtyards and current use.",
+      "transform": "Repair the fabric, improve accessible approaches and shade gathering grounds. Place environmental additions carefully on ancillary buildings, secondary surfaces or separate shelters where appropriate.",
+      "draw": "The recognizable steeple, dome, minaret, pagoda roof or colonnade rising above a cared-for setting.",
+      "conditions": "Preserve cultural differences. Do not invent religious affiliation or turn a former worship building back into an active religious site when mapped use says otherwise.",
+      "references": []
+    },
+    {
+      "id": "B17",
+      "title": "Hotels and hostels",
+      "family": "building",
+      "osm_hints": "tourism=hotel, hostel, guest_house; building=hotel.",
+      "preserve": "Repeated room bays, main entrance, courtyard and any distinctive tower or roof form.",
+      "transform": "Add climate-appropriate balcony shade, shared terraces, restrained gardens, bicycle arrival and selected roof-energy systems. Reuse existing communal spaces for visitors and surrounding daily life where plausible.",
+      "draw": "Repeating occupied room façades with a more open and sheltered ground level; luggage and bicycles can distinguish hospitality from apartments.",
+      "conditions": "Keep service access and privacy. Shared terraces should read as intentional usable spaces rather than planting pasted across every window.",
+      "references": []
+    },
+    {
+      "id": "B18",
+      "title": "Stadiums and sports halls",
+      "family": "building",
+      "osm_hints": "leisure=stadium, sports_centre; building=stadium, sports_hall; sport=*.",
+      "preserve": "The bowl or hall silhouette, playing surface, spectator geometry and main entrances.",
+      "transform": "Retrofit roof shading or energy collection where feasible; provide sheltered approaches, cycle access and stormwater management around the perimeter. Retain space for ordinary recreation and events.",
+      "draw": "A bold recognizable roof rim, clearly bounded playing surface and shaded public routes outside it.",
+      "conditions": "Keep evacuation routes, crowd space and field dimensions clear. Do not turn the playing surface into a garden while still presenting the facility as operational.",
+      "references": []
+    },
+    {
+      "id": "B19",
+      "title": "Warehouses and light-industrial buildings",
+      "family": "building",
+      "osm_hints": "building=warehouse, industrial; landuse=industrial; man_made=works.",
+      "preserve": "Clear-span sheds, loading doors, sawtooth roofs, structural rhythm and working yards.",
+      "transform": "Continue useful production, storage, repair or reuse logistics. Improve daylight and the envelope; add suitable roof energy and planting along nonworking edges. A public repair frontage may coexist with a functioning workshop behind it.",
+      "draw": "Repetitive roof geometry, organized loading aprons, visible workbenches and sheltered material storage.",
+      "conditions": "Preserve handling space and machinery access. Do not convert all industry into cafés or place food gardens on potentially contaminated ground without a remediation scenario.",
+      "references": []
+    },
+    {
+      "id": "B20",
+      "title": "Barns and agricultural outbuildings",
+      "family": "building",
+      "osm_hints": "building=barn, farm_auxiliary, stable; landuse=farmyard.",
+      "preserve": "Regional roof forms, farmyard relationships, large openings and working clusters.",
+      "transform": "Repair existing structures; add appropriate roof energy, water collection and shared equipment storage. Reuse suitable spaces for seed handling, processing or workshops while retaining agricultural activity.",
+      "draw": "Sheltered equipment, orderly material stacks, tanks and paths connecting the buildings to productive land.",
+      "conditions": "Preserve turning areas and practical access. Avoid transforming every barn into accommodation or replacing regionally distinctive farm architecture with identical futuristic glass halls.",
+      "references": []
+    },
+    {
+      "id": "B21",
+      "title": "Greenhouses and nurseries",
+      "family": "building",
+      "osm_hints": "building=greenhouse; landuse=greenhouse_horticulture, plant_nursery.",
+      "preserve": "Lightweight glazed or translucent structures, growing rows and service paths.",
+      "transform": "Improve ventilation, water collection, shading and supporting nursery infrastructure. Add a cistern, compost or potting space where suitable. Selected energy structures can occupy separate service areas.",
+      "draw": "Ridge vents, partially deployed shade screens, a clear greenhouse frame and orderly planting beneath it.",
+      "conditions": "Plants still require suitable light. Do not cover the whole greenhouse with opaque solar panels while depicting unchanged light-demanding cultivation. Preserve ventilation and maintenance access.",
+      "references": []
+    },
+    {
+      "id": "B22",
+      "title": "Garages and small outbuildings",
+      "family": "building",
+      "osm_hints": "building=garage, garages, shed, outbuilding.",
+      "preserve": "The compact shell, simple roof and large doorway.",
+      "transform": "Reuse the building for cycles, repair, shared tools, small-scale making or utility equipment. Add a modest canopy, work surface and appropriate roof treatment. Keep vehicle use where it still supports the surrounding scenario.",
+      "draw": "An open workbench doorway, neatly parked cycles, tool silhouettes and a small sheltered apron.",
+      "conditions": "Respect the original scale. A tiny shed should not acquire an enormous communal hall, heavy roof orchard or incompatible machinery merely to appear futuristic.",
+      "references": []
+    },
+    {
+      "id": "B23",
+      "title": "Derelict and unfinished buildings",
+      "family": "building",
+      "osm_hints": "lifecycle prefixes; building=construction; construction=*; ruins-related tags.",
+      "preserve": "Recoverable structure, historic traces and the source footprint where the chosen scenario allows.",
+      "transform": "Stabilize and reuse sound parts; deliberately remove unusable sections. Introduce suitable new infill, temporary workshops or a courtyard that reveals retained walls. Let repair remain visible as a layer of the building's history.",
+      "draw": "Old structural edges alongside orderly new frames, clean access and maintained planting.",
+      "conditions": "Abandonment does not prove safety or clean ground. A ruin can remain a conserved ruin rather than automatically becoming occupied housing.",
+      "references": []
+    },
+    {
+      "id": "B24",
+      "title": "Incrementally built neighborhoods",
+      "family": "building",
+      "osm_hints": "Source geometry and verified local context; no single building tag establishes this category.",
+      "preserve": "Fine-grained streets, homes, local livelihoods, courtyards and distinctive construction.",
+      "transform": "Show incremental repairs, better drainage and services, shade, safer paths and useful shared facilities. Add small structures within the existing fabric while preserving its social and spatial continuity.",
+      "draw": "Varied repaired roofs, modest additions, active workshops and occasional shared courtyards connected by legible routes.",
+      "conditions": "Do not infer poverty from small footprints. Avoid depicting improvement as automatic clearance and replacement by uniform apartment blocks.",
+      "references": []
+    },
+    {
+      "id": "B25",
+      "title": "Emergency facilities",
+      "family": "building",
+      "osm_hints": "amenity=fire_station, police; emergency=ambulance_station where present.",
+      "preserve": "Vehicle bays, dispatch functions, access aprons and recognizable public entrances.",
+      "transform": "Retrofit buildings and energy systems; add sheltered staff spaces and comfortable public-facing entrances. Landscape the edges while retaining clear operational movement and equipment storage.",
+      "draw": "A compact orderly depot with modern service vehicles, simple energy canopies and a planted boundary beyond the working apron.",
+      "conditions": "Emergency vehicles and service routes remain necessary. Do not narrow exits with trees, café tables or garden beds, or disguise essential operations as an ordinary community pavilion.",
+      "references": []
+    },
+    {
+      "id": "B26",
+      "title": "Secure institutional sites",
+      "family": "building",
+      "osm_hints": "amenity=prison; military=*; access=*; institutional buildings and boundaries.",
+      "preserve": "Reliable mapped massing, internal routes and significant structures.",
+      "transform": "Apply environmental improvements compatible with the chosen retained function: shade, better envelopes, energy systems and carefully placed outdoor areas. Reuse as a civic campus is a separate explicit scenario rather than an automatic transformation.",
+      "draw": "Clear building groups, maintained grounds and functional entrances. If reuse is selected, show deliberate changes to boundaries and access.",
+      "conditions": "Do not infer that a secure site has become publicly accessible or that its institutional role has disappeared solely because the future is optimistic.",
+      "references": []
+    },
+    {
+      "id": "B27",
+      "title": "Unclassified buildings",
+      "family": "building",
+      "osm_hints": "building=yes; sparse or conflicting use information.",
+      "preserve": "Every reliable part of the mapped footprint, height, roof and entrance arrangement.",
+      "transform": "Apply restrained, context-compatible care: a plausible roof-energy patch, modest shading, a repaired frontage or adjacent planting. Use nearby patterns for visual coherence without asserting an unsupported specific function.",
+      "draw": "One or two clear additions while leaving the original volume dominant. A well-maintained ordinary building belongs in this future too.",
+      "conditions": "Unknown geometry does not justify invented storeys, heavy roof loads, a named institutional use or a particular social class. Keep uncertainty visible in the transformation metadata.",
+      "references": []
+    },
+    {
+      "id": "B28",
+      "title": "Monuments, castles and fortifications",
+      "family": "building",
+      "osm_hints": "historic=monument/memorial/castle; fortifications and heritage context.",
+      "preserve": "Landmark silhouette, walls, memorial geometry, sightlines and cultural meaning.",
+      "transform": "Repair and conserve; improve compatible approaches, discreet visitor services and the surrounding public landscape. Locate stronger new structures on appropriate secondary ground. Reuse enclosed historic spaces only through a deliberate scenario.",
+      "draw": "The original tower, wall or memorial dominates, with restrained paths, shade and small contemporary additions nearby.",
+      "conditions": "Do not convert every tower into a wind turbine, cover inscriptions with vines or erase defensive earthworks. Cultural continuity can be the main future quality.",
+      "references": []
+    },
+    {
+      "id": "T01",
+      "title": "Residential streets",
+      "family": "transport",
+      "osm_hints": "highway=residential/living_street; sidewalk=*; access=*.",
+      "preserve": "Street alignment, junctions, entrances and recognizable house frontage.",
+      "transform": "Reallocate some parking to shade, planted drainage pockets and shared seating. Retain a continuous access strip for necessary vehicles and deliveries.",
+      "draw": "A clear narrow movement band, occasional cargo cycles, repeated tree pits and short curb extensions. Show doors connecting to usable paths.",
+      "conditions": "Trees need soil space; planted pockets must not sever wheelchair routes, block doors or occupy vehicle turning space. Do not assume every street becomes completely vehicle-free.",
+      "references": []
+    },
+    {
+      "id": "T02",
+      "title": "Commercial main streets",
+      "family": "transport",
+      "osm_hints": "highway=* with shop=*, amenity=* and dense frontage.",
+      "preserve": "Shopfront rhythm, corner buildings, crossings and service connections.",
+      "transform": "Widen walking areas within the available corridor; add awnings, bicycle access and compact delivery bays. Introduce transit only through a connected route decision.",
+      "draw": "Open shop thresholds, market tables, repair stalls and simple shade frames. Repeat a few shared design elements along the block.",
+      "conditions": "Markets occupy selected spaces rather than every sidewalk. Keep loading access, transit boarding and the main walking route readable and continuous.",
+      "references": []
+    },
+    {
+      "id": "T03",
+      "title": "Arterial boulevards",
+      "family": "transport",
+      "osm_hints": "highway=primary/secondary/tertiary; lanes=*; width=*.",
+      "preserve": "Major through connection, junction locations and adjacent building line.",
+      "transform": "Reassign selected lanes to transit, protected cycling, walking or planted medians. Keep a coherent service and vehicle function where the scenario requires it.",
+      "draw": "Long parallel bands, generous crossings and a few sheltered stations. The avenue should read as a connected civic space.",
+      "conditions": "Fit all bands inside plausible available width. Trees, platforms, tracks and bicycle lanes cannot each independently claim the same strip of ground.",
+      "references": []
+    },
+    {
+      "id": "T04",
+      "title": "Rural roads and tracks",
+      "family": "transport",
+      "osm_hints": "highway=unclassified/tertiary/track; surface=*; tracktype=*.",
+      "preserve": "Alignment, gradients, field access, bridges and settlement connections.",
+      "transform": "Favor quieter vehicles, occasional sheltered bus stops and connected cycle routes where space permits. Add hedges or tree belts only where compatible with the local habitat.",
+      "draw": "A restrained road ribbon with distinct verges and occasional shared transport. Preserve the agricultural or open-land character.",
+      "conditions": "Do not turn every rural route into an urban boulevard. Farm equipment still needs access; naturally open landscapes do not automatically need roadside forest.",
+      "references": []
+    },
+    {
+      "id": "T05",
+      "title": "Motorways and interchanges",
+      "family": "transport",
+      "osm_hints": "highway=motorway and links; trunk only where mapped physical geometry fits this recipe.",
+      "preserve": "Regional connectivity, large landforms and the recognizable junction structure.",
+      "transform": "A conservative future retains freight and intercity movement while reducing redundant pavement, improving crossings and restoring unused margins. Full conversion requires a coherent regional alternative.",
+      "draw": "Fewer but continuous lanes, electric coaches, carefully placed habitat crossings and planted slopes. Retired ramps may remain as visible traces.",
+      "conditions": "Never create disconnected active ramps. Trunk roads with ordinary two-way geometry belong to T03 or T04.  Habitat bridges need continuous approaches; small decorative planters do not reconnect an ecosystem.",
+      "references": [
+        31
+      ]
+    },
+    {
+      "id": "T06",
+      "title": "Junctions and roundabouts",
+      "family": "transport",
+      "osm_hints": "highway junction geometry; junction=roundabout; crossing=*.",
+      "preserve": "Connected movements, corner relationships and clear sightlines.",
+      "transform": "Shorten crossings, simplify excess pavement, provide refuge points and continue cycle routes through the junction. Add low planted drainage pockets in genuinely available areas.",
+      "draw": "Clearly separated islands, low textures and a few sheltered waiting places. Make the movement geometry understandable without labels.",
+      "conditions": "Tall vegetation must not obscure crossing users. Avoid a pond or monumental greenhouse in every roundabout; the junction must still function at the centre of the composition.",
+      "references": []
+    },
+    {
+      "id": "T07",
+      "title": "Surface parking",
+      "family": "transport",
+      "osm_hints": "amenity=parking; parking=surface; access=*.",
+      "preserve": "Useful entrances, accessible bays and necessary circulation.",
+      "transform": "Reduce parking selectively; replace released pavement with soil, shade, bicycle storage or compatible infill. Remaining bays may sit beneath simple solar canopies.",
+      "draw": "A mosaic of a few parked vehicles, open soil beds, canopy modules and clear paths to destinations.",
+      "conditions": "Preserve loading and accessible arrival. Panels covering every original bay suggest cleaner parking, but do not by themselves show reduced land consumption or adequate local energy supply.",
+      "references": []
+    },
+    {
+      "id": "T08",
+      "title": "Parking structures",
+      "family": "transport",
+      "osm_hints": "amenity=parking; parking=multi-storey; building=parking.",
+      "preserve": "Frame, deck rhythm, ramps and structural character.",
+      "transform": "Create a mobility and repair hub, retain some parking and reuse suitable ground-floor space for workshops or storage. More extensive occupancy conversions are explicit scenario choices.",
+      "draw": "Repeated open bays, shade screens, bicycle racks and repair activity. A retained ramp can be a strong identity cue.",
+      "conditions": "Sloping decks, low ceilings, daylight, ventilation and structural loading constrain conversion. Do not assume a garage becomes comfortable housing merely by adding windows and plants.",
+      "references": []
+    },
+    {
+      "id": "T09",
+      "title": "Service alleys and loading roads",
+      "family": "transport",
+      "osm_hints": "highway=service; service=alley/driveway; loading-related features.",
+      "preserve": "Building access, loading doors, turning pockets and utility access.",
+      "transform": "Use quieter small delivery vehicles, cargo cycles and organized reusable-container collection. Add modest shade and planting outside the working route.",
+      "draw": "Clean loading thresholds, compact carts, a few material stacks and continuous paved access.",
+      "conditions": "A service alley is occupied infrastructure, even when no vehicle appears in the source map. Avoid filling its entire width with raised beds, benches or tree roots.",
+      "references": []
+    },
+    {
+      "id": "T10",
+      "title": "Fuel stations",
+      "family": "transport",
+      "osm_hints": "amenity=fuel; associated canopy and service buildings.",
+      "preserve": "Recognizable canopy, forecourt outline and small service building.",
+      "transform": "An explicit reuse scenario turns the site into a charging, repair and shared-mobility hub, with delivery collection or a small community service room.",
+      "draw": "Charging posts replacing selected pump positions, sheltered bicycles and a modest shaded waiting area.",
+      "conditions": "Closure and soil remediation precede soil-based public reuse where contamination exists. Do not depict a mature food garden directly over former fuel infrastructure without making that prerequisite part of the scenario.",
+      "references": []
+    },
+    {
+      "id": "T11",
+      "title": "Rail corridors",
+      "family": "transport",
+      "osm_hints": "railway=rail/light_rail/tram; electrified=*; bridge=*; tunnel=*.",
+      "preserve": "Track alignment, switches, gradients, bridges and continuous connections.",
+      "transform": "Improve service and use compatible lower-emission traction. Keep vegetation beyond operational envelopes; restore suitable margins and redundant fragments.",
+      "draw": "Clear paired rails, selective overhead supports, maintained ballast or an appropriate track bed, and clean train silhouettes.",
+      "conditions": "Do not introduce trees between switches or through overhead equipment. An attractive grassed tram reservation is a specific track treatment, not a universal substitute for all railway beds.",
+      "references": []
+    },
+    {
+      "id": "T12",
+      "title": "Freight yards and sidings",
+      "family": "transport",
+      "osm_hints": "railway=rail with service=yard/siding/spur; usage=industrial.",
+      "preserve": "Track fan, switching logic, loading connections and handling areas.",
+      "transform": "Use cleaner locomotives and cargo handling; strengthen repair, reuse and rail-based logistics. Restore only genuinely redundant tracks or perimeter land.",
+      "draw": "Ordered wagons, cranes, sheltered workshops and distinct material bays. Leave space around active tracks.",
+      "conditions": "Goods need routes between rail, storage and their next transport mode. Do not turn every siding into a garden or place public promenades through an active switching area.",
+      "references": []
+    },
+    {
+      "id": "T13",
+      "title": "Railway stations",
+      "family": "transport",
+      "osm_hints": "railway=station/halt; public_transport=platform; station buildings.",
+      "preserve": "Historic hall, platform arrangement, entrances and important roof spans.",
+      "transform": "Improve sheltered access, bicycle storage and transfers. New solar or rainwater canopies may supplement appropriate existing structures.",
+      "draw": "A welcoming forecourt, readable platform shelters, connected ramps and modest planting outside circulation zones.",
+      "conditions": "Trees must not grow through platforms, tracks or historic roofs. Keep platform edges and passenger routes legible. A station's civic importance can come from generous access and repair quality rather than a giant new greenhouse.",
+      "references": []
+    },
+    {
+      "id": "T14",
+      "title": "Bus and tram stops",
+      "family": "transport",
+      "osm_hints": "highway=bus_stop; public_transport=platform; railway=tram_stop.",
+      "preserve": "Route relationship, boarding edge and nearby crossing connections.",
+      "transform": "Add weather protection, seating, legible information and appropriate adjacent planting. A modest shelter roof can support solar equipment where suitable.",
+      "draw": "A compact repeated shelter form, one route marker, seats and a clear boarding strip.",
+      "conditions": "Preserve continuous accessible passage and boarding. Avoid expanding a stop beyond the sidewalk. Bicycle paths crossing passenger movements need an intelligible arrangement rather than overlapping lines.",
+      "references": []
+    },
+    {
+      "id": "T15",
+      "title": "Bus and tram depots",
+      "family": "transport",
+      "osm_hints": "landuse=depot; depot buildings, tracks and service roads.",
+      "preserve": "Vehicle entrances, sheds, turning apron and maintenance facilities.",
+      "transform": "Adapt servicing for the fleet's traction; include charging or electrical equipment where appropriate. Improve staff spaces and suitable roof energy collection.",
+      "draw": "Ordered vehicles, charging gantries, rooflights and a small garden at the operational perimeter.",
+      "conditions": "Keep maintenance access and manoeuvring space clear. Roof panels do not imply the depot independently powers its whole fleet. Tram depots still need connected rails and equipment compatible with their electrical system.",
+      "references": []
+    },
+    {
+      "id": "T16",
+      "title": "Bridges and tunnels",
+      "family": "transport",
+      "osm_hints": "bridge=*; tunnel=*; layer=*; associated road or railway.",
+      "preserve": "Structural system, span, supports, portals and through connections.",
+      "transform": "Reallocate usable space for active travel or transit where plausible; improve approach paths, drainage and shelter. Add lightweight elements only where the structure can support them.",
+      "draw": "Exposed structural rhythm, clear travel bands and planting mainly at approaches.",
+      "conditions": "Avoid heavy forests on every bridge, blocked navigation, trees inside tunnel structures or erased ventilation. Retaining a strong, carefully repaired engineering form can be the entire visual transformation.",
+      "references": []
+    },
+    {
+      "id": "T17",
+      "title": "Airports",
+      "family": "transport",
+      "osm_hints": "aeroway=runway/taxiway/apron/terminal/hangar.",
+      "preserve": "Active movement geometry and unobstructed operational areas.",
+      "transform": "Add rail access, efficient terminal shading and electric ground equipment. A closure scenario can restore redundant land while retaining runway traces.",
+      "draw": "A clean terminal edge, modest service equipment and selective roof or parking canopies.",
+      "conditions": "Wildlife-attracting wetlands and landscaping can conflict with active aviation.  Keep habitat projects and tall structures away from operational conflict. Aviation transition also involves fuels, efficiency and demand; it is not simply a change of aircraft silhouette.",
+      "references": [
+        16,
+        17
+      ]
+    },
+    {
+      "id": "T18",
+      "title": "Cargo ports",
+      "family": "transport",
+      "osm_hints": "docks, piers, industrial waterfront, cranes and port-related tags.",
+      "preserve": "Berths, navigation water, cranes, handling lanes and rail connections.",
+      "transform": "Introduce shore electricity, cleaner cargo handling, repair facilities and organized consolidation. Add public waterfront or habitat at compatible edges.",
+      "draw": "A shore-power connection, orderly container stacks and familiar gantry silhouettes. Shore power is an established way to reduce ships' use of onboard generation at berth.",
+      "conditions": "Do not fill working berths with reeds, put walkers among container operations or remove essential machinery. Keep the port visibly productive.",
+      "references": [
+        18
+      ]
+    },
+    {
+      "id": "T19",
+      "title": "Ferry terminals and marinas",
+      "family": "transport",
+      "osm_hints": "amenity=ferry_terminal; route=ferry; leisure=marina; man_made=pier.",
+      "preserve": "Dock arrangement, navigation gaps, shore access and mooring logic.",
+      "transform": "Improve weather protection and accessible arrivals; use electric small vessels where appropriate and retain servicing facilities. Habitat features belong outside operational movement.",
+      "draw": "Sheltered waiting, shore charging, modest boats and an unobstructed water route.",
+      "conditions": "A short ferry crossing and ocean shipping have different energy requirements. Do not generalize a battery-ferry motif to every vessel, or block berths with floating gardens and recreational platforms.",
+      "references": []
+    },
+    {
+      "id": "T20",
+      "title": "Cableways and aerial transport",
+      "family": "transport",
+      "osm_hints": "aerialway=*; stations, pylons and associated routes.",
+      "preserve": "Cable alignment, towers, terrain relationship and terminal connections.",
+      "transform": "Repair and modernize an existing system; strengthen walking, cycle and transit access at stations. Use appropriate station shading and careful landscape restoration around construction scars.",
+      "draw": "A few clear suspended cabins, slender continuous cables and recognizable terminal machinery.",
+      "conditions": "Respect cable clearance and tower foundations. Do not invent aerial networks everywhere because they look futuristic; their usefulness depends on terrain, destinations and an actual connected transport role.",
+      "references": []
+    },
+    {
+      "id": "T21",
+      "title": "Footways, cycleways and steps",
+      "family": "transport",
+      "osm_hints": "highway=footway/cycleway/path/steps; surface=*; access=*.",
+      "preserve": "Useful connections, destinations, gradients and the character of urban or rural paths.",
+      "transform": "Improve surfaces and continuity; add shade and resting points where appropriate. Preserve separate pedestrian and faster cycle space when the corridor allows. Where steps prevent access, a compatible alternative route needs a real connection and sufficient room.",
+      "draw": "Unbroken route ribbons, small bridges, clear junctions and occasional cycle or walking figures.",
+      "conditions": "Do not turn every natural trail into a paved boulevard or imply that drawing a short ramp resolves a steep hillside. Preserve habitat and access conditions.",
+      "references": []
+    },
+    {
+      "id": "T22",
+      "title": "Public squares and pedestrian streets",
+      "family": "transport",
+      "osm_hints": "highway=pedestrian with area geometry; place=square; associated amenities.",
+      "preserve": "Civic axes, surrounding facades, monuments, entrances and gathering capacity.",
+      "transform": "Add a generous shade edge, sheltered market or meeting areas, accessible seating and selected planted depressions. Retain an open centre for gatherings, daily movement and events.",
+      "draw": "A clear public floor framed by arcades, canopies or appropriate tree groups, with purposeful clusters of people.",
+      "conditions": "A square needs open space. Avoid filling its entire surface with garden beds, kiosks or permanent stalls. Keep deliveries and essential access legible where needed.",
+      "references": []
+    },
+    {
+      "id": "I01",
+      "title": "Warehouses and logistics halls",
+      "family": "industry_and_utilities",
+      "osm_hints": "building=warehouse; industrial=warehouse; loading and rail features.",
+      "preserve": "Long-span hall, loading face, apron and service access.",
+      "transform": "Add suitable roof solar and daylighting, cleaner handling equipment and organized reusable-container flows. Urban sites may support cargo-cycle distribution.",
+      "draw": "Repeated roof modules, open loading thresholds and a few compact vehicles. Plant compatible site edges.",
+      "conditions": "Preserve door clearance and turning space. Heavy roof agriculture requires more than a large roof footprint; do not assume all sheds can support it.",
+      "references": []
+    },
+    {
+      "id": "I02",
+      "title": "Workshops and light factories",
+      "family": "industry_and_utilities",
+      "osm_hints": "craft=*; man_made=works; building=industrial.",
+      "preserve": "Workshop scale, sheds, sawtooth roofs and useful service yards.",
+      "transform": "Emphasize repair, remanufacture, fabrication and recycled inputs while retaining a plausible production role. Upgrade envelopes and staff spaces.",
+      "draw": "Workbenches near open bays, sorted components, rooflights and repaired cladding. Retained cranes or chimneys can preserve identity.",
+      "conditions": "Show somewhere for inputs, finished goods and residual waste. Workshops should remain working places rather than universally becoming cafes or exhibition halls.",
+      "references": []
+    },
+    {
+      "id": "I03",
+      "title": "Industrial sites of uncertain type",
+      "family": "industry_and_utilities",
+      "osm_hints": "landuse=industrial with little more specific information.",
+      "preserve": "Mapped buildings, access, large tanks and other known geometry.",
+      "transform": "Apply restrained upgrades: repair, suitable shade, roof equipment and carefully organized external space. Leave the process unspecified.",
+      "draw": "Cleanly separated machinery, storage and planted margins; preserve the distinctive industrial silhouette.",
+      "conditions": "A broad industrial polygon does not identify a refinery, steelworks or power station. Avoid invented production technology when the map does not supply enough evidence.",
+      "references": []
+    },
+    {
+      "id": "I04",
+      "title": "Steelworks",
+      "family": "industry_and_utilities",
+      "osm_hints": "specific industrial=* or product=* evidence; associated works.",
+      "preserve": "Production halls, cranes, material routes and rail connections.",
+      "transform": "Choose a coherent scenario involving scrap recovery, electric furnaces or appropriate lower-emission primary iron production. Keep substantial power and process infrastructure.",
+      "draw": "Organized scrap bays, large clean halls, electrical plant and retained heritage machinery where useful.",
+      "conditions": "Do not portray an unchanged blast furnace as transformed merely because its smoke disappears. Hydrogen is an optional process choice, not a universal decorative tank motif.",
+      "references": []
+    },
+    {
+      "id": "I05",
+      "title": "Cement and mineral-processing plants",
+      "family": "industry_and_utilities",
+      "osm_hints": "specific product=* or industrial=*; silos and conveyors.",
+      "preserve": "Distinctive silos, raw-material links and useful process buildings.",
+      "transform": "Represent material efficiency, alternative inputs and compatible process upgrades. A carbon-capture scenario requires associated equipment and connections.",
+      "draw": "Enclosed conveyors, ordered material storage, blending halls and recognizable plant geometry.",
+      "conditions": "Process emissions matter as well as fuel use.  Roof panels alone do not explain the transition. Keep heavy access and do not place public gardens within active material-handling zones.",
+      "references": [
+        15
+      ]
+    },
+    {
+      "id": "I06",
+      "title": "Refineries and chemical works",
+      "family": "industry_and_utilities",
+      "osm_hints": "industrial=refinery or other explicit chemical-production evidence.",
+      "preserve": "Structures suitable for the chosen future role and recognizable industrial traces.",
+      "transform": "Explicitly choose retained specialized production, compatible alternative-feedstock production, materials recovery, or staged retirement and remediation.",
+      "draw": "Selected tanks and pipe racks, reused halls and clearly separated operational or restored areas.",
+      "conditions": "A former refinery cannot become a safe public garden overnight. Do not imply that petroleum refining becomes renewable merely by adding solar roofs, vegetation or unspecified hydrogen equipment.",
+      "references": []
+    },
+    {
+      "id": "I07",
+      "title": "Mines and quarries",
+      "family": "industry_and_utilities",
+      "osm_hints": "landuse=quarry; mine-related features; conveyors and spoil.",
+      "preserve": "Excavation terraces, geology, haul connections and important landmarks.",
+      "transform": "Active sites retain extraction with improved containment and restoration of released areas. Retired sites show stabilized slopes, managed water and habitat suited to the substrate.",
+      "draw": "Bench contours, sparse site-appropriate succession and selected repaired machinery.",
+      "conditions": "Not every pit safely becomes a lake or public swimming place. A circular economy still has material needs; avoid assuming all extraction has vanished.",
+      "references": []
+    },
+    {
+      "id": "I08",
+      "title": "Recycling and waste-transfer sites",
+      "family": "industry_and_utilities",
+      "osm_hints": "amenity=recycling; recycling_type=*; amenity=waste_transfer_station.",
+      "preserve": "Collection routes, handling sheds, service yards and appropriate enclosure.",
+      "transform": "Improve sorting, repair and material recovery; separate public drop-off from industrial processing. Organics handling needs an appropriate process and location.",
+      "draw": "Distinct material bays, covered conveyors, reusable parts and a small repair frontage.",
+      "conditions": "Circularity does not eliminate residual waste or servicing. Avoid uncontained rubbish mountains, but keep recovery machinery and the working footprint visible.",
+      "references": []
+    },
+    {
+      "id": "I09",
+      "title": "Landfills",
+      "family": "industry_and_utilities",
+      "osm_hints": "landuse=landfill; lifecycle information and mapped site features.",
+      "preserve": "Landform, access and monitoring infrastructure appropriate to operational status.",
+      "transform": "An explicitly closed site can support managed revegetation and selected compatible uses after the necessary closure work.",
+      "draw": "Maintained ground cover, clear service paths and restrained monitoring structures; retain the site's sculpted landform.",
+      "conditions": "Cap integrity and site conditions constrain vegetation and reuse.  Do not automatically add deep-rooted forest, excavation, buildings or food gardens. Urban food production requires attention to contamination history.",
+      "references": [
+        26,
+        27
+      ]
+    },
+    {
+      "id": "I10",
+      "title": "Fossil power stations",
+      "family": "industry_and_utilities",
+      "osm_hints": "power=plant; plant:source=*; generators and grid connections.",
+      "preserve": "Useful turbine halls, grid connections and selected landmark structures.",
+      "transform": "A deliberate retirement scenario can reuse the site for storage, grid services, heat infrastructure or fabrication. Show which parts remain active and which become heritage.",
+      "draw": "Ordered replacement equipment, reused halls and perhaps a retained chimney or cooling tower.",
+      "conditions": "Storage supplies previously stored energy; it is not replacement generation by itself. A reused industrial silhouette does not require preserving its original fossil process.",
+      "references": []
+    },
+    {
+      "id": "I11",
+      "title": "Other operating power stations",
+      "family": "industry_and_utilities",
+      "osm_hints": "power=plant; plant:source=*; associated generator tags.",
+      "preserve": "Actual generation function, cooling, grid links and operational access.",
+      "transform": "Improve compatible buildings, maintenance and landscape edges. Whether nuclear, geothermal or other infrastructure continues operating is a scenario decision.",
+      "draw": "Essential equipment cleanly, with restrained planting outside working areas. Preserve recognizable large forms.",
+      "conditions": "Do not erase low-carbon industrial infrastructure solely because it lacks a pastoral appearance. Cooling, security and maintenance needs cannot be replaced by a decorative garden.",
+      "references": []
+    },
+    {
+      "id": "I12",
+      "title": "Hydropower dams and weirs",
+      "family": "industry_and_utilities",
+      "osm_hints": "waterway=dam/weir; hydropower-related power=* features.",
+      "preserve": "Water-level relationships, structure, powerhouse and spillways where operating.",
+      "transform": "Improve compatible river edges and ecological connections; dam removal belongs to an explicit basin-scale scenario.",
+      "draw": "Strong dam geometry, clear water routes and planted banks where appropriate.",
+      "conditions": "Removing a dam changes its reservoir and downstream conditions. Do not delete the barrier while retaining an unchanged lake, or treat a small fish ladder as proof that every ecological issue is resolved.",
+      "references": []
+    },
+    {
+      "id": "I13",
+      "title": "Solar installations",
+      "family": "industry_and_utilities",
+      "osm_hints": "power=generator; generator:source=solar; solar-plant features.",
+      "preserve": "Array geometry, service access and electrical connections.",
+      "transform": "Integrate suitable ground vegetation, grazing or crops where conditions allow. Agrivoltaics is a site-dependent combination of agriculture and solar production.",
+      "draw": "Crisp panel grids separated from irregular vegetation; retain gaps for access and the relevant agricultural activity.",
+      "conditions": "Do not assume every crop benefits from panel shade. Prefer already suitable sites over replacing ecologically valuable habitat with an unquestioned solar carpet.",
+      "references": [
+        20
+      ]
+    },
+    {
+      "id": "I14",
+      "title": "Wind installations",
+      "family": "industry_and_utilities",
+      "osm_hints": "power=generator; generator:source=wind; access tracks.",
+      "preserve": "Exposed setting, turbine spacing, foundations and service routes.",
+      "transform": "Use coherent modern equipment and habitat-aware surrounding land management. Preserve open movement and maintenance space.",
+      "draw": "A limited number of strong turbine silhouettes with understated tracks and ground cover.",
+      "conditions": "Wind needs an appropriate resource and siting. Rooftop turbulence and vibration can undermine small turbines, so avoid attaching them to every building.  Dense trees beneath or beside turbines are not a default improvement.",
+      "references": [
+        21
+      ]
+    },
+    {
+      "id": "I15",
+      "title": "Substations and electricity networks",
+      "family": "industry_and_utilities",
+      "osm_hints": "power=substation/transformer/line/minor_line/cable/pole/tower.",
+      "preserve": "Continuous electrical connections, equipment zones and maintenance access.",
+      "transform": "Upgrade equipment and suitable enclosures; improve landscape edges while retaining clear working spaces. Undergrounding is a deliberate network change.",
+      "draw": "Ordered equipment, recognizable poles or pylons, sparse compatible corridor vegetation.",
+      "conditions": "Local renewable generation does not eliminate distribution networks. Do not grow vines on electrical equipment, place trees through conductors or erase a substation without explaining how its network function continues.",
+      "references": []
+    },
+    {
+      "id": "I16",
+      "title": "Energy storage and heat networks",
+      "family": "industry_and_utilities",
+      "osm_hints": "mapped storage, heat-network or utility features; explicit scenario additions.",
+      "preserve": "Known utility sites, connections and servicing needs.",
+      "transform": "Add appropriate battery buildings, thermal tanks, heat pumps or recoverable-heat connections where the scenario includes a source and demand.",
+      "draw": "Plain modules, service doors, a few coherent pipes and restrained equipment yards.",
+      "conditions": "Do not classify every tank as energy storage. Heat recovery needs a usable source and destination; storage needs charging energy. Keep access and necessary separation rather than filling all gaps with vines.",
+      "references": []
+    },
+    {
+      "id": "I17",
+      "title": "Drinking-water works and pumping stations",
+      "family": "industry_and_utilities",
+      "osm_hints": "man_made=water_works; pumping_station with water-substance and supply-context evidence.",
+      "preserve": "Intakes, treatment buildings, tanks, pipe connections and protected operations.",
+      "transform": "Improve efficiency and suitable buildings; integrate runoff management without confusing it with drinking-water treatment.",
+      "draw": "Clear process structures, maintained access, restrained roof solar and planting outside protected equipment.",
+      "conditions": "A generic pumping station may handle other fluids.  Do not invent treatment tanks at a pumping-only site. Preserve distinctions between intake, treatment, storage and distribution.",
+      "references": [
+        29
+      ]
+    },
+    {
+      "id": "I18",
+      "title": "Water towers and reservoirs",
+      "family": "industry_and_utilities",
+      "osm_hints": "man_made=water_tower; storage_tank with water-content evidence; reservoir-related features.",
+      "preserve": "Landmark tank shape, height, capacity-related form and utility connections.",
+      "transform": "Repair and maintain the structure; improve suitable surrounding public space without compromising operation. Reuse is separate from continued water-storage operation.",
+      "draw": "Repaired supports, a clear service entrance and modest planting at a compatible perimeter.",
+      "conditions": "A generic storage tank may hold other materials.  Preserve unknown contents. Do not fill an active water tank with a greenhouse; reservoir uses must fit its utility purpose.",
+      "references": [
+        30
+      ]
+    },
+    {
+      "id": "I19",
+      "title": "Wastewater treatment plants",
+      "family": "industry_and_utilities",
+      "osm_hints": "man_made=wastewater_plant; treatment basins and utility buildings.",
+      "preserve": "Process sequence, basins, buildings and service paths.",
+      "transform": "Add appropriate resource recovery and treated-water reuse. Polishing wetlands can supplement a suitable treatment system where space and conditions allow.",
+      "draw": "Recognizable circular or rectangular tanks, clean pipe connections and distinct downstream planted areas.",
+      "conditions": "Reuse requires treatment suited to its end use.  Reeds do not automatically replace an entire treatment works; untreated process water should not become a public swimming feature.",
+      "references": [
+        19
+      ]
+    },
+    {
+      "id": "I20",
+      "title": "Telecommunications and data facilities",
+      "family": "industry_and_utilities",
+      "osm_hints": "telecom=*; communication towers; building and utility evidence.",
+      "preserve": "Coverage or data-processing role, connections, cooling and maintenance access.",
+      "transform": "Improve equipment efficiency, repairability and building envelopes. Heat reuse is conditional on useful nearby demand and an appropriate connection.",
+      "draw": "Restrained antenna silhouettes, well-maintained service buildings and uncluttered cooling equipment. Plant compatible edges.",
+      "conditions": "A pastoral future still needs communications. Do not bury antennae in foliage, cover cooling openings with vines or imply that a roof array necessarily powers a large data centre.",
+      "references": []
+    },
+    {
+      "id": "L01",
+      "title": "Urban parks",
+      "family": "landscape",
+      "osm_hints": "leisure=park; paths, trees, lawns and facilities within it.",
+      "preserve": "Boundary, important paths, gathering places, established trees and useful open lawns.",
+      "transform": "Introduce a deliberate mosaic of shade groves, meadow patches, sunken rain gardens and small community facilities.",
+      "draw": "Clean paths between rough planting; occasional pergolas, benches and shallow basin contours; leave broad open areas.",
+      "conditions": "Preserve accessible routes, sightlines and recreation. A park should not become an undifferentiated forest or vegetable farm.",
+      "references": []
+    },
+    {
+      "id": "L02",
+      "title": "Allotments and community gardens",
+      "family": "landscape",
+      "osm_hints": "landuse=allotments; garden details where available.",
+      "preserve": "Plot structure, shared paths, sheds and cultivated identity.",
+      "transform": "Add shared tool storage, rainwater tanks, covered compost, accessible beds and a communal shaded table.",
+      "draw": "Varied rectangular beds, small trellises, shed roofs and tanks; show some plots actively worked and others resting.",
+      "conditions": "Keep sunlight, working access and water supply plausible. Do not imply that a small garden feeds the entire district or that every vacant site is suitable for food.",
+      "references": []
+    },
+    {
+      "id": "L03",
+      "title": "Sports fields, tracks and stadium grounds",
+      "family": "landscape",
+      "osm_hints": "leisure=pitch, track, sports_centre or stadium; sport=*.",
+      "preserve": "Playing geometry, track oval, entrances, spectator relationships and changing facilities.",
+      "transform": "Shade spectators, add solar roofs to suitable structures, improve cycle access and plant drainage margins outside play areas.",
+      "draw": "Clear pitch markings, an unmistakable oval or court, narrow canopy structures and planted perimeter bands.",
+      "conditions": "Keep trees, raised beds and equipment outside playing and safety areas. Retain sport unless a separate conversion scenario explicitly changes the use.",
+      "references": []
+    },
+    {
+      "id": "L04",
+      "title": "Golf courses",
+      "family": "landscape",
+      "osm_hints": "leisure=golf_course; individual golf=* features.",
+      "preserve": "Fairway sequence, greens, terrain and clubhouse relationships.",
+      "transform": "Concentrate intensive upkeep on playing areas; increase locally suitable rough and habitat connections between holes; improve water handling.",
+      "draw": "Smooth, sparse fairways contrasted with textured rough, a few shade clusters and retained small water features where appropriate.",
+      "conditions": "A future golf course remains playable. Conversion to housing, farming or woodland is a different scenario. Avoid inventing irrigation abundance or treating all existing ponds as expendable decoration.",
+      "references": []
+    },
+    {
+      "id": "L05",
+      "title": "Cemeteries and burial grounds",
+      "family": "landscape",
+      "osm_hints": "landuse=cemetery; amenity=grave_yard.",
+      "preserve": "Graves, memorials, processional paths, religious structures and cultural planting patterns.",
+      "transform": "Add shade, discreet maintenance facilities, permeable paths and meadow or habitat margins where compatible with the site.",
+      "draw": "Ordered memorial marks, quiet paths and selective canopies; keep memorial axes visible.",
+      "conditions": "Do not erase burial places, put crop beds over graves or impose a single cultural style. Respect the cemetery's solemn use and its existing relationship with the surrounding community.",
+      "references": []
+    },
+    {
+      "id": "L06",
+      "title": "Arable fields",
+      "family": "landscape",
+      "osm_hints": "landuse=farmland; crop=* where supplied.",
+      "preserve": "Large parcel outlines, field entrances, productive open ground and connections to farm buildings.",
+      "transform": "Add crop-strip variation, cover-crop textures, habitat margins and suitable hedges or tree rows; place water-control features according to relief.",
+      "draw": "Several coherent strip patterns within existing boundaries; occasional boundary trees and a clear machinery route.",
+      "conditions": "Agroforestry is optional. Preserve cultivation area and turning space. Do not convert every field to woodland or imply that decorative planting replaces staple food production.",
+      "references": []
+    },
+    {
+      "id": "L07",
+      "title": "Pasture and agricultural meadows",
+      "family": "landscape",
+      "osm_hints": "landuse=meadow; meadow=*; relevant livestock facilities.",
+      "preserve": "Grazing or hay-making identity, field boundaries, gates and open sward.",
+      "transform": "Introduce diverse grass textures, appropriate shelter trees or hedges, rotational subdivisions and protected stream margins.",
+      "draw": "Sparse low strokes, modest fence divisions, a few animals if desired, troughs and occasional tree groups.",
+      "conditions": "Keep grazing and machinery space. A mapped meadow is not automatically a wildflower park. Trees should fit the landscape rather than obscure an inherently open ecosystem.",
+      "references": []
+    },
+    {
+      "id": "L08",
+      "title": "Orchards",
+      "family": "landscape",
+      "osm_hints": "landuse=orchard; crop=* or trees=* where supplied.",
+      "preserve": "Row structure, tree-sized planting rhythm and harvesting access.",
+      "transform": "Mix tree ages, add suitable understory strips, retain a small packing area and connect storage to a credible water source.",
+      "draw": "Regular crown rows with slight variation, occasional empty replacement positions, clear harvesting lanes and a compact shed.",
+      "conditions": "Distinguish orchard geometry from forest texture. Do not invent tropical fruit species in unsuitable climates or crowd trees so tightly that the productive layout disappears.",
+      "references": []
+    },
+    {
+      "id": "L09",
+      "title": "Vineyards and terraced perennial crops",
+      "family": "landscape",
+      "osm_hints": "landuse=vineyard; farmland with crop details; mapped terrace walls.",
+      "preserve": "Parallel rows, trellises, terraces, contour orientation and processing connections.",
+      "transform": "Add vegetated inter-row strips, repair retaining walls, improve erosion-control margins and provide modest water storage.",
+      "draw": "Repeated fine lines following the slope, stronger terrace edges and sparse trees outside the principal crop rows.",
+      "conditions": "Preserve the local agricultural silhouette. Do not replace productive rows with a dense forest canopy or add new terraces unrelated to the actual terrain.",
+      "references": []
+    },
+    {
+      "id": "L10",
+      "title": "Farmyards and livestock facilities",
+      "family": "landscape",
+      "osm_hints": "landuse=farmyard; barns, silos, stables and agricultural buildings.",
+      "preserve": "Working yard, barn volumes, feed storage, animal routes and vehicle access.",
+      "transform": "Add suitable roof solar, covered compost or manure handling, water tanks, animal shade and a shared repair workshop.",
+      "draw": "Retained silos beside orderly roof arrays, tanks near buildings, shaded pens and clear working hardstanding.",
+      "conditions": "Maintain loading, cleaning, ventilation and storage space. Keep public gathering areas distinct from farm operations. Planting should complement the productive infrastructure rather than hide it.",
+      "references": []
+    },
+    {
+      "id": "L11",
+      "title": "Greenhouses and plant nurseries",
+      "family": "landscape",
+      "osm_hints": "landuse=greenhouse_horticulture or plant_nursery; building=greenhouse.",
+      "preserve": "Repeated growing bays, open nursery rows, service aisles and loading access.",
+      "transform": "Add climate-appropriate shade, water capture and reuse equipment, shared service buildings and small demonstration areas.",
+      "draw": "Glazed bay rhythm, roof vents, partial shade cloth, tanks and orderly outside plant rows.",
+      "conditions": "Leave sufficient light for cultivation. Do not cover every greenhouse roof with opaque panels or trees. Keep indoor horticulture distinct from open-ground nursery production.",
+      "references": []
+    },
+    {
+      "id": "L12",
+      "title": "Rice paddies and irrigated cultivation",
+      "family": "landscape",
+      "osm_hints": "farmland with crop and irrigation details; mapped channels or terraces.",
+      "preserve": "Bunds, field levels, terraces, crop identity and water-distribution connections.",
+      "transform": "Make controlled delivery and drainage legible; add vegetated margins, compact pumping nodes and appropriately sized storage.",
+      "draw": "Stepped plots, fine water-control channels and a seasonal mix of wet surfaces and crop textures.",
+      "conditions": "Do not render every field permanently flooded or replace established wet cultivation with generic woodland. Irrigation must connect to a plausible source and preserve downstream relationships.",
+      "references": []
+    },
+    {
+      "id": "L13",
+      "title": "Forests and woodland",
+      "family": "landscape",
+      "osm_hints": "natural=wood; landuse=forest; leaf_type=* and leaf_cycle=* if present.",
+      "preserve": "Extent, major clearings, tracks, significant trees and recognizable woodland form.",
+      "transform": "Introduce varied canopy sizes and gaps, healthier edges, limited deadwood and connections across existing habitat breaks.",
+      "draw": "Irregular crown groups, occasional exposed trunks and quiet negative-space clearings; retain working paths.",
+      "conditions": "Greater ecological quality does not always mean greater density. OSM forest/wood tagging alone does not reliably establish management history. Avoid filling every clearing or inventing exact species.",
+      "references": []
+    },
+    {
+      "id": "L14",
+      "title": "Productive forestry and tree plantations",
+      "family": "landscape",
+      "osm_hints": "forest or wood polygons, plus explicit plantation or management evidence where available.",
+      "preserve": "Productive blocks, forestry access, harvesting connections and useful processing structures.",
+      "transform": "Add a more varied age mosaic, retained habitat patches, riparian buffers and phased regeneration.",
+      "draw": "Distinct patches of young and mature trees, an orderly small timber yard and clear service lanes.",
+      "conditions": "Do not infer a plantation from landuse=forest alone. Preserve timber production where it belongs in the scenario; material needs do not vanish in a future city.",
+      "references": []
+    },
+    {
+      "id": "L15",
+      "title": "Natural grassland and savanna",
+      "family": "landscape",
+      "osm_hints": "natural=grassland; regional landcover and vegetation context.",
+      "preserve": "Open horizon, grass matrix and locally characteristic scattered trees.",
+      "transform": "Repair disturbed edges, reduce fragmentation and strengthen continuous habitat through appropriate low vegetation.",
+      "draw": "Broad open areas with varied low hatching, occasional irregular patches and restrained crossings.",
+      "conditions": "Do not measure restoration by tree count. Dense afforestation can erase the identity and ecology of open landscapes. Keep natural grassland distinct from cultivated meadow, manicured lawn and generic vacant land.",
+      "references": []
+    },
+    {
+      "id": "L16",
+      "title": "Heath, scrub and alpine terrain",
+      "family": "landscape",
+      "osm_hints": "natural=heath, scrub, fell, bare_rock or scree; elevation context.",
+      "preserve": "Low vegetation, exposed rock, slopes and regional openness.",
+      "transform": "Recover damaged patches, consolidate intrusive paths and provide a few durable access points where needed.",
+      "draw": "Low uneven shrub masses, sparse grass strokes and strong terrain contours; keep structures small.",
+      "conditions": "Do not introduce tropical lushness, uniform tree cover or tall woodland above a plausible treeline. Bare rock and sparse vegetation can be healthy, intentional components of the future landscape.",
+      "references": []
+    },
+    {
+      "id": "L17",
+      "title": "Desert and dry rocky landscapes",
+      "family": "landscape",
+      "osm_hints": "sand, bare rock and scrub features; declared arid climate profile.",
+      "preserve": "Extensive bare ground, landform, sparse vegetation and seasonal drainage patterns.",
+      "transform": "Concentrate shade and modest planting around actual activity nodes; add covered water storage and protect seasonal channels.",
+      "draw": "Broad negative space, scattered low plants, compact shade structures and visible tanks near inhabited areas.",
+      "conditions": "Avoid ornamental lakes, lawns and invented abundant water. A thriving desert future can remain visibly dry. Shade structures may communicate adaptation more clearly than additional vegetation.",
+      "references": []
+    },
+    {
+      "id": "L18",
+      "title": "Natural rivers and streams",
+      "family": "landscape",
+      "osm_hints": "waterway=river or stream; water=river areas.",
+      "preserve": "Main course, tributary relationships, valley and crossings.",
+      "transform": "Improve selected riparian margins, connect floodplain meadow and position public paths back from the water.",
+      "draw": "Distinct channel, lower wet margin and higher path bands; use irregular tree clusters and occasional access points.",
+      "conditions": "Do not move water through buildings or introduce dams by default. Preserve quiet habitat stretches. Any widening or reconnection needs enough land and a coherent district-scale scenario.",
+      "references": []
+    },
+    {
+      "id": "L19",
+      "title": "Engineered urban waterways",
+      "family": "landscape",
+      "osm_hints": "channelized rivers or streams; walls, embankments and urban context.",
+      "preserve": "Channel alignment, bridge spans, necessary protection structures and confined urban geometry.",
+      "transform": "Where space permits, add lower flood benches, planted terraces and setback paths while retaining essential hard edges.",
+      "draw": "Layered masonry and vegetation, with a clear uninterrupted water passage beneath crossings.",
+      "conditions": "Re-meandering requires a separate coordinated scenario. A narrow rain garden does not replace a flood channel. Do not remove all protection works solely to achieve a softer appearance.",
+      "references": []
+    },
+    {
+      "id": "L20",
+      "title": "Navigable canals and locks",
+      "family": "landscape",
+      "osm_hints": "waterway=canal; waterway=lock_gate and related navigation features.",
+      "preserve": "Straight reaches, locks, towpaths, bridge clearances and the navigation envelope.",
+      "transform": "Introduce modest electric vessel cues, repaired masonry, cycle access and planted margins outside working areas.",
+      "draw": "Unobstructed water corridor, clear lock gates, occasional freight or passenger boat and small lock-side shade canopy.",
+      "conditions": "Retain machinery access and navigable width. Do not turn every canal into an ornamental stream or obstruct it with floating gardens, dense reeds or recreational structures.",
+      "references": []
+    },
+    {
+      "id": "L21",
+      "title": "Drainage ditches and field channels",
+      "family": "landscape",
+      "osm_hints": "waterway=ditch or drain; irrigation connections.",
+      "preserve": "Network continuity, field connections, slope and operational access.",
+      "transform": "Add appropriate grass or reed margins, small crossings, controlled outlets and maintenance strips.",
+      "draw": "Thin connected channels following parcel edges, clearly lower than adjacent paths; vary wet and dry stretches by the scenario.",
+      "conditions": "Do not block every ditch or convert every channel into a pond. Drainage and irrigation can be essential to the surrounding land use. Avoid invented flow direction without terrain information.",
+      "references": []
+    },
+    {
+      "id": "L22",
+      "title": "Lakes and ponds",
+      "family": "landscape",
+      "osm_hints": "natural=water with water=lake or pond.",
+      "preserve": "Shoreline shape, open-water dominance and established boating or fishing access.",
+      "transform": "Improve selected vegetated shallows, protect quiet shores and concentrate public access at a few durable points.",
+      "draw": "Sparse horizontal water strokes, irregular shoreline vegetation and occasional modest piers.",
+      "conditions": "Leave large open surfaces. Do not fill every lake with floating settlements, solar arrays or ornamental islands. A cleaner drawing does not establish water quality or justify introducing unfamiliar species.",
+      "references": []
+    },
+    {
+      "id": "L23",
+      "title": "Reservoirs",
+      "family": "landscape",
+      "osm_hints": "water=reservoir; dam, intake and utility features.",
+      "preserve": "Storage geometry, dam, intake, access and operational shoreline.",
+      "transform": "Improve selected catchment edges, add restrained visitor facilities and make monitoring and erosion control visible.",
+      "draw": "Retained engineering structures, water-level bands, modest planting and occasional inspection points.",
+      "conditions": "A storage reservoir need not have a constant garden-like shoreline. Floating solar is a conditional variant. Keep access to structures and avoid drawing dense permanent vegetation across areas regularly affected by changing water levels.",
+      "references": []
+    },
+    {
+      "id": "L24",
+      "title": "Marshes and reedbeds",
+      "family": "landscape",
+      "osm_hints": "natural=wetland with wetland=marsh or reedbed.",
+      "preserve": "Wetland extent, shallow-water pattern, open character and hydrological connections.",
+      "transform": "Strengthen habitat continuity and concentrate access at the perimeter.",
+      "draw": "Clusters of slender vertical reeds, shallow irregular pools and at most a limited raised boardwalk or hide.",
+      "conditions": "Do not turn marsh into forest or cross it with a dense recreational path network. Keep natural wetland distinct from an engineered treatment basin, and avoid implying that every wetland can accept polluted runoff.",
+      "references": []
+    },
+    {
+      "id": "L25",
+      "title": "Bogs, fens and peatlands",
+      "family": "landscape",
+      "osm_hints": "natural=wetland with a relevant wetland subtype.",
+      "preserve": "Low vegetation, characteristic openness and wet-ground pattern.",
+      "transform": "Remove unnecessary intrusive detail; under a restoration scenario, show rewetting and selected redundant drains interrupted.",
+      "draw": "Low hummock-like textures, shallow pools, restrained perimeter access and minimal buildings.",
+      "conditions": "Do not add plantations, crop beds or arbitrary deep lakes. Changes to drainage require a deliberate restoration scenario. Treat peatland as a specific habitat rather than a blank wet area available for development.",
+      "references": []
+    },
+    {
+      "id": "L26",
+      "title": "Mangroves and tidal wetlands",
+      "family": "landscape",
+      "osm_hints": "natural=wetland; wetland=mangrove or saltmarsh; coastal context.",
+      "preserve": "Tidal channels, intertidal pattern and regionally appropriate vegetation form.",
+      "transform": "Restore suitable habitat continuity, give channels room and locate small access structures outside the core.",
+      "draw": "Branching channels, clustered roots and crowns for mangroves, or low open textures for saltmarsh.",
+      "conditions": "These habitats are not interchangeable. Do not add mangroves to an unsuitable climate or inland site. Shoreline change must remain consistent with the chosen coastal and water-level scenario.",
+      "references": []
+    },
+    {
+      "id": "L27",
+      "title": "Sheltered estuaries and bay shores",
+      "family": "landscape",
+      "osm_hints": "coastline, river mouths, wetland edges and sheltered-water context.",
+      "preserve": "Tidal interface, navigation channels, working access and settlement pattern.",
+      "transform": "Where appropriate, introduce marsh shelves, low rock or biological sills, softer slopes and setback paths alongside retained protection works.",
+      "draw": "Layered land-water edges with low irregular protective forms and restrained access.",
+      "conditions": "Select vegetation and shoreline measures for local conditions. Do not import oyster, mangrove or reef motifs indiscriminately, or assume a living shoreline removes all flood and erosion risk.",
+      "references": []
+    },
+    {
+      "id": "L28",
+      "title": "Beaches, dunes and exposed coasts",
+      "family": "landscape",
+      "osm_hints": "natural=beach, sand or coastline; exposed coastal setting.",
+      "preserve": "Sand, dunes, headlands, broad open shoreline and existing coastal form.",
+      "transform": "Consolidate crossings onto narrow boardwalks, protect appropriate dune vegetation and set new activity nodes back.",
+      "draw": "Sparse grass tufts, strong dune contours, open beach and occasional elevated crossings.",
+      "conditions": "Avoid continuous ornamental tree walls and sheltered-bay motifs on exposed shores. Keep the coast recognizable, and do not assume every existing structure can safely remain after an explicitly changed sea-level scenario.",
+      "references": []
+    },
+    {
+      "id": "L29",
+      "title": "Aquaculture and fish farms",
+      "family": "landscape",
+      "osm_hints": "landuse=aquaculture; aquaculture=*; ponds, cages and service facilities.",
+      "preserve": "Production geometry, service routes, boat access and handling buildings.",
+      "transform": "Introduce better-spaced units, visible monitoring, appropriate water treatment and optional locally suitable mixed cultivation.",
+      "draw": "Clear pond cells or cage groups, small service craft, treatment structures and occasional parallel cultivation lines.",
+      "conditions": "Species, waste loading, circulation and access determine plausibility. Shellfish or seaweed additions are conditional. Do not represent integrated aquaculture as an automatic solution to all environmental impacts.",
+      "references": []
+    },
+    {
+      "id": "L30",
+      "title": "Brownfields and vacant industrial land",
+      "family": "landscape",
+      "osm_hints": "landuse=brownfield; industrial history or abandoned structures.",
+      "preserve": "Parcel identity, useful buildings, distinctive hardstanding and industrial memory.",
+      "transform": "Reuse structures for repair or markets; add suitable non-food planting and contained growing areas only under an assessed remediation scenario.",
+      "draw": "Retained workshop shells, clean working courts, defined planted zones and visible separation between uses.",
+      "conditions": "Do not infer safe soil from vacancy or green appearance. Above-ground beds are a considered option, not proof that a site is safe. See industrial recipes for containment landscapes.",
+      "references": []
+    },
+    {
+      "id": "L31",
+      "title": "Protected natural areas",
+      "family": "landscape",
+      "osm_hints": "boundary=protected_area; leisure=nature_reserve; relevant habitat features.",
+      "preserve": "Habitat pattern, uninterrupted core, significant natural features and existing protection purpose.",
+      "transform": "Reduce visual disturbance, strengthen ecological connections and concentrate modest visitor facilities at suitable edges.",
+      "draw": "Large continuous habitat areas, limited trails and very few structures; emphasize regional landform and vegetation.",
+      "conditions": "Do not populate every reserve with cafes, towers and campsites. A successful future can be expressed through continuity and restraint. Preserve essential management access without turning the whole area into a recreation park.",
+      "references": []
+    },
+    {
+      "id": "L32",
+      "title": "Historic and ornamental gardens",
+      "family": "landscape",
+      "osm_hints": "leisure=garden; garden:type=*; heritage context where supplied.",
+      "preserve": "Formal axes, terraces, walls, specimen trees, pools and cultural design identity.",
+      "transform": "Improve discreet water capture, climate-appropriate planting and access while retaining the recognizable composition.",
+      "draw": "Deliberate geometry, selective textured beds, repaired walls and modest service additions hidden within existing forms.",
+      "conditions": "Do not replace every formal garden with meadow or crops. Preserve culturally meaningful ornamental features; adjust water-demanding elements through an explicit conservation scenario rather than generic removal.",
+      "references": []
+    },
+    {
+      "id": "L33",
+      "title": "Playgrounds, picnic areas and campsites",
+      "family": "landscape",
+      "osm_hints": "leisure=playground; tourism=picnic_site/camp_site; associated facilities.",
+      "preserve": "Recreational use, routes, distinctive play equipment and the site's open character.",
+      "transform": "Add robust shade, accessible gathering and play elements, drinking-water provision where supplied, repairable facilities and careful waste handling. At campsites, concentrate services and protect surrounding habitat.",
+      "draw": "Small shelters, modest play structures, picnic tables and clear spaces between them; retain age-appropriate activity and site scale.",
+      "conditions": "Do not turn every outdoor site into a resort or fill required clear play areas with plants. Protected habitat and quiet areas should retain separation from concentrated recreation.",
+      "references": []
+    }
+  ],
+  "references": [
+    {
+      "id": 1,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Buildings",
+      "url": "https://wiki.openstreetmap.org/wiki/Building",
+      "supports": "Building typology and present use are distinct; generic building tags do not establish a specific use."
+    },
+    {
+      "id": 2,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Key:building:use",
+      "url": "https://wiki.openstreetmap.org/wiki/Key:building:use",
+      "supports": "Present use can differ from the original architectural form."
+    },
+    {
+      "id": 3,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Map features",
+      "url": "https://wiki.openstreetmap.org/wiki/Map_features",
+      "supports": "Overview of the community-defined feature vocabulary used as illustrative matching hints."
+    },
+    {
+      "id": 4,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Lifecycle prefix",
+      "url": "https://wiki.openstreetmap.org/wiki/Lifecycle_prefix",
+      "supports": "Disuse, abandonment, construction and other states need separate interpretation."
+    },
+    {
+      "id": 5,
+      "organization": "UN Environment Programme",
+      "title": "Why making buildings greener is crucial to countering climate change",
+      "url": "https://www.unep.org/en/news-and-stories/story/why-making-buildings-greener-crucial-countering-climate-change",
+      "supports": "Material strategy includes reuse of components, repurposing buildings and reducing new material demand."
+    },
+    {
+      "id": 6,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Simple 3D Buildings",
+      "url": "https://wiki.openstreetmap.org/wiki/Simple_3D_buildings",
+      "supports": "Building outlines, parts, roof geometry, total height and raised parts."
+    },
+    {
+      "id": 7,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Key:layer",
+      "url": "https://wiki.openstreetmap.org/wiki/Key:layer",
+      "supports": "Layer describes relative ordering at crossings and overlaps, not height in metres."
+    },
+    {
+      "id": 8,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Landcover",
+      "url": "https://wiki.openstreetmap.org/wiki/Landcover",
+      "supports": "Physical cover, land use and natural-feature tags overlap; cover cannot always be inferred from use."
+    },
+    {
+      "id": 9,
+      "organization": "Australian Government, YourHome",
+      "title": "Design for climate",
+      "url": "https://www.yourhome.gov.au/passive-design/design-climate",
+      "supports": "Passive-design priorities vary by climate. Australian orientation examples require geographic adaptation elsewhere."
+    },
+    {
+      "id": 10,
+      "organization": "Historic England",
+      "title": "Whole Building Approach for Historic Buildings",
+      "url": "https://historicengland.org.uk/advice/technical-advice/retrofit-and-energy-efficiency-in-historic-buildings/whole-building-approach-for-historic-buildings/",
+      "supports": "Context, significance, occupants and interacting interventions matter in historic-building retrofit."
+    },
+    {
+      "id": 11,
+      "organization": "The Pritzker Architecture Prize",
+      "title": "Anne Lacaton and Jean-Philippe Vassal",
+      "url": "https://www.pritzkerprize.com/laureates/anne-lacaton-and-jean-philippe-vassal",
+      "supports": "Precedents for retained housing with added winter gardens and balconies, including Grand Parc with Frederic Druot and Christophe Hutin."
+    },
+    {
+      "id": 12,
+      "organization": "US Environmental Protection Agency",
+      "title": "Using Green Roofs to Reduce Heat Islands",
+      "url": "https://www.epa.gov/heatislands/using-green-roofs-reduce-heat-islands",
+      "supports": "Extensive and intensive roofs differ in structural and maintenance requirements."
+    },
+    {
+      "id": 13,
+      "organization": "NACTO",
+      "title": "Green Infrastructure: Transit Street Design Guide",
+      "url": "https://nacto.org/publication/transit-street-design-guide/station-stop-elements/green-infrastructure/",
+      "supports": "Integrating planting and drainage with streets, transit stops and pedestrian needs."
+    },
+    {
+      "id": 14,
+      "organization": "US Environmental Protection Agency",
+      "title": "Types of Green Infrastructure",
+      "url": "https://www.epa.gov/green-infrastructure/types-green-infrastructure",
+      "supports": "Bioretention, rain gardens, swales and permeable surfaces require functional water pathways."
+    },
+    {
+      "id": 15,
+      "organization": "International Energy Agency",
+      "title": "Demand and Supply Measures for the Steel and Cement Transition: Executive summary",
+      "url": "https://www.iea.org/reports/demand-and-supply-measures-for-the-steel-and-cement-transition/executive-summary",
+      "supports": "Industry transition involves production changes, material demand and enabling infrastructure."
+    },
+    {
+      "id": 16,
+      "organization": "International Energy Agency",
+      "title": "Aviation and shipping: Net Zero Emissions Guide",
+      "url": "https://www.iea.org/reports/aviation-and-shipping",
+      "supports": "A scenario addressing efficiency, demand and alternative fuels; it is not a prediction of a particular future fleet."
+    },
+    {
+      "id": 17,
+      "organization": "Federal Aviation Administration",
+      "title": "Wildlife Management",
+      "url": "https://www.faa.gov/airports/airport_safety/wildlife/management",
+      "supports": "Wildlife-attracting land uses and landscaping can conflict with active airport operations."
+    },
+    {
+      "id": 18,
+      "organization": "Port of Los Angeles",
+      "title": "Ocean-Going Vessel Emission Reduction",
+      "url": "https://portoflosangeles.org/environment/air-quality/ocean-going-vessel-emission-reduction",
+      "supports": "Shore-side electrical power is an established operational change for ships at berth."
+    },
+    {
+      "id": 19,
+      "organization": "US Environmental Protection Agency",
+      "title": "Basic Information about Water Reuse",
+      "url": "https://www.epa.gov/waterreuse/basic-information-about-water-reuse",
+      "supports": "Water reuse involves treatment and a chosen subsequent use."
+    },
+    {
+      "id": 20,
+      "organization": "US Department of Energy",
+      "title": "Agrivoltaics: Solar and Agriculture Co-Location",
+      "url": "https://www.energy.gov/cmei/systems/agrivoltaics-solar-and-agriculture-co-location",
+      "supports": "Agriculture can coexist with solar generation; optimizing the combination depends on site and activity."
+    },
+    {
+      "id": 21,
+      "organization": "US Department of Energy",
+      "title": "Frequently Asked Questions on Small Distributed Wind Systems",
+      "url": "https://www.energy.gov/cmei/systems/frequently-asked-questions-small-distributed-wind-systems",
+      "supports": "Rooftop wind can encounter turbulence, vibration, reduced production and maintenance concerns."
+    },
+    {
+      "id": 22,
+      "organization": "UN Environment Programme",
+      "title": "Panel unveils 10 guiding principles in campaign to revive the Earth",
+      "url": "https://www.unep.org/en/news-and-stories/story/panel-unveils-10-guiding-principles-campaign-revive-earth",
+      "supports": "Restoration should fit local conditions, conserve existing ecosystems and avoid new degradation."
+    },
+    {
+      "id": 23,
+      "organization": "Food and Agriculture Organization of the United Nations",
+      "title": "Water harvesting and storage",
+      "url": "https://www.fao.org/land-water/water/agricultural-water-management/water-harvesting-and-storage",
+      "supports": "Water storage and demand management matter; solar pumping can intensify groundwater over-abstraction."
+    },
+    {
+      "id": 24,
+      "organization": "NOAA Fisheries",
+      "title": "Understanding Living Shorelines",
+      "url": "https://www.fisheries.noaa.gov/insight/understanding-living-shorelines",
+      "supports": "Shoreline treatments depend on local conditions; sheltered coasts differ from open-ocean beaches."
+    },
+    {
+      "id": 25,
+      "organization": "NOAA Fisheries",
+      "title": "Nutrient Impacts of Finfish Aquaculture",
+      "url": "https://www.fisheries.noaa.gov/aquaculture/nutrient-impacts-finfish-aquaculture",
+      "supports": "Siting, nutrient loading, circulation and management affect aquaculture impacts."
+    },
+    {
+      "id": 26,
+      "organization": "US Environmental Protection Agency",
+      "title": "Revegetating Landfills and Waste Containment Areas Fact Sheet",
+      "url": "https://nepis.epa.gov/Exe/ZyPURL.cgi?Dockey=600003T6.TXT",
+      "supports": "Cap design, rooting, soil, drainage and monitoring constrain planting and reuse. An older source used for stable physical principles."
+    },
+    {
+      "id": 27,
+      "organization": "US Environmental Protection Agency",
+      "title": "Urban Agriculture",
+      "url": "https://www.epa.gov/brownfields/urban-agriculture",
+      "supports": "Assess potential contamination before food growing; clean-soil systems and non-food uses are conditional options."
+    },
+    {
+      "id": 28,
+      "organization": "Food and Agriculture Organization of the United Nations",
+      "title": "Agroforestry overview",
+      "url": "https://www.fao.org/agroforestry/about-agroforestry/overview/",
+      "supports": "Trees can be combined with crops or animals through locally tailored production systems."
+    },
+    {
+      "id": 29,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Tag:man_made=pumping_station",
+      "url": "https://wiki.openstreetmap.org/wiki/Tag:man_made=pumping_station",
+      "supports": "A pumping station may handle different substances and need not be a treatment works."
+    },
+    {
+      "id": 30,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Tag:man_made=storage_tank",
+      "url": "https://wiki.openstreetmap.org/wiki/Tag:man_made=storage_tank",
+      "supports": "Content tags distinguish water from fuels, gases, chemicals and other stored materials."
+    },
+    {
+      "id": 31,
+      "organization": "OpenStreetMap Wiki",
+      "title": "Tag:highway=trunk",
+      "url": "https://wiki.openstreetmap.org/wiki/Tag:highway=trunk",
+      "supports": "Trunk-road classification varies by country and does not universally imply motorway geometry."
+    }
+  ]
+}
