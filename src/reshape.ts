@@ -37,8 +37,12 @@ export type Run = {
 };
 
 /** What reshaping made, for the drawing passes that read it. */
-/** `lots` are car parks turned into pocket parks (their bays' ground, as rectangles along each old aisle), `paths` the aisles kept as footpaths through them. */
-export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][] };
+/**
+ * `lots` are car parks turned into pocket parks (their bays' ground, as rectangles along each old
+ * aisle), `paths` the aisles kept as footpaths through them. `banks` are planted margins along
+ * soft river, lake and stream banks, and `banksides` the lines their trees stand on.
+ */
+export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][]; banks: Shape[]; banksides: number[][] };
 
 /** Width of a garden street's one shared lane. */
 const LANE = 3.6;
@@ -187,7 +191,8 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
     const width = garden ? LANE : inner * 2;
     return { ...w, width, was: w.width, future: kind };
   });
-  return { town: { ...town, ways }, strips, runs, lots, paths };
+  const [banks, banksides] = waterMargins(town, urban);
+  return { town: { ...town, ways }, strips, runs, lots, paths, banks, banksides };
 }
 
 /**
@@ -275,6 +280,77 @@ function nearLine(x: number, y: number, p: number[], d: number): boolean {
     if (Math.hypot(ax + t * (bx - ax) - x, ay + t * (by - ay) - y) < d) return true;
   }
   return false;
+}
+
+/** Width of a planted bank margin, metres, and how far from the water its trees stand. */
+const BANK = 8;
+const BANK_TREES = 4.5;
+/** Water whose banks get a planted margin: not the sea, not docks. */
+const SOFT_WATER = new Set(['river', 'lake', 'pond', 'canal']);
+
+/**
+ * Planted margins along rivers, lakes and streams (L18, L19): a band along every stretch of shore
+ * that isn't a tile cut, outside the dense centre where banks are quays. The band is only a mask:
+ * roads, buildings and water keep it off themselves, so it takes only ground that is free.
+ */
+function waterMargins(town: Town, urban: (x: number, y: number) => number): [Shape[], number[][]] {
+  const banks: Shape[] = [];
+  const sides: number[][] = [];
+  const add = (line: number[], side: 1 | -1, a: number) => {
+    if (line.length < 4) return;
+    let L = 0;
+    for (let i = 0; i + 3 < line.length; i += 2) L += Math.hypot(line[i + 2] - line[i], line[i + 3] - line[i + 1]);
+    if (L < 12) return;
+    const mid = Math.floor(line.length / 4) * 2;
+    if (urban(line[mid], line[mid + 1]) > 0.5) return;
+    banks.push(strip(line, side, a, a + BANK, true, true).map((r) => ({ ...r, seam: new Uint8Array(r.seam.length).fill(1) })));
+    sides.push(offset(line, side * (a + BANK_TREES)));
+  };
+  town.water.forEach((shape, wi) => {
+    if (!SOFT_WATER.has(town.waterCls[wi])) return;
+    for (const ring of shape) {
+      // Runs of real shore between tile cuts; the land is to the right of every ring.
+      const p = ring.pts;
+      const n = p.length / 2;
+      const start = ring.seam.findIndex((v) => v === 1);
+      if (start < 0) {
+        add([...p, p[0], p[1]], -1, 0);
+        continue;
+      }
+      let run: number[] = [];
+      for (let k = 1; k <= n; k++) {
+        const e = (start + k) % n;
+        const j = (e + 1) % n;
+        if (ring.seam[e]) {
+          add(run, -1, 0);
+          run = [];
+          continue;
+        }
+        if (!run.length) run.push(p[e * 2], p[e * 2 + 1]);
+        run.push(p[j * 2], p[j * 2 + 1]);
+      }
+      add(run, -1, 0);
+    }
+  });
+  for (const st of town.streams) for (const side of [1, -1] as const) add(st.pts, side, st.width / 2);
+  return [banks, sides];
+}
+
+/** A line of trees along planted bank margins, every 9 m, where the ground is free. */
+export function bankTrees(B: Build, paper: Paper, R: Reshaped, M: Masks, soft: Uint8Array): Tree[] {
+  const out: Tree[] = [];
+  if (B.set.trees <= 0) return out;
+  const keep = thin(B.cam, LOD.treeSpacing, 9);
+  for (const line of R.banksides)
+    walk(line, 4, 9, 4, (x, y) => {
+      if (!onMask(paper, soft, x, y) || onMask(paper, M.road, x, y) || onMask(paper, M.water, x, y) || onMask(paper, M.foot, x, y)) return;
+      const [k0, k1] = B.key(x, y);
+      if (hash(k0, k1, B.set.seed, 12395) >= 0.75 * keep * Math.min(1, B.set.trees / 0.7)) return;
+      const r = 1.8 + hash(k0, k1, B.set.seed, 12396) * 1.2;
+      // Willows and alders lean over the water: a little lower and wider than street trees.
+      out.push({ x, y, r, h: r + 2.6 + hash(k0, k1, B.set.seed, 12397) * 2, conifer: false, from: 'bank-trees' });
+    });
+  return out;
 }
 
 /** How far from a road's centre line other streets' strips keep. */
@@ -384,20 +460,23 @@ export function stripTrees(B: Build, paper: Paper, R: Reshaped, M: Masks): Tree[
 }
 
 /** The planted strips' low planting: the park hatch, kept to the strips. */
-export function stripGrass(paper: Paper, M: Masks, R: Reshaped, lots: Uint8Array, paths?: Uint8Array): void {
+export function stripGrass(paper: Paper, M: Masks, R: Reshaped, lots: Uint8Array, banks: Uint8Array, paths?: Uint8Array, open: (x: number, y: number) => boolean = () => true): void {
   const cam = paper.cam;
   const clear = (x: number, y: number) => paper.on(M.strip, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && !(paths && paper.on(paths, x, y)) && paper.seen(x, y, cam.groundDepth(y));
   const edge = (x: number, y: number) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y);
   if (R.strips.length && shows(cam, LOD.gardenStrip)) {
     // Twice as dense as park grass: a strip is narrow, and should read as planted at a glance.
-    paper.facet('strip-planting', () => paper.hatchGround(GREENERY, 63, cam.gap(0.9), (x, y) => !paper.on(lots, x, y) && clear(x, y)));
-    paper.facet('strip-edges', () => outline(paper, GREENERY, R.strips, M.strip, (x, y) => !paper.on(lots, x, y) && edge(x, y)));
+    paper.facet('strip-planting', () => paper.hatchGround(GREENERY, 63, cam.gap(0.9), (x, y) => !paper.on(lots, x, y) && !paper.on(banks, x, y) && clear(x, y)));
+    paper.facet('strip-edges', () => outline(paper, GREENERY, R.strips, M.strip, (x, y) => !paper.on(lots, x, y) && !paper.on(banks, x, y) && edge(x, y)));
   }
   if (R.lots.length) {
     // Car parks become parks: the park hatch, and an edge where the tarmac was.
     paper.facet('lot-planting', () => paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => paper.on(lots, x, y) && clear(x, y)));
     paper.facet('lot-edges', () => outline(paper, GREENERY, R.lots, lots, edge));
   }
+  // Planted banks: the park hatch, on the same lines, so a bank runs on into a park without a seam.
+  // Fields and other textured ground under a bank keep their own texture (`open`).
+  if (R.banks.length) paper.facet('bank-planting', () => paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => paper.on(banks, x, y) && !paper.on(lots, x, y) && open(x, y) && clear(x, y)));
 }
 
 /**

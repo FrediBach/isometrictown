@@ -4,7 +4,7 @@ import { pointInRing, ringArea } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
 import { hash, patch } from './rng';
-import { GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
+import { deeper, GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
 import { bestRect, turn, type Rect } from './shape';
 import { outline } from './streets';
 import type { Shape, Town } from './tiles';
@@ -485,6 +485,56 @@ function orchardsAsTrees(B: Build): boolean {
 }
 
 /** Little fruit trees in rows over orchards. */
+/**
+ * How a solarpunk field is split into strips across its width: two to four of about 40 m, or from
+ * depth Transform strips of about 25 m (up to eight), with a row of trees on each margin between
+ * them (alley cropping). From the field's own rectangle, so it stays put on the map.
+ */
+function fieldStrips(B: Build, c: Cover): { vx: number; vy: number; v0: number; v1: number; n: number; w: number } {
+  const vx = -c.rect.uy;
+  const vy = c.rect.ux;
+  const outer = c.shape[0].pts;
+  let v0 = Infinity;
+  let v1 = -Infinity;
+  for (let i = 0; i < outer.length; i += 2) {
+    const v = outer[i] * vx + outer[i + 1] * vy;
+    v0 = Math.min(v0, v);
+    v1 = Math.max(v1, v);
+  }
+  const n = deeper(B.set, 'transform') ? Math.min(8, Math.max(2, Math.round((v1 - v0) / 25))) : Math.min(4, Math.max(2, Math.round((v1 - v0) / 40)));
+  return { vx, vy, v0, v1, n, w: (v1 - v0) / n };
+}
+
+/** Rows of trees along the margins between the strips of solarpunk fields (depth Transform): alley cropping. */
+export function fieldTrees(B: Build, paper: Paper, G: Ground, M: Masks): Tree[] {
+  const out: Tree[] = [];
+  const { set, cam } = B;
+  if (!B.future || !deeper(set, 'transform') || set.trees <= 0) return out;
+  const keep = thin(cam, LOD.treeSpacing, 7);
+  for (const c of G.covers) {
+    if (c.code !== FIELD || c.rect.w < 45) continue;
+    const { ux, uy } = c.rect;
+    const { vx, vy, v0, n, w } = fieldStrips(B, c);
+    for (let i = 1; i < n; i++) {
+      chords(c.shape, ux, uy, vx, vy, v0 + i * w, (ax, ay, bx, by) => {
+        const len = Math.hypot(bx - ax, by - ay);
+        for (let t = 4; t < len - 3; t += 7) {
+          const x = ax + ux * t;
+          const y = ay + uy * t;
+          const sx = cam.sx(x, y);
+          const sy = cam.sy(x, y, 0);
+          if (paper.at(G.land, sx, sy) !== FIELD || paper.on(M.road, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.foot, sx, sy)) continue;
+          const [k0, k1] = B.key(x, y);
+          if (hash(k0, k1, set.seed, 12390) >= 0.85 * keep) continue;
+          const r = 1.5 + hash(k0, k1, set.seed, 12391) * 1.2;
+          out.push({ x, y, r, h: r + 3 + hash(k0, k1, set.seed, 12392) * 2, conifer: false, from: 'field-trees' });
+        }
+      });
+    }
+  }
+  return out;
+}
+
 export function orchardTrees(B: Build, paper: Paper, G: Ground, M: Masks): Tree[] {
   const out: Tree[] = [];
   if (!orchardsAsTrees(B)) return out;
@@ -571,19 +621,8 @@ function field(B: Build, paper: Paper, c: Cover, test: Test): void {
  */
 function strips(B: Build, paper: Paper, c: Cover, test: Test, spacing: number, along: number): void {
   const { ux, uy } = c.rect;
-  const vx = -uy;
-  const vy = ux;
-  const outer = c.shape[0].pts;
-  let v0 = Infinity;
-  let v1 = -Infinity;
-  for (let i = 0; i < outer.length; i += 2) {
-    const v = outer[i] * vx + outer[i + 1] * vy;
-    v0 = Math.min(v0, v);
-    v1 = Math.max(v1, v);
-  }
+  const { vx, vy, v0, n, w } = fieldStrips(B, c);
   const [k0, k1] = B.key(c.rect.cx, c.rect.cy);
-  const n = Math.min(4, Math.max(2, Math.round((v1 - v0) / 40)));
-  const w = (v1 - v0) / n;
   const margin = 3.5;
   const kind = Array.from({ length: n }, (_, i) => Math.floor(hash(k0, k1, B.set.seed, 12200 + i) * 3));
   // Neighbouring strips differ, so the pattern reads as strips and not as one field.

@@ -16,7 +16,7 @@ const lat = set.center[1];
 const pan = (m: number, from: Settings = set): Settings => ({ ...from, center: [from.center[0] + (m / (EARTH * Math.cos((lat * Math.PI) / 180))) * 360, lat] });
 
 /** Tone hatching inside a feature, laid on the sheet's grid rather than the map's. */
-const TONE = /\/(strip|lot)-planting\b/;
+const TONE = /\/(strip|lot|bank)-planting\b/;
 
 /** Segments of a feature inside a window, rounded to 0.05 mm, as a set of keys. */
 function segments(s: Sheet, prefix: string, dx: number, win: [number, number, number, number]): Set<string> {

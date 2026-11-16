@@ -3,11 +3,11 @@ import { classify } from './classify';
 import { cycleRacks, kerbGardens, kerbTrees, lotCommons, medians, medianTrees, rainTanks } from './commons';
 import { planFuture, type ClimateId } from './future';
 import { canopyTrees } from './canopy';
-import { cycleTracks, lotTrees, reshapeTown, stripGrass, stripTrees } from './reshape';
+import { bankTrees, cycleTracks, lotTrees, reshapeTown, stripGrass, stripTrees } from './reshape';
 import { forecourtCanopies, lotCanopies } from './solar';
 import { yardPergolas } from './additions';
 import { gardenBeds, meadowPatches, parkCommons, parkMeadow, reeds, worksHedges } from './landscape';
-import { allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
+import { fieldTrees, allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
 import { players, racing } from './sport';
@@ -160,6 +160,12 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.fillMask(M.strip, s.map((r) => r.pts));
   }
   for (const s of R?.lots ?? []) paper.fillMask(lots, s.map((r) => r.pts));
+  // Planted bank margins: soft ground of their own, not parks, so fields and gardens under them keep theirs.
+  const banks = paper.mask();
+  for (const s of R?.banks ?? []) {
+    paper.fillMask(M.strip, s.map((r) => r.pts));
+    paper.fillMask(banks, s.map((r) => r.pts));
+  }
   for (const s of town.wood) paper.fillMask(M.wood, s.map((r) => r.pts));
   fillRoads(paper, town.ways, town.plazas, M.road);
   fillRoads(paper, town.runways, town.aprons, M.road);
@@ -254,7 +260,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (G) list = [...list.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
     if (B.future) list.push(...from('kerb-trees', kerbTrees(B, kerbs)), ...worksHedges(B, paper, town, M), ...medianTrees(B, town));
-    if (R) list.push(...from('strip-trees', stripTrees(B, paper, R, M)), ...from('lot-trees', lotTrees(B, paper, R, M)), ...canopyTrees(B, paper, town, G, M, box, toAbs, fromAbs));
+    if (R && G) list.push(...fieldTrees(B, paper, G, M));
+    if (R) list.push(...bankTrees(B, paper, R, M, banks), ...from('strip-trees', stripTrees(B, paper, R, M)), ...from('lot-trees', lotTrees(B, paper, R, M)), ...canopyTrees(B, paper, town, G, M, box, toAbs, fromAbs));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
@@ -374,7 +381,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
-  if (R) withPen('planting', () => { stripGrass(paper, M, R, lots, paths); }, 'strips');
+  if (R) withPen('planting', () => { stripGrass(paper, M, R, lots, banks, paths, (x, y) => !G || paper.at(G.land, x, y) === 0); }, 'strips');
   if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
   if (B.future && set.water) withPen('planting', () => { reeds(B, paper, M, G, paths); }, 'reeds');
