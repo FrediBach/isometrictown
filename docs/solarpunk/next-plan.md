@@ -1,14 +1,15 @@
 # Solarpunk mode, part 3: a town that produces its own future
 
-Follow-up to [bolder-plan.md](bolder-plan.md). **Status: implementation started. The first P1 structures and part of P0 are built; the remaining milestones are proposed.** Read [../solarpunk.md](../solarpunk.md) for the current implementation and [intro.md](intro.md) for the art direction.
+Follow-up to [bolder-plan.md](bolder-plan.md). **Status: implementation started. The first P1 structures, rooftop wind and larger public roofs from P2, and part of P0 are built; the remaining work is proposed.** Read [../solarpunk.md](../solarpunk.md) for the current implementation and [intro.md](intro.md) for the art direction.
 
 ## Implementation status
 
 - **First P1 slice built:** raised solar wings on suitable flat roofs; coordinated rear gardens with a solar growing house, two broad food beds and a 2.6 m cistern; standalone cisterns where a whole garden cannot fit. Hot climates use open growing shelters. These start at Transform. Today and Retrofit retain their previous drawings.
+- **First P2 slice built:** eight-metre rooftop vertical-axis wind assemblies, full rotor/service reservations, and rejection of roofs sheltered by taller neighbours. Branching public solar roofs now span 20–50 m in Transform and up to 64 m in Visionary, with perimeter supports and an open skylight. Ground neighbourhood wind masts, the old sheet-ranked turbine cap, connected leaf roofs and world-space public-space reservations remain outstanding; P2 is not complete.
 - **Planning:** `src/production.ts` reserves complete world-space footprints before context buildings are dropped. Roof holes, access margins, existing additions, transport routes, water, woodland and other land uses are excluded. Ground obstacles are retained from ordinary loaded tiles before the drawing-box filter, without extra network requests. Rear plots require mapped residential land. Neighbours competing for one plot both decline, independently of traversal order. Structures use separate LOD rules; zooming does not choose a new plot.
 - **P0 started:** frozen Transform and Visionary lab baselines across the original six places plus Sapporo; planned/accepted/rejected site counts in the lab; direct Visionary-versus-Transform thumbnail, time and waste comparisons. Counts cover the loaded drawing area, including hidden sites, and are not a visible-coverage score.
 - **Still outstanding in P0/P1:** a complete four-depth review board, broader garden inference where residential land is unmapped, coordinated pitched-roof/porch energy packages, and a neighbourhood that meets all of §6's Fit-size acceptance criteria. Existing pitched-roof panel decisions remain unchanged. Large shared water systems and rooftop growing halls belong to later work.
-- **Visual result so far:** the new structures read clearly in close-ups, and solar wings alter the outline of suitable flat roofs. Whole-sheet changes remain modest, especially in historic places and at 1:4000. This is an initial implementation, not completion of the plan's bold visual target. Wind structures, stepped garden buildings and connected districts remain P2–P4.
+- **Visual result so far:** the new structures read clearly in close-ups, and solar wings alter the outline of suitable flat roofs. Whole-sheet changes remain modest, especially in historic places and at 1:4000. This is an initial implementation, not completion of the plan's bold visual target. Rooftop wind now changes suitable roof silhouettes. Ground wind structures, stepped garden buildings and connected districts remain outstanding in P2–P4.
 
 
 
@@ -30,6 +31,15 @@ The wider-pen check (`sp3-wide-pen`, Mollis, Rye and Sapporo at 1:500 and 1:8000
 Fit-size before/after sheets at both main scales, monochrome samples, busiest-area close-ups and targeted growing-house/cistern/solar-wing close-ups were reviewed with the CPU stroke rasteriser. Browser PNG generation was unavailable. The close-ups demonstrate the new structures; they do not establish whole-neighbourhood coverage. The 0.5 mm/1:8000 sheets and every possible climate/bearing combination were not checked by eye. Render timings were collected with other checks running and are not a controlled performance benchmark.
 
 `npm run build` and `npm test` pass (979 tests). Nine Transform/Visionary goldens were reviewed and updated. All Today and Retrofit goldens remain unchanged. Unit tests cover full footprints, holes, narrow crossings, enclosed and off-sheet obstacles, conflicting neighbours, gates, source ordering, scale/bearing independence and 30/47/310 m translations; the existing rendered 30/47 m pan tests also pass.
+
+
+### Rooftop wind and public-roof checks
+
+Named comparisons: `sp4-transform-before` → `sp4-transform-final` and `sp4-visionary-before` → `sp4-visionary-final`, the same seven places at 1:1000 and 1:4000 with 0.35 mm pens. Maximum plot time against Today is ×1.491 for Transform and ×1.495 for Visionary. Maximum extra waste is +1.97 and +1.93 percentage points respectively; the incremental change from the preceding implementation is under +0.19 points. These are plot-time estimates, not controlled renderer performance measurements.
+
+Reviewed the nine changed golden sheets as a Fit-size board, selected paired sheets and monochrome previews, and targeted rooftop-wind close-ups in Mollis, Amsterdam, Midtown and Sapporo. Narrow paired blade edges were simplified after the first review. The sampled town views do not demonstrate the larger public roofs: a controlled 90 m square verifies the 50/64 m spans, holes and enclosed-building rejection, and a separate CPU-rendered close-up checks the skylight and branches. Stricter clearance can remove an earlier canopy that overlapped occupied space. Browser PNGs remain unavailable; no physical pen plot, wide-pen run or exhaustive bearing/climate visual review was made for this slice. The final skylight refinement affects the controlled canopy example, not the sampled lab sheets, which contain no energy canopy.
+
+Build and all 985 tests pass after reviewing and accepting nine Transform/Visionary goldens. Today and Retrofit goldens remain unchanged. New tests cover wind envelopes, roof holes, taller context neighbours, hospitals, depth gates, map translations and view independence, plus the public-roof footprint checks. Whole-sheet differences are still modest; this slice does not meet the complete neighbourhood acceptance criteria.
 
 
 ## 1. The brief

@@ -71,6 +71,7 @@ export const LOD = {
   reed: { m: 1.5, mm: 0.75, what: 'Reed clusters on banks and in marshes: a cluster' },
   bed: { m: 1.1, mm: 0.8, what: 'Food beds behind houses: width' },
   rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },
+  roofWind: { m: 8, mm: 2, what: 'Rooftop wind assemblies: overall height' },
   solarWing: { m: 8, mm: 1.6, what: 'Raised solar roofs over terraces: shorter side' },
   growingHouse: { m: 2.9, mm: 1.1, what: 'Private growing houses and solar shelters: depth' },
   productiveBed: { m: 2.2, mm: 1.1, what: 'Broad food beds in productive gardens: width' },

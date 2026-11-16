@@ -9,6 +9,8 @@ import { pergola, stall } from './additions';
 import { showpiece } from './future';
 import { deeper, GREENERY, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { energyCanopy } from './solar';
+import { fits, overlaps } from './production';
+import { corners } from './shape';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
@@ -690,14 +692,20 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const { cx: x, cy: y } = r;
     if (onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) continue;
     // From depth Transform a few big squares get a solar tree in place of their fountain or statue.
-    const canopyR = Math.min(10, r.w * 0.36, r.L * 0.36);
+    const canopyR = Math.min(deeper(B.set, 'visionary') ? 32 : 25, r.w * 0.4, r.L * 0.4);
     // The whole canopy stands inside the square, clear of buildings, water and trees' footing alike.
-    const room = (R: number) => Array.from({ length: 16 }, (_, q) => (q / 16) * Math.PI * 2).every((a) => [R, R * 0.5].every((d) => {
-      const px = x + Math.cos(a) * d;
-      const py = y + Math.sin(a) * d;
-      return pointInRing(px, py, outer) && !onMask(paper, M.foot, px, py) && !onMask(paper, M.water, px, py);
-    }));
-    if (canopies && area >= 1200 && canopyR >= 7 && hash(k0, k1, B.set.seed, 12400) < 0.6 && shows(B.cam, LOD.canopy, canopyR) && room(canopyR + 1)) {
+    const room = (R: number) => {
+      const envelope = { ...r, L: R * 2, w: R * 2 };
+      if (!fits(envelope, sq) || town.buildings.some((b) => overlaps(corners(envelope), b.shape[0].pts))) return false;
+      // Check the full area, including existing tree footings and small obstacles inside the rim.
+      for (let u = -R; u <= R; u += 2) for (let v = -R; v <= R; v += 2) {
+        if (u * u + v * v > R * R) continue;
+        const px = x + u, py = y + v;
+        if (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py) || onMask(paper, M.road, px, py)) return false;
+      }
+      return true;
+    };
+    if (canopies && area >= 1200 && canopyR >= 10 && hash(k0, k1, B.set.seed, 12400) < 0.8 && shows(B.cam, LOD.canopy, canopyR) && room(canopyR + 1)) {
       solids.push(energyCanopy(B, x, y, canopyR), ...publicRoom(B, paper, M, outer, r));
       // Mosaic paving round it: rays from under the rim out across the square, a clear centre.
       if (shows(B.cam, LOD.pergola)) {

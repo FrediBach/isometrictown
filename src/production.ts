@@ -10,6 +10,7 @@ import type { Building, Shape, Town } from './tiles';
 /** A property's reserved productive structures, planned in local metres before drawing. */
 export type Production = {
   wing?: Rect;
+  wind?: Rect;
   garden?: Rect;
   cistern?: Rect;
   /** A point on the back wall supplying the cistern. */
@@ -102,6 +103,7 @@ export function planProduction(town: Town, set: Settings): ProductionStats {
   for (const w of [...town.nearby.ways, ...(context?.runways ?? town.runways)]) corridor(ground, w.pts, Math.max(w.width / 2, 1) + 1);
   for (const w of context?.streams ?? town.streams) corridor(ground, w.pts, w.width / 2 + 2);
   const parcels = town.nearby.landuse.filter((a) => a.cls === 'residential').map((a) => a.shape);
+  const skyline = town.buildings.map((b) => ({ b, box: bounds(b.shape[0].pts) }));
   const candidates: { b: Building; r: Rect; tank: boolean; inlet: [number, number] }[] = [];
   for (const b of town.buildings) {
     const f = b.future, i = b.info;
@@ -115,6 +117,21 @@ export function planProduction(town: Town, set: Settings): ProductionStats {
       // The wing shelters most of the terrace, leaving a strip for gardens and plant rooms.
       const wing = { ...r, cx: r.cx + r.uy * r.w * 0.12, cy: r.cy - r.ux * r.w * 0.12, L: Math.min(24, r.L - 3), w: Math.min(12, r.w * 0.65 - 1.5) };
       if (wing.L >= 6 && wing.w >= 4 && fits(wing, b.shape)) { f.production.wing = wing; if (visible) stats.wings++; }
+    }
+    // Reserve the complete rotor sweep and service frame, not just the mast footing.
+    // A nearby taller building shelters the roof; context neighbours count as well.
+    if (i.roof === 'flat' && f.roofPv && !f.pavilion && !f.marketHall && !i.hospital && b.h >= 6 && b.h <= 60 && b.min === 0) {
+      const wing = f.production.wing;
+      const occupied = wing ? corners({ ...wing, L: wing.L + 2, w: wing.w + 2 }) : null;
+      for (const [u, v] of [[r.L / 2 - 4, 0], [-r.L / 2 + 4, 0], [0, r.w / 2 - 4], [0, -r.w / 2 + 4], [0, 0]]) {
+        const wind = { ...r, cx: r.cx + r.ux * u - r.uy * v, cy: r.cy + r.uy * u + r.ux * v, L: 6, w: 6 };
+        if (!fits(wind, b.shape) || (occupied && overlaps(corners(wind), occupied))) continue;
+        const sheltered = skyline.some(({ b: other, box }) => {
+          if (other === b || other.h * set.heightScale <= b.h * set.heightScale + 3) return false;
+          return Math.hypot(Math.max(box[0] - wind.cx, 0, wind.cx - box[2]), Math.max(box[1] - wind.cy, 0, wind.cy - box[3])) < 24;
+        });
+        if (!sheltered) { f.production.wind = wind; break; }
+      }
     }
     if (!set.ground || !['B01', 'B02'].includes(f.recipe) || !i.toStreet || b.min > 0 || fill < 0.8 || b.shape[0].seam.some(Boolean)) continue;
     if (visible) stats.homes++;
@@ -167,6 +184,44 @@ export function planProduction(town: Town, set: Settings): ProductionStats {
 export function productionFoot(b: Building): number[] | null {
   const p = b.future?.production, r = p?.garden ?? p?.cistern;
   return r ? corners(r) : null;
+}
+
+/** Roof space kept clear of plant rooms, panels and planting even when detail fades out. */
+export function productionRoof(b: Building): number[][] {
+  const p = b.future?.production;
+  return [p?.wing, p?.wind].filter((r): r is Rect => !!r).map((r) => corners({ ...r, L: r.L + 1.2, w: r.w + 1.2 }));
+}
+
+/** An eight-metre rooftop wind assembly: braced frame, generator and two curved rotor blades. */
+export function roofWind(B: Build, r: Rect, z: number, out: Solid): void {
+  if (!shows(B.cam, LOD.roofWind, 8)) return;
+  const P = (u: number, v: number, h: number) => [r.cx + r.ux * u - r.uy * v, r.cy + r.uy * u + r.ux * v, z + h];
+  const line = (a: number[], b: number[]) => out.lines.push({ pen: LINEWORK, pts: [...a, ...b] });
+  for (const u of [-1.8, 1.8]) for (const v of [-1.8, 1.8]) line(P(u, v, 0), P(u * 0.45, v * 0.45, 2));
+  const deck = [P(-1, -1, 2), P(1, -1, 2), P(1, 1, 2), P(-1, 1, 2)].flat();
+  out.faces.push([deck]);
+  out.lines.push({ pen: LINEWORK, pts: deck, closed: true });
+  line(P(0, 0, 2), P(0, 0, 8));
+  // A pair of bowed, twisting blades gives the machine a recognisable silhouette without mesh hatching.
+  for (const phase of [0, Math.PI]) {
+    const left: number[][] = [], right: number[][] = [];
+    for (let j = 0; j <= 10; j++) {
+      const t = j / 10, a = phase + t * Math.PI * 0.65;
+      const radius = 0.55 + 1.65 * Math.sin(t * Math.PI);
+      left.push(P(Math.cos(a) * radius - Math.sin(a) * 0.22, Math.sin(a) * radius + Math.cos(a) * 0.22, 2.8 + t * 4.8));
+      right.push(P(Math.cos(a) * radius + Math.sin(a) * 0.22, Math.sin(a) * radius - Math.cos(a) * 0.22, 2.8 + t * 4.8));
+      if (j) out.faces.push([[...left[j - 1], ...right[j - 1], ...right[j], ...left[j]]]);
+    }
+    if (shows(B.cam, LOD.productionFrame, 0.44)) out.lines.push({ pen: LINEWORK, pts: [...left.flat(), ...right.reverse().flat()], closed: true });
+    else out.lines.push({ pen: LINEWORK, pts: left.flat() });
+    line(P(0, 0, 2.8), left[0]); line(P(0, 0, 7.6), left[10]);
+  }
+  if (shows(B.cam, LOD.productionFrame, 2.5)) {
+    for (const v of [-1.8, 1.8]) line(P(-1.8, v, 0), P(0.81, v * 0.45, 2));
+    const generator = [P(-0.45, -0.45, 2.05), P(0.45, -0.45, 2.05), P(0.45, -0.45, 2.7), P(-0.45, -0.45, 2.7)].flat();
+    out.faces.push([generator]); out.lines.push({ pen: LINEWORK, pts: generator, closed: true });
+  }
+  out.casts.push({ ring: corners({ ...r, L: 1, w: 1 }), h: z + 8 });
 }
 
 /** A supported solar wing, three metres above a roof, with a clear terrace underneath. */

@@ -14,7 +14,7 @@ import type { Pitched } from './roofs';
 import { deeper, GREENERY, LINEWORK, ROOFS, SHADOWS } from './settings';
 import { bestRect, type Part, type Rect } from './shape';
 import type { Building, Town } from './tiles';
-import { solarWing } from './production';
+import { roofWind, solarWing } from './production';
 
 /*
  * Solarpunk roofs (docs/solarpunk/implementation-plan.md §7.1): coherent panel groups on the
@@ -167,6 +167,11 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
   if (plan.production?.wing) {
     const s = newSolid();
     tagLines(B, 'solar', s, () => solarWing(B, plan.production!.wing!, z, s), 'solar-wing');
+    if (s.lines.length) out.push(s);
+  }
+  if (plan.production?.wind) {
+    const s = newSolid();
+    tagLines(B, 'solar', s, () => roofWind(B, plan.production!.wind!, z, s), 'roof-wind');
     if (s.lines.length) out.push(s);
   }
   if (plan.pavilion) {
@@ -702,34 +707,38 @@ export function energyCanopy(B: Build, x: number, y: number, R: number): Solid {
   const s = newSolid();
   tagLines(B, undefined, s, () => {
     // High enough that the trunk and branches show under the front of the rim, from any tilt drawn.
-    const z0 = 6.5;
-    const z1 = 10;
-    const z2 = 11.5;
+    const z0 = 6 + R * 0.08;
+    const z1 = 8 + R * 0.18;
+    const z2 = 10 + R * 0.22;
     const n = 12;
-    const inner = R * 0.5;
+    const inner = R * 0.38;
     const at = (a: number, r: number, z: number) => [x + Math.cos(a) * r, y + Math.sin(a) * r, z];
     // Trunk, then six branches, each forking in two under the panel ring.
     s.lines.push({ pen: LINEWORK, pts: [x - 0.3, y, 0, x - 0.3, y, z0] }, { pen: LINEWORK, pts: [x + 0.3, y, 0, x + 0.3, y, z0] });
     for (let k = 0; k < 6; k++) {
       const a = (k / 6) * Math.PI * 2;
       const mid = at(a, inner * 0.7, z1 - 0.6);
+      // Broad roofs share the load between six branching perimeter columns.
+      if (R >= 12) {
+        s.lines.push({ pen: LINEWORK, pts: [...at(a, inner * 0.7, 0), ...mid] });
+        const [cx, cy] = mid;
+        s.casts.push({ ring: [cx - 0.25, cy - 0.25, cx + 0.25, cy - 0.25, cx + 0.25, cy + 0.25, cx - 0.25, cy + 0.25], h: z1 - 0.6 });
+      }
       s.lines.push({ pen: LINEWORK, pts: [x, y, z0, ...mid] });
       for (const d of [-1, 1]) s.lines.push({ pen: LINEWORK, pts: [...mid, ...at(a + (d * Math.PI) / n, R * 0.8, z2 - 0.5)] });
     }
-    // Panel sectors: an inner ring of six, an outer ring of twelve, sloping gently up to the rim.
-    for (let k = 0; k < 6; k++) {
-      const a0 = (k / 6) * Math.PI * 2;
-      const a1 = ((k + 1) / 6) * Math.PI * 2;
-      panel(B, s, [at(a0, inner, z1 + 0.3), at(a1, inner, z1 + 0.3), at(a1, 1.2, z1), at(a0, 1.2, z1)], inner);
-    }
+    // An open central skylight reveals the branches. Chordwise tone keeps the sectors
+    // readable without converging into a dense star at the centre.
     for (let k = 0; k < n; k++) {
       const a0 = (k / n) * Math.PI * 2;
       const a1 = ((k + 1) / n) * Math.PI * 2;
-      panel(B, s, [at(a0, R, z2), at(a1, R, z2), at(a1, inner, z1 + 0.3), at(a0, inner, z1 + 0.3)], R - inner);
+      panel(B, s, [at(a0, R, z2), at(a0, inner, z1 + 0.3), at(a1, inner, z1 + 0.3), at(a1, R, z2)], R - inner);
     }
     const rim: number[] = [];
     for (let k = 0; k < n; k++) rim.push(...at((k / n) * Math.PI * 2, R, z2));
-    s.shade = [[rim]];
+    const opening: number[] = [];
+    for (let k = n - 1; k >= 0; k--) opening.push(...at((k / n) * Math.PI * 2, inner, z1 + 0.3));
+    s.shade = [[rim, opening]];
     const foot: number[] = [];
     for (let k = 0; k < 8; k++) foot.push(...at((k / 8) * Math.PI * 2, 0.4, 0).slice(0, 2));
     s.casts.push({ ring: foot, h: z0 });

@@ -2,9 +2,13 @@ import { describe, expect, test } from 'vitest';
 import type { Build } from '@/buildings';
 import { Camera } from '@/camera';
 import type { Info } from '@/classify';
-import { fits, overlaps, planProduction, productiveGardens, solarWing } from '@/production';
+import { fits, overlaps, planProduction, productiveGardens, productionRoof, roofWind, solarWing } from '@/production';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { corners, type Rect } from '@/shape';
+import { hash } from '@/rng';
+import { Paper } from '@/raster';
+import type { Masks } from '@/nature';
+import { squares } from '@/sites';
 import { STYLES } from '@/styles';
 import type { Building, Shape, Town } from '@/tiles';
 
@@ -33,6 +37,51 @@ describe('productive property geometry', () => {
     expect(overlaps(corners(r), corners(rect(20, 0, 1, 1)))).toBe(false);
     const concave = [{ pts: [-6, -6, 6, -6, 6, 6, 1, 6, 1, 0, -1, 0, -1, 6, -6, 6], seam: new Uint8Array(8) }];
     expect(fits(r, concave)).toBe(false);
+  });
+  test('public solar roofs grow by depth and reject enclosed holes and obstacles', () => {
+    const a = setup(0, { scale: 1000, seed: 1 });
+    while (hash(0, 0, a.set.seed, 12400) >= 0.8) a.set.seed++;
+    a.town.buildings = []; a.town.plazas = [shape(rect(0, 0, 90, 90))];
+    const paper = new Paper(a.B.cam);
+    const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title', 'strip'].map((k) => [k, paper.mask()])) as Masks;
+    const canopy = () => squares(a.B, paper, a.town, M).solids.flatMap((s) => s.lines.filter((l) => l.facet === 'energy-canopy'));
+    const width = () => Math.max(...canopy().flatMap((l) => l.pts.filter((_, i) => i % 3 === 0))) * 2;
+    expect(width()).toBe(50);
+    a.set.depth = 'visionary'; expect(width()).toBe(64);
+    a.town.plazas[0].push(...shape(rect(10, 10, 1, 1))); expect(canopy()).toHaveLength(0);
+    a.town.plazas[0].pop();
+    a.town.buildings.push({ shape: shape(rect(10, 10, 1, 1)), h: 3, min: 0 }); expect(canopy()).toHaveLength(0);
+    a.town.buildings = []; a.set.depth = 'retrofit'; expect(canopy()).toHaveLength(0);
+  });
+  test('wind reserves its complete sweep beside a solar wing, independent of view and order', () => {
+    for (const dx of [0, 47]) {
+      const a = setup(dx, { scale: dx ? 4000 : 1000, bearing: dx ? 180 : 30 });
+      a.b.shape = shape(rect(-dx, 0, 42, 24)); a.b.info!.roof = 'flat';
+      planProduction(a.town, a.set);
+      const p = a.b.future!.production!;
+      expect(p.wind).toBeDefined(); expect(p.wing).toBeDefined();
+      expect(p.wind!.cx + dx).toBe(17);
+      expect(fits(p.wind!, a.b.shape)).toBe(true);
+      const reserved = productionRoof(a.b);
+      expect(reserved).toHaveLength(2);
+      expect(overlaps(reserved[0], reserved[1])).toBe(false);
+      const out = { faces: [], lines: [], casts: [] } as Parameters<typeof roofWind>[3];
+      roofWind(a.B, p.wind!, 8, out);
+      expect(out.faces.length).toBeGreaterThan(10);
+      expect(out.lines.every((l) => l.pts.every(Number.isFinite))).toBe(true);
+      expect(Math.max(...out.lines.flatMap((l) => l.pts.filter((_, i) => i % 3 === 2)))).toBe(16);
+    }
+  });
+  test('wind rejects sheltered roofs, holes, hospitals and earlier depths', () => {
+    for (const obstacle of ['neighbour', 'hole', 'hospital', 'retrofit'] as const) {
+      const a = setup(); a.b.shape = shape(rect(0, 0, 42, 24)); a.b.info!.roof = 'flat';
+      if (obstacle === 'neighbour') a.town.buildings.unshift({ shape: shape(rect(0, 20, 70, 8)), h: 40, min: 0, context: true });
+      if (obstacle === 'hole') a.b.shape.push(...shape(rect(0, 0, 40, 22)));
+      if (obstacle === 'hospital') a.b.info!.hospital = true;
+      if (obstacle === 'retrofit') a.set.depth = 'retrofit';
+      planProduction(a.town, a.set);
+      expect(a.b.future!.production?.wind).toBeUndefined();
+    }
   });
   test('reserves a full productive garden and a connected cistern', () => {
     const { town, set, b, B } = setup();
