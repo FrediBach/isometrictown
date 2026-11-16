@@ -7,10 +7,8 @@ import { hash } from './rng';
 import { dome } from './roofs';
 import { pergola, stall } from './additions';
 import { showpiece } from './future';
-import { deeper, GREENERY, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
-import { energyCanopy } from './solar';
-import { fits, overlaps } from './production';
-import { corners } from './shape';
+import { GREENERY, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
+import { squareKey, type PublicRoof } from './public-energy';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
@@ -671,14 +669,12 @@ export function quarries(_B: Build, paper: Paper, town: Town, M: Masks): Extra {
 // ---------------------------------------------------------------- Squares
 
 /** A fountain or a statue in the middle of each town square big enough to hold one. */
-export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+export function squares(B: Build, paper: Paper, town: Town, M: Masks, roofs: PublicRoof[] = []): Extra {
   const solids: Solid[] = [];
   const lines: { pen: number; pts: number[] }[] = [];
-  const mosaic: number[][] = [];
   // Fountains and statues fade out at coarse scales; an energy canopy is big enough to stay.
   const small = shows(B.cam, LOD.fountain);
-  const canopies = !!B.future && deeper(B.set, 'transform');
-  if (!small && !canopies) return { solids, draw: () => {} };
+  if (!small && !roofs.length) return { solids, draw: () => {} };
   for (const sq of town.plazas) {
     const outer = sq[0].pts;
     const area = Math.abs(ringArea(outer));
@@ -690,42 +686,11 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const [k0, k1] = B.key(r.cx, r.cy);
     const h = (k: number) => hash(k0, k1, B.set.seed, 760 + k);
     const { cx: x, cy: y } = r;
-    if (onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) continue;
-    // From depth Transform a few big squares get a solar tree in place of their fountain or statue.
-    const canopyR = Math.min(deeper(B.set, 'visionary') ? 32 : 25, r.w * 0.4, r.L * 0.4);
-    // The whole canopy stands inside the square, clear of buildings, water and trees' footing alike.
-    const room = (R: number) => {
-      const envelope = { ...r, L: R * 2, w: R * 2 };
-      if (!fits(envelope, sq) || town.buildings.some((b) => overlaps(corners(envelope), b.shape[0].pts))) return false;
-      // Check the full area, including existing tree footings and small obstacles inside the rim.
-      for (let u = -R; u <= R; u += 2) for (let v = -R; v <= R; v += 2) {
-        if (u * u + v * v > R * R) continue;
-        const px = x + u, py = y + v;
-        if (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py) || onMask(paper, M.road, px, py)) return false;
-      }
-      return true;
-    };
-    if (canopies && area >= 1200 && canopyR >= 10 && hash(k0, k1, B.set.seed, 12400) < 0.8 && shows(B.cam, LOD.canopy, canopyR) && room(canopyR + 1)) {
-      solids.push(energyCanopy(B, x, y, canopyR), ...publicRoom(B, paper, M, outer, r));
-      // Mosaic paving round it: rays from under the rim out across the square, a clear centre.
-      if (shows(B.cam, LOD.pergola)) {
-        for (let q = 0; q < 32; q++) {
-          const a = (q / 32) * Math.PI * 2;
-          const r0 = canopyR * (q % 2 ? 1.15 : 0.6);
-          const r1 = canopyR * 1.7;
-          const pts: number[] = [];
-          for (let t = r0; t <= r1 + 1e-6; t += 0.5) {
-            const px = x + Math.cos(a) * t;
-            const py = y + Math.sin(a) * t;
-            if (!pointInRing(px, py, outer)) break;
-            pts.push(px, py, 0);
-          }
-          if (pts.length >= 6) mosaic.push(pts);
-        }
-      }
+    if (roofs.some((roof) => roof.key === squareKey(B, r))) {
+      solids.push(...publicRoom(B, paper, M, outer, r));
       continue;
     }
-    if (!small) continue;
+    if (!small || onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) continue;
     const s = newSolid();
     if (h(0) < 0.6) {
       // A round basin, a column carrying a bowl, and water falling from it.
@@ -762,8 +727,6 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     solids,
     draw: (paper) => {
       lines.forEach((l) => paper.line3(l.pen, l.pts));
-      const test = (sx: number, sy: number, d: number) => !paper.on(M.foot, sx, sy) && !paper.on(M.water, sx, sy) && paper.seen(sx, sy, d);
-      if (mosaic.length) paper.facet('mosaic', () => mosaic.forEach((m) => paper.line3(LINEWORK, m, test)));
     },
   };
 }

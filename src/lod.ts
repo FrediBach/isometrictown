@@ -56,6 +56,8 @@ export const LOD = {
   greenRoof: { m: 14, mm: 6, what: 'Low planting on flat roofs: square root of the roof area' },
   cycle: { m: 1.8, mm: 2.4, what: 'Bicycles and cargo bikes, with their riders: length. From the scale people show at' },
   rackBikes: { m: 0.75, mm: 1.1, what: 'Bicycles parked side by side in racks: their spacing. Closer, the rack stands empty' },
+  publicRoofRibs: { m: 4, mm: 1.6, what: 'Branching public roofs: spacing of ribs around the skylight' },
+  publicRoof: { m: 20, mm: 2.5, what: 'Public solar roofs: shorter overall span' },
   canopy: { m: 5, mm: 1.5, what: 'Solar canopies over parking rows: depth' },
   kerbGarden: { m: 2, mm: 1.1, what: 'Rain gardens and tree pits in kerb extensions: width' },
   charger: { m: 0.6, mm: 0.5, what: 'Charging posts: width' },

@@ -41,6 +41,10 @@ export type PowerContext = { land: Shape[]; water: Shape[]; buildings: Shape[]; 
 
 export type Town = {
   powerContext?: PowerContext;
+  /** Pedestrian polygons in raw tiles, distinct from runways, piers and vehicle surfaces. */
+  publicSquares?: Shape[];
+  /** Complete ordinary-tile context for public energy roofs. */
+  publicContext?: { squares: Shape[]; obstacles: Shape[]; buildings: Shape[]; ways: Way[]; streams: Stream[] };
   /** Tile green polygons and protected areas excluding explicitly mapped meadows; used during assembly. */
   windGreen?: Shape[];
   /** Ordinary loaded-tile context for wind sites, independent of the power-line context fetch. */
@@ -241,7 +245,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 }
 
 function empty(): Town {
-  return { windGreen: [], buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], culverts: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
+  return { publicSquares: [], windGreen: [], buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], culverts: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -446,7 +450,11 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
     const bridge = p.brunnel === 'bridge' || cls === 'pier' || undefined;
     if (f.type === 3) {
       if (cls === 'bridge' || tunnel) return;
-      for (const s of polygons(f, ext)) town.plazas.push(scaleShape(s, ext));
+      for (const s of polygons(f, ext)) {
+        const shape = scaleShape(s, ext);
+        town.plazas.push(shape);
+        if (!bridge && p.subclass !== 'pier' && (cls === 'path' || cls === 'pedestrian' || p.subclass === 'pedestrian' || p.subclass === 'footway')) town.publicSquares?.push(shape);
+      }
       return;
     }
     if (f.type !== 2) return;
@@ -602,6 +610,8 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   town.productionContext = production;
   const wind: NonNullable<Town['windContext']> = { land: [], obstacles: [], buildings: [], ways: [], streams: [] };
   town.windContext = wind;
+  const publicSpace: NonNullable<Town['publicContext']> = { squares: [], obstacles: [], buildings: [], ways: [], streams: [] };
+  town.publicContext = publicSpace;
   const powerShape = (s: Shape): Shape => s.map((r) => ({ pts: r.pts.map((v, i) => i % 2 ? frame.y(v) : frame.x(v)), seam: r.seam }));
   const powerPoints = (p: number[]) => p.map((v, i) => i % 2 ? frame.y(v) : frame.x(v));
   for (const t of [...tiles, ...context]) {
@@ -619,6 +629,12 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     }
   }
   for (const t of tiles) {
+    publicSpace.squares.push(...(t.publicSquares ?? []).map(powerShape));
+    publicSpace.obstacles.push(...[...t.water, ...t.pools, ...t.wood, ...t.green, ...t.aprons,
+      ...t.plazas.filter((s) => !t.publicSquares?.includes(s))].map(powerShape));
+    publicSpace.buildings.push(...t.buildings.map((b) => powerShape(b.shape)));
+    publicSpace.ways.push(...[...t.ways, ...t.runways].map((w) => ({ ...w, pts: powerPoints(w.pts) })));
+    publicSpace.streams.push(...t.streams.map((w) => ({ ...w, pts: powerPoints(w.pts) })));
     wind.land.push(...[...t.landuse, ...t.cover].map((a) => ({ cls: a.cls, sub: a.sub, shape: powerShape(a.shape) })));
     wind.obstacles.push(...[...t.water, ...t.pools, ...t.wood, ...(t.windGreen ?? t.green), ...t.plazas, ...t.aprons,
       ...t.cover.filter((a) => !['farmland', 'farmyard', 'industrial'].includes(a.cls) && !(a.cls === 'meadow' && a.sub === 'meadow')).map((a) => a.shape)].map(powerShape));

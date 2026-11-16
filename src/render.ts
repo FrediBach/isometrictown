@@ -3,6 +3,7 @@ import { classify } from './classify';
 import { pocketCommons, coreMarkets, cycleRacks, kerbGardens, kerbTrees, lotCommons, medians, medianTrees, rainTanks } from './commons';
 import { planFuture, type ClimateId } from './future';
 import { canopyTrees } from './canopy';
+import { planPublicEnergy, publicEnergy, underPublicRoof } from './public-energy';
 import { corners } from './shape';
 import { planProduction, productionFoot, productiveGardens, type ProductionStats } from './production';
 import { bankTrees, cycleTracks, groveTrees, lotTrees, stopFootprints, tramStops, reshapeTown, stripGrass, stripTrees } from './reshape';
@@ -136,6 +137,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   B.future = set.solarpunk ? planFuture(town, set, style.id, B.key, B.cell) : null;
   const production = B.future && deeper(set, 'transform') ? planProduction(town, set) : undefined;
   const wind = planWind(B, town);
+  const publicRoofs = planPublicEnergy(B, town);
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // From depth Transform, streets are reshaped before any mask is filled, so everything downstream follows.
@@ -259,6 +261,13 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     const foot = b.future?.eave !== undefined ? productionFoot(b) : null;
     if (foot) paper.fillMask(M.foot, [foot]);
   }
+  for (const roof of publicRoofs) {
+    for (const post of roof.posts) paper.fillMask(M.foot, [corners(post)]);
+    if (B.future && set.life) for (const sign of [-1, 1]) {
+      const r = roof.envelope, u = sign * r.L * 0.3;
+      B.future.gather.push([r.cx + r.ux * u, r.cy + r.uy * u, 4, 1.5, false]);
+    }
+  }
   for (const site of wind) paper.fillMask(M.foot, [corners(site.envelope)]);
   onStage({ stage: 'life', note: `${counts.buildings.toLocaleString('en')} buildings standing` });
   const box = cam.region(0);
@@ -282,7 +291,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       const sy = cam.sy(t.x, t.y, 0);
       return paper.on(M.wood, sx, sy) || (!!G && !G.inTown(t.x, t.y, sx, sy));
     });
-    return legibleTrees(B, list);
+    return legibleTrees(B, list.filter((t) => !underPublicRoof(publicRoofs, t.x, t.y, t.r)));
   });
   counts.trees = trees.length;
   const treeFacets = trees.map((t) => {
@@ -301,13 +310,14 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
   if (R) extras.push(extra('parks', 'pocket-commons', () => pocketCommons(B, paper, R, M, trees)), extra('life', 'core-markets', () => coreMarkets(B, paper, town, M, trees)), extra('streets', 'cycle-tracks', () => cycleTracks(B, paper, R, M)), extra('streets', 'tram-stops', () => tramStops(B, R)));
+  if (publicRoofs.length) extras.push(extra('solar', 'public-roofs', () => ({ solids: publicEnergy(B, publicRoofs), draw: () => {} })));
   if (wind.length) extras.push(extra('power', 'turbines', () => windTurbines(B, wind)));
   if (R && deeper(set, 'visionary')) {
     extras.push(extra('additions', 'bridges', () => gardenBridges(B, town)));
     if (G) extras.push(extra('solar', 'agrivoltaics', () => agrivoltaics(B, paper, G, M)));
   }
   if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('planting', 'medians', () => medians(B, paper, town)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('solar', 'forecourts', () => forecourtCanopies(B, paper, town, M, trees)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('additions', 'pergolas', () => yardPergolas(B, paper, town, M)), extra('planting', 'beds', () => gardenBeds(B, paper, town, G, M)), extra('parks', 'commons', () => parkCommons(B, paper, town, M, R?.paths)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
-  extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
+  extras.push(extra('streets', 'squares', () => squares(B, paper, town, M, publicRoofs)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.
   extras.push(extra('life', 'ships', () => ships(B, paper, town, M, toAbs, fromAbs)), extra('life', 'racing', () => racing(B, paper, town, M)), extra('cars', 'stations', () => stations(B, paper, town, M)));
   extras.push(extra('life', 'sailing', () => sailing(B, paper, town, M)), extra('markings', 'crossings', () => crossings(B, paper, town, M)), extra('life', 'people', () => people(B, paper, town, M)), extra('streets', 'motorways', () => motorways(B, paper, town, M)));

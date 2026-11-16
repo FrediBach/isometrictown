@@ -710,8 +710,8 @@ export function energyCanopy(B: Build, x: number, y: number, R: number): Solid {
     const z0 = 6 + R * 0.08;
     const z1 = 8 + R * 0.18;
     const z2 = 10 + R * 0.22;
-    const n = 12;
     const inner = R * 0.38;
+    const n = shows(B.cam, LOD.publicRoofRibs, Math.PI * inner / 6) ? 12 : 6;
     const at = (a: number, r: number, z: number) => [x + Math.cos(a) * r, y + Math.sin(a) * r, z];
     // Trunk, then six branches, each forking in two under the panel ring.
     s.lines.push({ pen: LINEWORK, pts: [x - 0.3, y, 0, x - 0.3, y, z0] }, { pen: LINEWORK, pts: [x + 0.3, y, 0, x + 0.3, y, z0] });
