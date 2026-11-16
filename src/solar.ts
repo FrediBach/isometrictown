@@ -10,7 +10,7 @@ import { pointInRing, ringArea } from './geo';
 import { LOD, shows, spaced } from './lod';
 import { hash } from './rng';
 import type { Pitched } from './roofs';
-import { GREENERY, LINEWORK, SHADOWS } from './settings';
+import { deeper, GREENERY, LINEWORK, SHADOWS } from './settings';
 import { bestRect, type Part, type Rect } from './shape';
 import type { Building, Town } from './tiles';
 
@@ -30,18 +30,51 @@ function standoff(B: Build): number {
 /** A panel quad from four 3D corners, its outline and, where they read, module divisions along its length. */
 function panel(B: Build, s: Solid, c: number[][], length: number): void {
   const quad = c.flat();
-  s.faces.push([quad]);
+  const face = [quad];
+  s.faces.push(face);
   s.lines.push({ pen: LINEWORK, pts: quad, closed: true });
-  // A sparse grid, every two modules, so panels read as glass and not as shadow hatching.
-  if (!shows(B.cam, LOD.pvGrid, 2.1)) return;
-  const step = spaced(B.cam, 2.1, 1.6);
+  // From depth Transform panels are a dark field of tone, so a roof that makes power reads at any scale.
+  const bold = deeper(B.set, 'transform');
+  if (bold) tone(B, s, c, face);
+  // A sparse grid, every two modules, so panels read as glass and not as shadow hatching; over tone, in the line pen.
+  // Over tone the grid needs more room, or the two close up into solid ink.
+  if (!shows(B.cam, LOD.pvGrid, bold ? 4.2 : 2.1)) return;
+  const step = spaced(B.cam, bold ? 4.2 : 2.1, 1.6);
   const n = Math.floor(length / step);
   // Divisions run across the panel, from the first edge (c0 → c1) to the opposite one (c3 → c2).
   for (let i = 1; i < n; i++) {
     const t = i / n;
     const a = c[0].map((v, j) => v + (c[1][j] - v) * t);
     const b = c[3].map((v, j) => v + (c[2][j] - v) * t);
-    s.lines.push({ pen: SHADOWS, pts: [...a, ...b] });
+    s.lines.push({ pen: bold ? LINEWORK : SHADOWS, pts: [...a, ...b] });
+  }
+}
+
+/** Spacing of the tone on panels, mm on paper before `cam.tone()`: a little more open than shaded walls, as panels come with outlines and a grid. */
+const PV_TONE_MM = 0.7;
+
+/**
+ * Tone hatching across a panel quad (corners c0 → c1 → c2 → c3), parallel to its c0 → c3 edge,
+ * spaced on paper and shown only where the panel's face is. Lines too short to read are left
+ * out, so a small panel stays a clean outline rather than a row of dots.
+ */
+function tone(B: Build, s: Solid, c: number[][], face: number[][]): void {
+  const { cam } = B;
+  const P = (p: number[]) => [cam.sx(p[0], p[1]), cam.sy(p[0], p[1], p[2])];
+  const [ax, ay] = P(c[0]);
+  const [bx, by] = P(c[1]);
+  const [dx, dy] = P(c[3]);
+  const lx = dx - ax;
+  const ly = dy - ay;
+  const ll = Math.hypot(lx, ly);
+  if (ll < cam.nib * 2) return;
+  const across = Math.abs((bx - ax) * ly - (by - ay) * lx) / ll;
+  const n = Math.floor(across / cam.tone(PV_TONE_MM));
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    const a = c[0].map((v, j) => v + (c[1][j] - v) * t);
+    const b = c[3].map((v, j) => v + (c[2][j] - v) * t);
+    s.lines.push({ pen: SHADOWS, pts: [...a, ...b], on: face });
   }
 }
 
@@ -65,8 +98,10 @@ function roofPanelLines(B: Build, info: Info, main: Part, P: Pitched, He: number
   if (blocked(side)) side = -side;
   if (blocked(side)) return;
   // Along the ridge: over the walls, clear of hips, verges and stacks on party walls.
-  let lo = Math.max(P.a0, -r.L / 2) + (party[3] ? (info.chimney ? 1.0 : 0.3) : 0.6);
-  let hi = Math.min(P.a1, r.L / 2) - (party[1] ? (info.chimney ? 1.0 : 0.3) : 0.6);
+  // From depth Transform, panels on a row run up to the party walls, so the row reads as one band.
+  const flush = deeper(B.set, 'transform') ? 0.05 : 0.3;
+  let lo = Math.max(P.a0, -r.L / 2) + (party[3] ? (info.chimney ? 1.0 : flush) : 0.6);
+  let hi = Math.min(P.a1, r.L / 2) - (party[1] ? (info.chimney ? 1.0 : flush) : 0.6);
   // Keep clear of a free-standing chimney on this slope, placed as roofDetailsLines places it.
   if (info.chimney && !party[1] && !party[3]) {
     const own = B.key(r.cx, r.cy);
@@ -129,11 +164,23 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
   if (!rect) return;
   const keepOff = taken.map((t) => grown(t, 0.6));
   const free = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts)) && !keepOff.some((t) => pointInRing(x, y, t));
+  // A roof garden shares the roof with the panels: they take one half along its length, the garden the other.
+  const along = (x: number, y: number) => (x - rect.cx) * rect.ux + (y - rect.cy) * rect.uy;
+  const split = !!plan.roofGarden && plan.roofPv;
   const arrays: number[][] = [];
   if (plan.roofPv) {
     const s: Solid = { faces: [], lines: [], casts: [] };
-    tagLines(B, 'solar', s, () => flatArrays(B, rect, z, free, arrays, s), 'pv-array');
+    const pv = split ? (x: number, y: number) => free(x, y) && along(x, y) < -0.8 : free;
+    tagLines(B, 'solar', s, () => flatArrays(B, rect, z, pv, arrays, s), 'pv-array');
     if (s.lines.length) out.push(s);
+  }
+  if (plan.roofGarden) {
+    const area = Math.abs(ringArea(outer));
+    if (shows(B.cam, LOD.greenRoof, Math.sqrt(area))) {
+      const s = out[0];
+      const garden = (x: number, y: number) => free(x, y) && (!split || along(x, y) > 0.8);
+      tagLines(B, 'planting', s, () => roofGarden(B, b, rect, z, roofFace, garden, s), 'roof-garden');
+    }
   }
   if (plan.greenRoof) {
     const area = Math.abs(ringArea(outer));
@@ -198,8 +245,10 @@ function flatArrays(B: Build, rect: Rect, z: number, free: (x: number, y: number
     if (!shows(B.cam, LOD.pvPatch, Math.min(u1 - u0, c1 - c0))) return;
     const q = quad(u0, u1, c0, c1);
     const pts = [0, 1, 2, 3].flatMap((k) => [q[k * 2], q[k * 2 + 1], z + 0.6]);
-    s.faces.push([pts]);
+    const face = [pts];
+    s.faces.push(face);
     s.lines.push({ pen: LINEWORK, pts, closed: true });
+    if (deeper(B.set, 'transform')) tone(B, s, [0, 1, 2, 3].map((k) => pts.slice(k * 3, k * 3 + 3)), face);
     return;
   }
   for (const [u0, u1, c] of rows) {
@@ -213,6 +262,103 @@ function flatArrays(B: Build, rect: Rect, z: number, free: (x: number, y: number
     // A short back leg at each end tells a tilted panel from a skylight.
     s.lines.push({ pen: LINEWORK, pts: [p0x, p0y, z, p0x, p0y, z + 1.0] }, { pen: LINEWORK, pts: [p1x, p1y, z, p1x, p1y, z + 1.0] });
   }
+}
+
+/**
+ * A roof garden: low planting hatched across the roof, planters along its edge and a few small
+ * trees in tubs. Everything is laid out from the roof's own rectangle and position, so it stays
+ * put on the map.
+ */
+function roofGarden(B: Build, b: Building, rect: Rect, z: number, roofFace: number[][], garden: (x: number, y: number) => boolean, s: Solid): void {
+  const { cam } = B;
+  const outer = b.shape[0].pts;
+  const inset = 0.9;
+  const ok = (x: number, y: number) => garden(x, y) && garden(x + inset, y) && garden(x - inset, y) && garden(x, y + inset) && garden(x, y - inset);
+  // Planting: lines across the roof at 45° to it, as dense as the planted strips of garden streets.
+  const dx = (rect.ux - rect.uy) / Math.SQRT2;
+  const dy = (rect.uy + rect.ux) / Math.SQRT2;
+  const gap = cam.gap(0.9) / cam.s;
+  const R = Math.hypot(rect.L, rect.w) / 2 + 1;
+  const step = 0.4;
+  for (let o = -R; o <= R; o += gap) {
+    const ox = rect.cx - dy * o;
+    const oy = rect.cy + dx * o;
+    let start: number | null = null;
+    const flush = (t: number) => {
+      if (start !== null && t - start > 0.6) s.lines.push({ pen: GREENERY, pts: [ox + dx * start, oy + dy * start, z, ox + dx * t, oy + dy * t, z], on: roofFace });
+      start = null;
+    };
+    for (let t = -R; t <= R; t += step) {
+      if (ok(ox + dx * t, oy + dy * t)) start ??= t;
+      else flush(t - step);
+    }
+    flush(R);
+  }
+  // Planters along the roof edge, where the garden reaches it: their top edge, a little inside the parapet line.
+  const n = outer.length / 2;
+  for (let e = 0; e < n; e++) {
+    const j = (e + 1) % n;
+    const ax = outer[e * 2];
+    const ay = outer[e * 2 + 1];
+    const ex = outer[j * 2] - ax;
+    const ey = outer[j * 2 + 1] - ay;
+    const len = Math.hypot(ex, ey);
+    if (len < 3) continue;
+    const ux = ex / len;
+    const uy = ey / len;
+    // Rings run counter-clockwise, so the roof is to the left.
+    const nx = -uy * 0.6;
+    const ny = ux * 0.6;
+    let start: number | null = null;
+    const flush = (t: number) => {
+      if (start !== null && t - start > 1.5) {
+        const p = (u: number, z1: number) => [ax + ux * u + nx, ay + uy * u + ny, z1];
+        s.lines.push({ pen: LINEWORK, pts: [...p(start, z + 0.45), ...p(t, z + 0.45)] }, { pen: LINEWORK, pts: [...p(start, z), ...p(start, z + 0.45)] }, { pen: LINEWORK, pts: [...p(t, z), ...p(t, z + 0.45)] });
+      }
+      start = null;
+    };
+    for (let u = 0.8; u <= len - 0.8; u += 0.5) {
+      if (garden(ax + ux * u + nx * 2, ay + uy * u + ny * 2)) start ??= u;
+      else flush(u - 0.5);
+    }
+    flush(len - 0.8);
+  }
+  // Small trees in tubs, on a 7 m grid fixed to the map.
+  if (!shows(cam, LOD.tree, 3)) return;
+  const [ox, oy] = B.toAbs(0, 0);
+  const metre = B.toAbs(1, 0)[0] - ox;
+  const cell = 7;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < outer.length; i += 2) {
+    x0 = Math.min(x0, outer[i]);
+    x1 = Math.max(x1, outer[i]);
+    y0 = Math.min(y0, outer[i + 1]);
+    y1 = Math.max(y1, outer[i + 1]);
+  }
+  const big = cell * metre;
+  for (let i = Math.floor((ox + x0 * metre) / big); i <= Math.ceil((ox + x1 * metre) / big); i++)
+    for (let j = Math.floor((oy + y0 * metre) / big); j <= Math.ceil((oy + y1 * metre) / big); j++) {
+      const r = (salt: number) => hash(i, j, B.seed, 12350 + salt);
+      if (r(0) > 0.45) continue;
+      const x = ((i + 0.25 + 0.5 * r(1)) * big - ox) / metre;
+      const y = ((j + 0.25 + 0.5 * r(2)) * big - oy) / metre;
+      const cr = 0.9 + r(3) * 0.6;
+      if (!ok(x, y) || !ok(x + cr, y) || !ok(x - cr, y)) continue;
+      const trunk = 1.2 + r(4) * 0.6;
+      // A crown facing the viewer, round on paper, and a tub at its foot.
+      const ring: number[] = [];
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        ring.push(x + cam.cb * Math.cos(a) * cr, y - cam.sb * Math.cos(a) * cr, z + trunk + (cr + Math.sin(a) * cr) / Math.max(0.3, cam.ca));
+      }
+      s.faces.push([ring]);
+      s.lines.push({ pen: GREENERY, pts: ring, closed: true }, { pen: GREENERY, pts: [x, y, z + 0.5, x, y, z + trunk] });
+      const t = 0.45;
+      s.lines.push({ pen: LINEWORK, pts: [x - cam.cb * t, y + cam.sb * t, z + 0.5, x + cam.cb * t, y - cam.sb * t, z + 0.5] });
+    }
 }
 
 /** Grass tufts in the roof's own symbol size, on a grid fixed to the map, shown only where the roof face is. */

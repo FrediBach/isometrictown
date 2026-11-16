@@ -4,7 +4,7 @@ import { pointInRing, ringArea } from './geo';
 import { bestRect } from './shape';
 import { LOD, shows } from './lod';
 import { hash } from './rng';
-import { seedFor, type Settings } from './settings';
+import { deeper, seedFor, type Settings } from './settings';
 import type { StyleId } from './styles';
 import type { Building, Town, Way } from './tiles';
 
@@ -82,6 +82,8 @@ export type Future = {
   roofPv: boolean;
   /** Low planting on a flat roof, around the panels and plant rooms. */
   greenRoof: boolean;
+  /** A roof garden over the part of a big, low flat roof the panels leave (depth Transform): planting, edge planters, small trees. */
+  roofGarden?: boolean;
   /** A rain tank by the back wall, fed by a downpipe. */
   tank: boolean;
   /** The one addition the building gets beside its roof, if any. */
@@ -153,6 +155,7 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
   const C = CLIMATES[climate];
   const f = Math.max(0, Math.min(1, set.future));
   const ground = new Obstacles(town);
+  const bold = deeper(set, 'transform');
   /** The best balcony frame in each 200 m cell, by its hash, becomes the district's wonder. */
   const wonders = new Map<string, [Building, number]>();
   for (const b of town.buildings) {
@@ -180,14 +183,21 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
     const pitched = i.roof === 'gabled' || i.roof === 'hipped' || i.roof === 'halfHipped' || i.roof === 'sawtooth';
     let roofPv = false;
     let greenRoof = false;
+    let roofGarden = false;
     if (!KEEP_ROOF.has(recipe) && recipe !== 'B22') {
-      const pv = recipe === 'B19' ? 0.6 + 0.35 * f : 0.4 + 0.5 * f;
+      // From depth Transform most roofs produce power: the roofscape should read as a power station.
+      const pv = recipe === 'B19' ? 0.6 + 0.35 * f : bold ? 0.7 + 0.25 * f : 0.4 + 0.5 * f;
       if (pitched || (flat && area > 120)) roofPv = (i.kind === 'terrace' ? row(1) : mine(1)) < pv;
       // Low planting on flat roofs where the climate suits it; on big roofs beside the panels.
       if (flat && area > 80 && (!roofPv || area > 500)) greenRoof = mine(2) < C.greenRoof * (0.4 + 0.6 * f);
+      // Roof gardens need a structural upgrade, plausible on big, low roofs only; heritage keeps its roof (KEEP_ROOF).
+      if (bold && flat && area > 400 && b.h <= 30 && recipe !== 'B19' && mine(4) < (0.35 + 0.5 * C.greenRoof) * (0.5 + f)) {
+        roofGarden = true;
+        greenRoof = false;
+      }
     }
     const tank = (recipe === 'B01' || recipe === 'B02') && mine(3) < C.tanks * (0.3 + 0.6 * f);
-    b.future = { recipe, roofPv, greenRoof, tank };
+    b.future = { recipe, roofPv, greenRoof, tank, ...(roofGarden ? { roofGarden } : {}) };
     const add = addition(b, recipe, ground, C, (salt) => (i.kind === 'terrace' ? row(salt) : mine(salt)), f);
     if (add) {
       b.future.addition = add[0];
