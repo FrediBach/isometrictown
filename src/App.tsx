@@ -212,7 +212,7 @@ export function App() {
       </aside>
 
       <main className={cn('grid min-h-0 min-w-0 bg-stage', full ? 'grid-rows-[auto_1fr]' : 'grid-rows-[auto_1fr_auto] max-[900px]:grid-rows-[auto_70vh_auto]')}>
-        <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} onCatalogue={openCatalogue} />
+        <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} onCatalogue={openCatalogue} future={set.solarpunk} onFuture={(on) => change('solarpunk', on)} />
         <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} />
         {!full && <Stats result={result} onPlot={openPlot} />}
       </main>

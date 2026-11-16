@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { Camera } from './camera';
+import type { ClimateId } from './future';
 import { Frame } from './geo';
 import { pathData, plan, toSvg, type PlotStats } from './plot';
 import { pickAt, reachHeight, render, type Census, type Counts, type Picks } from './render';
@@ -23,7 +24,7 @@ export type Reply =
   | { id: number; kind: 'picked'; key: string | null }
   | ({ id: number; kind: 'strokes' } & Strokes)
   | ({ id: number; kind: 'progress' } & StageProgress)
-  | { id: number; kind: 'done'; svg: string; stats: PlotStats; counts: Counts; census: Census; features: Features; region: Region; ms: number }
+  | { id: number; kind: 'done'; svg: string; stats: PlotStats; counts: Counts; census: Census; features: Features; region: Region; climate?: ClimateId; ms: number }
   | { id: number; kind: 'error'; text: string; tooBig: boolean };
 
 /** How long to wait for OSM tags once the map tiles are in. */
@@ -117,7 +118,7 @@ self.onmessage = async (e: MessageEvent<Job>) => {
     const svg = toSvg(planned.pens, set, cam.sheet);
     picks = drawing.picks;
     tally = filed;
-    post({ id, kind: 'done', svg, stats: planned.stats, counts: drawing.counts, census: drawing.census, features: features(filed), region, ms: performance.now() - t1 });
+    post({ id, kind: 'done', svg, stats: planned.stats, counts: drawing.counts, census: drawing.census, features: features(filed), region, climate: drawing.climate, ms: performance.now() - t1 });
   } catch (err) {
     post({ id, kind: 'error', text: err instanceof Error ? err.message : String(err), tooBig: err instanceof TooBigError });
   }

@@ -47,6 +47,15 @@ export const LOD = {
   flag: { m: 1.5, mm: 0.75, what: 'Flags on landmarks: cloth' },
   helipad: { m: 10, mm: 3, what: 'Helipads on hospital roofs' },
 
+  // Solarpunk
+  futureTwo: { m: 12, mm: 4, what: 'Solarpunk buildings showing a supporting change beside the main one: square root of the footprint' },
+  futureDetail: { m: 20, mm: 14, what: 'Solarpunk buildings showing close-scale fittings and life: square root of the footprint' },
+  pvPatch: { m: 4, mm: 1.5, what: 'Solarpunk solar panel groups: the shorter side (rows on flat roofs: their length)' },
+  pvGrid: { m: 2.1, mm: 1.6, what: 'Divisions in solarpunk solar panels, every two modules: their spacing' },
+  pvRows: { m: 3.4, mm: 2.2, what: 'Solarpunk panel rows on flat roofs told apart: row spacing. Closer, the rows become one outlined patch' },
+  greenRoof: { m: 14, mm: 6, what: 'Low planting on flat roofs: square root of the roof area' },
+  rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },
+
   // Shadows and trees
   shadow: { m: 5, mm: 0.9, what: 'Cast shadows: length on the ground' },
   tree: { m: 5, mm: 1.1, what: 'Tree crowns: diameter. Smaller ones are drawn bigger, then thinned out' },

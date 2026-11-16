@@ -9,6 +9,7 @@ import type { RenderResult } from '../app/renderer';
 import { FORMAT, isDefault, MONO_INK, PRESETS, type BoolKey } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
+import { CLIMATE_IDS, CLIMATES, climateOf } from '../future';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
 import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
@@ -123,6 +124,24 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
           <BoolSetting key={k} name={k} label={label} />
         ))}
       </KeyGrid>
+      <Caption className="mt-4">Solarpunk</Caption>
+      <Select value={set.climate} onValueChange={(v) => change('climate', v as Settings['climate'])}>
+        <SelectTrigger aria-label="Solarpunk climate" className="mb-1 h-9 w-full rounded-md bg-card">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="rounded-md">
+          <SelectItem value="auto" className="rounded-[4px]">
+            {region ? `Auto: ${CLIMATES[climateOf(set.style === 'auto' ? region.style : set.style, set.center)].label}` : 'Auto, from the region'}
+          </SelectItem>
+          {CLIMATE_IDS.map((id) => (
+            <SelectItem key={id} value={id} className="rounded-[4px]">
+              {CLIMATES[id].label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Hint>The climate the future is designed for: shade, planting, water and roofs follow it. Switch Solarpunk on above the drawing.</Hint>
+      <NumberSetting name="future" label="Intensity" min={0} max={1} step={0.01} hint="How many places take an optional change. It never adds things where they don’t fit." />
     </FoldingSection>
   );
 }

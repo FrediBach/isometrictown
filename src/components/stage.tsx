@@ -24,9 +24,12 @@ type ToolbarProps = {
   onDownload: () => void;
   onAbout: () => void;
   onCatalogue: () => void;
+  /** Solarpunk mode: the same place drawn as a possible future. */
+  future: boolean;
+  onFuture: (on: boolean) => void;
 };
 
-export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout, onCatalogue }: ToolbarProps) {
+export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout, onCatalogue, future, onFuture }: ToolbarProps) {
   return (
     <div className="dark flex h-14 items-center gap-4 border-b border-black/40 bg-background px-[18px] text-foreground max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:px-4 max-[900px]:py-2.5">
       <div className="flex items-center gap-3">
@@ -53,6 +56,16 @@ export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDow
         >
           {full ? <Minimize2Icon /> : <Maximize2Icon />}
         </Button>
+        <Segmented
+          aria-label="Time"
+          value={future ? 'solarpunk' : 'today'}
+          onValueChange={(v) => onFuture(v === 'solarpunk')}
+          className="h-8"
+          items={[
+            { value: 'today', label: 'Today' },
+            { value: 'solarpunk', label: 'Solarpunk' },
+          ]}
+        />
       </div>
       <span role="status" className={cn('readout flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground', status.state === 'error' && 'text-destructive')}>
         <span

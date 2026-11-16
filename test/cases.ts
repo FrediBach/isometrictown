@@ -50,7 +50,15 @@ export const CASES: Case[] = [
     what: 'Portrait sheet, steep tilt, shaded walls, forced Nordic style, another seed',
     set: at('Mollis', MOLLIS, 0, 1200, { sheet: 'a4', landscape: false, tilt: 50, shadeWalls: true, autoSun: false, sunAngle: 140, sunHeight: 25, heightScale: 1.5, style: 'nordic', seed: 7 }),
   },
+  // Solarpunk mode on places already recorded: the same map data, drawn as a possible future.
+  { id: 'mollis-solarpunk', what: 'Solarpunk village: panels on pitched roofs, rain tanks, a mountain climate', set: at('Mollis', MOLLIS, 35, 1000, { solarpunk: true }) },
+  { id: 'amsterdam-solarpunk', what: 'Solarpunk canal city: gabled fronts kept, panels on the rows behind them', set: at('Amsterdam', [4.8862, 52.3727], 35, 1000, { solarpunk: true }) },
+  { id: 'midtown-solarpunk', what: 'Solarpunk towers: rows of panels and green roofs on flat tops', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true }) },
+  { id: 'emmental-solarpunk', what: 'Solarpunk farmland at a coarse scale: barn roofs must not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true }) },
 ];
+
+/** The base for switching solarpunk mode off: the village with it on. */
+export const SOLARPUNK_BASE: Settings = at('Mollis', MOLLIS, 35, 1000, { solarpunk: true });
 
 /**
  * The bases for switching settings off one at a time: the village with its title on has

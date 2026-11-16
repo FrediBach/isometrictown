@@ -30,13 +30,14 @@ These are small and exact, for the parts that are pure functions.
 | `grbl.test.ts` | The GRBL streamer against a simulated controller: it never puts more than 128 unanswered bytes on the wire, keeps the buffer busy, reports errors and positions |
 | `catalogue.test.ts` | Entries are unique and complete, and point at gates and LOD rules that exist; stroke patterns match as documented |
 | `misc.test.ts` | Settings helpers, region detection for known places, lettering, title text, palettes, the harmoniser keeping locked pens |
+| `future.test.ts` | Solarpunk planning: climates by region, the same plan from any view, landmarks kept, Intensity only adds, a lock rerolls one building |
 | `rules.test.ts` | Rules from AGENTS.md checked in the source: no `Math.random()` or clocks in drawing code, no bare comparisons with `cam.lod`, no fetching outside `tiles.ts` |
 
 ## Drawing tests (`test/render/`)
 
 These draw whole sheets with the real pipeline (`loadTown` → `render` → `plan` → `toSvg`, as the worker does) from map data recorded in `test/fixtures/net`.
 
-- **`sheets.test.ts`** draws each case in `test/cases.ts`: thirteen places and settings that between them reach almost every feature, regional style and tricky setting. For each one it checks:
+- **`sheets.test.ts`** draws each case in `test/cases.ts`: seventeen places and settings (four of them in solarpunk mode, on places already recorded) that between them reach almost every feature, regional style and tricky setting. For each one it checks:
   - the golden (below),
   - every stroke is a finite polyline on the sheet, and every feature stays inside the drawing area,
   - every stroke is filed in the tally (only the frame and map notes are not),
@@ -46,7 +47,8 @@ These draw whole sheets with the real pipeline (`loadTown` → `render` → `pla
 
   At the end it draws the first case again and requires the identical SVG, which catches state leaking between drawings.
 - **`gates.test.ts`** switches each setting that switches something on (Windows, Trees, Life, Markings…) off in turn. Whatever the catalogue says needs that setting must then be gone, and the setting must have had something to take away.
-- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid.
+- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid. A second pair of drawings in solarpunk mode checks panels, green roofs and rain tanks the same way.
+- **`future.test.ts`** checks that the solarpunk settings change nothing while the mode is off, and that the mode adds its panels and imprint.
 
 The imprint in the margin dates each sheet, so drawing tests pin the clock to `DRAWN_ON` in `test/support/clock.ts`.
 

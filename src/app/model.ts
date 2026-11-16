@@ -1,6 +1,7 @@
 import type { LngLat } from '../geo';
 import { PALETTES } from '../palettes';
 import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
+import { CLIMATES } from '../future';
 import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
@@ -85,6 +86,9 @@ export function loadSettings(): Settings {
     /^-?\d+,-?\d+$/.test(key) && Number.isInteger(value) && value > 0));
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
+  if (s.climate !== 'auto' && !CLIMATES[s.climate]) s.climate = 'auto';
+  s.solarpunk = s.solarpunk === true;
+  if (!Number.isFinite(s.future) || s.future < 0 || s.future > 1) s.future = DEFAULT_SETTINGS.future;
   return s;
 }
 
@@ -217,8 +221,8 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
-export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
+export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal' | 'future';
+export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound' | 'solarpunk';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   bearing: (v) => `${Math.round(v)}°`,
@@ -243,6 +247,7 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   titleSlide: (v) => (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)),
   titleTurn: (v) => `${Math.round(v)}°`,
   titleReveal: (v) => `${Math.round(v * 100)}%`,
+  future: (v) => (v < 0.34 ? 'Restrained' : v < 0.67 ? 'Settled' : 'Exuberant'),
 };
 
 /** Keys that move the red footprint on the locator map. */

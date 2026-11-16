@@ -1,6 +1,7 @@
 import { VectorTile, type VectorTileFeature } from '@mapbox/vector-tile';
 import { PbfReader } from 'pbf';
 import type { Info } from './classify';
+import type { Future } from './future';
 import { EARTH, ringArea, type Frame } from './geo';
 import { queue, timed } from './lib/network';
 import { bytes, cached, json, LOCAL, META, TILES, TTL } from './netcache';
@@ -13,9 +14,10 @@ export type Shape = Ring[];
 /**
  * `guess` marks a building whose height is OpenMapTiles' 5 m default, i.e. the map gives none.
  * `context` marks one loaded only so that its neighbours are classified as they would be from
- * any view; `render()` drops these once buildings are classified.
+ * any view; `render()` drops these once buildings are classified. `future` is the solarpunk plan
+ * for it, only while that mode is on.
  */
-export type Building = { shape: Shape; h: number; min: number; guess?: boolean; context?: boolean; info?: Info };
+export type Building = { shape: Shape; h: number; min: number; guess?: boolean; context?: boolean; info?: Info; future?: Future };
 /** Building tags from OpenStreetMap, at the building's centre. */
 export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean };
 export type WayKind = 'road' | 'rail' | 'path';

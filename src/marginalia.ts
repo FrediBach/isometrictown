@@ -268,7 +268,8 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   out.push(...letter(place, x0, base, { h: T, track: 1.4 }));
 
   const where = `${lat(clat)} ${lng(clng)} · LOOKING ${compassWord(set.bearing)} (${Math.round(set.bearing)}°) · TILT ${Math.round(set.tilt)}°`;
-  const imprint = `MAP DATA © OPENSTREETMAP CONTRIBUTORS · DRAWN WITH ISOMETRICTOWN.COM · ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  // A solarpunk drawing says so, so it is never taken for today's map.
+  const imprint = `${set.solarpunk ? 'SOLARPUNK INTERPRETATION · ' : ''}MAP DATA © OPENSTREETMAP CONTRIBUTORS · DRAWN WITH ISOMETRICTOWN.COM · ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
   const line1 = base + s * 2.2;
   const line2 = line1 + s * 1.9;
   out.push(...letter(where, x0, line1, { h: fit(where, s, width, 0.3), track: 0.3 }));

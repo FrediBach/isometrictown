@@ -13,7 +13,7 @@
 Most drawing functions take `B: Build` (`src/buildings.ts`) first:
 
 ```ts
-type Build = { cam; set; style; sun; left; key };
+type Build = { cam; set; style; sun; left; key; future? };
 ```
 
 `sun` is a horizontal unit vector toward the sun; `left` means traffic keeps left; `key` gives the stable position key for `hash()`. `sunBearing(set)` supplies its compass bearing: with `autoSun` on (the default), 135° in the northern hemisphere and 45° in the southern hemisphere, independent of camera rotation. Manual lighting retains the view-relative `sunAngle`, added to the camera bearing. Cast shadows and wall tone use this same vector.
@@ -22,7 +22,7 @@ type Build = { cam; set; style; sun; left; key };
 
 | Stage (`app/stages.ts`) | What happens |
 | --- | --- |
-| `ground` | `classify()` fills `Building.info`. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`). |
+| `ground` | `classify()` fills `Building.info`. In solarpunk mode `planFuture()` then fills `Building.future`, context buildings included, and puts the district plan on `B.future`. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`). |
 | `buildings` | The cinematic title (if on) is placed first, so buildings it stands in can be left out. Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints, and the title's, go into `M.foot`. |
 | `life` | Trees (placed, then filtered by ground plan, plus orchards, gardens, scrub, hedgerows, street trees), traffic, parking, trains, then all the **extras** (lifts, ferries, bridges, airfields, aircraft, power, sites…). |
 | `light` | Trim pitched-roof end outlines where another pitched face continues the same plane. Every solid face and tree sprite is rasterised into the **depth buffer**; `finishDepth()`. Then shadows are swept into `M.shadow`. |

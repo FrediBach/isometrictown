@@ -4,6 +4,7 @@ import { BALCONIES, SHUTTERS } from './classify';
 import { BARS, HOME } from './facades';
 import { AVENUES, BOUNDS, DRIVES, HEDGEROWS, TRAMPOLINES } from './gardens';
 import { COWS, SHEEP, WILD, WILD_DEFAULT } from './ground';
+import { CLIMATE_IDS, CLIMATES, climateOf } from './future';
 import { coarsest, LOD, type RuleId } from './lod';
 import { CYPRESSES, PALMS } from './nature';
 import { OVERHEAD_TOWN } from './power';
@@ -28,7 +29,7 @@ export const SOURCES: Record<Source, { label: string; note: string }> = {
   invented: { label: 'Made up', note: 'Not in the map. Placed by the seed and fixed to map position, so it stays put when the view pans.' },
 };
 
-export type GroupId = 'region' | 'buildings' | 'roofs' | 'walls' | 'details' | 'streets' | 'rail' | 'water' | 'land' | 'trees' | 'life' | 'air' | 'power' | 'sheet' | 'styles';
+export type GroupId = 'region' | 'buildings' | 'roofs' | 'walls' | 'details' | 'streets' | 'rail' | 'water' | 'land' | 'trees' | 'life' | 'air' | 'power' | 'future' | 'sheet' | 'styles';
 
 export const GROUPS: { id: GroupId; title: string }[] = [
   { id: 'region', title: 'Region' },
@@ -44,6 +45,7 @@ export const GROUPS: { id: GroupId; title: string }[] = [
   { id: 'life', title: 'Life' },
   { id: 'air', title: 'Airfields' },
   { id: 'power', title: 'Power lines' },
+  { id: 'future', title: 'Solarpunk' },
   { id: 'sheet', title: 'Light and sheet' },
   { id: 'styles', title: 'Regional styles' },
 ];
@@ -71,6 +73,7 @@ export const GATE_LABEL: Partial<Record<Gate, string>> = {
   frame: 'Frame line',
   marginalia: 'Map notes',
   title: 'Cinematic title',
+  solarpunk: 'Solarpunk',
   trees: 'Trees',
   cars: 'Traffic',
 };
@@ -1424,6 +1427,79 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['title'],
     lod: ['title'],
     strokes: ['title'],
+  },
+  {
+    id: 'solarpunk',
+    group: 'future',
+    name: 'Solarpunk mode',
+    source: ['inferred', 'invented'],
+    what: 'The same place drawn as a settled, repaired and inhabited future: the same streets, footprints, heights and roofs, with changed energy, water and planting. The imprint says it is an interpretation.',
+    how: 'Each building is matched to a recipe from what it was worked out to be (house, row, block, works, landmark…), then given at most one main change and one supporting one, keyed to its seed and position. Heritage, places of worship, hospitals and castles keep their roofs. Nothing is decided from the scale: zooming shows more of the same future.',
+    needs: ['solarpunk'],
+    lod: ['futureTwo', 'futureDetail'],
+    facts: [['Climates', CLIMATE_IDS.map((id) => CLIMATES[id].label).join(', ')], ['Intensity', 'How many eligible places take an optional change; never where it doesn’t fit']],
+    now: ({ set, region }) => {
+      if (!set.solarpunk) return 'Solarpunk is off';
+      const id = set.climate !== 'auto' ? set.climate : region ? climateOf(set.style === 'auto' ? region.style : set.style, set.center) : undefined;
+      return id && `Designed for a ${CLIMATES[id].label.toLowerCase()} climate${set.climate === 'auto' ? ', from the region' : ''}`;
+    },
+  },
+  {
+    id: 'pv-roofs',
+    group: 'future',
+    name: 'Solar panels on pitched roofs',
+    source: ['invented'],
+    what: 'One coherent group of panels on the slope that faces the sun, inset from eaves, ridge and verges, standing a little off the roof. Long barn roofs get groups of up to 10 m with gaps for access. A sparse grid every two modules where it reads.',
+    how: 'Most houses, rows, blocks and works with a pitched roof (rows decide together, so their modules line up). Not on dormer slopes, party-wall sides, landmarks, churches or hospitals; clear of chimneys.',
+    needs: ['solarpunk'],
+    lod: ['pvPatch', 'pvGrid'],
+    strokes: ['solar/pv-roof'],
+  },
+  {
+    id: 'pv-arrays',
+    group: 'future',
+    name: 'Solar rows on flat roofs',
+    source: ['invented'],
+    what: 'Rows of tilted panels facing the sun, with a back leg at each end, an access aisle every third row and breaks every 14 m, kept clear of plant rooms and the region’s water tanks.',
+    how: 'Flat roofs over 120 m², in every region, where the plan gives the roof panels; plant rooms go up first and the panels fill the room they leave.',
+    needs: ['solarpunk', 'rooftops'],
+    lod: ['pvPatch', 'pvGrid'],
+    strokes: ['solar/pv-array'],
+  },
+  {
+    id: 'pv-sawtooth',
+    group: 'future',
+    name: 'Solar panels on sawtooth roofs',
+    source: ['invented'],
+    what: 'Modules on the sloping back of each tooth, leaving the glazed north lights clear.',
+    how: 'Works with a sawtooth roof, where the plan gives the roof panels.',
+    needs: ['solarpunk'],
+    lod: ['pvPatch', 'pvGrid'],
+    strokes: ['solar/pv-saw'],
+  },
+  {
+    id: 'green-roofs',
+    group: 'future',
+    name: 'Green roofs',
+    source: ['invented'],
+    what: 'Low planting, drawn as grass tufts, on flat roofs, keeping a margin at the edge and clear of panels and plant rooms. No trees: a roof is not a forest.',
+    how: 'Flat roofs over 80 m² without panels, or big ones beside them, by how much the climate suits it: most in temperate and humid places, none in hot and dry ones.',
+    needs: ['solarpunk', 'rooftops'],
+    lod: ['greenRoof'],
+    strokes: ['planting/green-roof'],
+    facts: [['Share of eligible roofs', CLIMATE_IDS.map((id) => `${CLIMATES[id].label} ${pct(CLIMATES[id].greenRoof)}`).join(', ')]],
+  },
+  {
+    id: 'rain-tanks',
+    group: 'future',
+    name: 'Rain tanks',
+    source: ['invented'],
+    what: 'A drum at a back corner of the house, away from the street, with a downpipe from the eaves bending over into it, in the water pen.',
+    how: 'Houses and rows, by how much the climate needs stored water; only where the corner is clear of roads, water and other buildings, and only where the house is big enough on paper to show a supporting change.',
+    needs: ['solarpunk'],
+    lod: ['rainTank', 'futureTwo'],
+    strokes: ['planting:tanks'],
+    facts: [['Share of houses', CLIMATE_IDS.map((id) => `${CLIMATES[id].label} ${pct(CLIMATES[id].tanks)}`).join(', ')]],
   },
 ];
 

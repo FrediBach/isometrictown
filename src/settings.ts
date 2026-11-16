@@ -1,5 +1,6 @@
 import type { LngLat } from './geo';
 import { PALETTES } from './palettes';
+import type { ClimateId } from './future';
 import type { StyleId } from './styles';
 
 export type Settings = {
@@ -47,6 +48,13 @@ export type Settings = {
   power: boolean;
   /** Made-up life: people about town, herds on the meadows, machines in the fields, sport on pitches and raceways, boats and ships, trains and aircraft. */
   life: boolean;
+
+  /** Solarpunk mode: the same place drawn as a settled, repaired and inhabited future. */
+  solarpunk: boolean;
+  /** How many eligible places take an optional solarpunk change, 0 to 1. Never makes room where there is none. */
+  future: number;
+  /** Climate the solarpunk future is designed for, or 'auto' to work it out from the region. */
+  climate: 'auto' | ClimateId;
 
   /** The place name in giant 3D block letters standing on a long street, as in a film's opening shot. */
   title: boolean;
@@ -169,6 +177,10 @@ export const DEFAULT_SETTINGS: Settings = {
   power: true,
   life: true,
 
+  solarpunk: false,
+  future: 0.5,
+  climate: 'auto',
+
   title: false,
   titleText: '',
   titleSize: 0.6,
@@ -228,6 +240,7 @@ export const LAYERS = {
   streets: 'Streets and infrastructure', lamps: 'Street lamps', paths: 'Footpaths',
   rails: 'Railways and lifts', water: 'Water', parks: 'Parks', ground: 'Fields and gardens',
   markings: 'Road markings', power: 'Power lines', life: 'People, animals, boats, trains and aircraft',
+  solar: 'Solar panels', additions: 'Frames and canopies', planting: 'Future planting and water',
   shadows: 'Shadows', shadeWalls: 'Wall shading', title: 'Cinematic title', margin: 'Frame and map notes',
 } as const;
 export type LayerId = keyof typeof LAYERS;

@@ -1,5 +1,7 @@
 import { building, type Build, type Solid } from './buildings';
 import { classify } from './classify';
+import { rainTanks } from './commons';
+import { planFuture, type ClimateId } from './future';
 import { allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
@@ -30,7 +32,8 @@ export type Counts = { buildings: number; houses: number; trees: number; cars: n
 export type Census = Record<string, number>;
 /** Which building shows at each pixel of the drawing area, for clicking in the preview. */
 export type Picks = { x0: number; y0: number; ppm: number; W: number; H: number; ids: Int32Array; keys: string[] };
-export type Drawing = { pens: number[][][]; counts: Counts; census: Census; picks: Picks };
+/** `climate` is the solarpunk climate profile drawn for, while that mode is on. */
+export type Drawing = { pens: number[][][]; counts: Counts; census: Census; picks: Picks; climate?: ClimateId };
 
 /** The lock key of the building at a sheet position (mm), looking a little around it for a near miss. */
 export function pickAt(p: Picks, x: number, y: number): string | null {
@@ -121,6 +124,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
+  // The solarpunk plan takes in the context buildings too, so district decisions agree from every view.
+  B.future = set.solarpunk ? planFuture(town, set, style.id, B.key) : null;
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.
@@ -179,7 +184,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (!made) continue;
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
-      const facets = buildingFacets(b);
+      const facets = buildingFacets(b, !!B.future);
       const facet = facets.join('/');
       for (const s of made) {
         s.pick = id;
@@ -252,6 +257,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
+  if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.
   extras.push(extra('life', 'ships', () => ships(B, paper, town, M, toAbs, fromAbs)), extra('life', 'racing', () => racing(B, paper, town, M)), extra('cars', 'stations', () => stations(B, paper, town, M)));
@@ -373,11 +379,11 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
   const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys };
-  return { pens: paper.pens, counts, census, picks };
+  return { pens: paper.pens, counts, census, picks, climate: B.future?.climate };
 }
 
 /** What the catalogue can single a building out as: what it is, its roof and windows, and the details it was given. */
-function buildingFacets(b: Town['buildings'][number]): string[] {
+function buildingFacets(b: Town['buildings'][number], future: boolean): string[] {
   const i = b.info!;
   const f = [i.kind, `${i.roof}-roof`, `${i.facade.pattern}-windows`, b.guess ? 'guessed-height' : 'mapped-height'];
   if (i.tagged) f.push('tagged-roof');
@@ -394,6 +400,13 @@ function buildingFacets(b: Town['buildings'][number]): string[] {
   if (i.castle) f.push('castle');
   if (i.hospital) f.push('hospital');
   if (i.townHall) f.push('town-hall');
+  const p = future && b.future;
+  if (p) {
+    f.push(`future-${p.recipe}`);
+    if (p.roofPv) f.push('pv-planned');
+    if (p.greenRoof) f.push('green-roof-planned');
+    if (p.tank) f.push('tank-planned');
+  }
   return f;
 }
 

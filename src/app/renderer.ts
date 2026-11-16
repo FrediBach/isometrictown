@@ -1,6 +1,7 @@
 import { recolor, type PlotStats } from '../plot';
 import type { Census, Counts } from '../render';
 import { sheetSize, type Settings } from '../settings';
+import type { ClimateId } from '../future';
 import type { Region } from '../styles';
 import type { Features, Job, Reply, Strokes } from '../worker';
 import { STAGE_LABEL, type StageProgress } from './stages';
@@ -19,6 +20,8 @@ export type RenderResult = {
   features: Features;
   /** Country and building style detected for the place. */
   region: Region;
+  /** Climate profile the solarpunk future was drawn for, while that mode is on. */
+  climate?: ClimateId;
   ms: number;
   /** Settings at the time the drawing came back, for the stats panel. */
   mono: boolean;
@@ -64,7 +67,7 @@ export class Renderer {
         const set = this.settings();
         this.onStatus({ text: '', state: 'idle' });
         // Pens may have changed while this drawing was on the worker; colour costs no redraw.
-        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed }, set));
+        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, climate: r.climate, ms: r.ms, mono: set.mono, speed: set.speed }, set));
       }
       this.dispatch();
     };

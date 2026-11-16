@@ -2,6 +2,8 @@
 
 This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.json` (103 recipes) and `Solarpunk Transformation Atlas.pdf` into work on this codebase. The mode is a switch that draws the same place, at the same view and seed, as a settled solarpunk future. The guide was written without knowing the renderer, so this plan also says which of its rules carry over directly, which need a different form, and which this renderer can't support yet.
 
+**Status (2026-11-16):** M0 and M1 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks, with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
+
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
 ---
@@ -387,23 +389,19 @@ Starting values are `futureTwo { m: 12, mm: 4 }` (≈ 30 px at the paper's 7 px/
 
 ### 9.4 Palette
 
-Add a `Solarpunk` palette to `PALETTES`: deep teal shadows, clear water blue, leaf green, warm ochre roofs, green-black linework. Tune it with the harmoniser (≥ 0.19 OKLab separation). Pen colours stay user data: switching the mode does **not** change pens (AGENTS rule 6). The Future section may offer a one-click "Use Solarpunk pens" text button that does exactly what picking the palette does.
+No new palette (decision 4). Pens stay user data, and the mode never changes them.
 
 ---
 
 ## 10. Interface
 
-Following DESIGN.md:
+Following DESIGN.md (decision 1):
 
-- A new **Future** `FoldingSection` after Town, index 4. Light, Title, Sheet, Pens and Seed move up one number.
-  - A `Segmented` selector switch **Today | Solarpunk** at the top. This is the "mode switch", and it maps to `solarpunk`.
-  - A `SliderField` **Intensity** (`future`), dimmed while Today is selected. Note: "How many places take an optional change. Never adds things where they don't fit."
-  - A `Select` **Climate**: Auto (showing the detected profile in muted text, as the Town section does for the style), then the seven profiles.
-  - A `Hint`: "An interpretation of a possible future, not a plan for this place."
-  - Folded summary: `Today` or `Solarpunk · Temperate · Settled`.
-- The title block shows a small `micro` tag **SOLARPUNK** next to the place while the mode is on, so a shared drawing is never mistaken for today's map.
-- The Catalogue lists the new **Solarpunk** group. With the mode off, its entries say why they're missing ("Solarpunk mode is off").
-- `npm run doctor` after the UI work.
+- A `Segmented` selector switch **Today | Solarpunk** in the preview toolbar, beside the zoom switch. It maps to `solarpunk`. *(Built.)*
+- At the end of the Town section, under a **Solarpunk** caption: a `Select` **Climate** (Auto, showing the profile worked out from the region, then the seven profiles) and an **Intensity** slider (`future`). *(Built.)*
+- The imprint says `SOLARPUNK INTERPRETATION`, so a shared drawing is never mistaken for today's map. *(Built.)*
+- The Catalogue lists a **Solarpunk** group. With the mode off, its entries show as not in the drawing. *(Built.)*
+- `npm run doctor` after UI work.
 
 ---
 
@@ -452,18 +450,18 @@ Say in the PR what could not be checked by eye.
 
 Each milestone ships on its own, passes `npm run build` and `npm test`, comes with LOD lab compares, and updates the docs.
 
-**M0: Foundations (no visible change except the label)**
+**M0: Foundations (no visible change except the label)** *(done)*
 
-- Settings, model keys and share links. Future section UI (switch, intensity, climate). The `SOLARPUNK` tag in the title block.
+- Settings, model keys and share links. Toolbar switch, climate and intensity controls.
 - `future.ts`: types, `CLIMATES`, `climateOf()`, the `planFuture()` skeleton (recipe choice only, no motifs), the `B.future` hook, and the call position in `render()`.
-- `LAYERS`: `solar`, `additions`, `planting`. The catalogue group and gate label. The imprint label. The Solarpunk palette.
+- `LAYERS`: `solar`, `additions`, `planting`. The catalogue group and gate label. The imprint label.
 - Tests: the `future.test.ts` basics, the off-identity test, `mollis-solarpunk` (golden = default plus the label), and the gate base.
 
-**M1: Roofs: energy, water and green (the strongest distant cue)**
+**M1: Roofs: energy, water and green (the strongest distant cue)** *(done: pitched, flat and sawtooth panels, green roofs, rain tanks)*
 
 - PV patch on pitched roofs, the flat-roof allocator and arrays, sawtooth PV, green roofs, rain tanks with downpipes.
 - B01, B02, B08, B11, B18, B19, B20 and B27 roof parts.
-- LOD rules `pvPatch`, `pvGrid`, `tank`, `futureTwo`, `futureDetail`.
+- LOD rules `pvPatch`, `pvGrid`, `pvRows`, `rainTank`, `greenRoof`, `futureTwo`, `futureDetail`.
 - Cases: add `midtown-solarpunk` and `emmental-solarpunk`.
 
 **M2: Streets and mobility**
@@ -508,7 +506,10 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 
 ---
 
-## 14. Decisions for you
+## 14. Decisions (answered 2026-11-16)
+
+Answers: (1) the switch lives in the preview toolbar, (2) drop town poles, keep country ones, (3) reduce cars and add cycles, (4) no new palette, (5) intensity default 0.5, (6) v1 is M0–M3. The questions as asked:
+
 
 1. **Where the switch lives.** The plan puts *Today | Solarpunk* at the top of a new Future section. The alternative is a key in the toolbar, more prominent but outside the numbered-panel pattern.
 2. **Town power poles.** Drop roadside poles in town in the mode (reads as "cared for", fewer wires), or keep them (preserve infrastructure, atlas rule 5)? Proposed: drop in town, keep in the country.

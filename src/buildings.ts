@@ -1,6 +1,7 @@
 import { helicopter } from './aircraft';
 import type { Camera } from './camera';
 import type { Info } from './classify';
+import type { FutureTown } from './future';
 import { facadeLines, PLAIN, type Facade, type Wall } from './facades';
 import { pointInRing, ringArea } from './geo';
 import { LOD, shows, showsAt } from './lod';
@@ -8,6 +9,7 @@ import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
 import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
+import { futureRoof, roofPanels, sawtoothPanels } from './solar';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
@@ -52,6 +54,8 @@ export type Build = {
   left: boolean;
   /** Seed for what is being built: the drawing's, or the current building's locked seed. */
   seed: number;
+  /** The solarpunk plan for the district, while that mode is on. */
+  future?: FutureTown | null;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */
@@ -334,6 +338,10 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   });
   out.casts.push({ ring: wall.pts, h: He + rise * 0.6 });
   if (o.details && set.details) B.cam.within('roofs', () => roofDetails(B, info, main, P!, He, tan, out));
+  if (B.future && b.future) {
+    b.future.eave = He;
+    if (b.future.roofPv) roofPanels(B, info, main, P!, He, tan, out);
+  }
   return { main, P: P!, He, tan };
 }
 
@@ -402,12 +410,22 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   const { set } = B;
   const solid = out[0];
   prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid);
+  const roofFace = solid.faces[solid.faces.length - 1];
   solid.casts.push({ ring: rings[0].pts, h: H });
   // Too small to tell merlon from gap, battlements close up into a black band: a parapet reads better.
   if (info?.castle && set.details && B.cam.within('details', () => shows(B.cam, LOD.battlements, 0.7))) battlements(B, rings[0], b.shape.slice(1), H, out);
   else if ((info?.parapet || info?.castle) && set.details) parapet(B, rings, H, solid);
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
+  if (B.future && b.future) {
+    // Solarpunk roofs: plant rooms first, then panels and planting in the room they leave.
+    b.future.eave = H;
+    if (pad || !set.rooftops || H >= 150) return;
+    const taken: number[][] = [];
+    if (area > 220 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out, taken);
+    futureRoof(B, b, H, roofFace, taken, out);
+    return;
+  }
   if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
 }
 
@@ -422,6 +440,10 @@ function oneWay(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   prism(B, [{ pts: corners(r), seam: new Uint8Array(4) }], 0, He, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
   if (info.roof === 'shed') B.cam.within('roofs', () => shedRoof(B, r, He, tan, out));
   else sawtoothRoof(r, He, out);
+  if (B.future && b.future) {
+    b.future.eave = He;
+    if (b.future.roofPv && info.roof === 'sawtooth') sawtoothPanels(B, r, He, out);
+  }
   out.casts.push({ ring: corners(r), h: He + 1.5 });
   return true;
 }
@@ -714,12 +736,16 @@ const ONIONS: Partial<Record<string, number>> = { eastern: 0.65, alpine: 0.4, ce
 /** Regions where castles carry pointed corner turrets. */
 export const TURRETS = new Set(['central', 'french', 'british', 'alpine', 'nordic', 'eastern', 'dutch', 'generic']);
 
-/** A small box on a flat roof: stair housing, plant room, water tank. */
-function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
-  return tagLines(B, 'rooftops', out, () => rooftopLines(B, b, z, k, out));
+/**
+ * A small box on a flat roof: stair housing, plant room, water tank. With `taken` (solarpunk
+ * roofs), only plant rooms and the region's tanks go up, and their outlines are collected so
+ * panels and planting keep clear of them.
+ */
+function rooftop(B: Build, b: Building, z: number, k: [number, number], out: Solid[], taken?: number[][]): void {
+  return tagLines(B, 'rooftops', out, () => rooftopLines(B, b, z, k, out, taken));
 }
 
-function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out: Solid[]): void {
+function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out: Solid[], taken?: number[][]): void {
   const outer = b.shape[0].pts;
   let x0 = Infinity;
   let y0 = Infinity;
@@ -736,12 +762,19 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   const inside = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts));
   const v = hash(k[0], k[1], B.seed, 21);
   const area = Math.abs(ringArea(outer));
-  if (TANKS.has(B.style.id) && v < 0.4) {
+  if (taken) {
+    // Solarpunk roofs keep the region's tanks, fewer of them, and leave the panels to futureRoof().
+    if (TANKS.has(B.style.id) && v < 0.25) {
+      const before = out.length;
+      tagLines(B, undefined, out, () => tanks(B, rect, z, k, inside, out), 'tanks');
+      for (const s of out.slice(before)) taken.push(s.faces.flatMap((f) => f.flatMap((r) => r.filter((_, i) => i % 3 !== 2))));
+    }
+  } else if (TANKS.has(B.style.id) && v < 0.4) {
     if (tagLines(B, undefined, out, () => tanks(B, rect, z, k, inside, out), 'tanks')) return;
   } else if (SOLAR.has(B.style.id) && v < 0.35 && area > 150 && shows(B.cam, LOD.solar)) {
     if (tagLines(B, undefined, out, () => solar(B, rect, z, inside, out), 'solar')) return;
   }
-  const count = 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);
+  const count = taken ? 1 + Math.floor(hash(k[0], k[1], B.seed, 12011) * 1.6) : 1 + Math.floor(hash(k[0], k[1], B.seed, 20) * 2.2);
   for (let tries = 0, made = 0; tries < 8 && made < count; tries++) {
     const r = (salt: number) => hash(k[0], k[1], B.seed, 30 + tries * 7 + salt);
     const cx = x0 + (x1 - x0) * (0.15 + 0.7 * r(0));
@@ -761,6 +794,7 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
     const s = newSolid();
     prism(B, [{ pts: corners.flat(), seam: new Uint8Array(4) }], z, z + h, { roof: true, windows: false, pen: LINEWORK }, s);
     out.push(s);
+    taken?.push(corners.flat());
     made++;
   }
 }

@@ -68,6 +68,8 @@ Cast-shadow tone discards connected visible patches smaller than `cam.tone(1.2)�
 
 Wall tone is independent of wall size and Detail. Walls almost parallel to the sunlight stay plain: tone starts when the outward normal’s dot product with the sun falls below −0.2 and reaches full strength at −0.7. Walls turned well away from the sun use `cam.tone(0.85)` spacing; ground shadows use `cam.tone(0.95)`. The pen width scales both spacings. Gable walls continue the wall strokes up to their sloping or decorated profile, including the flat cap below a half hip. The ordinary short-stroke filter still applies.
 
+Solarpunk panels test the shorter side of a group (`pvPatch`), so a long shallow strip doesn't close up into a line, and keep a pen-scaled inset from eaves, ridge and roof edge. Rows on a flat roof become one outlined patch once their 3.4 m spacing no longer reads (`pvRows`), and the module grid is drawn every two modules only where `pvGrid` passes. `futureTwo` and `futureDetail` set how much of a building's solarpunk future shows, by the square root of its footprint (see [solarpunk.md](solarpunk.md)). The plan behind them never depends on scale.
+
 ## What `Paper` does for every stroke
 
 - **Speck filter.** Strokes shorter than two pen widths are dropped in `Paper.end()`: a pen only makes a dot of them, and a gap that short closes up under the pen anyway. Marks meant to be small (summit lettering, stipple) are drawn inside `paper.fine(() => …)`, which skips the filter.
