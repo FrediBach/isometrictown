@@ -330,7 +330,8 @@ function boundary(B: Build, ax: number, ay: number, bx: number, by: number, kind
 export function hedgerows(B: Build, paper: Paper, G: Ground, M: Masks): Tree[] {
   const { cam, set, style } = B;
   const out: Tree[] = [];
-  const chance = HEDGEROWS[style.id];
+  // Solarpunk farmland keeps more of its hedges, and plants some where the region has few.
+  const chance = B.future ? Math.min(0.9, HEDGEROWS[style.id] * 1.6 + 0.1) : HEDGEROWS[style.id];
   if (set.trees <= 0 || !chance || !shows(cam, LOD.hedgerow)) return out;
   const seen = new Set<string>();
   const clear = (x: number, y: number) => {

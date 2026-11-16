@@ -20,7 +20,7 @@ import { combine, tractor } from './vehicles';
 
 export const FIELD = 1;
 export const MEADOW = 2;
-const WETLAND = 3;
+export const WETLAND = 3;
 const SAND = 4;
 const ORCHARD = 5;
 const VINEYARD = 6;
@@ -420,13 +420,14 @@ export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array): void {
 }
 
 /** Quiet park tone, inset from boundaries and visible objects so their outlines stay separate. */
-export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array): void {
+export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array, meadow?: (x: number, y: number) => boolean): void {
   const cam = paper.cam;
   const inset = cam.nib * 1.5;
   const clear = (x: number, y: number) => paper.on(M.green, x, y)
     && !paper.on(M.wood, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y)
     && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, cam.groundDepth(y));
-  const grass = (x: number, y: number) => !(paths && paper.on(paths, x, y)) && clear(x, y)
+  // Solarpunk parks leave patches to grow as meadow; parkMeadow() tufts them instead.
+  const grass = (x: number, y: number) => !(paths && paper.on(paths, x, y)) && !(meadow && meadow(x, y)) && clear(x, y)
     && clear(x - inset, y) && clear(x + inset, y) && clear(x, y - inset) && clear(x, y + inset);
   paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
   // Every other line shares the same phase under headstones and pitch markings.
@@ -499,8 +500,11 @@ export function orchardTrees(B: Build, paper: Paper, G: Ground, M: Masks): Tree[
         const sy = cam.sy(x, y, 0);
         if (paper.at(G.land, sx, sy) !== ORCHARD || paper.on(M.road, sx, sy) || paper.on(M.water, sx, sy) || paper.on(M.foot, sx, sy)) continue;
         const [k0, k1] = B.key(x, y);
-        const r = 1.2 + hash(k0, k1, set.seed, 60) * 0.5;
-        out.push({ x, y, r, h: r + 1.6 + hash(k0, k1, set.seed, 61) * 0.8, conifer: false });
+        // Solarpunk orchards are of mixed ages, with the odd gap waiting to be replanted.
+        if (B.future && hash(k0, k1, set.seed, 12220) < 0.08) continue;
+        const young = B.future ? 0.55 + 0.45 * hash(k0, k1, set.seed, 12221) : 1;
+        const r = (1.2 + hash(k0, k1, set.seed, 60) * 0.5) * young;
+        out.push({ x, y, r, h: r + (1.6 + hash(k0, k1, set.seed, 61) * 0.8) * young, conifer: false });
       }
     });
   }
@@ -541,6 +545,7 @@ function field(B: Build, paper: Paper, c: Cover, test: Test): void {
   const spacing = B.cam.gap(FURROW_MM[0] + (FURROW_MM[1] - FURROW_MM[0]) * r(1)) / mmPer(B, -uy, ux);
   const along = mmPer(B, ux, uy);
   const stubble = r(2) < 0.3 && along > 0;
+  if (B.future && c.rect.w >= 45) return strips(B, paper, c, test, spacing, along);
   rows(c.shape, c.rect, spacing, (ax, ay, bx, by, row) => {
     if (!stubble) {
       paper.line3(GREENERY, [ax, ay, 0, bx, by, 0], test);
@@ -555,6 +560,113 @@ function field(B: Build, paper: Paper, c: Cover, test: Test): void {
       paper.line3(GREENERY, [ax + ux * t, ay + uy * t, 0, ax + ux * t1, ay + uy * t1, 0], test);
     }
   });
+}
+
+/**
+ * A solarpunk field: two to four strips side by side along its length, each its own crop (ploughed,
+ * stubble, or furrowed across), with a grass margin between them where tufts show if it is wide
+ * enough on paper. The strips follow the field's own rectangle, so they stay put on the map.
+ */
+function strips(B: Build, paper: Paper, c: Cover, test: Test, spacing: number, along: number): void {
+  const { ux, uy } = c.rect;
+  const vx = -uy;
+  const vy = ux;
+  const outer = c.shape[0].pts;
+  let v0 = Infinity;
+  let v1 = -Infinity;
+  for (let i = 0; i < outer.length; i += 2) {
+    const v = outer[i] * vx + outer[i + 1] * vy;
+    v0 = Math.min(v0, v);
+    v1 = Math.max(v1, v);
+  }
+  const [k0, k1] = B.key(c.rect.cx, c.rect.cy);
+  const n = Math.min(4, Math.max(2, Math.round((v1 - v0) / 40)));
+  const w = (v1 - v0) / n;
+  const margin = 3.5;
+  const kind = Array.from({ length: n }, (_, i) => Math.floor(hash(k0, k1, B.set.seed, 12200 + i) * 3));
+  // Neighbouring strips differ, so the pattern reads as strips and not as one field.
+  for (let i = 1; i < n; i++) if (kind[i] === kind[i - 1]) kind[i] = (kind[i] + 1) % 3;
+  const strip = (v: number) => {
+    const i = Math.min(n - 1, Math.max(0, Math.floor((v - v0) / w)));
+    const lo = v0 + i * w + (i > 0 ? margin / 2 : 0);
+    const hi = v0 + (i + 1) * w - (i < n - 1 ? margin / 2 : 0);
+    return { i, lo, hi };
+  };
+  // Furrows along the field, solid or dashed, in strips that run that way.
+  rows(c.shape, c.rect, spacing, (ax, ay, bx, by, row) => {
+    const v = ax * vx + ay * vy;
+    const s = strip(v);
+    if (v < s.lo || v > s.hi || kind[s.i] === 2) return;
+    if (kind[s.i] === 0 || along <= 0) {
+      paper.line3(GREENERY, [ax, ay, 0, bx, by, 0], test);
+      return;
+    }
+    const len = Math.hypot(bx - ax, by - ay);
+    const dash = STUBBLE_MM[0] / along;
+    const period = dash + STUBBLE_MM[1] / along;
+    for (let t = (row % 2) * period * 0.5; t < len; t += period) {
+      const t1 = Math.min(len, t + dash);
+      paper.line3(GREENERY, [ax + ux * t, ay + uy * t, 0, ax + ux * t1, ay + uy * t1, 0], test);
+    }
+  });
+  // Furrows across, clipped to their strip.
+  const across = B.cam.gap(FURROW_MM[1]) / Math.max(1e-6, along);
+  rows(c.shape, { ...c.rect, ux: vx, uy: vy }, across, (ax, ay, bx, by) => {
+    const va = ax * vx + ay * vy;
+    const vb = bx * vx + by * vy;
+    for (let i = 0; i < n; i++) {
+      if (kind[i] !== 2) continue;
+      const lo = v0 + i * w + (i > 0 ? margin / 2 : 0);
+      const hi = v0 + (i + 1) * w - (i < n - 1 ? margin / 2 : 0);
+      const a = Math.max(lo, Math.min(va, vb));
+      const b = Math.min(hi, Math.max(va, vb));
+      if (b - a < 1) continue;
+      const ta = (a - va) / (vb - va);
+      const tb = (b - va) / (vb - va);
+      paper.line3(GREENERY, [ax + (bx - ax) * ta, ay + (by - ay) * ta, 0, ax + (bx - ax) * tb, ay + (by - ay) * tb, 0], test);
+    }
+  });
+  // Tufts along the margins, where a margin is wide enough on paper to hold them.
+  if (margin * mmPer(B, vx, vy) < 1.4 || along <= 0) return;
+  const k = Math.max(1, B.cam.nib / REF_NIB);
+  const step = B.cam.gap(TUFT_MM * 1.2) / along;
+  for (let i = 1; i < n; i++) {
+    const v = v0 + i * w;
+    chords(c.shape, ux, uy, vx, vy, v, (ax, ay, bx, by) => {
+      const len = Math.hypot(bx - ax, by - ay);
+      for (let t = step / 2; t < len; t += step) {
+        const x = ax + ux * t;
+        const y = ay + uy * t;
+        const [h0, h1] = B.key(x, y);
+        if (hash(h0, h1, B.set.seed, 12203) < 0.35) continue;
+        const sx = B.cam.sx(x, y);
+        const sy = B.cam.sy(x, y, 0);
+        const d = B.cam.depth(x, y, 0);
+        paper.sheet(GREENERY, TUFT.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), test);
+        paper.end();
+      }
+    });
+  }
+}
+
+/** The pieces of the line v = t (v along vx, vy) that lie inside a shape, running along ux, uy. */
+function chords(shape: Shape, ux: number, uy: number, vx: number, vy: number, t: number, fn: (ax: number, ay: number, bx: number, by: number) => void): void {
+  const us: number[] = [];
+  for (const ring of shape) {
+    const p = ring.pts;
+    const n = p.length / 2;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const va = p[i * 2] * vx + p[i * 2 + 1] * vy;
+      const vb = p[j * 2] * vx + p[j * 2 + 1] * vy;
+      if (va <= t === vb <= t) continue;
+      const ua = p[i * 2] * ux + p[i * 2 + 1] * uy;
+      const ub = p[j * 2] * ux + p[j * 2 + 1] * uy;
+      us.push(ua + ((t - va) / (vb - va)) * (ub - ua));
+    }
+  }
+  us.sort((a, b) => a - b);
+  for (let k = 0; k + 1 < us.length; k += 2) fn(ux * us[k] + vx * t, uy * us[k] + vy * t, ux * us[k + 1] + vx * t, uy * us[k + 1] + vy * t);
 }
 
 /** Orchards too small for tree sprites: dotted rows where the trees stand. */

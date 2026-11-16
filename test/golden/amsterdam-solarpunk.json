@@ -1,11 +1,11 @@
 {
   "region": {"country":"Netherlands","code":"NL","style":"dutch","left":false},
-  "counts": {"buildings":537,"houses":394,"trees":1546,"cars":130,"lamps":56},
+  "counts": {"buildings":537,"houses":394,"trees":1552,"cars":130,"lamps":56},
   "census": {
     "apartment": 34,
     "blank-windows": 6,
-    "broadleaf": 1537,
-    "bush": 5,
+    "broadleaf": 1538,
+    "bush": 10,
     "chimneys": 48,
     "church-roof": 1,
     "civic": 9,
@@ -26,7 +26,7 @@
     "grid-windows": 180,
     "guessed-height": 78,
     "has-parapet": 13,
-    "hedgerows": 6,
+    "hedgerows": 12,
     "hipped-roof": 56,
     "house": 8,
     "kerb-trees": 68,
@@ -50,12 +50,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 19669,
-    "rawLifts": 21460,
-    "inkMm": 101365.4,
-    "travelMm": 46371.6,
-    "minutes": 150.2,
-    "pens": [["Shadows",3138,21465.7],["Water",1716,5858.4],["Greenery",460,1695.7],["Roofs",6605,30105.4],["Linework",7750,42240.3]]
+    "lifts": 19715,
+    "rawLifts": 21506,
+    "inkMm": 101420.3,
+    "travelMm": 46454.4,
+    "minutes": 150.5,
+    "pens": [["Shadows",3138,21465.7],["Water",1716,5858.4],["Greenery",506,1750.6],["Roofs",6605,30105.4],["Linework",7750,42240.3]]
   },
   "features": {
     "additions": [286,1524.9],
@@ -72,6 +72,7 @@
     "paths": [47,50.6],
     "planting": [54,135.4],
     "planting:kerbs": [319,416.1],
+    "planting:reeds": [46,54.9],
     "planting:tanks": [33,155.5],
     "rails": [64,577.9],
     "roofHatch": [5211,19137.7],
@@ -414,5 +415,5 @@
     "windows/terrace": [1620,2496.3],
     "windows/worship": [7,23.5]
   },
-  "svg": {"bytes":933202,"sha1":"b665bac67be97e08"}
+  "svg": {"bytes":934317,"sha1":"ad5a89f3adb7886e"}
 }

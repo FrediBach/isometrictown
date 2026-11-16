@@ -79,7 +79,7 @@ describe.each([30, 47])('solarpunk, panned %i m east', (m) => {
     b = await draw(pan(m, future));
   });
 
-  test.each(['solar', 'planting', 'roofHatch', 'rooftops', 'trees', 'cars', 'additions'])('%s stay put on the map', (prefix) => {
+  test.each(['solar', 'planting', 'roofHatch', 'rooftops', 'trees', 'cars', 'additions', 'ground'])('%s stay put on the map', (prefix) => {
     staysPut(a, b, m, prefix);
   });
 });

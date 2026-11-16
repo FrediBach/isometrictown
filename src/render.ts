@@ -4,6 +4,7 @@ import { cycleRacks, kerbGardens, kerbTrees, lotCommons, rainTanks } from './com
 import { planFuture, type ClimateId } from './future';
 import { lotCanopies } from './solar';
 import { yardPergolas } from './additions';
+import { gardenBeds, meadowPatches, parkMeadow, reeds, worksHedges } from './landscape';
 import { allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
@@ -239,7 +240,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     let list = from('park-trees', placeTrees(B, paper, M, box, toAbs, fromAbs));
     if (G) list = [...list.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
-    if (B.future) list.push(...from('kerb-trees', kerbTrees(B, kerbs)));
+    if (B.future) list.push(...from('kerb-trees', kerbTrees(B, kerbs)), ...worksHedges(B, paper, town, M));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
@@ -264,7 +265,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
-  if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('additions', 'pergolas', () => yardPergolas(B, paper, town, M)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
+  if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('additions', 'pergolas', () => yardPergolas(B, paper, town, M)), extra('planting', 'beds', () => gardenBeds(B, paper, town, G, M)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.
   extras.push(extra('life', 'ships', () => ships(B, paper, town, M, toAbs, fromAbs)), extra('life', 'racing', () => racing(B, paper, town, M)), extra('cars', 'stations', () => stations(B, paper, town, M)));
@@ -352,12 +353,15 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   });
   const paths = (set.parks || G || set.shadows) && set.paths ? at('paths', () => pathClearance(B, paper, town.ways)) : undefined;
   if (set.parks) withPen('parks', () => {
-    paper.facet('grass', () => parkGrass(paper, M, G, paths));
+    const meadow = B.future ? meadowPatches(B) : undefined;
+    paper.facet('grass', () => parkGrass(paper, M, G, paths, meadow));
+    if (meadow) paper.facet('park-meadow', () => parkMeadow(B, paper, M, G, meadow, paths));
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
   if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
+  if (B.future && set.water) withPen('planting', () => { reeds(B, paper, M, G, paths); }, 'reeds');
   withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');
   if (set.rails) withPen('rails', () => { railways(B, paper, town.ways); });

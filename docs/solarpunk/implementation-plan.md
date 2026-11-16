@@ -2,7 +2,7 @@
 
 This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.json` (103 recipes) and `Solarpunk Transformation Atlas.pdf` into work on this codebase. The mode is a switch that draws the same place, at the same view and seed, as a settled solarpunk future. The guide was written without knowing the renderer, so this plan also says which of its rules carry over directly, which need a different form, and which this renderer can't support yet.
 
-**Status (2026-11-16):** M0 to M3 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires; then balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches, verandas, arcades and vestibules, entrance canopies, sun fins, trellises, shop awnings everywhere, square pergolas and market stalls, and school-yard pergolas. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
+**Status (2026-11-16):** M0 to M4 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires; then balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches, verandas, arcades and vestibules, entrance canopies, sun fins, trellises, shop awnings everywhere, square pergolas and market stalls, and school-yard pergolas; then park meadow patches, reeds on banks and in marshes, food beds behind houses, hedged works edges, crop strips with margins, more hedgerows and mixed-age orchards. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
@@ -478,7 +478,7 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 - Market stalls on squares. `M.foot` filling for additions.
 - LOD rules `frame`, `framePost`, `porch`, `trellis`, `fins`, `pergola`, `stall`.
 
-**M4: Landscape**
+**M4: Landscape** *(done; rotational meadow fences and troughs, allotment tanks and trellises, park rain-garden basins and benches, and port shore power are still open)*
 
 - Park mosaic and rain-garden basins. Crop strips with margins. Rotational meadow fences and troughs. Orchard gaps and ages. Reed margins at rivers, lakes and marsh. Garden beds in residential gardens. Allotment tanks and trellises. Industrial planted margins. Port shore power.
 - LOD rules `reed`, `bed`.

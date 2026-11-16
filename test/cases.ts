@@ -55,6 +55,7 @@ export const CASES: Case[] = [
   { id: 'amsterdam-solarpunk', what: 'Solarpunk canal city: gabled fronts kept, panels on the rows behind them', set: at('Amsterdam', [4.8862, 52.3727], 35, 1000, { solarpunk: true }) },
   { id: 'midtown-solarpunk', what: 'Solarpunk towers: rows of panels and green roofs on flat tops', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true }) },
   { id: 'hallstatt-solarpunk', what: 'Solarpunk lake village: solar canopies, racks and beds in the car parks', set: at('Hallstatt', [13.6493, 47.5617], 300, 800, { solarpunk: true }) },
+  { id: 'rye-solarpunk', what: 'Solarpunk market town on the marsh: reeds on the banks and across the marsh', set: at('Rye', [0.7335, 50.9503], 25, 900, { solarpunk: true }) },
   { id: 'emmental-solarpunk', what: 'Solarpunk farmland at a coarse scale: barn roofs must not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true }) },
 ];
 

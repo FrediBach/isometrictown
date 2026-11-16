@@ -65,6 +65,8 @@ export const LOD = {
   trellis: { m: 0.9, mm: 0.9, what: 'Trellises with climbers on blank walls: upright spacing' },
   pergola: { m: 3, mm: 1.8, what: 'Pergolas in squares and school yards: post spacing' },
   stall: { m: 2, mm: 1.6, what: 'Market stalls in squares: depth' },
+  reed: { m: 1.5, mm: 0.75, what: 'Reed clusters on banks and in marshes: a cluster' },
+  bed: { m: 1.1, mm: 0.8, what: 'Food beds behind houses: width' },
   rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },
 
   // Shadows and trees
