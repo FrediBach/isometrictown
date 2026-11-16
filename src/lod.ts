@@ -71,6 +71,7 @@ export const LOD = {
   reed: { m: 1.5, mm: 0.75, what: 'Reed clusters on banks and in marshes: a cluster' },
   bed: { m: 1.1, mm: 0.8, what: 'Food beds behind houses: width' },
   rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },
+  greenWall: { m: 6, mm: 2, what: 'Green walls on blank walls: wall length' },
   gardenStrip: { m: 2.2, mm: 0.9, what: 'Planted strips of garden streets and boulevards: width' },
   cycleTrack: { m: 1.8, mm: 1, what: 'Cycle tracks along boulevards: width' },
 

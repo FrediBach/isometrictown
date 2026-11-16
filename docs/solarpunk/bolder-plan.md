@@ -6,7 +6,7 @@ Read [../solarpunk.md](../solarpunk.md) first: it explains the planner, the laye
 
 ## Status
 
-- **Built: N0, N1 and N2.** The `depth` setting (default `transform`), its selector, share links and `depth:transform` gate; the lab's new-ink, thumbnail-difference and plot-time figures against today; garden streets, boulevards with cycle tracks, and the urban canopy with courtyard trees; panels as tone, more panelled roofs, rows as one band, and roof gardens. Retrofit goldens are unchanged, and each solarpunk case has a `-transform` twin.
+- **Built: N0 to N3.** The `depth` setting (default `transform`), its selector, share links and `depth:transform` gate; the lab's new-ink, thumbnail-difference and plot-time figures against today; garden streets, boulevards with cycle tracks, and the urban canopy with courtyard trees; panels as tone, more panelled roofs, rows as one band, and roof gardens; car parks turned into parks, green walls, and frames on every eligible slab, front and back, with planted floors. Retrofit goldens are unchanged, and each solarpunk case has a `-transform` twin.
 - **§12 decisions:** taken as proposed for now: `transform` is the default and the selector is in the Town section. Not settled yet: the ink budget, the invented landmarks and where roof gardens go.
 - **Changed from the plan while building:**
   - Strips stop 6 m short of crossing roads, but the street is narrowed along its whole length, so corners stay paved as build-outs rather than at full carriageway width.
@@ -16,18 +16,24 @@ Read [../solarpunk.md](../solarpunk.md) first: it explains the planner, the laye
   - Garden streets are minor streets in practice: service roads are 5 m in the tiles, under the 7 m threshold.
   - Hot and dry places get wider tree spacing on strips, but not yet the stone dashes of §3.1.
 - **Changed in N2:** panel tone is 0.7 mm rather than 0.6 mm, to keep waste in budget (below). Roof gardens draw small trees in tubs as crowns facing the viewer on the roof, not as tree sprites (sprites stand on the ground). They don't go on works (B19) either, whose roofs keep their panels.
-- **Measured** (LOD lab: new ink / pixels that differ at preview size, for Retrofit → after N1 → after N2; then plot time and waste against today, after N2):
+- **Changed in N3:**
+  - Car parks have no outline in the tiles, so a car park is found from its aisles: aisles that meet make one, decided whole. Its park is the ground the bays would take, as rectangles along each aisle, and the aisle stays as a footpath. Benches and garden beds aren't added yet.
+  - Green walls go only on buildings up to 30 m tall: Midtown's towers stand above lower neighbours on every side, and planting those walls took their windows away. Towers wait for sky gardens (N5). Trellis strips between window columns aren't built.
+  - Green walls replace the wall's shade hatching, so the two don't stack up into solid ink.
+- **Measured** (LOD lab: new ink / pixels that differ at preview size, Retrofit → N1 → N2 → N3; then plot time and waste against today, after N3):
 
   | Case | 1:1000 | 1:4000 |
   | --- | --- | --- |
-  | Mollis | 9 → 14 → 17% / 6 → 11 → 12%; ×1.20, +1.3 pts | 3 → 6 → 8% / 4 → 8 → 9%; ×1.17, +0.8 pts |
-  | Amsterdam | 11 → 16 → 21% / 9 → 13 → 17%; ×1.29, +0.6 pts | 5 → 11 → 18% / 7 → 15 → 21%; ×1.18, ±0 pts |
-  | Midtown | 24 → 26 → 29% / 20 → 22 → 24%; ×1.37, +1.5 pts | 9 → 9 → 20% / 7 → 11 → 20%; ×1.35, +1.9 pts |
-  | Rye | 12 → 17 → 21% / 9 → 13 → 16%; ×1.21, +1.5 pts | 2 → 6 → 8% / 3 → 5 → 5%; ×1.12, +0.4 pts |
-  | Hallstatt | 7 → 9 → 12% / 3 → 4 → 5%; ×1.11, +0.8 pts | 0.4 → 1.3 → 2% / 0.3 → 0.8 → 1%; ×1.03, +0.4 pts |
-  | Trubschachen | 8 → 13 → 15% / 6 → 9 → 9%; ×1.16, +1.4 pts | 2 → 4 → 4% / 3 → 3 → 4%; ×1.09, +0.5 pts |
+  | Mollis | 9 → 14 → 17 → 18% / 6 → 11 → 12 → 13%; ×1.21, +1.4 pts | 3 → 6 → 8 → 8% / 4 → 8 → 9 → 9%; ×1.17, +0.8 pts |
+  | Amsterdam | 11 → 16 → 21 → 24% / 9 → 13 → 17 → 19%; ×1.31, +0.8 pts | 5 → 11 → 18 → 19% / 7 → 15 → 21 → 23%; ×1.20, ±0 pts |
+  | Midtown | 24 → 26 → 29 → 29% / 20 → 22 → 24 → 24%; ×1.37, +1.5 pts | 9 → 9 → 20 → 20% / 7 → 11 → 20 → 20%; ×1.35, +1.9 pts |
+  | Rye | 12 → 17 → 21 → 22% / 9 → 13 → 16 → 16%; ×1.22, +1.4 pts | 2 → 6 → 8 → 9% / 3 → 5 → 5 → 6%; ×1.14, +0.4 pts |
+  | Hallstatt | 7 → 9 → 12 → 13% / 3 → 4 → 5 → 5%; ×1.11, +0.8 pts | 0.4 → 1.3 → 2 → 2% / 0.3 → 0.8 → 1 → 1%; ×1.03, +0.4 pts |
+  | Trubschachen | 8 → 13 → 15 → 17% / 6 → 9 → 9 → 10%; ×1.16, +1.2 pts | 2 → 4 → 4 → 5% / 3 → 3 → 4 → 4%; ×1.10, +0.5 pts |
 
-  Waste stays within the 2 points the plan allows. The first version of the panel tone (0.6 mm, with the grid every two modules over it) took Midtown to +2.6 points, so the tone is 0.7 mm and the grid over it needs twice the room. Render time rose about 3% in Amsterdam at 1:4000 and 7% in Midtown at 1:2000 with N1. Plot time is well inside the proposed +60%. The §8 targets are still off: Midtown at 1:1000 is just under the 30–45% band, the villages are at 12–21%, and no town reaches 25% of pixels changed. Car parks to parks, green walls and frames everywhere (N3) are next.
+  Waste stays within the 2 points the plan allows. The first version of the panel tone (0.6 mm, with the grid every two modules over it) took Midtown to +2.6 points, so the tone is 0.7 mm and the grid over it needs twice the room. Render time rose about 3% in Amsterdam at 1:4000 and 7% in Midtown at 1:2000 with N1. Plot time is well inside the proposed +60%.
+
+  N3 added less than N1 and N2: the test places have few surface car parks, and blank walls are a small share of the walls in view. The §8 targets are still off. Amsterdam (24%) and Midtown (29%) are close to the 30% floor at 1:1000, but the villages are at 13–22%, and only Midtown at 1:4000 and Amsterdam at 1:4000 pass 20% of pixels changed. The biggest remaining levers are the ones that work at 1:4000: water margins and agroforestry (N4) for the villages and farmland, and a denser canopy.
 ---
 
 ## 1. Why the first version is subtle

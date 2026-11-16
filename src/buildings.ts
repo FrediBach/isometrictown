@@ -5,9 +5,9 @@ import type { FutureTown } from './future';
 import { facadeLines, PLAIN, type Facade, type Wall } from './facades';
 import { pointInRing, ringArea } from './geo';
 import { LOD, shows, showsAt } from './lod';
-import { hash } from './rng';
+import { hash, patch } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
-import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
+import { GREENERY, LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import { futureRoof, roofPanels, sawtoothPanels } from './solar';
 import { additions } from './additions';
@@ -58,6 +58,8 @@ export type Build = {
   seed: number;
   /** The solarpunk plan for the district, while that mode is on. */
   future?: FutureTown | null;
+  /** The building being built has green walls (solarpunk, depth Transform): its blank walls are planted. */
+  greenWalls?: boolean;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */
@@ -148,6 +150,12 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       if (zb >= z1 - 0.3) continue;
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
+      // Blank walls of a green-walled building: above a lower neighbour, or with no windows at all.
+      if (B.greenWalls && o.windows && ri === 0 && (zb > z0 || o.facade?.pattern === 'blank') && shows(cam, LOD.greenWall, len)) {
+        const face = out.faces[out.faces.length - 1];
+        tagLines(B, 'planting', out, () => greenWall(B, ax, ay, bx, by, zb, z1, face, out), 'green-wall');
+        continue;
+      }
       const shop = !!o.shop && shows(cam, LOD.shopfront) && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
       if (shop) tagLines(B, undefined, out, () => shopfront(B, ax, ay, bx, by, len, out), 'shopfront');
       if (o.windows && set.windows && len >= 2.4) {
@@ -214,6 +222,28 @@ export function shadeWall(B: Build, ax: number, ay: number, bx: number, by: numb
   for (let k = 1; k < m; k++) {
     const t = k / m, x = ax + dx * t, y = ay + dy * t;
     out.lines.push({ pen: SHADOWS, layer: 'shadeWalls', pts: [x, y, z0, x, y, top(t)] });
+  }
+}
+
+/**
+ * A green wall: a planter along the foot and climbers up the wall in close vertical strokes, to
+ * 60–90% of its height with a ragged top that follows smooth noise fixed to the map, shown only
+ * on the wall's own face.
+ */
+function greenWall(B: Build, ax: number, ay: number, bx: number, by: number, z0: number, z1: number, face: number[][], out: Solid): void {
+  const { cam } = B;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const across = Math.abs(dx * cam.cb - dy * cam.sb) * cam.s;
+  const m = Math.floor(across / cam.gap(0.8));
+  out.lines.push({ pen: LINEWORK, pts: [ax, ay, z0 + 0.45, bx, by, z0 + 0.45], on: face });
+  for (let k = 1; k < m; k++) {
+    const t = k / m;
+    const x = ax + dx * t;
+    const y = ay + dy * t;
+    const [k0, k1] = B.key(x, y);
+    const top = z0 + (z1 - z0) * (0.6 + 0.3 * patch(k0 / 3.5, k1 / 3.5, B.seed, 12370));
+    out.lines.push({ pen: GREENERY, pts: [x, y, z0 + 0.45, x, y, top], on: face });
   }
 }
 
@@ -536,6 +566,7 @@ function shopSide(info: Info | undefined): [number, number] | undefined {
 export function building(B: Build, b: Building): Solid[] {
   const drawing = B.seed;
   B.seed = seedFor(B.set, b.info?.seed);
+  B.greenWalls = !!(B.future && b.future?.greenWalls);
   try {
     const out = body(B, b);
     if (b.info?.townHall && B.set.details) flag(B, b, out);
@@ -543,6 +574,7 @@ export function building(B: Build, b: Building): Solid[] {
     return out;
   } finally {
     B.seed = drawing;
+    B.greenWalls = false;
   }
 }
 

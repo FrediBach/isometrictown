@@ -1,11 +1,12 @@
 import type { Build, Solid } from './buildings';
 import { CLIMATES, MEDIAN } from './future';
-import { onMask } from './infra';
-import { LOD, shows, showsAt } from './lod';
+import { BAY_D, onMask } from './infra';
+import { pointInRing } from './geo';
+import { LOD, shows, showsAt, thin } from './lod';
 import type { Masks, Tree } from './nature';
 import type { Paper } from './raster';
 import { hash } from './rng';
-import { GREENERY, LINEWORK } from './settings';
+import { deeper, GREENERY, LINEWORK } from './settings';
 import { outline, walk } from './streets';
 import { urbanity } from './traffic';
 import type { Shape, Town, Way } from './tiles';
@@ -36,7 +37,8 @@ export type Run = {
 };
 
 /** What reshaping made, for the drawing passes that read it. */
-export type Reshaped = { town: Town; strips: Shape[]; runs: Run[] };
+/** `lots` are car parks turned into pocket parks (their bays' ground, as rectangles along each old aisle), `paths` the aisles kept as footpaths through them. */
+export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][] };
 
 /** Width of a garden street's one shared lane. */
 const LANE = 3.6;
@@ -119,7 +121,27 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
 
   const strips: Shape[] = [];
   const runs: Run[] = [];
-  const ways = town.ways.map((w) => {
+  // Car parks become pocket parks (T07), each decided whole: its aisles leave the roads and stay as a path.
+  const parks = lotParks(town, B);
+  const lots: Shape[] = [];
+  const paths: number[][] = [];
+  const ways = town.ways.map((w): Way => {
+    if (parks.has(w)) {
+      const hw = w.width / 2 + BAY_D + 0.2;
+      const p = w.pts;
+      for (let i = 0; i + 3 < p.length; i += 2) {
+        const l = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
+        if (l < 1e-6) continue;
+        const nx = (-(p[i + 3] - p[i + 1]) / l) * hw;
+        const ny = ((p[i + 2] - p[i]) / l) * hw;
+        const ux = ((p[i + 2] - p[i]) / l) * 2;
+        const uy = ((p[i + 3] - p[i + 1]) / l) * 2;
+        const pts = [p[i] - ux - nx, p[i + 1] - uy - ny, p[i + 2] + ux - nx, p[i + 3] + uy - ny, p[i + 2] + ux + nx, p[i + 3] + uy + ny, p[i] - ux + nx, p[i + 1] - uy + ny];
+        lots.push([{ pts, seam: new Uint8Array(4) }]);
+      }
+      paths.push(p);
+      return { pts: p, kind: 'path', width: 0, cls: 'footway' };
+    }
     const kind = streetKind(w, urban);
     if (!kind) return w;
     const hw = w.width / 2;
@@ -165,7 +187,94 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
     const width = garden ? LANE : inner * 2;
     return { ...w, width, was: w.width, future: kind };
   });
-  return { town: { ...town, ways }, strips, runs };
+  return { town: { ...town, ways }, strips, runs, lots, paths };
+}
+
+/**
+ * Car park aisles whose car park becomes a pocket park. Aisles that meet, end to end or an end on
+ * another's line, make one car park, decided whole by the position of its first end; two thirds of
+ * them at the default Intensity, all at depth Visionary. Car parks are found among the 250 m
+ * context, so one cut by the edge of the view is decided as a whole.
+ */
+function lotParks(town: Town, B: Build): Set<Way> {
+  const aisles = town.nearby.ways.filter((w) => w.kind === 'road' && w.service === 'parking_aisle');
+  const root = aisles.map((_, i) => i);
+  const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])));
+  const near = (x: number, y: number, w: Way) => {
+    const p = w.pts;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const [ax, ay, bx, by] = [p[i], p[i + 1], p[i + 2], p[i + 3]];
+      const l2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2));
+      if (Math.hypot(ax + t * (bx - ax) - x, ay + t * (by - ay) - y) < 1.5) return true;
+    }
+    return false;
+  };
+  for (let a = 0; a < aisles.length; a++) {
+    const p = aisles[a].pts;
+    for (const [x, y] of [[p[0], p[1]], [p[p.length - 2], p[p.length - 1]]])
+      for (let b = 0; b < aisles.length; b++) if (b !== a && find(a) !== find(b) && near(x, y, aisles[b])) root[find(a)] = find(b);
+  }
+  // Each car park's key: the smallest end position among its aisles, fixed to the map.
+  const keys = new Map<number, [number, number]>();
+  aisles.forEach((w, i) => {
+    const r = find(i);
+    for (const k of [B.key(w.pts[0], w.pts[1]), B.key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])]) {
+      const best = keys.get(r);
+      if (!best || k[0] < best[0] || (k[0] === best[0] && k[1] < best[1])) keys.set(r, k);
+    }
+  });
+  const share = deeper(B.set, 'visionary') ? 1 : 0.45 + 0.45 * Math.max(0, Math.min(1, B.set.future));
+  const out = new Set<Way>();
+  aisles.forEach((w, i) => {
+    const [k0, k1] = keys.get(find(i))!;
+    if (hash(k0, k1, B.set.seed, 12360) < share) out.add(w);
+  });
+  return out;
+}
+
+/** A grove on a loose grid fixed to the map, over the pocket parks that were car parks, clear of their paths. */
+export function lotTrees(B: Build, paper: Paper, R: Reshaped, M: Masks): Tree[] {
+  const out: Tree[] = [];
+  if (B.set.trees <= 0 || !R.lots.length) return out;
+  const cell = 6.5;
+  const [ox, oy] = B.toAbs(0, 0);
+  const metre = B.toAbs(1, 0)[0] - ox;
+  const big = cell * metre;
+  const keep = thin(B.cam, LOD.treeSpacing, cell);
+  const seen = new Set<string>();
+  for (const lot of R.lots) {
+    const p = lot[0].pts;
+    const xs = [p[0], p[2], p[4], p[6]];
+    const ys = [p[1], p[3], p[5], p[7]];
+    for (let i = Math.floor((ox + Math.min(...xs) * metre) / big); i <= Math.ceil((ox + Math.max(...xs) * metre) / big); i++)
+      for (let j = Math.floor((oy + Math.min(...ys) * metre) / big); j <= Math.ceil((oy + Math.max(...ys) * metre) / big); j++) {
+        const id = `${i},${j}`;
+        if (seen.has(id)) continue;
+        const h = (k: number) => hash(i, j, B.set.seed, 12361 + k);
+        const x = ((i + 0.2 + 0.6 * h(1)) * big - ox) / metre;
+        const y = ((j + 0.2 + 0.6 * h(2)) * big - oy) / metre;
+        if (!pointInRing(x, y, p)) continue;
+        seen.add(id);
+        if (h(0) >= 0.7 * keep * Math.min(1, B.set.trees / 0.7)) continue;
+        if (R.paths.some((q) => nearLine(x, y, q, 2))) continue;
+        if (onMask(paper, M.road, x, y) || onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) continue;
+        const r = 1.6 + h(3) * 1.4;
+        out.push({ x, y, r, h: r + 3 + h(4) * 2.2, conifer: h(5) < 0.1 });
+      }
+  }
+  return out;
+}
+
+/** Whether a point is within d of a polyline. */
+function nearLine(x: number, y: number, p: number[], d: number): boolean {
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const [ax, ay, bx, by] = [p[i], p[i + 1], p[i + 2], p[i + 3]];
+    const l2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2));
+    if (Math.hypot(ax + t * (bx - ax) - x, ay + t * (by - ay) - y) < d) return true;
+  }
+  return false;
 }
 
 /** How far from a road's centre line other streets' strips keep. */
@@ -275,13 +384,20 @@ export function stripTrees(B: Build, paper: Paper, R: Reshaped, M: Masks): Tree[
 }
 
 /** The planted strips' low planting: the park hatch, kept to the strips. */
-export function stripGrass(paper: Paper, M: Masks, R: Reshaped, paths?: Uint8Array): void {
+export function stripGrass(paper: Paper, M: Masks, R: Reshaped, lots: Uint8Array, paths?: Uint8Array): void {
   const cam = paper.cam;
-  if (!R.strips.length || !shows(cam, LOD.gardenStrip)) return;
-  const clear = (x: number, y: number) => paper.on(M.strip, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, cam.groundDepth(y));
-  // Twice as dense as park grass: a strip is narrow, and should read as planted at a glance.
-  paper.facet('strip-planting', () => paper.hatchGround(GREENERY, 63, cam.gap(0.9), (x, y) => !(paths && paper.on(paths, x, y)) && clear(x, y)));
-  paper.facet('strip-edges', () => outline(paper, GREENERY, R.strips, M.strip, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
+  const clear = (x: number, y: number) => paper.on(M.strip, x, y) && !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && !(paths && paper.on(paths, x, y)) && paper.seen(x, y, cam.groundDepth(y));
+  const edge = (x: number, y: number) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y);
+  if (R.strips.length && shows(cam, LOD.gardenStrip)) {
+    // Twice as dense as park grass: a strip is narrow, and should read as planted at a glance.
+    paper.facet('strip-planting', () => paper.hatchGround(GREENERY, 63, cam.gap(0.9), (x, y) => !paper.on(lots, x, y) && clear(x, y)));
+    paper.facet('strip-edges', () => outline(paper, GREENERY, R.strips, M.strip, (x, y) => !paper.on(lots, x, y) && edge(x, y)));
+  }
+  if (R.lots.length) {
+    // Car parks become parks: the park hatch, and an edge where the tarmac was.
+    paper.facet('lot-planting', () => paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => paper.on(lots, x, y) && clear(x, y)));
+    paper.facet('lot-edges', () => outline(paper, GREENERY, R.lots, lots, edge));
+  }
 }
 
 /**

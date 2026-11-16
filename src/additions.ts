@@ -2,7 +2,7 @@ import { newSolid, prism, tagLines, type Build, type Solid } from './buildings';
 import { CLIMATES, doorEdge, motifBudget, showpiece } from './future';
 import { LOD, shows, spaced } from './lod';
 import { hash } from './rng';
-import { GREENERY, LINEWORK, ROOFS } from './settings';
+import { deeper, GREENERY, LINEWORK, ROOFS } from './settings';
 import { onMask, place, rect, type Extra } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
@@ -50,7 +50,8 @@ export function additions(B: Build, b: Building, out: Solid[]): void {
   const s = newSolid();
   switch (f.addition) {
     case 'frame':
-      tagLines(B, 'additions', s, () => frame(B, b, s), f.wonder ? 'frame/wonder' : 'frame');
+      tagLines(B, 'additions', s, () => (f.strip = frame(B, b, s, f.side!)), f.wonder ? 'frame/wonder' : 'frame');
+      if (f.side2 !== undefined) tagLines(B, 'additions', s, () => (f.strip2 = frame(B, b, s, f.side2!)), 'frame');
       break;
     case 'porch':
     case 'canopy':
@@ -71,18 +72,20 @@ export function additions(B: Build, b: Building, out: Solid[]): void {
  * with a rail, some bays closed in as winter gardens where it is cold, a shade rail under each
  * floor where it is hot. The district's wonder has planters along its rails.
  */
-function frame(B: Build, b: Building, s: Solid): void {
+function frame(B: Build, b: Building, s: Solid, side: number): number[] | undefined {
   const f = b.future!;
   const { cam, style } = B;
-  const { P, len } = along(b.shape[0].pts, f.side!);
+  const { P, len } = along(b.shape[0].pts, side);
   const D = 2.4;
   const H = eave(B, b);
   const floor = style.floor;
   const levels: number[] = [];
   for (let z = floor; z <= H - 1.2; z += floor) levels.push(z);
-  if (!levels.length) return;
-  f.strip = strip(P, 0.3, len - 0.3, D);
-  if (!shows(cam, LOD.frame, D)) return;
+  if (!levels.length) return undefined;
+  const ground = strip(P, 0.3, len - 0.3, D);
+  if (!shows(cam, LOD.frame, D)) return ground;
+  // From depth Transform the frames are planted on about half their floors, as the wonder is on all of them.
+  const planted = (li: number) => f.wonder || (deeper(B.set, 'transform') && hash(b.info!.seed[0], b.info!.seed[1], B.seed, 12380 + li) < 0.5);
   const C = CLIMATES[B.future!.climate];
   const top = levels[levels.length - 1];
   const nb = Math.max(2, Math.round((len - 0.6) / 3.4));
@@ -120,7 +123,7 @@ function frame(B: Build, b: Building, s: Solid): void {
           const top = z + 1.95 - 0.6 * (1 - Math.abs(2 * t - 1)) * 0.25;
           s.lines.push({ pen: ROOFS, pts: flat([P(x - 0.25, D - 0.3, top), P(x - 0.25, D - 0.3, top - 0.55), P(x + 0.25, D - 0.3, top - 0.55), P(x + 0.25, D - 0.3, top)]) });
         }
-      } else if (f.wonder && rail && h(12152) < 0.6) {
+      } else if (planted(li) && rail && h(12152) < 0.6) {
         // The wonder's planters: plants spilling over the rail.
         const g: number[] = [];
         for (let t = 0.15, q = 0; t <= 0.85 + 1e-6; t += 0.14, q++) g.push(...P(u(k + t), D + 0.05, z + 1 + (q % 2 ? 0.35 : 0.05)));
@@ -130,7 +133,8 @@ function frame(B: Build, b: Building, s: Solid): void {
   });
   for (let k = 0; k <= nb; k += postStep) s.lines.push({ pen: LINEWORK, pts: flat([P(u(k), D, 0), P(u(k), D, top + 1)]) });
   if (nb % postStep) s.lines.push({ pen: LINEWORK, pts: flat([P(u(nb), D, 0), P(u(nb), D, top + 1)]) });
-  s.shade = [[flat([P(u(0), 0, top), P(u(nb), 0, top), P(u(nb), D, top), P(u(0), D, top)])]];
+  (s.shade ??= []).push([flat([P(u(0), 0, top), P(u(nb), 0, top), P(u(nb), D, top), P(u(0), D, top)])]);
+  return ground;
 }
 
 /**

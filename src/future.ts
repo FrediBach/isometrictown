@@ -82,6 +82,8 @@ export type Future = {
   roofPv: boolean;
   /** Low planting on a flat roof, around the panels and plant rooms. */
   greenRoof: boolean;
+  /** Blank walls planted from a planter at their foot (depth Transform): party walls above a lower neighbour, windowless works walls. */
+  greenWalls?: boolean;
   /** A roof garden over the part of a big, low flat roof the panels leave (depth Transform): planting, edge planters, small trees. */
   roofGarden?: boolean;
   /** A rain tank by the back wall, fed by a downpipe. */
@@ -90,14 +92,17 @@ export type Future = {
   addition?: Addition;
   /** Outer-ring edge a balcony frame or trellis stands along. */
   side?: number;
+  /** A second balcony frame, on the wall opposite `side` (depth Transform: front as well as back). */
+  side2?: number;
   /** A district's moment of wonder: the one balcony frame in its 200 m cell that is planted and lived in. */
   wonder?: boolean;
   /** Wall height the downpipe comes down from, set when the building is built; unset means it wasn't drawn. */
   eave?: number;
   /** The walls as built, set by house(), so a porch finds the same front door the facade drew. */
   wall?: { pts: number[]; seam: Uint8Array; party?: Float32Array };
-  /** Ground an addition stands on, set when it is built, so trees and cars keep off it. */
+  /** Ground an addition stands on, set when it is built, so trees and cars keep off it; `strip2` under the second frame. */
   strip?: number[];
+  strip2?: number[];
 };
 
 /** Supported additions to a building (docs/solarpunk/implementation-plan.md §7.2). */
@@ -198,10 +203,13 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
     }
     const tank = (recipe === 'B01' || recipe === 'B02') && mine(3) < C.tanks * (0.3 + 0.6 * f);
     b.future = { recipe, roofPv, greenRoof, tank, ...(roofGarden ? { roofGarden } : {}) };
-    const add = addition(b, recipe, ground, C, (salt) => (i.kind === 'terrace' ? row(salt) : mine(salt)), f);
+    // Green walls where there are blank walls to plant: rows and blocks with party walls, shops in them, windowless works. Towers keep their windows.
+    if (bold && b.h <= 30 && !KEEP_ROOF.has(recipe) && (i.party.some((v) => v > 0) || (recipe === 'B19' && i.facade.pattern === 'blank')) && mine(5) < 0.4 + 0.5 * f) b.future.greenWalls = true;
+    const add = addition(b, recipe, ground, C, (salt) => (i.kind === 'terrace' ? row(salt) : mine(salt)), f, bold);
     if (add) {
       b.future.addition = add[0];
       b.future.side = add[1];
+      if (add[2] !== undefined) b.future.side2 = add[2];
       if (add[0] === 'frame') {
         const [c0, c1] = cell((x0 + x1) / 2, (y0 + y1) / 2, 200);
         const id = `${c0},${c1}`;
@@ -254,11 +262,14 @@ export function doorEdge(ring: { pts: number[]; seam: Uint8Array; party?: Float3
 }
 
 /** Which addition a building gets, and along which edge, if there is room for it on the ground. */
-function addition(b: Building, recipe: RecipeId, ground: Obstacles, C: Climate, r: (salt: number) => number, f: number): [Addition, number] | null {
+function addition(b: Building, recipe: RecipeId, ground: Obstacles, C: Climate, r: (salt: number) => number, f: number, bold = false): [Addition, number, number?] | null {
   const i = b.info!;
   // Rows of three storeys or more and perimeter blocks take a frame on their back wall, as rear galleries.
   const want = (recipe === 'B02' && b.h >= 9) || recipe === 'B03' ? (['frame', 0.25, 0.75] as [Addition, number, number]) : ADDS[recipe];
-  if (!want || r(20) >= want[1] + (want[2] - want[1]) * f) return null;
+  if (!want) return null;
+  // From depth Transform every slab gets its frame, and most rows and blocks.
+  const chance = bold && want[0] === 'frame' ? (recipe === 'B04' ? 1 : 0.5 + 0.4 * f) : want[1] + (want[2] - want[1]) * f;
+  if (r(20) >= chance) return null;
   const [kind] = want;
   const ring = b.shape[0];
   const p = ring.pts;
@@ -290,7 +301,17 @@ function addition(b: Building, recipe: RecipeId, ground: Obstacles, C: Climate, 
   const deep = kind === 'frame' ? 2.7 : 0.7;
   for (const [e] of order.slice(0, 3)) {
     const [, , len] = edge(p, e);
-    if (ground.clear(b, p, e, 0.3, len - 0.3, deep)) return [kind, e];
+    if (!ground.clear(b, p, e, 0.3, len - 0.3, deep)) continue;
+    // From depth Transform a free-standing slab is framed front and back: the long wall facing away, where it is clear.
+    if (bold && kind === 'frame' && recipe === 'B04') {
+      const [nx, ny] = edge(p, e);
+      for (const [e2] of order) {
+        if (e2 === e) continue;
+        const [mx, my, l2] = edge(p, e2);
+        if (nx * mx + ny * my < -0.8 && l2 >= 15 && ground.clear(b, p, e2, 0.3, l2 - 0.3, deep)) return [kind, e, e2];
+      }
+    }
+    return [kind, e];
   }
   return null;
 }
