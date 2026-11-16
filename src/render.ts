@@ -194,7 +194,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     let sx1 = -Infinity;
     let syTop = Infinity;
     let syBot = -Infinity;
-    const H = b.h * set.heightScale + 8;
+    const H = b.h * set.heightScale + (b.future?.gardenCrown ? 18 : 8);
     for (let i = 0; i < p.length; i += 2) {
       const sx = cam.sx(p[i], p[i + 1]);
       sx0 = Math.min(sx0, sx);

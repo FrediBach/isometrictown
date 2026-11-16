@@ -113,7 +113,7 @@ export function planProduction(town: Town, set: Settings): ProductionStats {
     const { rect: r, fill } = bestRect(b.shape[0].pts);
     if (!r) continue;
     const visible = !b.context;
-    if (i.roof === 'flat' && f.roofPv && !f.pavilion && !f.marketHall && b.h <= 60 && b.min === 0) {
+    if (i.roof === 'flat' && f.roofPv && !f.pavilion && !f.gardenCrown && !f.marketHall && b.h <= 60 && b.min === 0) {
       if (visible) stats.roofs++;
       // The wing shelters most of the terrace, leaving a strip for gardens and plant rooms.
       const wing = { ...r, cx: r.cx + r.uy * r.w * 0.12, cy: r.cy - r.ux * r.w * 0.12, L: Math.min(24, r.L - 3), w: Math.min(12, r.w * 0.65 - 1.5) };
@@ -121,7 +121,7 @@ export function planProduction(town: Town, set: Settings): ProductionStats {
     }
     // Reserve the complete rotor sweep and service frame, not just the mast footing.
     // A nearby taller building shelters the roof; context neighbours count as well.
-    if (i.roof === 'flat' && f.roofPv && !f.pavilion && !f.marketHall && !i.hospital && b.h >= 6 && b.h <= 60 && b.min === 0) {
+    if (i.roof === 'flat' && f.roofPv && !f.pavilion && !f.gardenCrown && !f.marketHall && !i.hospital && b.h >= 6 && b.h <= 60 && b.min === 0) {
       const wing = f.production.wing;
       const occupied = wing ? corners({ ...wing, L: wing.L + 2, w: wing.w + 2 }) : null;
       for (const [u, v] of [[r.L / 2 - 4, 0], [-r.L / 2 + 4, 0], [0, r.w / 2 - 4], [0, -r.w / 2 + 4], [0, 0]]) {

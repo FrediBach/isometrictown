@@ -84,6 +84,8 @@ export const LOD = {
   turbineDetail: { m: 1, mm: 1, what: 'Wind machine outlines: shaft or blade width' },
   turbine: { m: 11, mm: 1.8, what: 'Community wind turbines: blade length' },
   agrivoltaic: { m: 12, mm: 3, what: 'Raised solar rows over fields: length of a row' },
+  terraceCrop: { m: 2.5, mm: 1.2, what: 'Rooftop cultivation: a group of crops' },
+  gardenCrown: { m: 26, mm: 2.5, what: 'Stepped rooftop farms: full terrace width' },
   pavilion: { m: 5, mm: 2, what: 'Roof pavilions under pergolas: depth' },
   greenWall: { m: 6, mm: 2, what: 'Green walls on blank walls: wall length' },
   gardenStrip: { m: 2.2, mm: 0.9, what: 'Planted strips of garden streets and boulevards: width' },

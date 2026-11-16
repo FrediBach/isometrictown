@@ -11,6 +11,7 @@ import { GREENERY, LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerI
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import { futureRoof, roofPanels, sawtoothPanels } from './solar';
 import { overlaps, productionRoof } from './production';
+import { gardenCrown } from './garden-building';
 import { additions } from './additions';
 import { bicycle } from './vehicles';
 import type { Style } from './styles';
@@ -472,6 +473,10 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
     // Solarpunk roofs: plant rooms first, then panels and planting in the room they leave.
     b.future.eave = H;
     if (pad || !set.rooftops || H >= 150) return;
+    if (b.future.gardenCrown) {
+      gardenCrown(B, b.future.gardenCrown, H, solid);
+      return;
+    }
     const taken = productionRoof(b);
     if (area > 220 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out, taken);
     futureRoof(B, b, H, roofFace, taken, out);

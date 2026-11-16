@@ -8,12 +8,13 @@ import { deeper, seedFor, type Settings } from './settings';
 import type { StyleId } from './styles';
 import type { Building, Town, Way } from './tiles';
 import type { Production } from './production';
+import { planGardenCrown, type GardenCrown } from './garden-building';
 
 /*
  * Solarpunk mode: the same place as a settled, repaired and inhabited future (see
  * docs/solarpunk/). The planner decides, from what classify() worked out and without looking at
  * the camera, what each building and street becomes; drawing code then shows as much of that
- * future as the scale allows. It never changes what a building is, how tall it is or its roof.
+ * future as the scale allows. It preserves the mapped building; Visionary may add stepped growing rooms above it.
  */
 
 /** Climate profiles the future is designed for. */
@@ -80,6 +81,8 @@ export type RecipeId = 'B01' | 'B02' | 'B03' | 'B04' | 'B05' | 'B07' | 'B12' | '
 export type Future = {
   /** Coordinated productive structures, reserved before masks or level of detail are applied. */
   production?: Production;
+  /** Stepped rooftop growing rooms, replacing the ordinary roof composition in Visionary. */
+  gardenCrown?: GardenCrown;
   recipe: RecipeId;
   /** Solar panels on the roof: a patch on the sunny slope, rows on a flat roof, or modules on sawtooth slopes. */
   roofPv: boolean;
@@ -213,6 +216,10 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
     const tank = (recipe === 'B01' || recipe === 'B02') && mine(3) < C.tanks * (0.3 + 0.6 * f);
     b.future = { recipe, roofPv, greenRoof, tank, ...(roofGarden ? { roofGarden } : {}) };
     if (deeper(set, 'visionary') && flat && area > 300 && (recipe === 'B04' || recipe === 'B05') && mine(6) < 0.45) b.future.pavilion = true;
+    if (deeper(set, 'visionary') && flat && (recipe === 'B04' || recipe === 'B05' || recipe === 'B07')) {
+      const crown = planGardenCrown(b);
+      if (crown) { b.future.gardenCrown = crown; delete b.future.pavilion; }
+    }
     if (deeper(set, 'visionary') && flat && b.h > 60 && mine(7) < 0.5) b.future.skyGarden = true;
     if (deeper(set, 'visionary') && flat && area > 1500 && b.h <= 15 && (recipe === 'B19' || recipe === 'B07') && mine(8) < 0.5) b.future.marketHall = true;
     // Green walls where there are blank walls to plant: rows and blocks with party walls, shops in them, windowless works. Towers keep their windows.
