@@ -37,7 +37,7 @@ These are small and exact, for the parts that are pure functions.
 
 These draw whole sheets with the real pipeline (`loadTown` → `render` → `plan` → `toSvg`, as the worker does) from map data recorded in `test/fixtures/net`.
 
-- **`sheets.test.ts`** draws each case in `test/cases.ts`: twenty-five places and settings (twelve of them in solarpunk mode, on places already recorded: six at depth Retrofit, which must not change as the bolder depths are built, and their Transform twins) that between them reach almost every feature, regional style and tricky setting. For each one it checks:
+- **`sheets.test.ts`** draws each case in `test/cases.ts`: twenty-seven places and settings (fourteen of them in solarpunk mode, on places already recorded: six at depth Retrofit, which must not change as the bolder depths are built, their Transform twins, and Mollis and Midtown at Visionary) that between them reach almost every feature, regional style and tricky setting. For each one it checks:
   - the golden (below),
   - every stroke is a finite polyline on the sheet, and every feature stays inside the drawing area,
   - every stroke is filed in the tally (only the frame and map notes are not),

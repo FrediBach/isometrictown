@@ -42,7 +42,7 @@ export type Run = {
  * aisle), `paths` the aisles kept as footpaths through them. `banks` are planted margins along
  * soft river, lake and stream banks, and `banksides` the lines their trees stand on.
  */
-export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][]; banks: Shape[]; banksides: number[][] };
+export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][]; banks: Shape[]; banksides: number[][]; groves: [number, number][] };
 
 /** Width of a garden street's one shared lane. */
 const LANE = 3.6;
@@ -129,7 +129,40 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
   const parks = lotParks(town, B);
   const lots: Shape[] = [];
   const paths: number[][] = [];
-  const ways = town.ways.map((w): Way => {
+  // Depth Visionary: car-free cores in the densest districts, and trams on long main-road chains.
+  const visionary = deeper(B.set, 'visionary');
+  const trams = visionary ? tramChains(town, B) : new Set<Way>();
+  const rails: Way[] = [];
+  const groves: [number, number][] = [];
+  const pedestrian = (w: Way) => {
+    if (!visionary || w.kind !== 'road' || w.bridge || !GARDEN.has(w.cls) || w.service === 'parking_aisle' || w.service === 'driveway' || w.width < 5) return false;
+    const p = w.pts;
+    const mid = Math.floor(p.length / 4) * 2;
+    if (urban(p[mid], p[mid + 1]) <= 0.7) return false;
+    const [c0, c1] = B.cell(p[mid], p[mid + 1], 300);
+    return hash(c0, c1, B.set.seed, 12410) < 0.5;
+  };
+  const mapped = town.ways.map((w): Way => {
+    const out = reshapeWay(w);
+    if (!trams.has(w) || out.kind !== 'road') return out;
+    // Two tracks where they read apart; closer, one down the middle, so tracks and wires don't blot.
+    for (const o of shows(B.cam, LOD.tramPair, 3) ? [1.5, -1.5] : [0]) rails.push({ pts: o ? offset(w.pts, o) : w.pts, kind: 'rail', width: 0, cls: 'transit', sub: 'tram', tram: true });
+    return { ...out, tram: true };
+  });
+  function reshapeWay(w: Way): Way {
+    if (pedestrian(w)) {
+      // Groves of trees in two rows down the paving, leaving the middle clear as a service lane, and people about.
+      const o = w.width / 2 - 1.6;
+      for (const side of [1, -1]) {
+        walk(offset(w.pts, side * o), side > 0 ? 3 : 7.5, 9, 3, (x, y) => {
+          if (!crowded(w, x, y)) groves.push([x, y]);
+        });
+      }
+      walk(w.pts, 10, 24, 6, (x, y) => {
+        if (!crowded(w, x, y)) B.future?.gather.push([x, y, 3, Math.max(1.5, w.width / 2 - 1), false]);
+      });
+      return { ...w, was: w.width, future: 'pedestrian' };
+    }
     if (parks.has(w)) {
       const hw = w.width / 2 + BAY_D + 0.2;
       const p = w.pts;
@@ -190,9 +223,10 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
     }
     const width = garden ? LANE : inner * 2;
     return { ...w, width, was: w.width, future: kind };
-  });
+  }
+  const ways = [...mapped, ...rails];
   const [banks, banksides] = waterMargins(town, urban);
-  return { town: { ...town, ways }, strips, runs, lots, paths, banks, banksides };
+  return { town: { ...town, ways }, strips, runs, lots, paths, banks, banksides, groves };
 }
 
 /**
@@ -280,6 +314,66 @@ function nearLine(x: number, y: number, p: number[], d: number): boolean {
     if (Math.hypot(ax + t * (bx - ax) - x, ay + t * (by - ay) - y) < d) return true;
   }
   return false;
+}
+
+/**
+ * Main roads that carry a tram (T03, T11): chains of primary and secondary road pieces joined end
+ * to end with nothing else at the joins, at least 600 m long, so the line runs somewhere; a
+ * little over half of them, each decided by its first end. Found among the 250 m context.
+ */
+function tramChains(town: Town, B: Build): Set<Way> {
+  const roads = town.nearby.ways.filter((w) => w.kind === 'road' && BOULEVARD.has(w.cls));
+  const key = (x: number, y: number) => B.key(x, y).join();
+  const at = new Map<string, Way[]>();
+  const ends = (w: Way) => [key(w.pts[0], w.pts[1]), key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])];
+  for (const w of roads)
+    for (const k of ends(w)) {
+      const list = at.get(k);
+      if (list) list.push(w);
+      else at.set(k, [w]);
+    }
+  const seen = new Set<Way>();
+  const out = new Set<Way>();
+  for (const w0 of roads) {
+    if (seen.has(w0)) continue;
+    const chain = [w0];
+    seen.add(w0);
+    // Grow from both ends while exactly one other piece carries on.
+    for (const k0 of ends(w0)) {
+      let k = k0;
+      for (;;) {
+        const here = at.get(k) ?? [];
+        if (here.length !== 2) break;
+        const next = here.find((o) => !seen.has(o));
+        if (!next) break;
+        seen.add(next);
+        chain.push(next);
+        const [a, b] = ends(next);
+        k = a === k ? b : a;
+      }
+    }
+    let L = 0;
+    for (const w of chain) for (let i = 0; i + 3 < w.pts.length; i += 2) L += Math.hypot(w.pts[i + 2] - w.pts[i], w.pts[i + 3] - w.pts[i + 1]);
+    if (L < 600) continue;
+    const first = chain.flatMap((w) => [B.key(w.pts[0], w.pts[1]), B.key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])]).sort((a, b) => a[0] - b[0] || a[1] - b[1])[0];
+    if (hash(first[0], first[1], B.set.seed, 12420) < 0.6) for (const w of chain) out.add(w);
+  }
+  return out;
+}
+
+/** Trees in the paving of pedestrian cores, where the ground is free. */
+export function groveTrees(B: Build, paper: Paper, R: Reshaped, M: Masks): Tree[] {
+  const out: Tree[] = [];
+  if (B.set.trees <= 0) return out;
+  const keep = thin(B.cam, LOD.treeSpacing, 9);
+  for (const [x, y] of R.groves) {
+    if (onMask(paper, M.foot, x, y) || onMask(paper, M.water, x, y)) continue;
+    const [k0, k1] = B.key(x, y);
+    if (hash(k0, k1, B.set.seed, 12415) >= 0.9 * keep) continue;
+    const r = 1.9 + hash(k0, k1, B.set.seed, 12416) * 0.9;
+    out.push({ x, y, r, h: r + 3.6 + hash(k0, k1, B.set.seed, 12417) * 1.6, conifer: false, from: 'core-trees' });
+  }
+  return out;
 }
 
 /** Width of a planted bank margin, metres, and how far from the water its trees stand. */

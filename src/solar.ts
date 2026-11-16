@@ -1,4 +1,5 @@
-import { newSolid, tagLines, type Build, type Solid } from './buildings';
+import { newSolid, prism, tagLines, type Build, type Solid } from './buildings';
+import { chords, FIELD, fieldStrips, type Ground } from './ground';
 import { BAY_D, BAY_W, parkingBays, slab, type Bay, type Extra } from './infra';
 import type { Masks, Tree } from './nature';
 import { onMask } from './infra';
@@ -10,7 +11,7 @@ import { pointInRing, ringArea } from './geo';
 import { LOD, shows, spaced } from './lod';
 import { hash } from './rng';
 import type { Pitched } from './roofs';
-import { deeper, GREENERY, LINEWORK, SHADOWS } from './settings';
+import { deeper, GREENERY, LINEWORK, ROOFS, SHADOWS } from './settings';
 import { bestRect, type Part, type Rect } from './shape';
 import type { Building, Town } from './tiles';
 
@@ -162,6 +163,10 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
   const outer = b.shape[0].pts;
   const { rect } = bestRect(outer);
   if (!rect) return;
+  if (plan.pavilion) {
+    const ring = pavilion(B, b, rect, z, out);
+    if (ring) taken.push(ring);
+  }
   const keepOff = taken.map((t) => grown(t, 0.6));
   const free = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts)) && !keepOff.some((t) => pointInRing(x, y, t));
   // A roof garden shares the roof with the panels: they take one half along its length, the garden the other.
@@ -190,6 +195,91 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
       tagLines(B, 'planting', s, () => greenRoof(B, b, z, roofFace, (x, y) => free(x, y) && !avoid.some((a) => pointInRing(x, y, a)), s), 'green-roof');
     }
   }
+}
+
+/**
+ * A roof pavilion: a glazed timber box at the middle of the roof under a pergola reaching out
+ * over a terrace. Returns its footprint, so panels and planting keep off it.
+ */
+function pavilion(B: Build, b: Building, rect: Rect, z: number, out: Solid[]): number[] | null {
+  const { cx, cy, ux, uy, L, w } = rect;
+  const a = Math.min(4, L / 2 - 2.5);
+  const c = Math.min(2.6, w / 2 - 2.5);
+  if (a < 2 || c < 1.6) return null;
+  const vx = -uy;
+  const vy = ux;
+  const P = (u: number, v: number, h: number) => [cx + ux * u + vx * v, cy + uy * u + vy * v, h];
+  const foot = [P(-a, -c, 0), P(a, -c, 0), P(a, c, 0), P(-a, c, 0)].flatMap(([x, y]) => [x, y]);
+  if (![0, 2, 4, 6].every((i) => pointInRing(foot[i], foot[i + 1], b.shape[0].pts))) return null;
+  if (!shows(B.cam, LOD.pavilion, c * 2)) return foot;
+  const s = newSolid();
+  tagLines(B, 'additions', s, () => {
+    const H = z + 3;
+    prism(B, [{ pts: foot, seam: new Uint8Array(4) }], z, H, { roof: true, windows: false, pen: LINEWORK }, s);
+    // Glazing: mullions round the box.
+    for (const [u0, v0, u1, v1, len] of [[-a, -c, a, -c, 2 * a], [a, -c, a, c, 2 * c], [a, c, -a, c, 2 * a], [-a, c, -a, -c, 2 * c]]) {
+      const n = Math.max(1, Math.round(len / 1.4));
+      for (let k = 1; k < n; k++) {
+        const t = k / n;
+        const [x, y] = P(u0 + (u1 - u0) * t, v0 + (v1 - v0) * t, 0);
+        s.lines.push({ pen: LINEWORK, pts: [x, y, z, x, y, H] });
+      }
+    }
+    // The pergola over the box and a terrace beside it: posts, two beams, slats across.
+    const pa = a + 2.2;
+    const pc = c + 1.4;
+    const top = H + 0.5;
+    for (const [u, v] of [[-pa, -pc], [pa, -pc], [pa, pc], [-pa, pc]]) s.lines.push({ pen: LINEWORK, pts: [...P(u, v, z), ...P(u, v, top)] });
+    for (const v of [-pc, pc]) s.lines.push({ pen: LINEWORK, pts: [...P(-pa, v, top), ...P(pa, v, top)] });
+    const step = spaced(B.cam, 0.8, 0.9);
+    for (let u = -pa + step / 2; u < pa; u += step) s.lines.push({ pen: ROOFS, pts: [...P(u, -pc, top + 0.1), ...P(u, pc, top + 0.1)] });
+  }, 'roof-pavilion');
+  out.push(s);
+  return foot;
+}
+
+/**
+ * Raised solar rows over some fields (agrivoltaics, depth Visionary): every other strip of a
+ * field carries rows of tilted panels on posts high enough for crops or sheep beneath.
+ */
+export function agrivoltaics(B: Build, paper: Paper, G: Ground, M: Masks): Extra {
+  const solids: Solid[] = [];
+  const none = { solids, draw: () => {} };
+  if (!B.future || !shows(B.cam, LOD.agrivoltaic, 12)) return none;
+  const [sx, sy] = B.sun;
+  for (const c of G.covers) {
+    if (c.code !== FIELD || c.rect.w < 45) continue;
+    const [k0, k1] = B.key(c.rect.cx, c.rect.cy);
+    if (hash(k0, k1, B.set.seed, 12440) >= 0.35) continue;
+    const { ux, uy } = c.rect;
+    const { vx, vy, v0, n, w } = fieldStrips(B, c);
+    // Panels tilt towards the sun, across the rows.
+    const toSun = vx * sx + vy * sy >= 0 ? 1 : -1;
+    const s = newSolid();
+    for (let i = 1; i < n; i += 2) {
+      for (let v = v0 + i * w + 4; v < v0 + (i + 1) * w - 3; v += 8) {
+        chords(c.shape, ux, uy, vx, vy, v, (ax, ay, bx, by) => {
+          const len = Math.hypot(bx - ax, by - ay);
+          for (let t0 = 3; t0 + 4 < len - 3; t0 += 13) {
+            const t1 = Math.min(len - 3, t0 + 12);
+            const ok = [t0, t1].every((t) => {
+              const x = ax + ux * t;
+              const y = ay + uy * t;
+              const px = B.cam.sx(x, y);
+              const py = B.cam.sy(x, y, 0);
+              return paper.at(G.land, px, py) === FIELD && !paper.on(M.road, px, py) && !paper.on(M.water, px, py) && !paper.on(M.foot, px, py);
+            });
+            if (!ok) continue;
+            const Q = (t: number, d: number, z: number) => [ax + ux * t + vx * d * toSun, ay + uy * t + vy * d * toSun, z];
+            panel(B, s, [Q(t0, 1, 3.6), Q(t1, 1, 3.6), Q(t1, -1, 2.6), Q(t0, -1, 2.6)], t1 - t0);
+            for (let t = t0 + 0.5; t <= t1; t += 6) s.lines.push({ pen: LINEWORK, pts: [...Q(t, 0, 0), ...Q(t, 0, 3.1)] });
+          }
+        });
+      }
+    }
+    if (s.lines.length) solids.push(s);
+  }
+  return none;
 }
 
 /** Rows of tilted panels facing the sun, every third row left out as an aisle, broken round obstacles. */

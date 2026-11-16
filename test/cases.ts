@@ -64,8 +64,14 @@ export const CASES: Case[] = [
   { id: 'midtown-transform', what: 'Transform towers: boulevards with cycle tracks, panels as tone, roof gardens on low blocks', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true }) },
   { id: 'hallstatt-transform', what: 'Transform lake village: groves on steep ground between houses', set: at('Hallstatt', [13.6493, 47.5617], 300, 800, { solarpunk: true }) },
   { id: 'rye-transform', what: 'Transform market town: garden streets and a temperate canopy', set: at('Rye', [0.7335, 50.9503], 25, 900, { solarpunk: true }) },
+  // Depth Visionary: car-free cores, trams, roof pavilions; turbines and solar rows need open country no case has in view.
+  { id: 'mollis-visionary', what: 'Visionary village: a car-free core and a tram on the main road', set: at('Mollis', MOLLIS, 35, 1000, { solarpunk: true, depth: 'visionary' }) },
+  { id: 'midtown-visionary', what: 'Visionary towers: roof pavilions on slabs and towers, every car park a park', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true, depth: 'visionary' }) },
   { id: 'emmental-transform', what: 'Transform farmland at a coarse scale: groves must thin, not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true }) },
 ];
+
+/** The base for switching depth Visionary down to Transform: the towers, whose slabs carry roof pavilions. */
+export const VISIONARY_BASE: Settings = at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true, depth: 'visionary' });
 
 /** The base for switching solarpunk mode off, or its depth down to Retrofit: the village with it on at the default depth. */
 export const SOLARPUNK_BASE: Settings = at('Mollis', MOLLIS, 35, 1000, { solarpunk: true });

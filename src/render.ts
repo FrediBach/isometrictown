@@ -3,8 +3,9 @@ import { classify } from './classify';
 import { cycleRacks, kerbGardens, kerbTrees, lotCommons, medians, medianTrees, rainTanks } from './commons';
 import { planFuture, type ClimateId } from './future';
 import { canopyTrees } from './canopy';
-import { bankTrees, cycleTracks, lotTrees, reshapeTown, stripGrass, stripTrees } from './reshape';
-import { forecourtCanopies, lotCanopies } from './solar';
+import { bankTrees, cycleTracks, groveTrees, lotTrees, reshapeTown, stripGrass, stripTrees } from './reshape';
+import { agrivoltaics, forecourtCanopies, lotCanopies } from './solar';
+import { windTurbines } from './landmarks';
 import { yardPergolas } from './additions';
 import { gardenBeds, meadowPatches, parkCommons, parkMeadow, reeds, worksHedges } from './landscape';
 import { fieldTrees, allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
@@ -261,7 +262,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
     if (B.future) list.push(...from('kerb-trees', kerbTrees(B, kerbs)), ...worksHedges(B, paper, town, M), ...medianTrees(B, town));
     if (R && G) list.push(...fieldTrees(B, paper, G, M));
-    if (R) list.push(...bankTrees(B, paper, R, M, banks), ...from('strip-trees', stripTrees(B, paper, R, M)), ...from('lot-trees', lotTrees(B, paper, R, M)), ...canopyTrees(B, paper, town, G, M, box, toAbs, fromAbs));
+    if (R) list.push(...groveTrees(B, paper, R, M), ...bankTrees(B, paper, R, M, banks), ...from('strip-trees', stripTrees(B, paper, R, M)), ...from('lot-trees', lotTrees(B, paper, R, M)), ...canopyTrees(B, paper, town, G, M, box, toAbs, fromAbs));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
@@ -287,6 +288,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
   if (R) extras.push(extra('streets', 'cycle-tracks', () => cycleTracks(B, paper, R, M)));
+  if (R && deeper(set, 'visionary')) {
+    extras.push(extra('power', 'turbines', () => windTurbines(B, paper, town, G, M)));
+    if (G) extras.push(extra('solar', 'agrivoltaics', () => agrivoltaics(B, paper, G, M)));
+  }
   if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('planting', 'medians', () => medians(B, paper, town)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('solar', 'forecourts', () => forecourtCanopies(B, paper, town, M, trees)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('additions', 'pergolas', () => yardPergolas(B, paper, town, M)), extra('planting', 'beds', () => gardenBeds(B, paper, town, G, M)), extra('parks', 'commons', () => parkCommons(B, paper, town, M)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.

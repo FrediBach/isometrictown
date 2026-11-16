@@ -490,7 +490,7 @@ function orchardsAsTrees(B: Build): boolean {
  * depth Transform strips of about 25 m (up to eight), with a row of trees on each margin between
  * them (alley cropping). From the field's own rectangle, so it stays put on the map.
  */
-function fieldStrips(B: Build, c: Cover): { vx: number; vy: number; v0: number; v1: number; n: number; w: number } {
+export function fieldStrips(B: Build, c: Cover): { vx: number; vy: number; v0: number; v1: number; n: number; w: number } {
   const vx = -c.rect.uy;
   const vy = c.rect.ux;
   const outer = c.shape[0].pts;
@@ -727,7 +727,7 @@ function paddocks(B: Build, paper: Paper, G: Ground, test: Test): void {
 }
 
 /** The pieces of the line v = t (v along vx, vy) that lie inside a shape, running along ux, uy. */
-function chords(shape: Shape, ux: number, uy: number, vx: number, vy: number, t: number, fn: (ax: number, ay: number, bx: number, by: number) => void): void {
+export function chords(shape: Shape, ux: number, uy: number, vx: number, vy: number, t: number, fn: (ax: number, ay: number, bx: number, by: number) => void): void {
   const us: number[] = [];
   for (const ring of shape) {
     const p = ring.pts;

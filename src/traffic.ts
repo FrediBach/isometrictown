@@ -276,7 +276,8 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
 
   for (const w of town.ways) {
     const gaps = GAP[w.cls];
-    if (w.kind !== 'road' || !gaps || PRIVATE.has(w.service ?? '')) continue;
+    // Solarpunk pedestrian streets carry no traffic (src/reshape.ts).
+    if (w.kind !== 'road' || !gaps || PRIVATE.has(w.service ?? '') || w.future === 'pedestrian') continue;
     const p = w.pts;
     const cum = measure(p);
     const L = cum[cum.length - 1];

@@ -84,7 +84,8 @@ export function outline(paper: Paper, pen: number, shapes: Shape[], mask: Uint8A
 /** Kerb lines: both sides of every road plus round joints, kept only on the edge of the road union. */
 export function curbs(paper: Paper, ways: Way[], M: Masks): void {
   for (const w of ways) {
-    if (w.kind !== 'road') continue;
+    // Pedestrian streets are paved level from wall to wall: no kerbs.
+    if (w.kind !== 'road' || w.future === 'pedestrian') continue;
     const hw = w.width / 2;
     const p = w.pts;
     const n = p.length / 2;
@@ -206,41 +207,48 @@ export function shifted(p: number[], o: number, z = 0): number[] {
  * closer; trams run on bare rails under a contact wire hung from poles.
  */
 export function railways(B: Build, paper: Paper, ways: Way[]): void {
-  const { cam } = B;
   for (const w of ways) {
     if (w.kind !== 'rail') continue;
-    const p = w.pts;
-    const tram = w.sub === 'tram';
-    const g = tram ? 0.72 : w.sub === 'narrow_gauge' ? 0.5 : 0.75;
-    const { gauge, pitch } = railProjection(B, p, g);
-    const twin = shows(cam, LOD.twinRails, gauge - cam.nib / cam.s) && gauge * cam.s >= cam.nib * 2;
-    for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
-    if (tram) {
-      if (!shows(cam, LOD.catenary, 6.4)) continue;
-      if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
-      walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
-        const side = k % 2 ? 1 : -1;
-        const px = x - uy * 3.4 * side;
-        const py = y + ux * 3.4 * side;
-        paper.line3(LINEWORK, [px, py, 0, px, py, 6.4, x, y, 5.9]);
-      });
-      continue;
-    }
-    // Overhead line: masts beside the track with an arm out over it, and the contact wire.
-    // In solarpunk mode every main line has been electrified.
-    if ((ELECTRIC.has(B.style.id) || !!B.future) && shows(cam, LOD.catenary) && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
-      if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
-      walk(p, 20, 55, 10, (x, y, ux, uy) => {
-        const px = x - uy * 3;
-        const py = y + ux * 3;
-        paper.line3(LINEWORK, [px, py, 0, px, py, 7.4]);
-        paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
-      });
-    }
-    if (twin && shows(cam, LOD.sleepers)) {
-      const sl = g + 0.55;
-      walk(p, 1, pitch, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
-    }
+    // Tracks a solarpunk tram line added (src/reshape.ts) are filed apart, as new.
+    if (w.tram) paper.facet('new-tram', () => railway(B, paper, w));
+    else railway(B, paper, w);
+  }
+}
+
+/** One railway: its rails, sleepers and, where electrified, its masts and contact wire. */
+function railway(B: Build, paper: Paper, w: Way): void {
+  const { cam } = B;
+  const p = w.pts;
+  const tram = w.sub === 'tram';
+  const g = tram ? 0.72 : w.sub === 'narrow_gauge' ? 0.5 : 0.75;
+  const { gauge, pitch } = railProjection(B, p, g);
+  const twin = shows(cam, LOD.twinRails, gauge - cam.nib / cam.s) && gauge * cam.s >= cam.nib * 2;
+  for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
+  if (tram) {
+    if (!shows(cam, LOD.catenary, 6.4)) return;
+    if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
+    walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
+      const side = k % 2 ? 1 : -1;
+      const px = x - uy * 3.4 * side;
+      const py = y + ux * 3.4 * side;
+      paper.line3(LINEWORK, [px, py, 0, px, py, 6.4, x, y, 5.9]);
+    });
+    return;
+  }
+  // Overhead line: masts beside the track with an arm out over it, and the contact wire.
+  // In solarpunk mode every main line has been electrified.
+  if ((ELECTRIC.has(B.style.id) || !!B.future) && shows(cam, LOD.catenary) && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
+    if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
+    walk(p, 20, 55, 10, (x, y, ux, uy) => {
+      const px = x - uy * 3;
+      const py = y + ux * 3;
+      paper.line3(LINEWORK, [px, py, 0, px, py, 7.4]);
+      paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
+    });
+  }
+  if (twin && shows(cam, LOD.sleepers)) {
+    const sl = g + 0.55;
+    walk(p, 1, pitch, 0, (x, y, ux, uy) => paper.seg3(LINEWORK, x + uy * sl, y - ux * sl, 0, x - uy * sl, y + ux * sl, 0));
   }
 }
 

@@ -84,6 +84,8 @@ export type Future = {
   greenRoof: boolean;
   /** Blank walls planted from a planter at their foot (depth Transform): party walls above a lower neighbour, windowless works walls. */
   greenWalls?: boolean;
+  /** A glazed pavilion under a pergola on the roof, an occupied roof terrace (depth Visionary). */
+  pavilion?: boolean;
   /** A roof garden over the part of a big, low flat roof the panels leave (depth Transform): planting, edge planters, small trees. */
   roofGarden?: boolean;
   /** A rain tank by the back wall, fed by a downpipe. */
@@ -203,6 +205,7 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
     }
     const tank = (recipe === 'B01' || recipe === 'B02') && mine(3) < C.tanks * (0.3 + 0.6 * f);
     b.future = { recipe, roofPv, greenRoof, tank, ...(roofGarden ? { roofGarden } : {}) };
+    if (deeper(set, 'visionary') && flat && area > 300 && (recipe === 'B04' || recipe === 'B05') && mine(6) < 0.45) b.future.pavilion = true;
     // Green walls where there are blank walls to plant: rows and blocks with party walls, shops in them, windowless works. Towers keep their windows.
     if (bold && b.h <= 30 && !KEEP_ROOF.has(recipe) && (i.party.some((v) => v > 0) || (recipe === 'B19' && i.facade.pattern === 'blank')) && mine(5) < 0.4 + 0.5 * f) b.future.greenWalls = true;
     const add = addition(b, recipe, ground, C, (salt) => (i.kind === 'terrace' ? row(salt) : mine(salt)), f, bold);
@@ -411,7 +414,9 @@ export function motifBudget(B: Build, b: Building): 1 | 2 | 3 {
  */
 export function hasMedian(B: Build, w: Way): boolean {
   // Two-way boulevards always have one (src/reshape.ts).
-  if (B.future && w.future === 'boulevard') return !w.oneway;
+  if (B.future && w.future === 'boulevard') return !w.oneway && !w.tram;
+  // A tram runs where the median was.
+  if (w.tram) return false;
   if (!B.future || w.kind !== 'road' || w.oneway || w.bridge || w.cls !== 'primary' || w.width < 13) return false;
   const p = w.pts;
   const mid = Math.floor(p.length / 4) * 2;
