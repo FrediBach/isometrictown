@@ -2,8 +2,8 @@ Build the mode around one central rule: **the future version should remain recog
 
 I created two complementary references:
 
-- **[Solarpunk_Transformation_Atlas.pdf](https://chatgpt.com/library?file_id=libfile_fde3_f-e395cb7a696081919f996f5f67348df6_f27f370b36fc8191b9feb1c82eec7be6&account_id=personal)** — a 49-page guide with **103 object recipes**, climate profiles, illustrated transformations, eight worked examples, drawing rules, and sources.
-- **[solarpunk_object_recipes.json](https://chatgpt.com/library?file_id=libfile_fde3_f-fa115e231ec08191ae9ea5d565907720_f27f370b36fc8191b9feb1c82eec7be6&account_id=personal)** — the recipes organized into preservation, transformation, drawing, and condition fields, with illustrative OSM matching hints. These are qualitative rules for your tool, rather than executable tag predicates.
+- **Solarpunk_Transformation_Atlas.pdf** — a 49-page guide with **103 object recipes**, climate profiles, illustrated transformations, eight worked examples, drawing rules, and sources.
+- **solarpunk_object_recipes.json** — the recipes organized into preservation, transformation, drawing, and condition fields, with illustrative OSM matching hints. These are qualitative rules for your tool, rather than executable tag predicates.
 
 The guide below develops the main approach and object transformations directly. The proposed appearances are an artistic interpretation; the sources ground the physical constraints, map semantics, and real architectural precedents.
 
