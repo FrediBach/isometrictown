@@ -59,7 +59,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 
 **Things drawn** (each takes `Build` and returns solids and/or draws onto `Paper`)
 
-`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `ships.ts`, `sport.ts` (players and racing), `vehicles.ts` (models of working vehicles), `power.ts`, `solar.ts` and `commons.ts` (solarpunk panels, green roofs, rain tanks), `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals), `title.ts` (the cinematic title: those capitals thickened into extruded block letters on a street).
+`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `ships.ts`, `sport.ts` (players and racing), `vehicles.ts` (models of working vehicles), `power.ts`, `solar.ts`, `commons.ts` and `additions.ts` (solarpunk panels and green roofs; rain tanks, kerb gardens and racks; balcony frames, porches, fins, trellises, pergolas and stalls), `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals), `title.ts` (the cinematic title: those capitals thickened into extruded block letters on a street).
 
 **Interface**
 

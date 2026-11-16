@@ -25,7 +25,7 @@ function town(): Town {
   buildings.push(building(0, 100, 20, { kind: 'worship', roof: 'church' }));
   buildings.push(building(40, 100, 30, { kind: 'house', roof: 'flat', castle: true }));
   buildings.push(building(80, 100, 25, { kind: 'apartment', roof: 'flat' }));
-  return { buildings } as Town;
+  return { buildings, water: [], ways: [] } as unknown as Town;
 }
 
 const plans = (t: Town) => t.buildings.map((b) => JSON.stringify(b.future));
@@ -45,6 +45,36 @@ describe('climate', () => {
   test('a chosen climate wins over the region', () => {
     expect(climateFor({ climate: 'coastal', center: [9, 47] }, 'alpine')).toBe('coastal');
     expect(climateFor({ climate: 'auto', center: [9, 47] }, 'alpine')).toBe('mountain');
+  });
+});
+
+/** A slab 40 × 12 m at the origin, its street to the south, and whatever else is about. */
+function slabTown(more: Partial<Town> = {}): Town {
+  const b = building(0, 0, 0, { kind: 'apartment', roof: 'flat', toStreet: [0, -1] });
+  b.shape[0].pts = [-20, -6, 20, -6, 20, 6, -20, 6];
+  b.h = 15;
+  return { buildings: [b], water: [], ways: [], ...more } as unknown as Town;
+}
+
+describe('balcony frames', () => {
+  const lots = set({ future: 1 });
+  test('a slab gets its frame on the side away from the street', () => {
+    const t = slabTown();
+    planFuture(t, lots, 'central', key);
+    const f = t.buildings[0].future!;
+    expect(f.recipe).toBe('B04');
+    expect(f.addition).toBe('frame');
+    // Edge 2 runs along y = 6, facing north, away from the street.
+    expect(f.side).toBe(2);
+    expect(f.wonder).toBe(true);
+  });
+
+  test('no frame stands on a road', () => {
+    const road = { pts: [-30, 7.5, 30, 7.5], kind: 'road', width: 6, cls: 'minor' };
+    const t = slabTown({ ways: [road] } as unknown as Partial<Town>);
+    planFuture(t, lots, 'central', key);
+    // The north side is taken by the road; the frame goes on the street side or not at all.
+    expect(t.buildings[0].future!.side).not.toBe(2);
   });
 });
 

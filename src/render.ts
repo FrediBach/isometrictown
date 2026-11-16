@@ -3,6 +3,7 @@ import { classify } from './classify';
 import { cycleRacks, kerbGardens, kerbTrees, lotCommons, rainTanks } from './commons';
 import { planFuture, type ClimateId } from './future';
 import { lotCanopies } from './solar';
+import { yardPergolas } from './additions';
 import { allotmentSheds, bales, castShadows, drawGround, farmWork, livestock, wildTrees, gardenTrees, keepTree, orchardTrees, parkGrass, planGround, scrubBushes } from './ground';
 import { hedgerows, plots, streetTrees } from './gardens';
 import { beaches, busStops, campsites, chimneys, farmyards, fuel, peaks, people, playgrounds, ports, quarries, squares, stations } from './sites';
@@ -126,7 +127,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
   // The solarpunk plan takes in the context buildings too, so district decisions agree from every view.
-  B.future = set.solarpunk ? planFuture(town, set, style.id, B.key) : null;
+  B.future = set.solarpunk ? planFuture(town, set, style.id, B.key, B.cell) : null;
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.
@@ -183,6 +184,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
     const made = at('buildings', () => (legible(B, b) ? building(B, b) : null));
     if (!made) continue;
+    // Frames and porches stand on the ground in front of the walls: keep trees and cars off it.
+    if (B.future && b.future?.strip) paper.fillMask(M.foot, [b.future.strip]);
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
       const facets = buildingFacets(b, !!B.future);
@@ -261,7 +264,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
-  if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
+  if (B.future) extras.push(extra('planting', 'tanks', () => rainTanks(B, paper, town, M)), extra('planting', 'kerbs', () => kerbGardens(B, paper, kerbs)), extra('solar', 'canopies', () => lotCanopies(B, paper, town, M)), extra('planting', 'lots', () => lotCommons(B, paper, town, M)), extra('additions', 'pergolas', () => yardPergolas(B, paper, town, M)), extra('streets', 'racks', () => cycleRacks(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.
   extras.push(extra('life', 'ships', () => ships(B, paper, town, M, toAbs, fromAbs)), extra('life', 'racing', () => racing(B, paper, town, M)), extra('cars', 'stations', () => stations(B, paper, town, M)));

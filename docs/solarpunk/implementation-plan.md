@@ -2,7 +2,7 @@
 
 This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.json` (103 recipes) and `Solarpunk Transformation Atlas.pdf` into work on this codebase. The mode is a switch that draws the same place, at the same view and seed, as a settled solarpunk future. The guide was written without knowing the renderer, so this plan also says which of its rules carry over directly, which need a different form, and which this renderer can't support yet.
 
-**Status (2026-11-16):** M0, M1 and M2 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
+**Status (2026-11-16):** M0 to M3 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires; then balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches, verandas, arcades and vestibules, entrance canopies, sun fins, trellises, shop awnings everywhere, square pergolas and market stalls, and school-yard pergolas. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
@@ -471,7 +471,7 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 - LOD rules `canopy`, `charger`, `rainGarden`, `cycle`.
 - Case: add `amsterdam-solarpunk`.
 
-**M3: Building additions and wonders**
+**M3: Building additions and wonders** *(done; station forecourt canopies and the wonders other than frames are still open, and frames go on rows and perimeter blocks too, as rear galleries)*
 
 - Balcony frames, winter gardens and galleries (B04, B17). Porches, verandas and vestibules. Awnings everywhere on shop fronts. Trellises. Shade fins. Entrance canopies.
 - Wonders: one slab frame, school yard pergola, station forecourt canopy or square shade edge per 200 m cell.

@@ -10,6 +10,7 @@ import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, she
 import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import { futureRoof, roofPanels, sawtoothPanels } from './solar';
+import { additions } from './additions';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
@@ -236,7 +237,8 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const hw = bay * 0.36;
     out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
-    if (hash(k0, k1, B.seed, 340) < 0.25 || !showsAt(B.cam, LOD.awning, 1.3, [k0, k1], B.seed, 9100)) continue;
+    // Solarpunk shop fronts are shaded almost everywhere.
+    if ((B.future ? hash(k0, k1, B.seed, 12140) < 0.05 : hash(k0, k1, B.seed, 340) < 0.25) || !showsAt(B.cam, LOD.awning, 1.3, [k0, k1], B.seed, 9100)) continue;
     // The awning: a sloping canvas with a short valance, striped in the roof pen.
     const aw = bay * 0.42;
     const deep = 1.3;
@@ -340,6 +342,7 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   if (o.details && set.details) B.cam.within('roofs', () => roofDetails(B, info, main, P!, He, tan, out));
   if (B.future && b.future) {
     b.future.eave = He;
+    b.future.wall = wall;
     if (b.future.roofPv) roofPanels(B, info, main, P!, He, tan, out);
   }
   return { main, P: P!, He, tan };
@@ -527,6 +530,7 @@ export function building(B: Build, b: Building): Solid[] {
   try {
     const out = body(B, b);
     if (b.info?.townHall && B.set.details) flag(B, b, out);
+    if (B.future && b.future?.addition) additions(B, b, out);
     return out;
   } finally {
     B.seed = drawing;

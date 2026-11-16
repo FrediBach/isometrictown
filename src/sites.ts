@@ -5,6 +5,7 @@ import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { dome } from './roofs';
+import { pergola, stall } from './additions';
 import { GREENERY, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
@@ -701,6 +702,7 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       s.casts.push({ ring: plinth, h: 4.2 });
     }
     solids.push(s);
+    if (B.future) solids.push(...publicRoom(B, paper, M, outer, r));
   }
   return { solids, draw: (paper) => lines.forEach((l) => paper.line3(l.pen, l.pts)) };
 }
@@ -730,6 +732,49 @@ function nearestRoad(town: Town, x: number, y: number, max: number): { px: numbe
     }
   }
   return best;
+}
+
+/**
+ * A solarpunk square: a pergola along one long side for shade and a few market stalls along the
+ * other, leaving the middle, its fountain or statue, open. Only what fits inside the square and
+ * clear of buildings and water.
+ */
+function publicRoom(B: Build, paper: Paper, M: Masks, outer: number[], r: Rect): Solid[] {
+  const out: Solid[] = [];
+  const [k0, k1] = B.key(r.cx, r.cy);
+  const h = (k: number) => hash(k0, k1, B.set.seed, 12180 + k);
+  const f = Math.max(0, Math.min(1, B.set.future));
+  const fits = (x: number, y: number) => pointInRing(x, y, outer) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
+  const vx = -r.uy;
+  const vy = r.ux;
+  const side = h(0) < 0.5 ? 1 : -1;
+  const L = Math.min(r.L * 0.6, 24);
+  const c = side * (r.w / 2 - 4);
+  if (L >= 6 && r.w >= 18 && h(1) < 0.5 + 0.4 * f && shows(B.cam, LOD.pergola, 3)) {
+    const x = r.cx + vx * c;
+    const y = r.cy + vy * c;
+    if ([-L / 2, 0, L / 2].every((t) => [-1.8, 1.8].every((d) => fits(x + r.ux * t + vx * d, y + r.uy * t + vy * d)))) {
+      const s = newSolid();
+      tagLines(B, undefined, s, () => pergola(B, s, x, y, r.ux, r.uy, L, 3.4), 'pergola');
+      out.push(s);
+      paper.fillMask(M.foot, [place(x, y, r.ux, r.uy, rect(-L / 2, L / 2, -1.7, 1.7))]);
+    }
+  }
+  if (r.w >= 16 && shows(B.cam, LOD.stall, 1.9)) {
+    const n = Math.min(4, Math.floor(r.L / 6));
+    for (let i = 0; i < n; i++) {
+      if (h(2 + i) < 0.3) continue;
+      const t = (i - (n - 1) / 2) * 4;
+      const x = r.cx + r.ux * t - vx * side * (r.w / 2 - 3.5);
+      const y = r.cy + r.uy * t - vy * side * (r.w / 2 - 3.5);
+      if (![[-1.4, -1], [1.4, -1], [-1.4, 1], [1.4, 1]].every(([a, d]) => fits(x + r.ux * a + vx * d, y + r.uy * a + vy * d))) continue;
+      const s = newSolid();
+      tagLines(B, undefined, s, () => stall(s, x, y, r.ux, r.uy), 'stalls');
+      out.push(s);
+      paper.fillMask(M.foot, [place(x, y, r.ux, r.uy, rect(-1.4, 1.4, -1, 1))]);
+    }
+  }
+  return out;
 }
 
 /** Bus shelters at bus stops: a back panel, a roof on posts, and the stop sign at the kerb. */
