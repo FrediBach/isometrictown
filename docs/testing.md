@@ -30,6 +30,7 @@ These are small and exact, for the parts that are pure functions.
 | `grbl.test.ts` | The GRBL streamer against a simulated controller: it never puts more than 128 unanswered bytes on the wire, keeps the buffer busy, reports errors and positions |
 | `catalogue.test.ts` | Entries are unique and complete, and point at gates and LOD rules that exist; stroke patterns match as documented |
 | `misc.test.ts` | Settings helpers, region detection for known places, lettering, title text, palettes, the harmoniser keeping locked pens |
+| `public-commons.test.ts` | Pocket-park and market furniture: clear paths, junctions, tree crowns, feature gates, LOD and map-fixed placement |
 | `future.test.ts` | Solarpunk planning: climates by region, the same plan from any view, landmarks kept, Intensity only adds, a lock rerolls one building |
 | `rules.test.ts` | Rules from AGENTS.md checked in the source: no `Math.random()` or clocks in drawing code, no bare comparisons with `cam.lod`, no fetching outside `tiles.ts` |
 

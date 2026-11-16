@@ -5,12 +5,15 @@ import { LOD, shows } from './lod';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
 import { hash } from './rng';
-import { LINEWORK } from './settings';
+import { GREENERY, LINEWORK } from './settings';
+import { pointInRing } from './geo';
+import { at, measure } from './infra';
 import type { Town } from './tiles';
 
 /*
  * District landmarks at depth Visionary (docs/solarpunk/bolder-plan.md §7): rare by design, and
- * labelled in the catalogue as made up. For now, community wind turbines on open land.
+ * labelled in the catalogue as made up: community wind turbines on open land, and planted
+ * footbridges between tall buildings across side streets.
  */
 
 /** Side of the cells turbines are placed in, Web Mercator metres: at most one per cell. */
@@ -96,5 +99,79 @@ function turbine(B: Build, x: number, y: number, v: number): Solid {
     };
     s.lines.push({ pen: LINEWORK, pts: [...at(1, 0.9), ...at(BLADE * 0.3, 1.4), ...at(BLADE, 0.2), ...at(BLADE, -0.2), ...at(BLADE * 0.3, -0.6), ...at(1, -0.9)], closed: true });
   }
+  return s;
+}
+
+/** Streets a garden bridge may cross. */
+const BRIDGED = new Set(['minor', 'service', 'tertiary']);
+
+/**
+ * Garden bridges: across a side street, between two buildings at least 18 m tall standing 12 to
+ * 30 m apart, one planted footbridge at mid-height on a truss. Looked for at the middle of each
+ * street, square across it, and decided by that point, so it stays put on the map.
+ */
+export function gardenBridges(B: Build, town: Town): Extra {
+  const solids: Solid[] = [];
+  const none = { solids, draw: () => {} };
+  if (!B.future || !shows(B.cam, LOD.gardenBridge)) return none;
+  const tall = town.buildings.filter((b) => b.info && b.h * B.set.heightScale >= 18).map((b) => {
+    const p = b.shape[0].pts;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < p.length; i += 2) {
+      x0 = Math.min(x0, p[i]); x1 = Math.max(x1, p[i]);
+      y0 = Math.min(y0, p[i + 1]); y1 = Math.max(y1, p[i + 1]);
+    }
+    return { p, h: b.h * B.set.heightScale, box: [x0, y0, x1, y1] };
+  });
+  if (!tall.length) return none;
+  /** The first tall building a ray from (x, y) along (nx, ny) meets within 20 m: its distance and height. */
+  const hit = (x: number, y: number, nx: number, ny: number): [number, number] | null => {
+    for (let d = 1; d <= 20; d += 0.5) {
+      const px = x + nx * d;
+      const py = y + ny * d;
+      for (const t of tall) if (px >= t.box[0] && px <= t.box[2] && py >= t.box[1] && py <= t.box[3] && pointInRing(px, py, t.p)) return [d, t.h];
+    }
+    return null;
+  };
+  for (const w of town.ways) {
+    if (w.kind !== 'road' || !BRIDGED.has(w.cls) || w.bridge) continue;
+    const cum = measure(w.pts);
+    const L = cum[cum.length - 1];
+    if (L < 24) continue;
+    const [x, y, ux, uy] = at(w.pts, cum, L / 2);
+    const [k0, k1] = B.key(x, y);
+    if (hash(k0, k1, B.set.seed, 12460) >= 0.5) continue;
+    const a = hit(x, y, -uy, ux);
+    const b = hit(x, y, uy, -ux);
+    if (!a || !b || a[0] + b[0] < 12 || a[0] + b[0] > 30) continue;
+    const z = Math.round((Math.min(a[1], b[1]) * 0.5) / 3.5) * 3.5;
+    if (z < 7) continue;
+    solids.push(bridge(x + uy * a[0], y - ux * a[0], x - uy * b[0], y + ux * b[0], ux, uy, z));
+  }
+  return none;
+}
+
+/** A planted footbridge from (ax, ay) to (bx, by) at height z, 3 m wide along (ux, uy): deck, rails, a truss below and a hedge along it. */
+function bridge(ax: number, ay: number, bx: number, by: number, ux: number, uy: number, z: number): Solid {
+  const s = newSolid();
+  const hw = 1.5;
+  const P = (t: number, side: number, h: number) => [ax + (bx - ax) * t + ux * hw * side, ay + (by - ay) * t + uy * hw * side, h];
+  s.faces.push([[...P(0, -1, z), ...P(1, -1, z), ...P(1, 1, z), ...P(0, 1, z)]]);
+  s.shade = [[[...P(0, -1, z), ...P(1, -1, z), ...P(1, 1, z), ...P(0, 1, z)]]];
+  const len = Math.hypot(bx - ax, by - ay);
+  const n = Math.max(3, Math.round(len / 2.5));
+  for (const side of [-1, 1]) {
+    s.lines.push({ pen: LINEWORK, pts: [...P(0, side, z), ...P(1, side, z)] });
+    s.lines.push({ pen: LINEWORK, pts: [...P(0, side, z + 1.1), ...P(1, side, z + 1.1)] });
+    s.lines.push({ pen: LINEWORK, pts: [...P(0, side, z - 1.4), ...P(1, side, z - 1.4)] });
+    // A Warren truss under each edge.
+    const zig: number[] = [];
+    for (let k = 0; k <= n; k++) zig.push(...P(k / n, side, k % 2 ? z - 1.4 : z));
+    s.lines.push({ pen: LINEWORK, pts: zig });
+  }
+  // A low hedge down the middle of the deck.
+  const hedge: number[] = [];
+  for (let k = 0; k <= n * 2; k++) hedge.push(...P(k / (n * 2), 0, z + (k % 2 ? 0.9 : 0.55)));
+  s.lines.push({ pen: GREENERY, pts: hedge });
   return s;
 }

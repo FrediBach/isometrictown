@@ -56,7 +56,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | `traffic.ts` | `urbanity()` and vehicle density/placement |
 | `ground.ts` | `planGround()`: land-cover codes, inferred gardens, in-town test; then field and pitch textures |
 | `future.ts` | Solarpunk mode: climate profiles and `planFuture()`, which writes `Building.future` (see [solarpunk.md](solarpunk.md)) |
-| `landmarks.ts` | Solarpunk at depth Visionary: community wind turbines |
+| `landmarks.ts` | Solarpunk at depth Visionary: community wind turbines and garden bridges |
 | `reshape.ts` | Solarpunk at depth Transform: `reshapeTown()` narrows streets into garden streets and boulevards before any mask is filled, and records their planted strips and cycle tracks |
 
 **Things drawn** (each takes `Build` and returns solids and/or draws onto `Paper`)

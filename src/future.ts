@@ -84,6 +84,10 @@ export type Future = {
   greenRoof: boolean;
   /** Blank walls planted from a planter at their foot (depth Transform): party walls above a lower neighbour, windowless works walls. */
   greenWalls?: boolean;
+  /** Adaptive reuse (B23, I10): a big shed reopened as a market hall, its flat roof glazed with rows of rooflights (depth Visionary). */
+  marketHall?: boolean;
+  /** A double-height planted terrace cut into a tower at mid-height (depth Visionary, B05). */
+  skyGarden?: boolean;
   /** A glazed pavilion under a pergola on the roof, an occupied roof terrace (depth Visionary). */
   pavilion?: boolean;
   /** A roof garden over the part of a big, low flat roof the panels leave (depth Transform): planting, edge planters, small trees. */
@@ -206,6 +210,8 @@ export function planFuture(town: Town, set: Settings, style: StyleId, key: (x: n
     const tank = (recipe === 'B01' || recipe === 'B02') && mine(3) < C.tanks * (0.3 + 0.6 * f);
     b.future = { recipe, roofPv, greenRoof, tank, ...(roofGarden ? { roofGarden } : {}) };
     if (deeper(set, 'visionary') && flat && area > 300 && (recipe === 'B04' || recipe === 'B05') && mine(6) < 0.45) b.future.pavilion = true;
+    if (deeper(set, 'visionary') && flat && b.h > 60 && mine(7) < 0.5) b.future.skyGarden = true;
+    if (deeper(set, 'visionary') && flat && area > 1500 && b.h <= 15 && (recipe === 'B19' || recipe === 'B07') && mine(8) < 0.5) b.future.marketHall = true;
     // Green walls where there are blank walls to plant: rows and blocks with party walls, shops in them, windowless works. Towers keep their windows.
     if (bold && b.h <= 30 && !KEEP_ROOF.has(recipe) && (i.party.some((v) => v > 0) || (recipe === 'B19' && i.facade.pattern === 'blank')) && mine(5) < 0.4 + 0.5 * f) b.future.greenWalls = true;
     const add = addition(b, recipe, ground, C, (salt) => (i.kind === 'terrace' ? row(salt) : mine(salt)), f, bold);

@@ -66,6 +66,7 @@ export const CASES: Case[] = [
   { id: 'rye-transform', what: 'Transform market town: garden streets and a temperate canopy', set: at('Rye', [0.7335, 50.9503], 25, 900, { solarpunk: true }) },
   // Depth Visionary: car-free cores, trams, roof pavilions; turbines and solar rows need open country no case has in view.
   { id: 'mollis-visionary', what: 'Visionary village: a car-free core and a tram on the main road', set: at('Mollis', MOLLIS, 35, 1000, { solarpunk: true, depth: 'visionary' }) },
+  { id: 'amsterdam-visionary', what: 'Visionary canal city: rows of market stalls in pedestrian cores, keeping a service lane clear', set: at('Amsterdam', [4.8862, 52.3727], 35, 1000, { solarpunk: true, depth: 'visionary' }) },
   { id: 'midtown-visionary', what: 'Visionary towers: roof pavilions on slabs and towers, every car park a park', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { solarpunk: true, depth: 'visionary' }) },
   { id: 'emmental-transform', what: 'Transform farmland at a coarse scale: groves must thin, not blot', set: at('Trubschachen', [7.8454, 46.922], 20, 4000, { solarpunk: true }) },
 ];

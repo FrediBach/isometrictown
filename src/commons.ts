@@ -11,6 +11,97 @@ import type { Town, Way } from './tiles';
 import type { KerbSlot } from './traffic';
 import type { Tree } from './nature';
 import { bicycle } from './vehicles';
+import { stall } from './additions';
+import type { Reshaped } from './reshape';
+import { pointInRing } from './geo';
+import { deeper } from './settings';
+
+/** Distance from a point to the nearest segment of a path, in local metres. */
+function pathDistance(x: number, y: number, pts: number[]): number {
+  let distance = Infinity;
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const dx = pts[i + 2] - pts[i], dy = pts[i + 3] - pts[i + 1];
+    const t = Math.max(0, Math.min(1, ((x - pts[i]) * dx + (y - pts[i + 1]) * dy) / (dx * dx + dy * dy || 1)));
+    distance = Math.min(distance, Math.hypot(x - pts[i] - t * dx, y - pts[i + 1] - t * dy));
+  }
+  return distance;
+}
+
+/** Test an object's whole ground rectangle, including its interior, before reserving it. */
+function room(x: number, y: number, ux: number, uy: number, a: number, b: number, clear: (x: number, y: number) => boolean): boolean {
+  const across = Math.ceil(a * 2), along = Math.ceil(b * 2);
+  for (let i = 0; i <= across; i++) for (let j = 0; j <= along; j++) {
+    const u = -a + i * 2 * a / across, v = -b + j * 2 * b / along;
+    if (!clear(x + ux * u - uy * v, y + uy * u + ux * v)) return false;
+  }
+  return true;
+}
+
+/** Food beds and seats beside the retained paths of converted car parks. */
+export function pocketCommons(B: Build, paper: Paper, R: Reshaped, M: Masks, trees: Tree[]): Extra {
+  const solids: Solid[] = [];
+  if (!B.future || !deeper(B.set, 'transform') || !B.set.parks) return { solids, draw: () => {} };
+  const clear = (x: number, y: number) => R.lots.some((lot) => pointInRing(x, y, lot[0].pts))
+    && !onMask(paper, M.road, x, y) && !onMask(paper, M.water, x, y) && !onMask(paper, M.foot, x, y)
+    && R.paths.every((path) => pathDistance(x, y, path) >= 2)
+    && trees.every((tree) => Math.hypot(x - tree.x, y - tree.y) > tree.r + 0.5);
+  for (const path of R.paths) walk(path, 7, 24, 7, (x, y, ux, uy) => {
+    const [k0, k1] = B.key(x, y);
+    const side = hash(k0, k1, B.set.seed, 12480) < 0.5 ? 1 : -1;
+    for (const bed of [true, false]) {
+      if (!shows(B.cam, bed ? LOD.bed : LOD.bench, bed ? 1.8 : 1.6)) continue;
+      const offset = (bed ? side : -side) * (bed ? 5 : 3);
+      const bx = x - uy * offset, by = y + ux * offset;
+      const a = bed ? 2.4 : 0.9, b = bed ? 2.3 : 0.5;
+      if (!room(bx, by, ux, uy, a + 0.3, b + 0.3, clear)) continue;
+      const P = (u: number, v: number, z: number) => [bx + ux * u - uy * v, by + uy * u + ux * v, z];
+      const s = newSolid();
+      if (bed) {
+        for (const v of [-1.4, 1.4]) {
+          const ring = [...P(-2.4, v - 0.9, 0.2), ...P(2.4, v - 0.9, 0.2), ...P(2.4, v + 0.9, 0.2), ...P(-2.4, v + 0.9, 0.2)];
+          s.faces.push([ring]);
+          s.lines.push({ pen: GREENERY, pts: ring, closed: true });
+          if (shows(B.cam, LOD.bed, 0.9)) s.lines.push({ pen: GREENERY, pts: [...P(-2.1, v, 0.2), ...P(2.1, v, 0.2)] });
+        }
+      } else {
+        const back = -side * 0.3;
+        s.lines.push({ pen: LINEWORK, pts: [...P(-0.8, 0, 0.45), ...P(0.8, 0, 0.45)] }, { pen: LINEWORK, pts: [...P(-0.8, back, 0.9), ...P(0.8, back, 0.9)] });
+        for (const u of [-0.7, 0.7]) s.lines.push({ pen: LINEWORK, pts: [...P(u, 0, 0), ...P(u, 0, 0.45), ...P(u, back, 0.9)] });
+      }
+      const footprint = [-a, -b, a, -b, a, b, -a, b].flatMap((v, i, pts) => i % 2 ? [] : P(v, pts[i + 1], 0).slice(0, 2));
+      paper.fillMask(M.foot, [footprint]);
+      solids.push(s);
+    }
+  });
+  return { solids, draw: () => {} };
+}
+
+/** Rows of market stalls in pedestrian cores, with a continuous 3.6 m service lane. */
+export function coreMarkets(B: Build, paper: Paper, town: Town, M: Masks, trees: Tree[]): Extra {
+  const solids: Solid[] = [];
+  if (!B.future || !deeper(B.set, 'visionary') || !B.set.life || !shows(B.cam, LOD.stall, 1.7)) return { solids, draw: () => {} };
+  for (const w of town.ways) {
+    if (w.future !== 'pedestrian' || w.width < 8) continue;
+    walk(w.pts, 10, 6, 10, (x, y, ux, uy) => {
+      const [k0, k1] = B.cell(x, y, 40);
+      const side = hash(k0, k1, B.set.seed, 12481) < 0.5 ? 1 : -1;
+      const offset = side * (w.width / 2 - 1.1);
+      const bx = x - uy * offset, by = y + ux * offset;
+      const clear = (px: number, py: number) => pathDistance(px, py, w.pts) >= 1.8
+        && !onMask(paper, M.foot, px, py) && !onMask(paper, M.water, px, py)
+        && trees.every((tree) => Math.hypot(px - tree.x, py - tree.y) > tree.r + 0.4)
+        && town.ways.every((other) => other === w || pathDistance(px, py, other.pts) > Math.max(1.5, other.width / 2) + 1);
+      if (!room(bx, by, ux, uy, 1.65, 1.05, clear)) return;
+      const s = newSolid();
+      // Reversing the frame turns the counter towards the middle of the street.
+      stall(s, bx, by, -side * ux, -side * uy);
+      const ring = [-1.5, -1, 1.5, -1, 1.5, 1, -1.5, 1].flatMap((v, i, pts) => i % 2 ? [] : [bx + ux * v - uy * pts[i + 1], by + uy * v + ux * pts[i + 1]]);
+      paper.fillMask(M.foot, [ring]);
+      solids.push(s);
+    });
+  }
+  return { solids, draw: () => {} };
+}
 
 /*
  * Solarpunk things on the ground beside buildings and along streets

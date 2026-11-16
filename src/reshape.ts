@@ -1,4 +1,5 @@
-import type { Build, Solid } from './buildings';
+import { newSolid, tagLines, type Build, type Solid } from './buildings';
+import { panel } from './solar';
 import { CLIMATES, MEDIAN } from './future';
 import { BAY_D, onMask } from './infra';
 import { pointInRing } from './geo';
@@ -42,7 +43,8 @@ export type Run = {
  * aisle), `paths` the aisles kept as footpaths through them. `banks` are planted margins along
  * soft river, lake and stream banks, and `banksides` the lines their trees stand on.
  */
-export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][]; banks: Shape[]; banksides: number[][]; groves: [number, number][] };
+/** `stops` are tram platforms, as [x, y, ux, uy, side]: the middle of the platform's kerb, the line's direction and which side. */
+export type Reshaped = { town: Town; strips: Shape[]; runs: Run[]; lots: Shape[]; paths: number[][]; banks: Shape[]; banksides: number[][]; groves: [number, number][]; stops: [number, number, number, number, number][] };
 
 /** Width of a garden street's one shared lane. */
 const LANE = 3.6;
@@ -131,9 +133,10 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
   const paths: number[][] = [];
   // Depth Visionary: car-free cores in the densest districts, and trams on long main-road chains.
   const visionary = deeper(B.set, 'visionary');
-  const trams = visionary ? tramChains(town, B) : new Set<Way>();
+  const trams = visionary && B.set.rails ? tramChains(town, B) : new Set<Way>();
   const rails: Way[] = [];
   const groves: [number, number][] = [];
+  const stops: Reshaped['stops'] = [];
   const pedestrian = (w: Way) => {
     if (!visionary || w.kind !== 'road' || w.bridge || !GARDEN.has(w.cls) || w.service === 'parking_aisle' || w.service === 'driveway' || w.width < 5) return false;
     const p = w.pts;
@@ -146,6 +149,14 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
     const out = reshapeWay(w);
     if (!trams.has(w) || out.kind !== 'road') return out;
     // Two tracks where they read apart; closer, one down the middle, so tracks and wires don't blot.
+    // A stop every 400 m along each piece of the line, clear of junctions, a platform each side.
+    walk(w.pts, 150, 400, 40, (x, y, ux, uy) => {
+      if (crowded(w, x, y) || crowded(w, x + ux * 12, y + uy * 12) || crowded(w, x - ux * 12, y - uy * 12)) return;
+      const [k0, k1] = B.key(x, y);
+      if (hash(k0, k1, B.set.seed, 12470) >= 0.8) return;
+      for (const side of [1, -1]) stops.push([x, y, ux, uy, side]);
+      B.future?.gather.push([x, y, 4, 8, false]);
+    });
     for (const o of shows(B.cam, LOD.tramPair, 3) ? [1.5, -1.5] : [0]) rails.push({ pts: o ? offset(w.pts, o) : w.pts, kind: 'rail', width: 0, cls: 'transit', sub: 'tram', tram: true });
     return { ...out, tram: true };
   });
@@ -225,8 +236,10 @@ export function reshapeTown(town: Town, B: Build): Reshaped {
     return { ...w, width, was: w.width, future: kind };
   }
   const ways = [...mapped, ...rails];
-  const [banks, banksides] = waterMargins(town, urban);
-  return { town: { ...town, ways }, strips, runs, lots, paths, banks, banksides, groves };
+  // Visionary: streams in culverts are opened up again (daylighted), and get planted banks like the rest.
+  const streams = visionary ? [...town.streams, ...town.culverts] : town.streams;
+  const [banks, banksides] = waterMargins({ ...town, streams }, urban);
+  return { town: { ...town, ways, streams }, strips, runs, lots, paths, banks, banksides, groves, stops };
 }
 
 /**
@@ -359,6 +372,45 @@ function tramChains(town: Town, B: Build): Set<Way> {
     if (hash(first[0], first[1], B.set.seed, 12420) < 0.6) for (const w of chain) out.add(w);
   }
   return out;
+}
+
+/** Inner and outer offsets of a tram platform from the line's centre, and its half length, metres. */
+const STOP_IN = 2.5;
+const STOP_OUT = 4.3;
+const STOP_HALF = 12;
+
+/** The ground under each tram platform, for the footprint mask, so traffic and trees keep off. */
+export function stopFootprints(R: Reshaped): number[][] {
+  return R.stops.map(([x, y, ux, uy, side]) => {
+    const P = (u: number, o: number) => [x + ux * u - uy * o * side, y + uy * u + ux * o * side];
+    return [...P(-STOP_HALF, STOP_IN), ...P(STOP_HALF, STOP_IN), ...P(STOP_HALF, STOP_OUT), ...P(-STOP_HALF, STOP_OUT)];
+  });
+}
+
+/** Tram stops: a low platform each side of the line, with a canopy of panels on a row of posts. */
+export function tramStops(B: Build, R: Reshaped): { solids: Solid[]; draw: (paper: Paper) => void } {
+  const solids: Solid[] = [];
+  if (!R.stops.length || !shows(B.cam, LOD.canopy, 2)) return { solids, draw: () => {} };
+  for (const [x, y, ux, uy, side] of R.stops) {
+    const s = newSolid();
+    const P = (u: number, o: number, z: number) => [x + ux * u - uy * o * side, y + uy * u + ux * o * side, z];
+    const top = [P(-STOP_HALF, STOP_IN, 0.3), P(STOP_HALF, STOP_IN, 0.3), P(STOP_HALF, STOP_OUT, 0.3), P(-STOP_HALF, STOP_OUT, 0.3)];
+    s.faces.push([top.flat()]);
+    s.lines.push({ pen: LINEWORK, pts: top.flat(), closed: true });
+    for (const k of [0, 1]) s.lines.push({ pen: LINEWORK, pts: [...top[k].slice(0, 2), 0, ...top[k]] });
+    // The canopy: panels from post to post, sloping down to the track.
+    const o0 = STOP_IN + 0.3;
+    const o1 = STOP_OUT - 0.2;
+    const posts = 3;
+    for (let k = 0; k <= posts; k++) {
+      const u = -STOP_HALF + 2 + ((STOP_HALF * 2 - 4) * k) / posts;
+      s.lines.push({ pen: LINEWORK, pts: [...P(u, o1 - 0.4, 0.3), ...P(u, o1 - 0.4, 3.3)] });
+    }
+    tagLines(B, undefined, s, () => panel(B, s, [P(-STOP_HALF + 1.5, o1, 3.4), P(STOP_HALF - 1.5, o1, 3.4), P(STOP_HALF - 1.5, o0, 3.0), P(-STOP_HALF + 1.5, o0, 3.0)], STOP_HALF * 2 - 3));
+    s.shade = [[[...P(-STOP_HALF + 1.5, o1, 3.4), ...P(STOP_HALF - 1.5, o1, 3.4), ...P(STOP_HALF - 1.5, o0, 3.0), ...P(-STOP_HALF + 1.5, o0, 3.0)]]];
+    solids.push(s);
+  }
+  return { solids, draw: () => {} };
 }
 
 /** Trees in the paving of pedestrian cores, where the ground is free. */

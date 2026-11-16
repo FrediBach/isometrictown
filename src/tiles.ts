@@ -56,6 +56,8 @@ export type Town = {
   /** Land cover drawn with its own texture: farmland, vineyard, orchard, meadow, wetland, sand. */
   cover: Area[];
   streams: Stream[];
+  /** Waterways where they run underground in culverts: solarpunk mode can daylight them. */
+  culverts: Stream[];
   /** Buildings with real OSM roof or type tags, when they could be fetched. */
   tagged: Tagged[];
   /** Roads and railways where they run underground, for portals where they come out. */
@@ -233,7 +235,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 }
 
 function empty(): Town {
-  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
+  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], culverts: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */
@@ -340,11 +342,12 @@ function decode(buf: ArrayBuffer | null, tx: number, ty: number): Town {
   each('waterway', (f, toMerc, ext) => {
     const p = f.properties;
     const width = STREAM_WIDTH[String(p.class)];
-    if (!width || p.brunnel === 'tunnel' || f.type !== 2) return;
+    if (!width || f.type !== 2) return;
+    const into = p.brunnel === 'tunnel' ? town.culverts : town.streams;
     for (const line of f.loadGeometry()) {
       for (const piece of clipLine(line, ext)) {
         const pts = toMerc(piece);
-        if (pts) town.streams.push({ pts, width });
+        if (pts) into.push({ pts, width });
       }
     }
   });
@@ -642,6 +645,10 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     for (const w of t.streams) {
       const pts = local(w.pts);
       if (pts) town.streams.push({ ...w, pts });
+    }
+    for (const w of t.culverts) {
+      const pts = local(w.pts);
+      if (pts) town.culverts.push({ ...w, pts });
     }
     t.water.forEach((sh, i) => {
       const s = shape(sh);

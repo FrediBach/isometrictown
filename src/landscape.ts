@@ -232,14 +232,14 @@ export function worksHedges(B: Build, paper: Paper, town: Town, M: Masks): Tree[
  * Solarpunk parks: benches beside the paths, every thirty metres or so, and shallow rain-garden
  * dips on open grass, a dashed contour with low plants and a mark where the water runs in.
  */
-export function parkCommons(B: Build, paper: Paper, town: Town, M: Masks): Extra {
+export function parkCommons(B: Build, paper: Paper, town: Town, M: Masks, pocketPaths: number[][] = []): Extra {
   if (!B.future || !B.set.parks) return NONE;
   const { cam, set } = B;
   const green = (x: number, y: number) => onMask(paper, M.green, x, y) && !onMask(paper, M.wood, x, y) && !onMask(paper, M.road, x, y) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
   const solids: Solid[] = [];
   if (shows(cam, LOD.bench, 1.6))
     for (const w of town.ways) {
-      if (w.kind !== 'path' || w.sub === 'steps' || w.bridge) continue;
+      if (w.kind !== 'path' || w.sub === 'steps' || w.bridge || pocketPaths.includes(w.pts)) continue;
       walk(w.pts, 8, 30, 8, (x, y, ux, uy) => {
         const [k0, k1] = B.key(x, y);
         const h = (salt: number) => hash(k0, k1, set.seed, 12280 + salt);

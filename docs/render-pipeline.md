@@ -4,7 +4,7 @@
 
 ## Inputs
 
-- `Town` (`src/tiles.ts`): buildings, ways (roads, rails, paths), water, green, wood, plazas, land use and cover, POIs, house numbers, streams, tunnels, lifts, ferries, pools, runways, aprons, peaks, helipads, airports, and OSM `tagged` buildings. All in local metres.
+- `Town` (`src/tiles.ts`): buildings, ways (roads, rails, paths), water, green, wood, plazas, land use and cover, POIs, house numbers, streams, culverts (waterways underground), tunnels, lifts, ferries, pools, runways, aprons, peaks, helipads, airports, and OSM `tagged` buildings. All in local metres.
 - `Style` (`src/styles.ts`): roof shapes, pitches, overhangs, ridge rules, chimneys, dormers, balconies and so on for the region.
 - `Settings`: every switch and slider.
 

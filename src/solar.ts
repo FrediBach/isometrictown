@@ -29,7 +29,7 @@ function standoff(B: Build): number {
 }
 
 /** A panel quad from four 3D corners, its outline and, where they read, module divisions along its length. */
-function panel(B: Build, s: Solid, c: number[][], length: number): void {
+export function panel(B: Build, s: Solid, c: number[][], length: number): void {
   const quad = c.flat();
   const face = [quad];
   s.faces.push(face);
@@ -169,6 +169,12 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
   }
   const keepOff = taken.map((t) => grown(t, 0.6));
   const free = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts)) && !keepOff.some((t) => pointInRing(x, y, t));
+  if (plan.marketHall) {
+    const s = newSolid();
+    tagLines(B, 'additions', s, () => rooflights(B, rect, z, free, s), 'market-hall');
+    if (s.lines.length) out.push(s);
+    return;
+  }
   // A roof garden shares the roof with the panels: they take one half along its length, the garden the other.
   const along = (x: number, y: number) => (x - rect.cx) * rect.ux + (y - rect.cy) * rect.uy;
   const split = !!plan.roofGarden && plan.roofPv;
@@ -194,6 +200,30 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
       const avoid = arrays.map((a) => grown(a, 0.4));
       tagLines(B, 'planting', s, () => greenRoof(B, b, z, roofFace, (x, y) => free(x, y) && !avoid.some((a) => pointInRing(x, y, a)), s), 'green-roof');
     }
+  }
+}
+
+/**
+ * A market hall's roof: rows of glazed ridge rooflights along the roof, 6 m apart, with glazing
+ * bars down their slopes, where the roof is free.
+ */
+function rooflights(B: Build, rect: Rect, z: number, free: (x: number, y: number) => boolean, s: Solid): void {
+  const { cx, cy, ux, uy, L, w } = rect;
+  if (!shows(B.cam, LOD.pavilion, 2.4)) return;
+  const vx = -uy;
+  const vy = ux;
+  const P = (u: number, v: number, h: number) => [cx + ux * u + vx * v, cy + uy * u + vy * v, h];
+  const a = L / 2 - 2.5;
+  const bars = spaced(B.cam, 1.5, 0.9);
+  for (let v = -w / 2 + 4; v <= w / 2 - 4 + 1e-6; v += 6) {
+    if (!free(...(P(-a, v, 0).slice(0, 2) as [number, number])) || !free(...(P(a, v, 0).slice(0, 2) as [number, number]))) continue;
+    const ridge = [P(-a, v, z + 1.3), P(a, v, z + 1.3)];
+    const lo = [P(-a, v - 1.2, z), P(a, v - 1.2, z)];
+    const hi = [P(-a, v + 1.2, z), P(a, v + 1.2, z)];
+    s.faces.push([[...lo[0], ...lo[1], ...ridge[1], ...ridge[0]]], [[...hi[0], ...hi[1], ...ridge[1], ...ridge[0]]]);
+    s.lines.push({ pen: LINEWORK, pts: [...ridge[0], ...ridge[1]] }, { pen: LINEWORK, pts: [...lo[0], ...lo[1]] }, { pen: LINEWORK, pts: [...hi[0], ...hi[1]] });
+    for (const e of [0, 1]) s.lines.push({ pen: LINEWORK, pts: [...lo[e], ...ridge[e], ...hi[e]] });
+    for (let u = -a + bars; u < a; u += bars) for (const side of [-1.2, 1.2]) s.lines.push({ pen: SHADOWS, pts: [...P(u, v + side, z), ...P(u, v, z + 1.3)] });
   }
 }
 

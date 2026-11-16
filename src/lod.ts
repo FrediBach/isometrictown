@@ -72,6 +72,7 @@ export const LOD = {
   bed: { m: 1.1, mm: 0.8, what: 'Food beds behind houses: width' },
   rainTank: { m: 1.1, mm: 0.8, what: 'Rain tanks beside houses: diameter' },
   tramPair: { m: 3, mm: 1.5, what: 'Solarpunk tram lines drawn as two tracks: their spacing. Closer, one track down the middle' },
+  gardenBridge: { m: 3, mm: 1.2, what: 'Garden bridges between tall buildings: deck width' },
   turbine: { m: 38, mm: 4, what: 'Community wind turbines: blade length' },
   agrivoltaic: { m: 12, mm: 3, what: 'Raised solar rows over fields: length of a row' },
   pavilion: { m: 5, mm: 2, what: 'Roof pavilions under pergolas: depth' },
