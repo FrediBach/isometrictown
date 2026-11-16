@@ -23,6 +23,8 @@ change('trees', 0.8, /* fromSlider */ true);
 
 `NumberSetting` and `BoolSetting` (`components/controls.tsx`) bind a slider or key to a setting by name. Their names are typed by `NumberKey` / `BoolKey` in `app/model.ts`, and slider read-outs come from `FORMAT`.
 
+The View section’s **Humanize** slider runs from 0–100%. It is saved and shared with the drawing and affects exported SVG and G-code as well as the preview.
+
 Exceptions to the redraw:
 
 - **Pen colours** (`setPen`, `setPens`, `recolorPens`) only call `recolor()` on the existing result. No worker round-trip.

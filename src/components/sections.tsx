@@ -64,13 +64,14 @@ export function PlaceSection({ onGoTo, onMapMove, onMapReady }: PlaceSectionProp
 export function ViewSection() {
   const { set } = useSettings();
   return (
-    <FoldingSection index={2} title="View" defaultOpen summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale)].join(SEP)}>
+    <FoldingSection index={2} title="View" defaultOpen summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale), ...(set.humanize ? [`${FORMAT.humanize(set.humanize)} humanized`] : [])].join(SEP)}>
       <NumberSetting name="bearing" label="Rotation" min={0} max={359} step={1} />
       <NumberSetting name="tilt" label="Tilt" min={20} max={60} step={1} hint="How high you look from. 30° is the classic isometric look." />
       <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint="Bigger towns need a smaller scale. Small scales skip windows." />
       <NumberSetting name="heightScale" label="Building height" min={0.5} max={3} step={0.05} />
       <NumberSetting name="detail" label="Detail" min={0.25} max={2} step={0.05} hint="How close the hatching and textures are, and how small a thing can be before it is left out." />
       <LayerDetail />
+      <NumberSetting name="humanize" label="Humanize" min={0} max={1} step={0.01} hint="From precise linework to a loose hand sketch, with wobbly lines and imperfect starts and stops." />
     </FoldingSection>
   );
 }

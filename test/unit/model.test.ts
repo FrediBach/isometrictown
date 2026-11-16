@@ -30,6 +30,14 @@ function share(set: Settings): Settings {
 }
 
 describe('share links', () => {
+  test('humanize round-trips and clamps invalid saved values', () => {
+    expect(share({ ...base(), humanize: 0.73 }).humanize).toBe(0.73);
+    loc.hash = '#47/9/35/1000/1/Mollis/humanize=4';
+    expect(loadSettings().humanize).toBe(1);
+    loc.hash = '#47/9/35/1000/1/Mollis/humanize=-1';
+    expect(loadSettings().humanize).toBe(0);
+  });
+
   test('automatic and manual sun settings round-trip, including a retained manual angle', () => {
     for (const autoSun of [false, true]) {
       const set = { ...base(), autoSun, sunAngle: 123 };

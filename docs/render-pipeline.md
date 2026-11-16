@@ -26,7 +26,7 @@ type Build = { cam; set; style; sun; left; key };
 | `buildings` | The cinematic title (if on) is placed first, so buildings it stands in can be left out. Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints, and the title's, go into `M.foot`. |
 | `life` | Trees (placed, then filtered by ground plan, plus orchards, gardens, scrub, hedgerows, street trees), traffic, parking, trains, then all the **extras** (lifts, ferries, bridges, airfields, aircraft, power, sites…). |
 | `light` | Trim pitched-roof end outlines where another pitched face continues the same plane. Every solid face and tree sprite is rasterised into the **depth buffer**; `finishDepth()`. Then shadows are swept into `M.shadow`. |
-| `lines` | Ground lines: waves, water outlines, park hatch, shadow hatch, ground textures, kerbs, rails, paths, lamps, railings, markings, each extra's `draw()`, fences. Then every solid's lines and tree sprites, traced against depth. Frame and marginalia last. |
+| `lines` | Ground lines: waves, water outlines, park hatch, shadow hatch, ground textures, kerbs, rails, paths, lamps, railings, markings, each extra's `draw()`, fences. Then every solid's lines and tree sprites, traced against depth. Optional Humanize then loosens the visible strokes, before the precise frame and marginalia are added. |
 | `plan` | (in the worker) `plan()` joins touching strokes and orders them to cut pen travel; `toSvg()` writes one Inkscape layer per pen. |
 
 ## `Paper` (`src/raster.ts`)
@@ -96,3 +96,7 @@ With `set.mono`, `plan()` merges every pen into `LINEWORK`.
 ### Feature pen overrides
 
 When enabled, `layerPens` routes feature linework into the five existing pens before planning. Solids can carry a `layer`, and individual building lines carry finer identities for windows, roof hatching, roof details and wall shading. A solid identity takes precedence for objects such as trains that reuse building helpers. `tagLines()` marks only appended lines. Ground passes temporarily set `Paper.penOverride`, restored after the pass. Masks, faces, visibility, placement and shadow casting are unchanged. Monochrome still merges all routed output in `plan()`.
+
+## Humanize
+
+`humanize.ts` perturbs visible strokes after hidden-line removal and before joining and ordering. Errors scale with stroke length up to fixed millimetre limits; short marks stay restrained. Each stroke keeps its array identity so catalogue highlights and LOD measurements see the same linework. The map keys of the ground-projected endpoints and the drawing seed determine its variation. Unclipped strokes retain their errors when panned; clipping may change a stroke’s endpoints and therefore its variation. Small overshoots at occlusion boundaries are intentional. Coordinates stay within the drawing rectangle. Frame and margin lettering remain precise. Zero bypasses the pass entirely.

@@ -12,6 +12,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 ## What it draws
 
+- **Humanize** in View loosens the drawing from precise linework to a hand sketch, with uneven strokes and early or late starts and stops. Zero keeps the original drawing. The frame and map notes stay precise.
+
 - **Buildings** use their real footprints and heights from the map data. Most buildings have no height in the map, so their storeys are worked out from what they are, the region and how densely built the town is round them: low houses in suburbs, taller rows and blocks in town centres.
 - **Windows** are set by floor in a pattern that suits the building and the region: plain grids, pairs, tall French windows, small deep ones, piecemeal ones on houses, ribbon windows on modern blocks, curtain walls on towers, round-headed windows on churches and stations, and glazing bars where they're the local habit. Away from the tropics, walls facing the equator get more and wider windows, and the shady side fewer. Warehouses and halls are often blank, or have a band of windows under the eaves or a corner of offices, with loading doors on the street side. Sheds mostly have none, and garages have up-and-over doors. As the scale shrinks, every scheme steps down the same way: framed windows, then single upright strokes, then one stroke per floor, so blocks of a size look alike whatever their pattern. Towers joined by party walls share one scheme.
 - **Front doors** face the street, with a little hood over them, and in southern Europe, France, the Alps and the Low Countries many windows have shutters, drawn in a pen colour.
@@ -103,6 +105,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 | `test/` | Unit tests and golden drawings from recorded map data (`npm test`, see [docs/testing.md](docs/testing.md)) |
 | `src/lettering.ts`, `src/marginalia.ts` | Single-stroke lettering and the map notes in the margin |
 | `src/title.ts` | The cinematic title: block letters traced from the single-stroke capitals, extruded and stood on the best straight street |
+| `src/humanize.ts` | Deterministic stroke wobble and endpoint variation in sheet millimetres |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/gcode.ts`, `src/app/grbl.ts` | G-code for GRBL pen plotters, and plotting over USB with Web Serial |
 | `src/worker.ts` | Runs all of the above off the main thread |

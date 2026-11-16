@@ -16,7 +16,7 @@ import { PLACES, SCALES, type LabPlace } from './places';
 export { PLACES, SCALES };
 export { LOD, coarsest } from '../src/lod';
 
-export type CaseOptions = { detail?: number; penWidth?: number; sheet?: Settings['sheet']; tags?: boolean; layerDetail?: Settings['layerDetail'] };
+export type CaseOptions = { humanize?: number; detail?: number; penWidth?: number; sheet?: Settings['sheet']; tags?: boolean; layerDetail?: Settings['layerDetail'] };
 export type CaseResult = { place: LabPlace; scale: number; set: Settings; svg: string; stats: SheetStats; ms: number; rect: [number, number, number, number]; error?: string };
 
 /** The settings a case is drawn with: the app's defaults at the place, without the flaky OSM tag lookup unless asked. */
@@ -28,6 +28,7 @@ export function caseSettings(place: LabPlace, scale: number, o: CaseOptions = {}
     bearing: place.bearing,
     scale,
     osmTags: !!o.tags,
+    humanize: o.humanize ?? DEFAULT_SETTINGS.humanize,
     detail: o.detail ?? DEFAULT_SETTINGS.detail,
     penWidth: o.penWidth ?? DEFAULT_SETTINGS.penWidth,
     sheet: o.sheet ?? DEFAULT_SETTINGS.sheet,

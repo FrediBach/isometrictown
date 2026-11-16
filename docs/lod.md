@@ -96,6 +96,7 @@ npm run lod                                   # everything: 12 places × 5 scale
 npm run lod -- --places mollis,amsterdam --scales 1000,4000
 npm run lod -- --name before                  # keep a run under a name
 npm run lod -- --name after --compare before  # what changed, per case and per feature
+npm run lod -- --humanize 1 --name loose --compare before # maximum stroke irregularity
 npm run lod -- --detail 1.5 --pen 0.5         # another Detail or pen width
 npm run lod -- --layer-detail trees:0.5,windows:2   # Detail for some layers only
 npm run lod -- --no-png                       # numbers only

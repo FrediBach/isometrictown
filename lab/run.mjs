@@ -33,6 +33,7 @@ const opt = (name, def) => {
 const name = opt('name', 'latest');
 const outDir = path.join(here, 'out', name);
 const png = !flag('no-png');
+const humanize = Number(opt('humanize', '0'));
 const detail = Number(opt('detail', '1'));
 const penWidth = Number(opt('pen', '0.35'));
 const tags = flag('tags');
@@ -90,7 +91,7 @@ function die(msg) {
 }
 
 mkdirSync(outDir, { recursive: true });
-const report = { name, detail, penWidth, tags, layerDetail, at: new Date().toISOString(), cases: [] };
+const report = { name, detail, humanize, penWidth, tags, layerDetail, at: new Date().toISOString(), cases: [] };
 const fmt = (v, d = 0) => v.toLocaleString('en', { maximumFractionDigits: d, minimumFractionDigits: d });
 const pct = (v) => `${fmt(v * 100, 1)}%`;
 
@@ -99,7 +100,7 @@ for (const place of places) {
   for (const scale of scales) {
     const label = `${place.id} 1:${scale}`.padEnd(24);
     try {
-      const r = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail });
+      const r = await lab.runCase(place, scale, { detail, humanize, penWidth, tags, layerDetail });
       const file = `${place.id}-${scale}`;
       writeFileSync(path.join(outDir, `${file}.svg`), r.svg);
       const t = r.stats.total;

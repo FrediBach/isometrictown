@@ -72,6 +72,7 @@ export function loadSettings(): Settings {
     s.place = decodePlace(parts[5] ?? '') || 'Somewhere';
   }
   if (!Number.isFinite(s.detail) || s.detail <= 0) s.detail = DEFAULT_SETTINGS.detail;
+  s.humanize = Number.isFinite(s.humanize) ? Math.max(0, Math.min(1, s.humanize)) : 0;
   s.pens = migratePens(s.pens);
   s.layerPens = Object.fromEntries(Object.entries(s.layerPens ?? {}).filter(([key, value]) =>
     Object.hasOwn(LAYERS, key) && Number.isInteger(value) && value >= 0 && value < PEN_COUNT));
@@ -217,7 +218,7 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
@@ -225,6 +226,7 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   tilt: (v) => `${Math.round(v)}°`,
   scale: (v) => `1:${Math.round(v).toLocaleString('en')}`,
   heightScale: (v) => `${v.toFixed(2)}×`,
+  humanize: (v) => `${Math.round(v * 100)}%`,
   detail: (v) => `${v.toFixed(2)}×`,
   pitched: (v) => v.toFixed(2),
   trees: (v) => v.toFixed(2),

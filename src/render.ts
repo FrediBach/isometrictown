@@ -13,6 +13,7 @@ import { atLeast, LOD, shows, showsAt } from './lod';
 import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
+import { humanize } from './humanize';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
 import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
@@ -369,6 +370,14 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   }
   paper.layer = '';
   withPen('trees', () => { sprites.forEach((sp, i) => paper.facet(treeFacets[i], sp.draw)); });
+
+  if (set.humanize > 0) {
+    for (const pen of paper.pens) for (const line of pen) {
+      const a = cam.ground(line[0], line[1]);
+      const b = cam.ground(line[line.length - 2], line[line.length - 1]);
+      humanize(line, set.humanize, [...B.key(...a), ...B.key(...b)], set.seed, cam.rect);
+    }
+  }
 
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));

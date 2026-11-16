@@ -14,6 +14,8 @@ export type Settings = {
   heightScale: number;
   /** How finely things are drawn: hatch and texture spacing, and how small a thing can be before it is left out. 1 is normal. */
   detail: number;
+  /** Hand-drawn stroke irregularity, from precise (0) to loose (1). */
+  humanize: number;
 
   sheet: SheetId;
   landscape: boolean;
@@ -143,6 +145,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scale: 1000,
   heightScale: 1,
   detail: 1,
+  humanize: 0,
 
   sheet: 'a3',
   landscape: true,
