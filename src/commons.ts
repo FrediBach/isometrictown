@@ -122,6 +122,7 @@ export function rainTanks(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const f = b.future;
     const i = b.info;
     if (!f?.tank || f.eave === undefined || !i) continue;
+    if (f.production?.garden || f.production?.cistern) continue;
     // A house with a porch shows its tank only close up: one main change and one supporting one.
     if (motifBudget(B, b) < (f.addition ? 3 : 2)) continue;
     const p = b.shape[0].pts;

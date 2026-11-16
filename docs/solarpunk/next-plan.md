@@ -1,6 +1,36 @@
 # Solarpunk mode, part 3: a town that produces its own future
 
-Follow-up to [bolder-plan.md](bolder-plan.md). **Status: proposed; nothing in this plan is implemented yet.** Read [../solarpunk.md](../solarpunk.md) for the current implementation and [intro.md](intro.md) for the art direction.
+Follow-up to [bolder-plan.md](bolder-plan.md). **Status: implementation started. The first P1 structures and part of P0 are built; the remaining milestones are proposed.** Read [../solarpunk.md](../solarpunk.md) for the current implementation and [intro.md](intro.md) for the art direction.
+
+## Implementation status
+
+- **First P1 slice built:** raised solar wings on suitable flat roofs; coordinated rear gardens with a solar growing house, two broad food beds and a 2.6 m cistern; standalone cisterns where a whole garden cannot fit. Hot climates use open growing shelters. These start at Transform. Today and Retrofit retain their previous drawings.
+- **Planning:** `src/production.ts` reserves complete world-space footprints before context buildings are dropped. Roof holes, access margins, existing additions, transport routes, water, woodland and other land uses are excluded. Ground obstacles are retained from ordinary loaded tiles before the drawing-box filter, without extra network requests. Rear plots require mapped residential land. Neighbours competing for one plot both decline, independently of traversal order. Structures use separate LOD rules; zooming does not choose a new plot.
+- **P0 started:** frozen Transform and Visionary lab baselines across the original six places plus Sapporo; planned/accepted/rejected site counts in the lab; direct Visionary-versus-Transform thumbnail, time and waste comparisons. Counts cover the loaded drawing area, including hidden sites, and are not a visible-coverage score.
+- **Still outstanding in P0/P1:** a complete four-depth review board, broader garden inference where residential land is unmapped, coordinated pitched-roof/porch energy packages, and a neighbourhood that meets all of §6's Fit-size acceptance criteria. Existing pitched-roof panel decisions remain unchanged. Large shared water systems and rooftop growing halls belong to later work.
+- **Visual result so far:** the new structures read clearly in close-ups, and solar wings alter the outline of suitable flat roofs. Whole-sheet changes remain modest, especially in historic places and at 1:4000. This is an initial implementation, not completion of the plan's bold visual target. Wind structures, stepped garden buildings and connected districts remain P2–P4.
+
+
+
+### First implementation checks
+
+Named lab runs: `sp3-transform-before` → `sp3-transform-release` and `sp3-visionary-before` → `sp3-visionary-release`, seven places at 1:1000 and 1:4000, default 0.35 mm pens. The final uncropped-obstacle safeguard also has a `sp3-transform-verified` run. Selected Transform results (new-ink share / changed preview pixels against Today):
+
+| Case | Before | After |
+| --- | --- | --- |
+| Mollis, 1:1000 | 18.5% / 13.3% | 20.0% / 14.2% |
+| Rye, 1:1000 | 21.8% / 16.4% | 24.1% / 17.4% |
+| Midtown, 1:4000 | 20.1% / 19.8% | 21.7% / 20.2% |
+| Sapporo, 1:4000 | 24.2% / 25.0% | 26.3% / 25.6% |
+
+The default-pen runs remain below ×1.6 plot time for Transform and ×2 for Visionary, and below +2 percentage points of waste against Today. Redundant beams across the solar surface were removed after the first version pushed Midtown just over that waste limit. The direct Visionary-versus-Transform differences remain small (about 0.2–4.5%); the later skyline milestones are still necessary.
+
+The wider-pen check (`sp3-wide-pen`, Mollis, Rye and Sapporo at 1:500 and 1:8000 with 0.5 mm pens) found Rye at about +2.2 waste points against Today. An isolated pre-change checkout also measured +2.2 there: this is an existing budget exception, not a passing result. The wider-pen run preceded the final beam simplification.
+
+Fit-size before/after sheets at both main scales, monochrome samples, busiest-area close-ups and targeted growing-house/cistern/solar-wing close-ups were reviewed with the CPU stroke rasteriser. Browser PNG generation was unavailable. The close-ups demonstrate the new structures; they do not establish whole-neighbourhood coverage. The 0.5 mm/1:8000 sheets and every possible climate/bearing combination were not checked by eye. Render timings were collected with other checks running and are not a controlled performance benchmark.
+
+`npm run build` and `npm test` pass (979 tests). Nine Transform/Visionary goldens were reviewed and updated. All Today and Retrofit goldens remain unchanged. Unit tests cover full footprints, holes, narrow crossings, enclosed and off-sheet obstacles, conflicting neighbours, gates, source ordering, scale/bearing independence and 30/47/310 m translations; the existing rendered 30/47 m pan tests also pass.
+
 
 ## 1. The brief
 

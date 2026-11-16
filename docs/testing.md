@@ -31,6 +31,7 @@ These are small and exact, for the parts that are pure functions.
 | `catalogue.test.ts` | Entries are unique and complete, and point at gates and LOD rules that exist; stroke patterns match as documented |
 | `misc.test.ts` | Settings helpers, region detection for known places, lettering, title text, palettes, the harmoniser keeping locked pens |
 | `public-commons.test.ts` | Pocket-park and market furniture: clear paths, junctions, tree crowns, feature gates, LOD and map-fixed placement |
+| `production.test.ts` | Productive-property footprints, roof holes, enclosed obstacles, mapped paths, overlapping neighbours, gates and view-independent plans |
 | `future.test.ts` | Solarpunk planning: climates by region, the same plan from any view, landmarks kept, Intensity only adds, a lock rerolls one building |
 | `rules.test.ts` | Rules from AGENTS.md checked in the source: no `Math.random()` or clocks in drawing code, no bare comparisons with `cam.lod`, no fetching outside `tiles.ts` |
 

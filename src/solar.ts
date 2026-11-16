@@ -14,6 +14,7 @@ import type { Pitched } from './roofs';
 import { deeper, GREENERY, LINEWORK, ROOFS, SHADOWS } from './settings';
 import { bestRect, type Part, type Rect } from './shape';
 import type { Building, Town } from './tiles';
+import { solarWing } from './production';
 
 /*
  * Solarpunk roofs (docs/solarpunk/implementation-plan.md §7.1): coherent panel groups on the
@@ -163,6 +164,11 @@ export function futureRoof(B: Build, b: Building, z: number, roofFace: number[][
   const outer = b.shape[0].pts;
   const { rect } = bestRect(outer);
   if (!rect) return;
+  if (plan.production?.wing) {
+    const s = newSolid();
+    tagLines(B, 'solar', s, () => solarWing(B, plan.production!.wing!, z, s), 'solar-wing');
+    if (s.lines.length) out.push(s);
+  }
   if (plan.pavilion) {
     const ring = pavilion(B, b, rect, z, out);
     if (ring) taken.push(ring);

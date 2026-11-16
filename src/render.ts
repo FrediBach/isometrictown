@@ -3,6 +3,7 @@ import { classify } from './classify';
 import { pocketCommons, coreMarkets, cycleRacks, kerbGardens, kerbTrees, lotCommons, medians, medianTrees, rainTanks } from './commons';
 import { planFuture, type ClimateId } from './future';
 import { canopyTrees } from './canopy';
+import { planProduction, productionFoot, productiveGardens, type ProductionStats } from './production';
 import { bankTrees, cycleTracks, groveTrees, lotTrees, stopFootprints, tramStops, reshapeTown, stripGrass, stripTrees } from './reshape';
 import { agrivoltaics, forecourtCanopies, lotCanopies } from './solar';
 import { gardenBridges, windTurbines } from './landmarks';
@@ -39,7 +40,7 @@ export type Census = Record<string, number>;
 /** Which building shows at each pixel of the drawing area, for clicking in the preview. */
 export type Picks = { x0: number; y0: number; ppm: number; W: number; H: number; ids: Int32Array; keys: string[] };
 /** `climate` is the solarpunk climate profile drawn for, while that mode is on. */
-export type Drawing = { pens: number[][][]; counts: Counts; census: Census; picks: Picks; climate?: ClimateId };
+export type Drawing = { pens: number[][][]; counts: Counts; census: Census; picks: Picks; climate?: ClimateId; production?: ProductionStats };
 
 /** The lock key of the building at a sheet position (mm), looking a little around it for a near miss. */
 export function pickAt(p: Picks, x: number, y: number): string | null {
@@ -132,6 +133,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   classify(town, style, set, B.key);
   // The solarpunk plan takes in the context buildings too, so district decisions agree from every view.
   B.future = set.solarpunk ? planFuture(town, set, style.id, B.key, B.cell) : null;
+  const production = B.future && deeper(set, 'transform') ? planProduction(town, set) : undefined;
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // From depth Transform, streets are reshaped before any mask is filled, so everything downstream follows.
@@ -250,6 +252,11 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   }
 
   // Life on the ground
+  // Productive plots reserve their paths and structures before trees, vehicles and other extras.
+  if (production) for (const b of town.buildings) {
+    const foot = b.future?.eave !== undefined ? productionFoot(b) : null;
+    if (foot) paper.fillMask(M.foot, [foot]);
+  }
   onStage({ stage: 'life', note: `${counts.buildings.toLocaleString('en')} buildings standing` });
   const box = cam.region(0);
   const from = (name: string, list: Tree[]) => {
@@ -287,6 +294,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars, ...tag('life', at('life', () => trains(B, paper, town, M)), 'trains'));
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
+  if (production) extras.push(extra('planting', 'productive-gardens', () => ({ solids: productiveGardens(B, town), draw: () => {} })));
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
   if (R) extras.push(extra('parks', 'pocket-commons', () => pocketCommons(B, paper, R, M, trees)), extra('life', 'core-markets', () => coreMarkets(B, paper, town, M, trees)), extra('streets', 'cycle-tracks', () => cycleTracks(B, paper, R, M)), extra('streets', 'tram-stops', () => tramStops(B, R)));
@@ -420,7 +428,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
   const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys };
-  return { pens: paper.pens, counts, census, picks, climate: B.future?.climate };
+  return { pens: paper.pens, counts, census, picks, climate: B.future?.climate, production };
 }
 
 /** What the catalogue can single a building out as: what it is, its roof and windows, and the details it was given. */

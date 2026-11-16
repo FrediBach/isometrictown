@@ -116,6 +116,7 @@ for (const place of places) {
       writeFileSync(path.join(outDir, `${file}.svg`), r.svg);
       // Against today: the same case with the mode off, at preview size.
       let vs = null;
+      let vsTransform = null;
       if (future) {
         const today = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail });
         vs = { share: r.future, diff: lab.difference(r.thumb, today.thumb, r.rect, sheetWidth(r.svg)), time: r.stats.total.seconds / today.stats.total.seconds, waste: r.stats.total.waste - today.stats.total.waste };
@@ -123,6 +124,11 @@ for (const place of places) {
           writeFileSync(path.join(outDir, `${file}-thumb.png`), lab.png(r.thumb, deflateSync));
           writeFileSync(path.join(outDir, `${file}-today.png`), lab.png(today.thumb, deflateSync));
         }
+      }
+      if (depth === 'visionary') {
+        const transform = await lab.runCase(place, scale, { detail, penWidth, tags, layerDetail, solarpunk: true, climate, depth: 'transform' });
+        vsTransform = { diff: lab.difference(r.thumb, transform.thumb, r.rect, sheetWidth(r.svg)), time: r.stats.total.seconds / transform.stats.total.seconds, waste: r.stats.total.waste - transform.stats.total.waste };
+        if (png) writeFileSync(path.join(outDir, `${file}-transform.png`), lab.png(transform.thumb, deflateSync));
       }
       const t = r.stats.total;
       const worst = Object.entries(r.stats.layers)
@@ -134,7 +140,9 @@ for (const place of places) {
       console.log(`${label} ${fmt(t.strokes).padStart(8)} strokes ${fmt(t.ink / 1000, 1).padStart(7)} m ${fmt(t.seconds / 60, 1).padStart(6)} min  waste ${pct(t.waste).padStart(6)}  solid ${pct(r.stats.solid).padStart(6)}  ${fmt(r.ms)} ms  ${vs ? `new ${pct(vs.share)}  differs ${pct(vs.diff)}  time ×${fmt(vs.time, 2)}  ` : ''}worst: ${worst}`);
       const { marks, ...stats } = r.stats;
       if (png) writeFileSync(path.join(outDir, `${file}-waste.svg`), wasteSvg(r.svg, marks, penWidth));
-      report.cases.push({ place: place.id, name: place.name, kind: place.kind, scale, file, ms: r.ms, rect: r.rect, stats, vs });
+      if (r.production) console.log(`  Productive sites: ${r.production.wings}/${r.production.roofs} roof wings; ${r.production.gardens} gardens and ${r.production.cisterns} cisterns / ${r.production.homes} homes; ${r.production.crowded} crowded, ${r.production.unknown} without suitable mapped ground.`);
+      if (vsTransform) console.log(`  Against Transform: differs ${pct(vsTransform.diff)}, time ×${fmt(vsTransform.time, 2)}, waste ${fmt(vsTransform.waste * 100, 2)} pts.`);
+      report.cases.push({ place: place.id, name: place.name, kind: place.kind, scale, file, ms: r.ms, rect: r.rect, stats, vs, vsTransform, production: r.production });
     } catch (e) {
       console.log(`${label} failed: ${e instanceof Error ? e.message : e}`);
       report.cases.push({ place: place.id, name: place.name, kind: place.kind, scale, error: String(e) });
@@ -247,6 +255,10 @@ function html(r, withPng, rules) {
         .join('')}</tr>`;
     }
     body += '</tbody></table></div>';
+    for (const c of ok) if (c.production) {
+      const p = c.production;
+      body += `<p>1:${c.scale}, planned sites in the loaded drawing area: ${p.wings}/${p.roofs} eligible roofs get wings; ${p.gardens} gardens and ${p.cisterns} cisterns among ${p.homes} homes; ${p.crowded} crowded and ${p.unknown} without suitable mapped ground. Counts include sites hidden behind other buildings.</p>`;
+    }
     if (withPng) {
       body += '<div class="shots">';
       for (const c of ok) body += `<figure><a href="${c.file}.svg"><img src="${c.file}.png" alt="${esc(c.name)} at 1:${c.scale}" loading="lazy"></a><div class="close"><img src="${c.file}-hot.png" alt="Busiest window" loading="lazy"><img src="${c.file}-mid.png" alt="Centre" loading="lazy"><img src="${c.file}-waste.png" alt="Waste in the busiest window" loading="lazy"></div><figcaption>1:${c.scale}: whole sheet; the busiest and the middle 30 × 20 mm at true pen width; the busiest again with specks in magenta and solid cells in red</figcaption></figure>`;
@@ -254,6 +266,7 @@ function html(r, withPng, rules) {
       if (ok.some((c) => c.vs)) {
         body += '<div class="shots">';
         for (const c of ok) if (c.vs) body += `<figure><div class="pair"><img src="${c.file}-today.png" alt="Today at 1:${c.scale}" loading="lazy"><img src="${c.file}-thumb.png" alt="Solarpunk at 1:${c.scale}" loading="lazy"></div><figcaption>1:${c.scale} at preview size, today and solarpunk: ${pct(c.vs.diff)} of pixels differ, ${pct(c.vs.share)} of the ink is new</figcaption></figure>`;
+        for (const c of ok) if (c.vsTransform) body += `<figure><div class="pair"><img src="${c.file}-transform.png" alt="Transform at 1:${c.scale}" loading="lazy"><img src="${c.file}-thumb.png" alt="Visionary at 1:${c.scale}" loading="lazy"></div><figcaption>1:${c.scale}, Transform and Visionary: ${pct(c.vsTransform.diff)} of pixels differ, time ×${fmt(c.vsTransform.time, 2)}, waste ${fmt(c.vsTransform.waste * 100, 2)} percentage points</figcaption></figure>`;
         body += '</div>';
       }
     }

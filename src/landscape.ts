@@ -130,6 +130,7 @@ export function gardenBeds(B: Build, paper: Paper, town: Town, G: Ground | null,
   for (const b of town.buildings) {
     const i = b.info;
     if (b.future?.recipe !== 'B01' || b.future.eave === undefined || !i?.toStreet) continue;
+    if (b.future.production?.garden || b.future.production?.cistern) continue;
     const p = b.shape[0].pts;
     const n = p.length / 2;
     let cx = 0;

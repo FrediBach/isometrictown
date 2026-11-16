@@ -7,6 +7,7 @@ import { hash } from './rng';
 import { deeper, seedFor, type Settings } from './settings';
 import type { StyleId } from './styles';
 import type { Building, Town, Way } from './tiles';
+import type { Production } from './production';
 
 /*
  * Solarpunk mode: the same place as a settled, repaired and inhabited future (see
@@ -77,6 +78,8 @@ export type RecipeId = 'B01' | 'B02' | 'B03' | 'B04' | 'B05' | 'B07' | 'B12' | '
 
 /** What the future does with one building. Written by `planFuture()`; `classify()` never reads it. */
 export type Future = {
+  /** Coordinated productive structures, reserved before masks or level of detail are applied. */
+  production?: Production;
   recipe: RecipeId;
   /** Solar panels on the roof: a patch on the sunny slope, rows on a flat roof, or modules on sawtooth slopes. */
   roofPv: boolean;

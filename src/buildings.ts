@@ -10,6 +10,7 @@ import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, she
 import { GREENERY, LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import { futureRoof, roofPanels, sawtoothPanels } from './solar';
+import { overlaps } from './production';
 import { additions } from './additions';
 import { bicycle } from './vehicles';
 import type { Style } from './styles';
@@ -471,7 +472,9 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
     // Solarpunk roofs: plant rooms first, then panels and planting in the room they leave.
     b.future.eave = H;
     if (pad || !set.rooftops || H >= 150) return;
-    const taken: number[][] = [];
+    const wing = b.future.production?.wing;
+    const reserved = wing ? corners({ ...wing, L: wing.L + 1.2, w: wing.w + 1.2 }) : null;
+    const taken: number[][] = reserved ? [reserved] : [];
     if (area > 220 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out, taken);
     futureRoof(B, b, H, roofFace, taken, out);
     return;
@@ -853,7 +856,9 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
   }
   const { rect } = bestRect(outer);
   if (!rect) return;
-  const inside = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts));
+  const wing = B.future ? b.future?.production?.wing : undefined;
+  const reserved = wing ? corners({ ...wing, L: wing.L + 1.2, w: wing.w + 1.2 }) : null;
+  const inside = (x: number, y: number) => pointInRing(x, y, outer) && b.shape.slice(1).every((hole) => !pointInRing(x, y, hole.pts)) && (!reserved || !pointInRing(x, y, reserved));
   const v = hash(k[0], k[1], B.seed, 21);
   const area = Math.abs(ringArea(outer));
   if (taken) {
@@ -884,6 +889,7 @@ function rooftopLines(B: Build, b: Building, z: number, k: [number, number], out
       [cx - ux * a + -uy * bw, cy - uy * a + ux * bw],
     ];
     if (!corners.every(([x, y]) => inside(x, y))) continue;
+    if (reserved && overlaps(corners.flat(), reserved)) continue;
     if (!shows(B.cam, LOD.rooftop, 2 * Math.min(a, bw), r(5))) continue;
     const s = newSolid();
     prism(B, [{ pts: corners.flat(), seam: new Uint8Array(4) }], z, z + h, { roof: true, windows: false, pen: LINEWORK }, s);

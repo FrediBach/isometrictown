@@ -41,6 +41,8 @@ export type PowerContext = { land: Shape[]; water: Shape[]; buildings: Shape[]; 
 
 export type Town = {
   powerContext?: PowerContext;
+  /** Uncropped ground obstacles from the ordinary loaded tiles, for productive rear plots. */
+  productionContext?: { shapes: Shape[]; streams: Stream[]; runways: Way[] };
   buildings: Building[];
   water: Shape[];
   /** The OpenMapTiles class of each water shape, in step with `water`: ocean, lake, river, pond and so on. */
@@ -578,6 +580,8 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
   };
   const power: PowerContext = { land: [], water: [], buildings: [], roads: [], streams: [], airfields: [] };
   town.powerContext = power;
+  const production: NonNullable<Town['productionContext']> = { shapes: [], streams: [], runways: [] };
+  town.productionContext = production;
   const powerShape = (s: Shape): Shape => s.map((r) => ({ pts: r.pts.map((v, i) => i % 2 ? frame.y(v) : frame.x(v)), seam: r.seam }));
   const powerPoints = (p: number[]) => p.map((v, i) => i % 2 ? frame.y(v) : frame.x(v));
   for (const t of [...tiles, ...context]) {
@@ -595,6 +599,10 @@ function assemble(tiles: Town[], frame: Frame, box: [number, number, number, num
     }
   }
   for (const t of tiles) {
+    // Rear plots can extend beyond the ground box; retain obstacles before the view filter.
+    production.shapes.push(...[...t.water, ...t.pools, ...t.wood, ...t.green, ...t.plazas, ...t.aprons, ...t.cover.map((a) => a.shape)].map(powerShape));
+    production.streams.push(...t.streams.map((w) => ({ ...w, pts: powerPoints(w.pts) })));
+    production.runways.push(...t.runways.map((w) => ({ ...w, pts: powerPoints(w.pts) })));
     for (const b of t.buildings) {
       if (b.min <= 0) {
         const p = b.shape[0].pts;
