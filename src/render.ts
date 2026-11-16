@@ -16,7 +16,7 @@ import { Paper } from './raster';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
 import { future, LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
-import { agrivoltaics, airships, futureSettings, windFarms } from './solarpunk';
+import { agrivoltaics, airships, biodomes, floatingSolar, futureSettings, roadTrees, sails, windFarms } from './solarpunk';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
@@ -231,6 +231,7 @@ export function render(town: Town, drawn: Settings, frame: Frame, style: Style, 
     let list = from('park-trees', placeTrees(B, paper, M, box, toAbs, fromAbs));
     if (G) list = [...list.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
+    list.push(...roadTrees(B, paper, town.ways, M));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
@@ -253,13 +254,15 @@ export function render(town: Town, drawn: Settings, frame: Frame, style: Style, 
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars, ...tag('life', at('life', () => trains(B, paper, town, M)), 'trains'));
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), future(set) ? extra('power', 'windFarms', () => windFarms(B, paper, G, M, box, toAbs, fromAbs)) : extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
-  if (future(set)) extras.push(extra('life', 'airships', () => airships(B, toAbs, fromAbs)));
+  if (future(set)) extras.push(extra('life', 'airships', () => airships(B, toAbs, fromAbs)), extra('parks', 'biodomes', () => biodomes(B, paper, town.green, M)), extra('streets', 'sails', () => sails(B, paper, town.plazas, M)));
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
   // Ships first: sailing boats keep off the water they and their wakes take up.
   extras.push(extra('life', 'ships', () => ships(B, paper, town, M, toAbs, fromAbs)), extra('life', 'racing', () => racing(B, paper, town, M)), extra('cars', 'stations', () => stations(B, paper, town, M)));
   extras.push(extra('life', 'sailing', () => sailing(B, paper, town, M)), extra('markings', 'crossings', () => crossings(B, paper, town, M)), extra('life', 'people', () => people(B, paper, town, M)), extra('streets', 'motorways', () => motorways(B, paper, town, M)));
+  // Floating solar after the ships, keeping off the water they take up.
+  if (future(set) && set.water) extras.push(extra('water', 'floatingSolar', () => floatingSolar(B, paper, town.water, M)));
   if (G) extras.push(extra('life', 'farmWork', () => farmWork(B, paper, G, M, toAbs)), extra('life', 'players', () => players(B, paper, G, M)));
   for (const e of extras) solids.push(...e.solids);
   if (G && future(set)) solids.push(...tag('ground', at('ground', () => agrivoltaics(B, paper, G, M))));

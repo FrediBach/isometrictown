@@ -1,9 +1,9 @@
 import { tagLines, prism, shadeWall, type Build, type Line3, type Solid } from './buildings';
 import { ringArea } from './geo';
 import { LOD, shows } from './lod';
-import { LINEWORK, ROOFS } from './settings';
+import { GREENERY, LINEWORK, ROOFS } from './settings';
 import { corners, offsetRing, type Rect } from './shape';
-import { panels } from './solarpunk';
+import { greenSlope, panels } from './solarpunk';
 
 const ROOF_HATCH_MM = 0.7;
 
@@ -31,6 +31,8 @@ export type PitchSpec = {
   hatch: boolean;
   /** Solarpunk: cover the slope that faces the sun best with solar tiles, in place of its hatching. */
   panels?: boolean;
+  /** Solarpunk: plant the other slope over, rather than hatch it. */
+  green?: boolean;
 };
 
 export type Pitched = { Hr: number; a0: number; a1: number; at: (u: number, v: number, z: number) => number[] };
@@ -219,6 +221,9 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
 
   // Solar tiles on the sunnier slope, inset from its eave, ridge, hips and verges.
   let sunny = -1;
+  let shady = -1;
+  // Too small for tufts, the planted slope is hatched in the greenery pen.
+  let mossy = -1;
   if (S.panels && hw >= 2.4) {
     const toSun = vx * B.sun[0] + vy * B.sun[1];
     const s = toSun >= 0 ? 1 : 0;
@@ -229,12 +234,21 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
     if (slope[s] && u1 - u0 >= 2 && vout - vin >= 1.5) {
       sunny = s;
       panels(B, out.lines, (u, v) => at(u, sv[s] * v, He + (hw - v) * tan), u0, u1, vin, vout, 1.05, 1.5, slope[s], 'future-solar-roof');
+      // The other slope is planted over.
+      const g = 1 - s;
+      const gout = hw + sides[g] - 0.3;
+      const g0 = Math.max(-extent(0, g) + 0.3, a0 - vin + 0.4);
+      const g1 = Math.min(extent(1, g) - 0.3, a1 + vin - 0.4);
+      if (slope[g] && S.green) {
+        if (greenSlope(B, out, (u, v) => at(u, sv[g] * v, He + (hw - v) * tan), g0, g1, vin, gout, slope[g])) shady = g;
+        else mossy = g;
+      }
     }
   }
 
   if (S.hatch) {
     for (const s of [0, 1]) {
-      if (s === sunny) continue;
+      if (s === sunny || s === shady) continue;
       const p = at(0, sv[s] * (hw + sides[s]), eaveZ(s));
       const q = at(0, 0, Hr);
       if (!hatchable(B, p, q)) continue;
@@ -244,12 +258,18 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
       const count = strokes(B, x0, y0, x1, y1, eaveZ(s), p, q);
       const step = span / count;
       const outer = hw + sides[s];
+      const first = out.lines.length;
       for (let t = step / 2; t < span; t += step) {
         const u = -extent(0, s) + t;
         const inner = Math.max(0, d[0] - (u + ue[0]), d[1] - (ue[1] - u));
         if (outer - inner < 0.08) continue;
         hatch(B, out, slope[s], [...at(u, sv[s] * outer, eaveZ(s)), ...at(u, sv[s] * inner, He + (hw - inner) * tan)]);
       }
+      if (s === mossy)
+        for (let i = first; i < out.lines.length; i++) {
+          out.lines[i].pen = GREENERY;
+          out.lines[i].facet = 'future-green-roof';
+        }
     }
     for (const k of [0, 1]) {
       if (d[k] === 0) continue;

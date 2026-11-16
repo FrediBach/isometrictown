@@ -128,6 +128,12 @@ export const LOD = {
   turbine: { m: 70, mm: 9, what: 'Solarpunk: wind turbines in the fields: tower height' },
   agrivoltaic: { m: 2.6, mm: 0.6, what: 'Solarpunk: solar tables over fields: depth' },
   airship: { m: 90, mm: 9, what: 'Solarpunk: airships: length' },
+  planter: { m: 3, mm: 2.4, what: 'Solarpunk: planted troughs along every storey: storey height' },
+  biodome: { m: 30, mm: 6, what: 'Solarpunk: glass biodomes in parks and on roofs: diameter' },
+  glasshouse: { m: 2.6, mm: 1.6, what: 'Solarpunk: glass sunrooms against houses: height' },
+  pipe: { m: 2.4, mm: 1.6, what: 'Solarpunk: rooftop tanks and pipe runs: tank height' },
+  sail: { m: 8, mm: 3, what: 'Solarpunk: shade sails over squares: span' },
+  shading: { m: 3, mm: 2, what: 'Solarpunk: shading fins and louvres on sunny walls: storey height' },
 
   // Sheet
   title: { m: 40, mm: 6, what: 'Cinematic title letters: cap height' },

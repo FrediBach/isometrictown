@@ -7,7 +7,7 @@ import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
 import { future, LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
-import { futureRoof, vines } from './solarpunk';
+import { futureRoof, greenWall, soften, sunroom, vault, windTurbine } from './solarpunk';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
@@ -142,7 +142,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       out.faces.push(wallFace);
       const zb = Math.max(z0, next(i));
       if (zb >= z1 - 0.3) continue;
-      if (o.windows && o.facade && future(set) && set.details) vines(B, out, wallFace, ax, ay, bx, by, zb, z1);
+      if (o.windows && o.facade && future(set) && set.details) tagLines(B, undefined, out, () => greenWall(B, out, wallFace, ax, ay, bx, by, zb, z1, o.facade!, zb === 0 && z0 === 0));
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
       const shop = !!o.shop && shows(cam, LOD.shopfront) && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
@@ -316,11 +316,22 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   let He = Math.max(2.8, H - rise * 0.45);
   if (o.maxHe) He = Math.min(He, o.maxHe);
 
+  // Some future houses swap the pitched roof for a barrel vault, solar film on its sunny side.
+  if (future(set) && o.details && parts.length === 1 && !main.party[0] && !main.party[2] && main.rect.w >= 4 && hash(info.seed[0], info.seed[1], B.seed, 12015) < 0.5) {
+    const rise = Math.min(main.rect.w * 0.32, 5);
+    const Hv = Math.max(2.8, H - rise * 0.5);
+    prism(B, [wall], 0, Hv, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
+    const v = B.cam.within('roofs', () => tagLines(B, undefined, out, () => vault(B, main.rect, Hv, out)));
+    out.casts.push({ ring: wall.pts, h: Hv + rise * 0.6 });
+    if ((info.kind === 'house' || info.kind === 'terrace') && hash(info.seed[0], info.seed[1], B.seed, 12017) < 0.5) tagLines(B, undefined, out, () => sunroom(B, main.rect, main.outside, Hv, hash(info.seed[0], info.seed[1], B.seed, 12018), out));
+    const P: Pitched = { Hr: v.Hr, a0: -main.rect.L / 2, a1: main.rect.L / 2, at: v.at };
+    return { main, P, He: Hv, tan };
+  }
   prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
 
   const endKind: End = o.roof === 'hipped' ? 'hip' : o.roof === 'halfHipped' ? 'half' : 'gable';
   // In the solarpunk future most pitched roofs carry solar tiles; terraces have them or not together.
-  const sunRoof = future(set) && set.details && o.details && hash(info.seed[0], info.seed[1], B.seed, 12010) < 0.82;
+  const sunRoof = future(set) && set.details && !!o.details;
   let P: Pitched | null = null;
   parts.forEach((part, i) => {
     const { rect: r, party, outside } = part;
@@ -334,11 +345,24 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
       const k = d > 0 ? 1 : 0;
       if (Math.abs(d) > 0.6 && ends[k] === 'gable') front = { end: k, kind: info.gableFront };
     }
-    const made = B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan, ends, sides: [eave(0), eave(2)], o: style.overhang, front, hatch: set.roofHatch, panels: sunRoof }, out));
+    const made = B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan, ends, sides: [eave(0), eave(2)], o: style.overhang, front, hatch: set.roofHatch, panels: sunRoof, green: sunRoof && hash(info.seed[0], info.seed[1], B.seed, 12014) < 0.3 }, out));
     if (i === 0) P = made;
   });
   out.casts.push({ ring: wall.pts, h: He + rise * 0.6 });
   if (o.details && set.details) B.cam.within('roofs', () => roofDetails(B, info, main, P!, He, tan, out));
+  // A glass sunroom on the sunny side of many future houses.
+  if (sunRoof && (info.kind === 'house' || info.kind === 'terrace') && hash(info.seed[0], info.seed[1], B.seed, 12017) < 0.5) tagLines(B, undefined, out, () => sunroom(B, main.rect, main.outside, He, hash(info.seed[0], info.seed[1], B.seed, 12018), out));
+  // A small wind turbine on a mast at one end of the ridge, on some future houses.
+  if (sunRoof && hash(info.seed[0], info.seed[1], B.seed, 12011) < 0.45 && shows(B.cam, LOD.roofTurbine)) {
+    const Pm = P! as Pitched;
+    const end = hash(info.seed[0], info.seed[1], B.seed, 12012) < 0.5 ? Pm.a0 : Pm.a1;
+    const [x, y, z] = Pm.at(end, 0, Pm.Hr);
+    const t = hash(info.seed[0], info.seed[1], B.seed, 12013) * Math.PI * 2;
+    const mill = windTurbine(B, x, y, 3.2, 1.5, Math.cos(t), Math.sin(t), t * 3, z);
+    for (const l of mill.lines) l.facet = 'future-roof-turbine';
+    out.faces.push(...mill.faces);
+    out.lines.push(...mill.lines);
+  }
   return { main, P: P!, He, tan };
 }
 
@@ -415,7 +439,7 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
   if (future(set)) {
-    if (!pad && set.rooftops && !info?.castle) tagLines(B, 'rooftops', out, () => futureRoof(B, b, H, k, roof, out));
+    if (!pad && set.rooftops && !info?.castle) tagLines(B, 'rooftops', out, () => futureRoof(B, b, H, k, roof, out, info?.kind === 'civic' || info?.kind === 'worship'));
   } else if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
 }
 
@@ -590,6 +614,21 @@ function body(B: Build, b: Building): Solid[] {
         if (simple && temple(B, b, info, H, solid)) return out;
         break;
     }
+  }
+  // The future rounds off its blocks and skins many of them in glass.
+  if (future(set) && info && seamless && info.kind !== 'shed' && !info.castle && !rings[0].party?.some((v) => v > 0)) {
+    const h = (salt: number) => hash(k[0], k[1], B.seed, 12016 + salt);
+    const { rect } = bestRect(p);
+    const glass = h(1) < 0.5 && info.kind !== 'house' ? { ...info, facade: { ...info.facade, pattern: 'curtain' as const, bay: 1.6, bars: false } } : info;
+    if (rect && h(0) < 0.8) {
+      const soft = soften(p, Math.max(1.5, Math.min(9, rect.w * 0.3)));
+      const ring = { pts: soft, seam: new Uint8Array(soft.length / 2) };
+      const rounded: Building = { ...b, shape: [ring, ...b.shape.slice(1)], info: glass };
+      flat(B, rounded, [{ ...ring, party: new Float32Array(soft.length / 2) }, ...b.shape.slice(1)], glass, z0, H, k, out);
+      return out;
+    }
+    flat(B, { ...b, info: glass }, rings, glass, z0, H, k, out);
+    return out;
   }
   flat(B, b, rings, info, z0, H, k, out);
   return out;
