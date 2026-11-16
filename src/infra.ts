@@ -4,7 +4,8 @@ import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
-import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
+import { future, LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
+import { carport, futureVehicle } from './solarpunk';
 import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
 import { calm, wake } from './ships';
@@ -843,7 +844,24 @@ export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
   const solids: Solid[] = [];
   // Packed bays turn into a dark mass on paper at small scales, so fewer cars there.
   const full = Math.min(0.6, set.cars * 1.4) * (cam.s >= 1 ? 1 : cam.s >= 0.5 ? 0.5 : 0.25);
-  if (set.cars > 0)
+  if (future(set)) {
+    // Solar canopies over the bays, row by row, and a few pods charging under them.
+    if (shows(cam, LOD.parkingBay))
+      bays.forEach((b, i) => {
+        const near = (o?: Bay) => !!o && o.nx === b.nx && o.ny === b.ny && Math.hypot(o.x - b.x, o.y - b.y) < W * 1.05;
+        solids.push(carport(B, b.x, b.y, b.ux, b.uy, b.nx, b.ny, b.v0, W, D, !near(bays[i - 1]), !near(bays[i + 1])));
+      });
+    if (set.cars > 0)
+      for (const b of bays) {
+        const cx = b.x + b.ux * (W / 2) + b.nx * (b.v0 + D / 2);
+        const cy = b.y + b.uy * (W / 2) + b.ny * (b.v0 + D / 2);
+        const [k0, k1] = B.key(cx, cy);
+        if (hash(k0, k1, set.seed, 440) < full * 0.5) {
+          const f = futureVehicle(B, 'car', 0.9, false);
+          if (showsAt(cam, LOD.car, f.len, [k0, k1], set.seed, 9104)) solids.push(f.make(cx, cy, b.nx, b.ny)!);
+        }
+      }
+  } else if (set.cars > 0)
     for (const b of bays) {
       const cx = b.x + b.ux * (W / 2) + b.nx * (b.v0 + D / 2);
       const cy = b.y + b.uy * (W / 2) + b.ny * (b.v0 + D / 2);

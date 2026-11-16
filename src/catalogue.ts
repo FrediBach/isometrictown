@@ -28,7 +28,7 @@ export const SOURCES: Record<Source, { label: string; note: string }> = {
   invented: { label: 'Made up', note: 'Not in the map. Placed by the seed and fixed to map position, so it stays put when the view pans.' },
 };
 
-export type GroupId = 'region' | 'buildings' | 'roofs' | 'walls' | 'details' | 'streets' | 'rail' | 'water' | 'land' | 'trees' | 'life' | 'air' | 'power' | 'sheet' | 'styles';
+export type GroupId = 'region' | 'buildings' | 'roofs' | 'walls' | 'details' | 'streets' | 'rail' | 'water' | 'land' | 'trees' | 'life' | 'air' | 'power' | 'future' | 'sheet' | 'styles';
 
 export const GROUPS: { id: GroupId; title: string }[] = [
   { id: 'region', title: 'Region' },
@@ -44,6 +44,7 @@ export const GROUPS: { id: GroupId; title: string }[] = [
   { id: 'life', title: 'Life' },
   { id: 'air', title: 'Airfields' },
   { id: 'power', title: 'Power lines' },
+  { id: 'future', title: 'Solarpunk future' },
   { id: 'sheet', title: 'Light and sheet' },
   { id: 'styles', title: 'Regional styles' },
 ];
@@ -545,6 +546,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['rooftops'],
     lod: ['rooftop', 'solar'],
     strokes: ['rooftops'],
+    now: ({ set }) => (set.era === 'solarpunk' ? 'In the solarpunk era flat roofs carry gardens, solar arrays and turbines instead.' : undefined),
   },
   {
     id: 'castles',
@@ -596,6 +598,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['details'],
     lod: ['stack'],
     strokes: ['streets:chimneys'],
+    now: ({ set }) => (set.era === 'solarpunk' ? 'In the solarpunk era a wind turbine stands in its place.' : undefined),
   },
 
   // Streets
@@ -1379,6 +1382,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['power'],
     lod: ['pylon', 'lattice', 'pylonLegs', 'insulator'],
     strokes: ['power:powerLines'],
+    now: ({ set }) => (set.era === 'solarpunk' ? 'Gone in the solarpunk era: the lines run underground, and wind turbines stand in the fields.' : undefined),
   },
   {
     id: 'poles',
@@ -1391,6 +1395,163 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['power'],
     lod: ['pole', 'poleWires', 'transformer'],
     strokes: ['power:powerLines'],
+    now: ({ set }) => (set.era === 'solarpunk' ? 'Gone in the solarpunk era: the lines run underground.' : undefined),
+  },
+
+  // The solarpunk future
+  {
+    id: 'future-solar-roofs',
+    group: 'future',
+    name: 'Solar tiles',
+    source: ['invented'],
+    what: 'Solar tiles over the sunnier slope of a pitched roof, in place of its hatching, with the seams between panels where they read.',
+    how: 'About four in five houses with a pitched roof, in the solarpunk era. Terraces have them or not together. The array keeps clear of the eaves, ridge, hips and verges.',
+    needs: ['details'],
+    lod: ['solar', 'solarSeam'],
+    strokes: ['*/future-solar-roof'],
+    now: future,
+  },
+  {
+    id: 'future-roof-gardens',
+    group: 'future',
+    name: 'Roof gardens',
+    source: ['invented'],
+    what: 'Sedum tufts over flat roofs, raised planter beds with bushes, and small trees on the bigger roofs.',
+    how: 'Most flat roofs in the solarpunk era, in place of plant rooms and tanks; the rest carry solar arrays.',
+    needs: ['rooftops'],
+    lod: ['sedum', 'roofPlant', 'rooftop'],
+    strokes: ['*/future-roof-garden'],
+    now: future,
+  },
+  {
+    id: 'future-solar-arrays',
+    group: 'future',
+    name: 'Rooftop solar arrays',
+    source: ['invented'],
+    what: 'Rows of solar panels tilted to the sun across a flat roof, every panel drawn where they read.',
+    how: 'About two in five flat roofs over 120 m², in the solarpunk era.',
+    needs: ['rooftops'],
+    lod: ['solar', 'solarSeam'],
+    strokes: ['*/future-solar-array'],
+    now: future,
+  },
+  {
+    id: 'future-roof-turbines',
+    group: 'future',
+    name: 'Roof turbines',
+    source: ['invented'],
+    what: 'One or two small helical wind turbines on a tall flat roof.',
+    how: 'Flat roofs over 200 m² and higher than 22 m, in the solarpunk era.',
+    needs: ['rooftops'],
+    lod: ['roofTurbine'],
+    strokes: ['*/future-roof-turbine'],
+    now: future,
+  },
+  {
+    id: 'future-vines',
+    group: 'future',
+    name: 'Climbers',
+    source: ['invented'],
+    what: 'Wavering stems with side shoots up a wall, to the eaves of a house or the lower floors of a tower.',
+    how: 'About a third of the walls in view, in the solarpunk era.',
+    needs: ['details'],
+    lod: ['vine', 'vineShoot'],
+    strokes: ['*/future-vines'],
+    now: future,
+  },
+  {
+    id: 'future-vehicles',
+    group: 'future',
+    name: 'Bikes, pods and solar buses',
+    source: ['invented'],
+    what: 'Bicycles and cargo bikes with their riders, small electric pods with solar roofs, cargo pods for lorries and tram-like buses with panels along the roof.',
+    how: 'Traffic as it would be today, two fifths lighter, with each vehicle swapped for its future stand-in: half the cars become bikes.',
+    needs: ['cars'],
+    lod: ['bike', 'car', 'solarSeam'],
+    strokes: ['*/future-vehicle'],
+    now: future,
+  },
+  {
+    id: 'future-parklets',
+    group: 'future',
+    name: 'Parklets',
+    source: ['invented'],
+    what: 'Planter boxes with bushes where cars used to park at the kerb.',
+    how: 'Over half the kerbside parking places in town, in the solarpunk era; a few others keep a pod.',
+    needs: ['cars'],
+    lod: ['car', 'roofPlant'],
+    strokes: ['*/future-parklet'],
+    now: future,
+  },
+  {
+    id: 'future-carports',
+    group: 'future',
+    name: 'Solar carports',
+    source: ['map', 'invented'],
+    what: 'A canopy of solar panels on posts over each row of parking bays, low at the aisle.',
+    how: 'Every mapped car park aisle with bays beside it, in the solarpunk era.',
+    lod: ['parkingBay', 'solar', 'solarSeam'],
+    strokes: ['*/future-carport'],
+    now: future,
+  },
+  {
+    id: 'future-charging',
+    group: 'future',
+    name: 'Charging hubs',
+    source: ['map', 'invented'],
+    what: 'The petrol station canopy covered in solar panels, over chargers where the pumps stood.',
+    how: 'Every mapped petrol station, in the solarpunk era.',
+    lod: ['fuel', 'solar', 'solarSeam'],
+    strokes: ['*/future-charging'],
+    now: future,
+  },
+  {
+    id: 'future-street-lamps',
+    group: 'future',
+    name: 'Solar street lamps',
+    source: ['invented'],
+    what: 'A small panel on top of every street lamp.',
+    how: 'All street lamps, in the solarpunk era.',
+    needs: ['lamps'],
+    lod: ['lamp'],
+    strokes: ['lamps/future-lamp'],
+    now: future,
+  },
+  {
+    id: 'future-turbines',
+    group: 'future',
+    name: 'Wind turbines',
+    source: ['invented'],
+    what: 'Tall three-bladed turbines on tapering towers, all facing into one wind, with the shadows of their blades. Overhead power lines are gone: they run underground.',
+    how: 'On fields and meadows out of town, on a 240 m grid fixed to the map, about two in five cells. One also stands where a factory chimney would.',
+    needs: ['power', 'ground'],
+    lod: ['turbine'],
+    strokes: ['*/future-turbine'],
+    now: future,
+  },
+  {
+    id: 'future-agrivoltaics',
+    group: 'future',
+    name: 'Agrivoltaic fields',
+    source: ['map', 'invented'],
+    what: 'Rows of raised solar tables on posts over a field, tilted to the sun, with the furrows still showing between them.',
+    how: 'About a third of mapped farmland fields at least 20 by 30 m, in the solarpunk era.',
+    needs: ['ground'],
+    lod: ['agrivoltaic', 'solarSeam'],
+    strokes: ['*/future-agrivoltaic'],
+    now: future,
+  },
+  {
+    id: 'future-airships',
+    group: 'future',
+    name: 'Airships',
+    source: ['invented'],
+    what: 'A long envelope 70 to 115 m long, solar film along its back, tail fins and a gondola, drifting 110 to 200 m up, with its shadow on the ground.',
+    how: 'Now and then on an 800 m grid fixed to the map, where the whole ship fits on the sheet.',
+    needs: ['life'],
+    lod: ['airship'],
+    strokes: ['*/future-airship'],
+    now: future,
   },
 
   // Light and sheet
@@ -1518,6 +1679,11 @@ export function matcher(pattern: string): (f: Filed) => boolean {
 export function gateOn(set: Settings, g: Gate): boolean {
   const v = set[g];
   return typeof v === 'number' ? v > 0 : !!v;
+}
+
+/** For entries that only the solarpunk era draws: why one is missing from today's town. */
+function future({ set }: { set: Settings }): string | undefined {
+  return set.era === 'solarpunk' ? undefined : 'Only in the solarpunk era (Town, Era).';
 }
 
 /** The coarsest scale (1:N) a rule's typical thing shows at, with these settings and the Detail of `layer`. */

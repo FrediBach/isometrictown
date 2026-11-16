@@ -1,6 +1,6 @@
 import type { LngLat } from '../geo';
 import { PALETTES } from '../palettes';
-import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
+import { DEFAULT_SETTINGS, DETAIL_LAYERS, ERAS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
 import { STYLES } from '../styles';
 
 const STORE = 'isometrictown:settings';
@@ -85,6 +85,7 @@ export function loadSettings(): Settings {
     /^-?\d+,-?\d+$/.test(key) && Number.isInteger(value) && value > 0));
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
+  if (!ERAS.includes(s.era)) s.era = DEFAULT_SETTINGS.era;
   return s;
 }
 

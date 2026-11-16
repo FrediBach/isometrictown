@@ -36,7 +36,7 @@ These are small and exact, for the parts that are pure functions.
 
 These draw whole sheets with the real pipeline (`loadTown` → `render` → `plan` → `toSvg`, as the worker does) from map data recorded in `test/fixtures/net`.
 
-- **`sheets.test.ts`** draws each case in `test/cases.ts`: thirteen places and settings that between them reach almost every feature, regional style and tricky setting. For each one it checks:
+- **`sheets.test.ts`** draws each case in `test/cases.ts`: seventeen places and settings that between them reach almost every feature, regional style and tricky setting, four of them in the solarpunk era. For each one it checks:
   - the golden (below),
   - every stroke is a finite polyline on the sheet, and every feature stays inside the drawing area,
   - every stroke is filed in the tally (only the frame and map notes are not),
@@ -46,7 +46,7 @@ These draw whole sheets with the real pipeline (`loadTown` → `render` → `pla
 
   At the end it draws the first case again and requires the identical SVG, which catches state leaking between drawings.
 - **`gates.test.ts`** switches each setting that switches something on (Windows, Trees, Life, Markings…) off in turn. Whatever the catalogue says needs that setting must then be gone, and the setting must have had something to take away.
-- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid.
+- **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted, in today's town and in the solarpunk era. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid.
 
 The imprint in the margin dates each sheet, so drawing tests pin the clock to `DRAWN_ON` in `test/support/clock.ts`.
 

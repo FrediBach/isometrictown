@@ -37,7 +37,7 @@ System parts in [`src/components/ui`](src/components/ui):
 | --- | --- |
 | `Slider` | Tuning dial: hairline track, ink range, printed scale (`ticks`), 4px needle that lights in the signal colour while moving |
 | `ToggleKey` | On/off key with a lamp: filled ink when on, an empty ring when off |
-| `Segmented` | Selector switch for 2–4 exclusive options (zoom, orientation) |
+| `Segmented` | Selector switch for 2–4 exclusive options (zoom, orientation, era) |
 | `Button` variant `signal` | The one primary action (Download SVG) |
 | `Select`, `Dialog`, `Collapsible` | shadcn, themed through tokens |
 

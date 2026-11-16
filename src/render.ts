@@ -15,7 +15,8 @@ import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
-import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
+import { future, LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
+import { agrivoltaics, airships, futureSettings, windFarms } from './solarpunk';
 import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
@@ -61,7 +62,9 @@ export function reachHeight(set: Settings): number {
 export type OnStage = (p: StageProgress) => void;
 
 /** `tally`, when given, collects every stroke by the feature that drew it (see `Paper.tally`). */
-export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null): Drawing {
+export function render(town: Town, drawn: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null): Drawing {
+  // The solarpunk future has more trees and less traffic than the sliders say for today.
+  const set = futureSettings(drawn);
   const cam = new Camera(set);
   const paper = new Paper(cam);
   paper.tally = tally;
@@ -249,7 +252,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   tag('cars', bays.solids);
   counts.cars = cars.length + bays.solids.length;
   solids.push(...cars, ...tag('life', at('life', () => trains(B, paper, town, M)), 'trains'));
-  const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
+  const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), future(set) ? extra('power', 'windFarms', () => windFarms(B, paper, G, M, box, toAbs, fromAbs)) : extra('power', 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
+  if (future(set)) extras.push(extra('life', 'airships', () => airships(B, toAbs, fromAbs)));
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));
   if (set.water) extras.push(extra('water', 'ports', () => ports(B, paper, town, M)));
   extras.push(extra('streets', 'squares', () => squares(B, paper, town, M)), extra('streets', 'busStops', () => busStops(B, paper, town, M)), extra('streets', 'fuel', () => fuel(B, paper, town, M)), extra('streets', 'chimneys', () => chimneys(B, paper, town, M)), extra('streets', 'peaks', () => peaks(B, town)));
@@ -258,6 +262,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   extras.push(extra('life', 'sailing', () => sailing(B, paper, town, M)), extra('markings', 'crossings', () => crossings(B, paper, town, M)), extra('life', 'people', () => people(B, paper, town, M)), extra('streets', 'motorways', () => motorways(B, paper, town, M)));
   if (G) extras.push(extra('life', 'farmWork', () => farmWork(B, paper, G, M, toAbs)), extra('life', 'players', () => players(B, paper, G, M)));
   for (const e of extras) solids.push(...e.solids);
+  if (G && future(set)) solids.push(...tag('ground', at('ground', () => agrivoltaics(B, paper, G, M))));
   if (G) solids.push(...tag('ground', at('ground', () => allotmentSheds(B, paper, G, M)), 'allotment-sheds'), ...tag('ground', at('ground', () => bales(B, paper, G, M)), 'bales'), ...tag('life', at('life', () => livestock(B, paper, G, M, box, toAbs, fromAbs)), 'livestock'));
   const fences = G ? at('ground', () => plots(B, paper, town, G, M)) : null;
   if (fences) solids.push(...tag('ground', fences.solids, 'plots'));
@@ -361,7 +366,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     const tail = s.facet ? `/${s.facet}` : '';
     for (const l of s.lines) {
       const layer = s.layer ?? l.layer ?? (l.pen === ROOFS ? 'roofs' : 'buildings');
-      paper.layer = (s.part ? `${layer}:${s.part}` : layer) + tail + (l.facet ? `/${l.facet}` : '');
+      paper.layer = (s.part ? `${layer}:${s.part}` : layer) + tail + (l.facet && l.facet !== s.facet ? `/${l.facet}` : '');
       const on = l.on && faceNo.get(l.on);
       const edge = l.edge?.flatMap((f) => { const n = faceNo.get(f); return n === undefined ? [] : [n]; });
       paper.line3(layerPen(set, layer, l.pen), l.pts, edge ? paper.onEdge(edge) : on === undefined ? paper.seen : paper.onFace(on), l.closed);

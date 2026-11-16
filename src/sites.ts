@@ -5,7 +5,8 @@ import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { hash } from './rng';
 import { dome } from './roofs';
-import { LINEWORK, ROOFS, WATER } from './settings';
+import { future, LINEWORK, ROOFS, WATER } from './settings';
+import { canopyPanels, windTurbine } from './solarpunk';
 import { bestRect, offsetRing, type Rect } from './shape';
 import type { Area, Town } from './tiles';
 import { letter } from './lettering';
@@ -818,6 +819,8 @@ export function fuel(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.3, 0.3, -0.5, 0.5)), 0.2, 1.6);
     }
     s.casts.push({ ring: place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), h: 5.2 });
+    // In the future the forecourt is a charging hub, its canopy covered in panels.
+    if (future(B.set)) canopyPanels(B, s, x, y, r.ux, r.uy, 5.4);
     solids.push(s);
   }
   return { solids, draw: () => {} };
@@ -841,8 +844,14 @@ export function chimneys(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const x = r.cx + r.ux * end * (r.L / 2 + R + 1.5);
     const y = r.cy + r.uy * end * (r.L / 2 + R + 1.5);
     if (![0, 1, 2, 3, 4, 5].every((q) => free(paper, M, x + Math.cos(q) * (R + 0.4), y + Math.sin(q) * (R + 0.4)))) continue;
-    const s = newSolid();
     const H = Math.max(b.h * 2.5, 28 + h(3) * 22);
+    // The stack has come down; a wind turbine stands in its place.
+    if (future(B.set)) {
+      const t = h(4) * Math.PI * 2;
+      if (shows(B.cam, LOD.turbine, H * 1.4)) solids.push(windTurbine(B, x, y, H * 1.4, H * 0.55, Math.cos(t), Math.sin(t), h(5) * Math.PI * 2));
+      continue;
+    }
+    const s = newSolid();
     const ring = cylinder(B, s, x, y, R * 1.25, 0, H * 0.25, false);
     cylinder(B, s, x, y, R, H * 0.25, H, true);
     // Bands near the top.

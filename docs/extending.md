@@ -32,6 +32,10 @@
 8. Add an entry to `ENTRIES_BY_HAND` in `src/catalogue.ts`: what it is, how it is found, its source, settings and LOD rules, and the tally name its strokes go under (`ground:windmills`). If it shares a feature with others, give it a facet (`paper.facet('windmills', …)`, or `tag(layer, solids, 'windmills')` in `render()`) so the catalogue can pick it out.
 9. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
 
+## Give a feature a solarpunk future
+
+The solarpunk era (`set.era`, see [architecture.md](architecture.md#eras)) re-imagines each feature in place. Check `future(B.set)` in the feature's own module and draw its future self there, with shared geometry from `src/solarpunk.ts` (`panels()` for solar arrays on any plane, `crown()` and `plant()` for greenery off the ground, `windTurbine()`). Give its strokes a `future-…` facet and a catalogue entry in the `future` group whose `now` says it is only drawn in that era. If no golden case shows it, extend one of the `*-solarpunk` cases in `test/cases.ts`.
+
 ## Add a setting
 
 1. Add the field, with a doc comment, to `Settings` and `DEFAULT_SETTINGS` in `src/settings.ts`.

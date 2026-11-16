@@ -6,7 +6,8 @@ import { pointInRing, ringArea } from './geo';
 import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
 import { chimney, dome, dormer, minaret, parapet, pitchedRoof, sawtoothRoof, shedRoof, skirtRoof, tower, type End, type Pitched } from './roofs';
-import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
+import { future, LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from './settings';
+import { futureRoof, vines } from './solarpunk';
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
@@ -137,9 +138,11 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       const [ax, ay, bx, by] = [p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1]];
       if (ring.seam[i]) continue;
       if (!facing(B, ax, ay, bx, by)) continue;
-      out.faces.push([[ax, ay, z0, bx, by, z0, bx, by, z1, ax, ay, z1]]);
+      const wallFace = [[ax, ay, z0, bx, by, z0, bx, by, z1, ax, ay, z1]];
+      out.faces.push(wallFace);
       const zb = Math.max(z0, next(i));
       if (zb >= z1 - 0.3) continue;
+      if (o.windows && o.facade && future(set) && set.details) vines(B, out, wallFace, ax, ay, bx, by, zb, z1);
       front[i] = 1;
       const len = Math.hypot(bx - ax, by - ay);
       const shop = !!o.shop && shows(cam, LOD.shopfront) && zb === 0 && len >= 3.5 && z1 > SHOP_H + 0.5 && ((by - ay) * o.shop[0] - (bx - ax) * o.shop[1]) / len > 0.55;
@@ -316,6 +319,8 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
 
   const endKind: End = o.roof === 'hipped' ? 'hip' : o.roof === 'halfHipped' ? 'half' : 'gable';
+  // In the solarpunk future most pitched roofs carry solar tiles; terraces have them or not together.
+  const sunRoof = future(set) && set.details && o.details && hash(info.seed[0], info.seed[1], B.seed, 12010) < 0.82;
   let P: Pitched | null = null;
   parts.forEach((part, i) => {
     const { rect: r, party, outside } = part;
@@ -329,7 +334,7 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
       const k = d > 0 ? 1 : 0;
       if (Math.abs(d) > 0.6 && ends[k] === 'gable') front = { end: k, kind: info.gableFront };
     }
-    const made = B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan, ends, sides: [eave(0), eave(2)], o: style.overhang, front, hatch: set.roofHatch }, out));
+    const made = B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan, ends, sides: [eave(0), eave(2)], o: style.overhang, front, hatch: set.roofHatch, panels: sunRoof }, out));
     if (i === 0) P = made;
   });
   out.casts.push({ ring: wall.pts, h: He + rise * 0.6 });
@@ -402,13 +407,16 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   const { set } = B;
   const solid = out[0];
   prism(B, rings, z0, H, { roof: true, windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid);
+  const roof = solid.faces[solid.faces.length - 1];
   solid.casts.push({ ring: rings[0].pts, h: H });
   // Too small to tell merlon from gap, battlements close up into a black band: a parapet reads better.
   if (info?.castle && set.details && B.cam.within('details', () => shows(B.cam, LOD.battlements, 0.7))) battlements(B, rings[0], b.shape.slice(1), H, out);
   else if ((info?.parapet || info?.castle) && set.details) parapet(B, rings, H, solid);
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
-  if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
+  if (future(set)) {
+    if (!pad && set.rooftops && !info?.castle) tagLines(B, 'rooftops', out, () => futureRoof(B, b, H, k, roof, out));
+  } else if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
 }
 
 /** A shed or sawtooth roof over a near-rectangular footprint. */

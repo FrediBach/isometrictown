@@ -11,9 +11,9 @@ import { draw, type Sheet } from '../support/draw';
 
 pinClock();
 
-const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), osmTags: false, bearing: 0, marginalia: false, frame: false };
-const lat = set.center[1];
-const pan = (m: number): Settings => ({ ...set, center: [set.center[0] + (m / (EARTH * Math.cos((lat * Math.PI) / 180))) * 360, lat] });
+const today: Settings = { ...structuredClone(DEFAULT_SETTINGS), osmTags: false, bearing: 0, marginalia: false, frame: false };
+const lat = today.center[1];
+const pan = (set: Settings, m: number): Settings => ({ ...set, center: [set.center[0] + (m / (EARTH * Math.cos((lat * Math.PI) / 180))) * 360, lat] });
 
 /** Segments of a feature inside a window, rounded to 0.05 mm, as a set of keys. */
 function segments(s: Sheet, prefix: string, dx: number, win: [number, number, number, number]): Set<string> {
@@ -37,29 +37,32 @@ function segments(s: Sheet, prefix: string, dx: number, win: [number, number, nu
   return out;
 }
 
-let base: Sheet;
-beforeAll(async () => {
-  base = await draw(set);
-});
-
-// Shifts of whole raster pixels (7 per mm at most at 1:1000), so the depth buffers line up too.
-// 47 m is a multiple of no grid the drawing uses, so a grid tied to the view would show.
-describe.each([30, 47])('panned %i m east', (m) => {
-  let b: Sheet;
+// Today's town, and the solarpunk future with its own inventions: roof gardens, vines, bikes, turbines.
+describe.each([today, { ...today, era: 'solarpunk' } as Settings])('$era', (set) => {
+  let base: Sheet;
   beforeAll(async () => {
-    b = await draw(pan(m));
+    base = await draw(set);
   });
 
-  // Not shadows, park grass or water waves: they are tone hatching laid on the sheet's own grid.
-  test.each(['trees', 'cars', 'life', 'details', 'windows', 'ground', 'buildings', 'roofs', 'roofHatch', 'streets'])('%s stay put on the map', (prefix) => {
-    const [x0, y0, x1, y1] = base.cam.rect;
-    const dx = m * base.cam.s;
-    // In the panned drawing's sheet mm, and 40 mm inside both drawings, clear of edge effects.
-    const win: [number, number, number, number] = [x0 + 40, y0 + 30, x1 - 40 - dx, y1 - 30];
-    const here = segments(base, prefix, -dx, win);
-    const there = segments(b, prefix, 0, win);
-    const same = [...here].filter((k) => there.has(k)).length;
-    expect(here.size).toBeGreaterThan(20);
-    expect(same / Math.max(here.size, there.size)).toBeGreaterThan(0.995);
+  // Shifts of whole raster pixels (7 per mm at most at 1:1000), so the depth buffers line up too.
+  // 47 m is a multiple of no grid the drawing uses, so a grid tied to the view would show.
+  describe.each([30, 47])('panned %i m east', (m) => {
+    let b: Sheet;
+    beforeAll(async () => {
+      b = await draw(pan(set, m));
+    });
+
+    // Not shadows, park grass or water waves: they are tone hatching laid on the sheet's own grid.
+    test.each(['trees', 'cars', 'life', 'details', 'windows', 'ground', 'buildings', 'roofs', 'roofHatch', 'streets'])('%s stay put on the map', (prefix) => {
+      const [x0, y0, x1, y1] = base.cam.rect;
+      const dx = m * base.cam.s;
+      // In the panned drawing's sheet mm, and 40 mm inside both drawings, clear of edge effects.
+      const win: [number, number, number, number] = [x0 + 40, y0 + 30, x1 - 40 - dx, y1 - 30];
+      const here = segments(base, prefix, -dx, win);
+      const there = segments(b, prefix, 0, win);
+      const same = [...here].filter((k) => there.has(k)).length;
+      expect(here.size).toBeGreaterThan(20);
+      expect(same / Math.max(here.size, there.size)).toBeGreaterThan(0.995);
+    });
   });
 });

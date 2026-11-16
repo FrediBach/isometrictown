@@ -1,7 +1,7 @@
 import type { Camera } from './camera';
 import type { Frame } from './geo';
 import { letter, letterable, measure } from './lettering';
-import type { Settings } from './settings';
+import { future, type Settings } from './settings';
 
 /**
  * The margin of the sheet, set out like a printed bird's-eye town map: a double neat line
@@ -267,7 +267,7 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const base = top + T * 1.4;
   out.push(...letter(place, x0, base, { h: T, track: 1.4 }));
 
-  const where = `${lat(clat)} ${lng(clng)} · LOOKING ${compassWord(set.bearing)} (${Math.round(set.bearing)}°) · TILT ${Math.round(set.tilt)}°`;
+  const where = `${future(set) ? 'SOLARPUNK FUTURE · ' : ''}${lat(clat)} ${lng(clng)} · LOOKING ${compassWord(set.bearing)} (${Math.round(set.bearing)}°) · TILT ${Math.round(set.tilt)}°`;
   const imprint = `MAP DATA © OPENSTREETMAP CONTRIBUTORS · DRAWN WITH ISOMETRICTOWN.COM · ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
   const line1 = base + s * 2.2;
   const line2 = line1 + s * 1.9;

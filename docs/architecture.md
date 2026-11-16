@@ -58,11 +58,15 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 
 **Things drawn** (each takes `Build` and returns solids and/or draws onto `Paper`)
 
-`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `ships.ts`, `sport.ts` (players and racing), `vehicles.ts` (models of working vehicles), `power.ts`, `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals), `title.ts` (the cinematic title: those capitals thickened into extruded block letters on a street).
+`buildings.ts` (walls, cars, `prism`), `facades.ts` (window schemes: a pattern chosen in `classify`, laid out and drawn per wall), `roofs.ts`, `shape.ts` (footprint geometry), `streets.ts`, `infra.ts`, `sites.ts`, `gardens.ts`, `nature.ts` (trees), `trains.ts`, `aircraft.ts`, `ships.ts`, `sport.ts` (players and racing), `vehicles.ts` (models of working vehicles), `power.ts`, `marginalia.ts` + `lettering.ts` (margin notes in single-stroke capitals), `solarpunk.ts` (the solarpunk era's shared geometry and its new features), `title.ts` (the cinematic title: those capitals thickened into extruded block letters on a street).
 
 **Interface**
 
 `main.tsx`, `App.tsx`, `app/` (model, renderer, settings context, stages, the GRBL plotter driver and its session), `components/` (sections and fields), `components/ui/` (owned shadcn parts), `locator.ts` (MapLibre wrapper), `palettes.ts`, `harmony.ts` (palette generator), `catalogue.ts` (the documented list of everything detected, inferred or made up, for the catalogue dialog), `index.css` (tokens).
+
+## Eras
+
+`set.era` picks the town as it is (`realistic`) or as it might become (`solarpunk`). The solarpunk era is not a separate renderer: `render()` passes the settings through `futureSettings()` (more trees, less traffic), and each feature checks `future(set)` where its future self differs, borrowing shared geometry from `solarpunk.ts` (panel arrays, crowns facing the viewer, turbines, airships). Pitched roofs swap the hatching on their sunnier slope for solar tiles, `flat()` calls `futureRoof()` instead of `rooftop()`, `prism()` grows climbers, `traffic()` asks `futureVehicle()` for a stand-in, and `render()` swaps `powerLines` for `windFarms` and adds `agrivoltaics` and `airships`. Everything it invents is keyed to map position like the rest, so `pan.test.ts` runs in both eras. Its catalogue entries sit in the *Solarpunk future* group.
 
 ## Principles that shape the code
 

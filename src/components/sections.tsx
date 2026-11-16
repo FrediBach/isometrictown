@@ -11,7 +11,7 @@ import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
+import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type Era, type LayerId, type Settings, type SheetId } from '../settings';
 import { STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -96,8 +96,22 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
   const { set, change } = useSettings();
   const autoStyle = region ? `Auto: ${STYLES[region.style].label} (${region.country})` : 'Auto, from the country';
   return (
-    <FoldingSection index={3} title="Town" defaultOpen summary={`${TOWN_KEYS.filter(([k]) => set[k]).length} of ${TOWN_KEYS.length} layers`}>
-      <Caption className="mt-0">Building style</Caption>
+    <FoldingSection index={3} title="Town" defaultOpen summary={`${set.era === 'solarpunk' ? 'Solarpunk' : 'Realistic'}${SEP}${TOWN_KEYS.filter(([k]) => set[k]).length} of ${TOWN_KEYS.length} layers`}>
+      <Caption className="mt-0">Era</Caption>
+      <Segmented<Era>
+        aria-label="Era"
+        className="mb-1 w-full"
+        value={set.era}
+        onValueChange={(v) => change('era', v)}
+        items={[
+          { value: 'realistic', label: 'Realistic' },
+          { value: 'solarpunk', label: 'Solarpunk' },
+        ]}
+      />
+      <Hint>{set.era === 'solarpunk'
+        ? 'The same streets in a green, solar-powered far future: panels and gardens on the roofs, vines up the walls, bikes, airships and wind turbines.'
+        : 'The town as the map has it today.'}</Hint>
+      <Caption className="mt-4">Building style</Caption>
       <Select value={set.style} onValueChange={(v) => change('style', v as Settings['style'])}>
         <SelectTrigger aria-label="Building style" className="mb-1 h-9 w-full rounded-md bg-card">
           <SelectValue />

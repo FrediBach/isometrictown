@@ -3,6 +3,7 @@ import { ringArea } from './geo';
 import { LOD, shows } from './lod';
 import { LINEWORK, ROOFS } from './settings';
 import { corners, offsetRing, type Rect } from './shape';
+import { panels } from './solarpunk';
 
 const ROOF_HATCH_MM = 0.7;
 
@@ -28,6 +29,8 @@ export type PitchSpec = {
   /** A decorated gable (1 stepped, 2 neck) on one end, rising above the roof. */
   front?: { end: 0 | 1; kind: 1 | 2 };
   hatch: boolean;
+  /** Solarpunk: cover the slope that faces the sun best with solar tiles, in place of its hatching. */
+  panels?: boolean;
 };
 
 export type Pitched = { Hr: number; a0: number; a1: number; at: (u: number, v: number, z: number) => number[] };
@@ -214,8 +217,24 @@ export function pitchedRoof(B: Build, S: PitchSpec, out: Solid): Pitched {
   }
   if (a1 - a0 > 0.1) edge(R, slope);
 
+  // Solar tiles on the sunnier slope, inset from its eave, ridge, hips and verges.
+  let sunny = -1;
+  if (S.panels && hw >= 2.4) {
+    const toSun = vx * B.sun[0] + vy * B.sun[1];
+    const s = toSun >= 0 ? 1 : 0;
+    const vin = 0.5;
+    const vout = hw + sides[s] - 0.45;
+    const u0 = Math.max(-extent(0, s) + 0.45, a0 - vin + 0.6);
+    const u1 = Math.min(extent(1, s) - 0.45, a1 + vin - 0.6);
+    if (slope[s] && u1 - u0 >= 2 && vout - vin >= 1.5) {
+      sunny = s;
+      panels(B, out.lines, (u, v) => at(u, sv[s] * v, He + (hw - v) * tan), u0, u1, vin, vout, 1.05, 1.5, slope[s], 'future-solar-roof');
+    }
+  }
+
   if (S.hatch) {
     for (const s of [0, 1]) {
+      if (s === sunny) continue;
       const p = at(0, sv[s] * (hw + sides[s]), eaveZ(s));
       const q = at(0, 0, Hr);
       if (!hatchable(B, p, q)) continue;

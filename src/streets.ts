@@ -1,7 +1,7 @@
 import type { Build } from './buildings';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
-import { LINEWORK } from './settings';
+import { future, LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
 import { LOD, shows } from './lod';
 
@@ -166,6 +166,7 @@ export function walk(p: number[], start: number, step: number, stopBefore: numbe
 /** Street lamps on the pavement. */
 export function lamps(B: Build, paper: Paper, ways: Way[], M: Masks): number {
   const { cam } = B;
+  const sun = future(B.set);
   let count = 0;
   for (const w of ways) {
     if (w.kind !== 'road' || !LIT.has(w.cls)) continue;
@@ -183,6 +184,8 @@ export function lamps(B: Build, paper: Paper, ways: Way[], M: Masks): number {
       const ax = lx - nx * 1.3;
       const ay = ly - ny * 1.3;
       paper.line3(LINEWORK, [lx, ly, 0, lx, ly, 5.4, ax, ay, 5.6, ax, ay, 5.25]);
+      // Future lamps charge from a small panel on top of the post.
+      if (sun) paper.facet('future-lamp', () => paper.line3(LINEWORK, [lx - uy * 0.45, ly + ux * 0.45, 5.55, lx + uy * 0.45, ly - ux * 0.45, 5.55, lx + uy * 0.45 + nx * 0.5, ly - ux * 0.45 + ny * 0.5, 5.85, lx - uy * 0.45 + nx * 0.5, ly + ux * 0.45 + ny * 0.5, 5.85], paper.seen, true));
       count++;
     });
   }

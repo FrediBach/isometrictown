@@ -5,7 +5,7 @@ import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
 import { LOD, shows } from './lod';
 import { hash } from './rng';
-import { GREENERY, LINEWORK } from './settings';
+import { future, GREENERY, LINEWORK } from './settings';
 import { walk } from './streets';
 import type { StyleId } from './styles';
 import type { Building, Town, Way } from './tiles';
@@ -382,7 +382,9 @@ const AVENUE_CLASSES = new Set(['primary', 'secondary', 'tertiary', 'minor']);
 export function streetTrees(B: Build, paper: Paper, ways: Way[], M: Masks): Tree[] {
   const { cam, set, style } = B;
   const out: Tree[] = [];
-  const chance = AVENUES[style.id] * Math.min(1, set.trees / 0.7);
+  // The future plants avenues along every street, whatever the region's habit.
+  const green = future(set);
+  const chance = (green ? 0.9 : AVENUES[style.id]) * Math.min(1, set.trees / 0.7);
   if (set.trees <= 0 || !chance) return out;
   const clear = (x: number, y: number) => {
     const sx = cam.sx(x, y);
@@ -390,13 +392,13 @@ export function streetTrees(B: Build, paper: Paper, ways: Way[], M: Masks): Tree
     return !paper.on(M.road, sx, sy) && !paper.on(M.water, sx, sy) && !paper.on(M.foot, sx, sy) && !paper.on(M.wood, sx, sy);
   };
   for (const w of ways) {
-    if (w.kind !== 'road' || !AVENUE_CLASSES.has(w.cls)) continue;
+    if (w.kind !== 'road' || !(AVENUE_CLASSES.has(w.cls) || (green && w.cls === 'trunk'))) continue;
     const p = w.pts;
     const mid = Math.floor(p.length / 4) * 2;
     const [m0, m1] = B.cell(p[mid], p[mid + 1], 20);
     if (hash(m0, m1, set.seed, 530) >= (w.cls === 'minor' ? chance * 0.5 : chance)) continue;
     const off = w.width / 2 + 1.5;
-    walk(p, 5, 9, 5, (x, y, ux, uy) => {
+    walk(p, 5, green ? 7.5 : 9, 5, (x, y, ux, uy) => {
       for (const side of [1, -1]) {
         const nx = -uy * side;
         const ny = ux * side;

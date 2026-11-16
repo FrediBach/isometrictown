@@ -50,6 +50,14 @@ export const CASES: Case[] = [
     what: 'Portrait sheet, steep tilt, shaded walls, forced Nordic style, another seed',
     set: at('Mollis', MOLLIS, 0, 1200, { sheet: 'a4', landscape: false, tilt: 50, shadeWalls: true, autoSun: false, sunAngle: 140, sunHeight: 25, heightScale: 1.5, style: 'nordic', seed: 7 }),
   },
+  {
+    id: 'mollis-solarpunk',
+    what: 'The village in the solarpunk future: solar and green roofs, vines, bikes, carports, airships',
+    set: at('Mollis', MOLLIS, 35, 1000, { era: 'solarpunk' }),
+  },
+  { id: 'midtown-solarpunk', what: 'Towers in the solarpunk future: roof gardens, roof turbines, pods and solar buses', set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { era: 'solarpunk' }) },
+  { id: 'nordlingen-solarpunk', what: 'Walled town in the solarpunk future: solar tiles, a wind turbine and an agrivoltaic field', set: at('Nördlingen', [10.4878, 48.8518], 30, 2500, { era: 'solarpunk' }) },
+  { id: 'rye-solarpunk', what: 'Market town in the solarpunk future: solar carports, parklets, climbers', set: at('Rye', [0.7335, 50.9503], 25, 900, { era: 'solarpunk' }) },
 ];
 
 /**

@@ -62,6 +62,7 @@ export const LOD = {
   lamp: { m: 5, mm: 1.5, what: 'Street lamps: height' },
   carCabin: { m: 0.55, mm: 0.5, what: 'Separate car cabins: projected height above the bonnet' },
   car: { m: 4.5, mm: 1.8, what: 'Vehicles: length' },
+  bike: { m: 1.8, mm: 1.6, what: 'Bicycles and cargo bikes: length' },
   centreLine: { m: 3, mm: 0.9, what: 'Road centre dashes' },
   zebra: { m: 1.5, mm: 0.9, what: 'Zebra crossings and traffic lights' },
   parkingBay: { m: 2.5, mm: 1.25, what: 'Parking bay lines' },
@@ -116,6 +117,17 @@ export const LOD = {
   pitch: { m: 100, mm: 10, what: 'Pitch markings: length of the pitch' },
   vines: { m: 2, mm: 0.7, what: 'Vineyard rows drawn standing' },
   bale: { m: 1.2, mm: 0.6, what: 'Bales on stubble' },
+
+  // Solarpunk
+  solarSeam: { m: 1, mm: 0.9, what: 'Solarpunk: seams between solar panels. Closer ones merge two or four panels into one' },
+  vine: { m: 2.6, mm: 1.3, what: 'Solarpunk: climbers on walls, stem spacing' },
+  vineShoot: { m: 0.9, mm: 0.9, what: 'Solarpunk: side shoots on climbers' },
+  sedum: { m: 3.4, mm: 1.7, what: 'Solarpunk: sedum tufts on green roofs, tuft spacing' },
+  roofPlant: { m: 1.6, mm: 1.1, what: 'Solarpunk: bushes and trees in roof gardens and parklets: crown diameter' },
+  roofTurbine: { m: 3.4, mm: 2.2, what: 'Solarpunk: small helical wind turbines on tall roofs: height' },
+  turbine: { m: 70, mm: 9, what: 'Solarpunk: wind turbines in the fields: tower height' },
+  agrivoltaic: { m: 2.6, mm: 0.6, what: 'Solarpunk: solar tables over fields: depth' },
+  airship: { m: 90, mm: 9, what: 'Solarpunk: airships: length' },
 
   // Sheet
   title: { m: 40, mm: 6, what: 'Cinematic title letters: cap height' },

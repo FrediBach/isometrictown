@@ -22,6 +22,8 @@ export type Settings = {
   /** Title, graticule ticks, scale bar, north arrow and imprint in the margin. */
   marginalia: boolean;
 
+  /** Which town to draw: as the map has it today, or extrapolated into a green, solar-powered far future. */
+  era: Era;
   pitched: number;
   /** Regional building style, or 'auto' to pick one from the country. */
   style: 'auto' | StyleId;
@@ -107,6 +109,15 @@ export type Settings = {
   seedLocks: Record<string, number>;
 };
 
+/** The town as it is, or as it might become: see `src/solarpunk.ts`. */
+export type Era = 'realistic' | 'solarpunk';
+export const ERAS: readonly Era[] = ['realistic', 'solarpunk'];
+
+/** Whether the drawing imagines the solarpunk future. */
+export function future(set: Pick<Settings, 'era'>): boolean {
+  return set.era === 'solarpunk';
+}
+
 export type SheetId = 'a4' | 'a3' | 'a2' | 'letter' | 'tabloid' | 'square' | 'axidraw';
 
 /** Landscape dimensions in millimetres. */
@@ -150,6 +161,7 @@ export const DEFAULT_SETTINGS: Settings = {
   frame: true,
   marginalia: true,
 
+  era: 'realistic',
   pitched: 0.7,
   style: 'auto',
   osmTags: true,
