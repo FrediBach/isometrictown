@@ -1,6 +1,6 @@
 {
   "region": {"country":"Austria","code":"AT","style":"alpine","left":false},
-  "counts": {"buildings":122,"houses":86,"trees":416,"cars":52,"lamps":9},
+  "counts": {"buildings":122,"houses":86,"trees":416,"cars":51,"lamps":9},
   "census": {
     "apartment": 1,
     "blank-windows": 17,
@@ -53,12 +53,12 @@
     "worship": 2
   },
   "plan": {
-    "lifts": 9641,
-    "rawLifts": 10596,
-    "inkMm": 55598.9,
-    "travelMm": 29325.9,
+    "lifts": 9645,
+    "rawLifts": 10600,
+    "inkMm": 55641.9,
+    "travelMm": 29076.1,
     "minutes": 77.5,
-    "pens": [["Shadows",1312,3472.8],["Water",1719,12705.8],["Greenery",741,6001],["Roofs",2450,15365.3],["Linework",3419,18054]]
+    "pens": [["Shadows",1312,3472.8],["Water",1719,12705.8],["Greenery",741,6001],["Roofs",2450,15365.3],["Linework",3423,18097.1]]
   },
   "features": {
     "additions": [125,681.8],
@@ -70,7 +70,7 @@
     "lamps": [6,33.8],
     "life:moorings": [53,217.5],
     "life:sailing": [12,83.2],
-    "markings": [2,4.6],
+    "markings": [6,47.7],
     "markings:parking": [139,466],
     "parks": [107,774.7],
     "paths": [576,663.5],
@@ -203,6 +203,7 @@
     "details/terrace": [28,100],
     "details/town-hall": [3,13.4],
     "ground/open-country": [1,1.5],
+    "markings/cycle-lanes": [4,43.1],
     "parks/grass": [53,340.5],
     "parks/park-edges": [21,157.3],
     "parks/park-meadow": [3,6.4],
@@ -377,5 +378,5 @@
     "windows/town-hall": [12,52.8],
     "windows/worship": [6,38.5]
   },
-  "svg": {"bytes":932603,"sha1":"97613235fd88be1d"}
+  "svg": {"bytes":932924,"sha1":"2302574fade07f95"}
 }

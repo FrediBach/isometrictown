@@ -1,6 +1,7 @@
 import { newSolid, tagLines, type Build, type Solid } from './buildings';
 import { BAY_D, BAY_W, parkingBays, slab, type Bay, type Extra } from './infra';
-import type { Masks } from './nature';
+import type { Masks, Tree } from './nature';
+import { onMask } from './infra';
 import type { Paper } from './raster';
 import { REF_NIB } from './camera';
 import type { Info } from './classify';
@@ -347,6 +348,55 @@ export function lotCanopies(B: Build, paper: Paper, town: Town, M: Masks): Extra
       }
     }
     solids.push(s);
+  }
+  return none;
+}
+
+/**
+ * A station forecourt in solarpunk mode: a canopy of panels on posts on the nearest clear ground
+ * by the station, a sheltered place to wait and to leave a bicycle. One per station.
+ */
+export function forecourtCanopies(B: Build, paper: Paper, town: Town, M: Masks, trees: Tree[] = []): Extra {
+  const solids: Solid[] = [];
+  const none = { solids, draw: () => {} };
+  if (!B.future || !shows(B.cam, LOD.canopy, 5)) return none;
+  const clear = (x: number, y: number) => !onMask(paper, M.road, x, y) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
+  const placed: [number, number][] = [];
+  for (const p of town.pois) {
+    if (p.cls !== 'railway' || placed.some(([x, y]) => Math.hypot(x - p.x, y - p.y) < 120)) continue;
+    const [k0, k1] = B.key(p.x, p.y);
+    const h = (salt: number) => hash(k0, k1, B.set.seed, 12190 + salt);
+    search: for (let r = 8; r <= 40; r += 4)
+      for (let q = 0; q < 12; q++) {
+        const a = ((q + h(0)) / 12) * Math.PI * 2;
+        const x = p.x + Math.cos(a) * r;
+        const y = p.y + Math.sin(a) * r;
+        const ux = Math.cos(a + Math.PI / 2);
+        const uy = Math.sin(a + Math.PI / 2);
+        const P = (u: number, v: number): [number, number] => [x + ux * u - uy * v, y + uy * u + ux * v];
+        if (![-6, 0, 6].every((u) => [-3, 3].every((v) => clear(...P(u, v))))) continue;
+        // Clear of the crowns of trees already standing there.
+        if (trees.some((t) => Math.hypot(t.x - x, t.y - y) < 6.7 + t.r)) continue;
+        const s = newSolid();
+        const ring = [...P(-6, -3), ...P(6, -3), ...P(6, 3), ...P(-6, 3)];
+        slab(B, s, ring, 3.4, 3.65);
+        s.casts.push({ ring, h: 3.65 });
+        for (const u of [-5.5, 0, 5.5]) for (const v of [-2.5, 2.5]) {
+          const [px, py] = P(u, v);
+          s.lines.push({ pen: LINEWORK, pts: [px, py, 0, px, py, 3.4] });
+        }
+        if (shows(B.cam, LOD.pvGrid, 2.4))
+          for (let u = -6 + 2.4; u < 6 - 0.1; u += 2.4) {
+            const [ax, ay] = P(u, -3);
+            const [bx, by] = P(u, 3);
+            s.lines.push({ pen: SHADOWS, pts: [ax, ay, 3.65, bx, by, 3.65] });
+          }
+        solids.push(s);
+        placed.push([p.x, p.y]);
+        // Racks and people keep out from under it.
+        paper.fillMask(M.foot, [ring]);
+        break search;
+      }
   }
   return none;
 }

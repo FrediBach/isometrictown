@@ -2,7 +2,7 @@
 
 This plan turns the art direction in [intro.md](intro.md), `Solarpunk Recipes.json` (103 recipes) and `Solarpunk Transformation Atlas.pdf` into work on this codebase. The mode is a switch that draws the same place, at the same view and seed, as a settled solarpunk future. The guide was written without knowing the renderer, so this plan also says which of its rules carry over directly, which need a different form, and which this renderer can't support yet.
 
-**Status (2026-11-16):** M0 to M5 are built: the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires; then balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches, verandas, arcades and vestibules, entrance canopies, sun fins, trellises, shop awnings everywhere, square pergolas and market stalls, and school-yard pergolas; then park meadow patches, reeds on banks and in marshes, food beds behind houses, hedged works edges, crop strips with margins, more hedgerows and mixed-age orchards; then people at stalls, pergolas and school yards, washing on balcony frames, dry stone channels where it is hot and dry, a climate pass (`npm run lod -- --climate …`) and a final ink check: against the default drawing, plot time rises 0–26% at any lab place and scale (most under 10%), and wasted ink by at most 1.3 points. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
+**Status (2026-11-16):** M0 to M5 are built, and most of the open items after them (cycle lanes, cargo bikes at shops, station forecourts, paddocks and troughs, allotment tanks, shore power; the app checked in the browser): the switch, settings, planner, climates, catalogue, imprint label, roof panels, green roofs and rain tanks; then cycles and fewer cars, kerb rain gardens and tree pits, more street trees, car park canopies, racks and beds, chargers, planted bus shelters, platform panels, cycle racks at stations and schools, electrified main lines and buried town wires; then balcony frames (winter gardens, galleries, a planted wonder per 200 m), porches, verandas, arcades and vestibules, entrance canopies, sun fins, trellises, shop awnings everywhere, square pergolas and market stalls, and school-yard pergolas; then park meadow patches, reeds on banks and in marshes, food beds behind houses, hedged works edges, crop strips with margins, more hedgerows and mixed-age orchards; then people at stalls, pergolas and school yards, washing on balcony frames, dry stone channels where it is hot and dry, a climate pass (`npm run lod -- --climate …`) and a final ink check: against the default drawing, plot time rises 0–26% at any lab place and scale (most under 10%), and wasted ink by at most 1.3 points. All with tests and goldens. How the built part works is in [../solarpunk.md](../solarpunk.md). Your answers are recorded in §14 and applied below.
 
 Read [../architecture.md](../architecture.md), [../render-pipeline.md](../render-pipeline.md), [../coordinates.md](../coordinates.md) and [../lod.md](../lod.md) first. Recipe ids such as `B04` or `T07` refer to `Solarpunk Recipes.json`.
 
@@ -464,27 +464,27 @@ Each milestone ships on its own, passes `npm run build` and `npm test`, comes wi
 - LOD rules `pvPatch`, `pvGrid`, `pvRows`, `rainTank`, `greenRoof`, `futureTwo`, `futureDetail`.
 - Cases: add `midtown-solarpunk` and `emmental-solarpunk`.
 
-**M2: Streets and mobility** *(done; a painted cycle lane on boulevards and a planted median are still open, as are rain-garden kerb breaks in `curbs()`: the new kerb is drawn with its gap instead)*
+**M2: Streets and mobility** *(done, cycle lanes included; a planted median is still open, as are rain-garden kerb breaks in `curbs()`: the new kerb is drawn with its gap instead)*
 
 - `StreetPlan`: tree pits and spacing, rain gardens with kerb breaks, fewer kerb cars. Traffic reduction plus cycles. Parking-lot PV canopies, beds and racks.
 - Fuel → charging. Bus-stop green roofs. Station canopy module grids and cycle racks. Catenary everywhere. Town poles (per the decision in §14).
 - LOD rules `canopy`, `charger`, `rainGarden`, `cycle`.
 - Case: add `amsterdam-solarpunk`.
 
-**M3: Building additions and wonders** *(done; station forecourt canopies and the wonders other than frames are still open, and frames go on rows and perimeter blocks too, as rear galleries)*
+**M3: Building additions and wonders** *(done, station forecourt canopies included; frames go on rows and perimeter blocks too, as rear galleries)*
 
 - Balcony frames, winter gardens and galleries (B04, B17). Porches, verandas and vestibules. Awnings everywhere on shop fronts. Trellises. Shade fins. Entrance canopies.
 - Wonders: one slab frame, school yard pergola, station forecourt canopy or square shade edge per 200 m cell.
 - Market stalls on squares. `M.foot` filling for additions.
 - LOD rules `frame`, `framePost`, `porch`, `trellis`, `fins`, `pergola`, `stall`.
 
-**M4: Landscape** *(done; rotational meadow fences and troughs, allotment tanks and trellises, park rain-garden basins and benches, and port shore power are still open)*
+**M4: Landscape** *(done, paddocks, allotment tanks and shore power included; allotment trellises and park rain-garden basins and benches are still open)*
 
 - Park mosaic and rain-garden basins. Crop strips with margins. Rotational meadow fences and troughs. Orchard gaps and ages. Reed margins at rivers, lakes and marsh. Garden beds in residential gardens. Allotment tanks and trellises. Industrial planted margins. Port shore power.
 - LOD rules `reed`, `bed`.
 - Optional case: `rye-solarpunk`.
 
-**M5: Life, climate tuning and polish** *(done; cargo bikes parked at shops, and checking each profile on its own preset town (that needs map data not yet recorded) are still open)*
+**M5: Life, climate tuning and polish** *(done, cargo bikes at shops included; checking each profile on its own preset town needs map data not yet recorded)*
 
 - People at pergolas, stalls and yards. Washing lines. Benches and tables. Cargo bikes at shops.
 - Climate pass: draw each profile on a fitting preset (Jumeirah Village Circle hot-dry, Pointe-Noire hot-humid, Ærøskøbing coastal, Sapporo cold, Hallstatt mountain) and tune `CLIMATES` by eye.

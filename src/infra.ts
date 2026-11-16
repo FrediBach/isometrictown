@@ -753,6 +753,17 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
     const j1 = junction(p[p.length - 2], p[p.length - 1]);
     const start = j0 ? 9 : 1.5;
     const stop = j1 ? 9 : 1.5;
+    // Solarpunk main roads give each kerb a painted cycle lane, stopping short of junctions.
+    if (B.future && w.width >= 12 && (w.cls === 'primary' || w.cls === 'secondary') && L > start + stop + 6) {
+      paper.facet('cycle-lanes', () => {
+        for (const side of [1, -1]) {
+          const pts: number[] = [];
+          const o = side * (w.width / 2 - 1.7);
+          walk(p, start, 2, stop, (x, y, ux, uy) => pts.push(x - uy * o, y + ux * o, 0));
+          if (pts.length >= 6) paper.line3(LINEWORK, pts, test);
+        }
+      });
+    }
     walk(p, start, 9, stop + 3, (x, y, ux, uy) => {
       // A dash pointing into the view is shorter on paper than one across it.
       const projected = Math.hypot(ux * B.cam.cb - uy * B.cam.sb, B.cam.sa * (ux * B.cam.sb + uy * B.cam.cb));

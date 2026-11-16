@@ -1,6 +1,6 @@
 {
   "region": {"country":"Netherlands","code":"NL","style":"dutch","left":false},
-  "counts": {"buildings":537,"houses":394,"trees":1552,"cars":130,"lamps":56},
+  "counts": {"buildings":537,"houses":394,"trees":1552,"cars":129,"lamps":56},
   "census": {
     "apartment": 34,
     "blank-windows": 6,
@@ -50,18 +50,18 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 19684,
-    "rawLifts": 21475,
-    "inkMm": 101388.6,
-    "travelMm": 46533.7,
-    "minutes": 150.4,
-    "pens": [["Shadows",3138,21465.7],["Water",1716,5858.4],["Greenery",462,1694.6],["Roofs",6612,30114.3],["Linework",7756,42255.6]]
+    "lifts": 19677,
+    "rawLifts": 21468,
+    "inkMm": 101379.6,
+    "travelMm": 46508.8,
+    "minutes": 150.3,
+    "pens": [["Shadows",3136,21463.5],["Water",1716,5858.4],["Greenery",462,1694.6],["Roofs",6612,30114.3],["Linework",7751,42248.8]]
   },
   "features": {
     "additions": [293,1535.2],
     "additions:pergolas": [17,51.8],
     "buildings": [1679,13794.4],
-    "cars": [114,521.3],
+    "cars": [109,514.4],
     "details": [357,1178.1],
     "ground": [17,30.8],
     "lamps": [30,141.6],
@@ -79,7 +79,7 @@
     "roofs": [1981,10779.8],
     "rooftops": [152,668.1],
     "shadeWalls": [1223,10308.4],
-    "shadows": [902,9533.3],
+    "shadows": [900,9531.2],
     "solar": [1814,7505.2],
     "streets:bridges": [93,754.5],
     "streets:kerbs": [197,1989.7],
@@ -156,7 +156,7 @@
     "buildings/tank-planned": [241,1792.1],
     "buildings/terrace": [1092,8151.3],
     "buildings/worship": [7,82.3],
-    "cars/cargo-bike": [10,14.8],
+    "cars/cargo-bike": [5,8],
     "cars/cycle": [4,5.6],
     "details/apartment": [82,613.3],
     "details/chimney": [53,85.7],
@@ -415,5 +415,5 @@
     "windows/terrace": [1620,2496.3],
     "windows/worship": [7,23.5]
   },
-  "svg": {"bytes":933618,"sha1":"830c54236080a802"}
+  "svg": {"bytes":933130,"sha1":"479c5f8701c5a41a"}
 }

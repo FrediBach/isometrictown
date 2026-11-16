@@ -8,7 +8,7 @@ import { GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
 import { bestRect, turn, type Rect } from './shape';
 import { outline } from './streets';
 import type { Shape, Town } from './tiles';
-import { LOD, shows, thin } from './lod';
+import { LOD, shows, spaced, thin } from './lod';
 import { combine, tractor } from './vehicles';
 
 /**
@@ -526,6 +526,7 @@ export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (
     else if (c.code === ORCHARD && !orchardsAsTrees(B)) paper.facet('orchards', () => dotted(B, paper, c, flat(ORCHARD)));
   }
 
+  if (B.future) paper.facet('paddocks', () => paddocks(B, paper, G, standing));
   symbols(B, paper, M, G, toAbs, fromAbs, paths);
   paper.facet('open-country', () => wildGround(B, paper, M, G, toAbs, fromAbs, paths));
   paper.facet('cemeteries', () => {
@@ -645,6 +646,42 @@ function strips(B: Build, paper: Paper, c: Cover, test: Test, spacing: number, a
         paper.sheet(GREENERY, TUFT.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]), test);
         paper.end();
       }
+    });
+  }
+}
+
+/**
+ * Rotational grazing on solarpunk meadows: a post-and-rail fence across the middle of some big
+ * meadows, splitting them into two paddocks, with a water trough beside it.
+ */
+function paddocks(B: Build, paper: Paper, G: Ground, test: Test): void {
+  const { cam } = B;
+  if (!shows(cam, LOD.paddock)) return;
+  for (const c of G.covers) {
+    if (c.code !== MEADOW || c.rect.w < 40 || c.rect.L < 50) continue;
+    const { ux, uy, cx, cy } = c.rect;
+    const [k0, k1] = B.key(cx, cy);
+    if (hash(k0, k1, B.set.seed, 12251) >= 0.5) continue;
+    // Across the meadow's length, through its middle.
+    const vx = -uy;
+    const vy = ux;
+    const t = cx * ux + cy * uy;
+    const step = spaced(cam, 3, 1.2);
+    chords(c.shape, vx, vy, ux, uy, t, (ax, ay, bx, by) => {
+      const len = Math.hypot(bx - ax, by - ay);
+      if (len < 8) return;
+      const dx = (bx - ax) / len;
+      const dy = (by - ay) / len;
+      const a0 = 1.5;
+      const a1 = len - 1.5;
+      paper.line3(GREENERY, [ax + dx * a0, ay + dy * a0, 1.0, ax + dx * a1, ay + dy * a1, 1.0], test);
+      for (let s = a0; s <= a1 + 1e-6; s += step) paper.line3(GREENERY, [ax + dx * s, ay + dy * s, 0, ax + dx * s, ay + dy * s, 1.15], test);
+      // A trough beside the fence, a third of the way along.
+      const tx = ax + dx * len * 0.33 + ux * 1.2;
+      const ty = ay + dy * len * 0.33 + uy * 1.2;
+      const P = (a: number, b: number, z: number) => [tx + dx * a + ux * b, ty + dy * a + uy * b, z];
+      paper.line3(LINEWORK, [...P(-1, -0.35, 0.6), ...P(1, -0.35, 0.6), ...P(1, 0.35, 0.6), ...P(-1, 0.35, 0.6)], test, true);
+      for (const a of [-1, 1]) paper.line3(LINEWORK, [...P(a, -0.35, 0), ...P(a, -0.35, 0.6)], test);
     });
   }
 }
@@ -1170,6 +1207,17 @@ export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Sol
         prism(B, [{ pts, seam: new Uint8Array(4) }], 0, 2.2, { roof: true, windows: false, pen: LINEWORK }, s);
         s.casts.push({ ring: pts, h: 2.2 });
         out.push(s);
+        // Solarpunk plots catch the shed's rain in a tank beside it.
+        if (B.future && hash(k0, k1, set.seed, 12250) < 0.6) {
+          const tx = x + r.ux * (hl + 0.6);
+          const ty = y + r.uy * (hl + 0.6);
+          const ring: number[] = [];
+          for (let q = 0; q < 10; q++) ring.push(tx + Math.cos((q / 10) * Math.PI * 2) * 0.4, ty + Math.sin((q / 10) * Math.PI * 2) * 0.4);
+          const t = newSolid();
+          prism(B, [{ pts: ring, seam: new Uint8Array(10) }], 0, 1.0, { roof: true, windows: false, pen: LINEWORK }, t);
+          for (const l of t.lines) l.facet = 'rain-tank';
+          out.push(t);
+        }
       }
   }
   return out;

@@ -586,6 +586,17 @@ export function ports(B: Build, paper: Paper, town: Town, M: Masks): Extra {
           usedCranes.push([x, y]);
           crane(x, y, ux, uy, nx, ny, lines);
           containers(B, paper, M, x - nx * 22, y - ny * 22, ux, uy, k0, k1, solids);
+          // A solarpunk berth plugs ships into the shore: a cabinet on the quay and its cable over the edge.
+          if (B.future) {
+            const s = newSolid();
+            tagLines(B, undefined, s, () => {
+              const cx = x + ux * 9 - nx * 3;
+              const cy = y + uy * 9 - ny * 3;
+              slab(B, s, place(cx, cy, ux, uy, rect(-0.6, 0.6, -0.4, 0.4)), 0, 1.6);
+              s.lines.push({ pen: LINEWORK, pts: [cx, cy, 1.6, cx + nx * 1.5, cy + ny * 1.5, 2.1, cx + nx * 3.2, cy + ny * 3.2, 1.2, cx + nx * 4, cy + ny * 4, 0.3] });
+            }, 'shore-power');
+            solids.push(s);
+          }
         }
       }
     }

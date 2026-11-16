@@ -1,6 +1,6 @@
 {
   "region": {"country":"England","code":"GB","style":"british","left":true},
-  "counts": {"buildings":289,"houses":192,"trees":2554,"cars":276,"lamps":40},
+  "counts": {"buildings":289,"houses":192,"trees":2554,"cars":272,"lamps":40},
   "census": {
     "apartment": 15,
     "broadleaf": 803,
@@ -52,22 +52,22 @@
     "worship": 3
   },
   "plan": {
-    "lifts": 18157,
-    "rawLifts": 20126,
-    "inkMm": 86118.1,
-    "travelMm": 46284.6,
-    "minutes": 136.3,
-    "pens": [["Shadows",3898,12506.3],["Water",30,163.9],["Greenery",2510,10514.6],["Roofs",4193,24488.9],["Linework",7526,38444.4]]
+    "lifts": 18171,
+    "rawLifts": 20144,
+    "inkMm": 86228.1,
+    "travelMm": 46141.7,
+    "minutes": 136.4,
+    "pens": [["Shadows",3898,12505.7],["Water",30,163.9],["Greenery",2510,10514.6],["Roofs",4193,24488.9],["Linework",7540,38555]]
   },
   "features": {
     "additions": [179,927.8],
     "buildings": [1539,13499.5],
-    "cars": [345,984.6],
+    "cars": [339,974.6],
     "cars:parking": [31,45.4],
     "details": [528,1982.1],
-    "ground": [1927,6027],
+    "ground": [1943,6044],
     "lamps": [30,159.2],
-    "markings": [31,63.6],
+    "markings": [39,167.2],
     "markings:parking": [56,154.8],
     "parks": [340,2302.7],
     "paths": [204,222.9],
@@ -80,7 +80,7 @@
     "roofs": [1598,9854.2],
     "rooftops": [116,569.7],
     "shadeWalls": [595,3930.9],
-    "shadows": [2562,7321.1],
+    "shadows": [2562,7320.5],
     "solar": [1387,6199.2],
     "solar:canopies": [19,149.7],
     "streets:kerbs": [235,1542.5],
@@ -153,7 +153,6 @@
     "buildings/terrace": [632,5350.6],
     "buildings/town-hall": [5,18.7],
     "buildings/worship": [41,536.8],
-    "cars/cargo-bike": [6,10],
     "cars/cycle": [8,11.6],
     "details/apartment": [8,287.9],
     "details/chimney": [319,615.9],
@@ -191,10 +190,12 @@
     "details/tank-planned": [153,566.2],
     "details/terrace": [222,966.8],
     "details/town-hall": [3,12],
-    "ground/allotment-sheds": [30,103.7],
+    "ground/allotment-sheds": [46,120.7],
     "ground/allotments": [530,969.5],
     "ground/lawns": [640,1327.4],
     "ground/plots": [727,3626.4],
+    "ground/rain-tank": [16,20.4],
+    "markings/cycle-lanes": [8,103.6],
     "parks/grass": [155,1635.4],
     "parks/park-edges": [33,350],
     "parks/park-meadow": [152,317.3],
@@ -411,5 +412,5 @@
     "windows/town-hall": [6,12.1],
     "windows/worship": [27,86.5]
   },
-  "svg": {"bytes":696995,"sha1":"60685b71d16d0a1a"}
+  "svg": {"bytes":698625,"sha1":"451c758b2b581714"}
 }

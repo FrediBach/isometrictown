@@ -1,6 +1,6 @@
 {
   "region": {"country":"Switzerland","code":"CH","style":"alpine","left":false},
-  "counts": {"buildings":564,"houses":313,"trees":4760,"cars":118,"lamps":41},
+  "counts": {"buildings":564,"houses":313,"trees":4760,"cars":117,"lamps":41},
   "census": {
     "blank-windows": 32,
     "broadleaf": 1432,
@@ -48,24 +48,24 @@
     "worship": 2
   },
   "plan": {
-    "lifts": 19379,
-    "rawLifts": 21733,
-    "inkMm": 84147.8,
-    "travelMm": 49015.9,
-    "minutes": 142.2,
-    "pens": [["Shadows",3849,14549.2],["Water",144,510.2],["Greenery",2722,8445],["Roofs",5276,28181.5],["Linework",7388,32462]]
+    "lifts": 19421,
+    "rawLifts": 21775,
+    "inkMm": 84613.3,
+    "travelMm": 49193.9,
+    "minutes": 142.6,
+    "pens": [["Shadows",3849,14549.2],["Water",144,510.2],["Greenery",2743,8501.3],["Roofs",5276,28181.5],["Linework",7409,32871.1]]
   },
   "features": {
     "additions": [429,1971.5],
     "additions:pergolas": [12,25.2],
     "buildings": [2000,11602.2],
-    "cars": [165,700.8],
+    "cars": [163,698.8],
     "details": [295,626.7],
-    "ground": [2271,4698.6],
+    "ground": [2294,4763.2],
     "lamps": [36,164.8],
     "life": [29,71.9],
     "life:moorings": [17,48],
-    "markings": [31,71.2],
+    "markings": [52,474.1],
     "parks": [166,856.1],
     "paths": [551,598.4],
     "planting:beds": [154,307.8],
@@ -147,7 +147,7 @@
     "buildings/tank-planned": [406,2279.8],
     "buildings/terrace": [1436,7982],
     "buildings/worship": [28,222.9],
-    "cars/cargo-bike": [8,10.9],
+    "cars/cargo-bike": [6,8.8],
     "cars/cycle": [4,5.4],
     "details/chimney": [182,303],
     "details/chimneys": [243,433.2],
@@ -176,9 +176,11 @@
     "ground/lawns": [915,1879.8],
     "ground/meadows": [777,1618.7],
     "ground/multi": [7,86.7],
+    "ground/paddocks": [23,64.6],
     "ground/pitches": [7,86.7],
     "ground/plots": [385,819.1],
     "life/livestock": [29,71.9],
+    "markings/cycle-lanes": [21,402.9],
     "parks/grass": [25,169],
     "parks/park-edges": [131,627.9],
     "parks/wood-edges": [10,59.2],
@@ -369,5 +371,5 @@
     "windows/terrace": [1499,2175.2],
     "windows/worship": [9,26.5]
   },
-  "svg": {"bytes":794607,"sha1":"0d087ac8ca59ff48"}
+  "svg": {"bytes":798804,"sha1":"c0c25571d4ae4cca"}
 }

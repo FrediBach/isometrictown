@@ -257,7 +257,8 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
     // Cars go before buses and lorries as the scale coarsens: each one only while it reads as a vehicle.
     const [ka, kb] = B.key(x, y);
     const cycle = kind === 'bike' || kind === 'cargo';
-    if (showsAt(cam, cycle ? LOD.cycle : LOD.car, length(kind, k), [ka, kb], set.seed, cycle ? 9201 : 9104)) out.push(vehicle(B, x, y, ux, uy, kind, k));
+    // Cycles of every kind show from the scale people do, by a bicycle's length.
+    if (showsAt(cam, cycle ? LOD.cycle : LOD.car, cycle ? 1.8 : length(kind, k), [ka, kb], set.seed, cycle ? 9201 : 9104)) out.push(vehicle(B, x, y, ux, uy, kind, k));
   };
   // Solarpunk streets: some private cars become bicycles and cargo bikes, and some are gone.
   const f = B.future ? Math.max(0, Math.min(1, set.future)) : 0;

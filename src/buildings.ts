@@ -11,6 +11,7 @@ import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from '
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import { futureRoof, roofPanels, sawtoothPanels } from './solar';
 import { additions } from './additions';
+import { bicycle } from './vehicles';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 
@@ -237,6 +238,14 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const hw = bay * 0.36;
     out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
+    // Close up, a cargo bike stands outside some solarpunk shops, making a delivery.
+    if (B.future && hash(k0, k1, B.seed, 12142) < 0.15 && shows(B.cam, LOD.cycle, 1.8)) {
+      const bike = bicycle(B, ax + dx * m + nx * 2.2, ay + dy * m + ny * 2.2, dx, dy, true, false);
+      tagLines(B, undefined, out, () => {
+        out.faces.push(...bike.faces);
+        out.lines.push(...bike.lines);
+      }, 'cargo-bike');
+    }
     // Solarpunk shop fronts are shaded almost everywhere.
     if ((B.future ? hash(k0, k1, B.seed, 12140) < 0.05 : hash(k0, k1, B.seed, 340) < 0.25) || !showsAt(B.cam, LOD.awning, 1.3, [k0, k1], B.seed, 9100)) continue;
     // The awning: a sloping canvas with a short valance, striped in the roof pen.
