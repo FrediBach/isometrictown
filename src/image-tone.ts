@@ -279,6 +279,11 @@ function deltaE(p: Float32Array[], q: Float32Array[], w: Float32Array, chroma: n
   return total ? sum / total : 0;
 }
 
+/** How much chroma counts in a colour difference beside lightness (§7.4): by `imageColour`, and not at all in one-pen output. */
+export function chromaWeight(set: Pick<Settings, 'imageColour' | 'mono'>): number {
+  return set.mono ? 0 : set.imageColour;
+}
+
 /** Squinted views of a comparison, as linear RGB planes on the look's grid, for the likeness lab. */
 export type Views = { drawing: Float32Array[]; look: Float32Array[] };
 
@@ -288,7 +293,7 @@ export type Views = { drawing: Float32Array[]; look: Float32Array[] };
  * one-pen output. `lightRange` is the spread of lightness the drawing can reach, for SSIM.
  */
 export function likeness(cov: Float32Array[], look: Look, set: Pick<Settings, 'pens' | 'mono' | 'customBackground' | 'background' | 'imageColour'>, lightRange: number): { likeness: Likeness; views: Views } {
-  const chroma = set.mono ? 0 : set.imageColour;
+  const chroma = chromaWeight(set);
   const drawn = inked(cov, set);
   const want = planes(look.L, look.a, look.b);
   const paperRgb = hexToLinear(paperOf(set));
@@ -308,4 +313,62 @@ export function likeness(cov: Float32Array[], look: Look, set: Pick<Settings, 'p
   }
   const score = dE0 > 0 ? 1 - (dE[0] + dE[1]) / dE0 : 0;
   return { likeness: { score, dE, ssim: ssim(farL[0], farL[1], look.weight, look, SSIM_WINDOW / look.cell, lightRange) }, views: { drawing: near.d, look: near.t } };
+}
+
+/** What a patch of the town can be (§8.1). Ground labels first, then built ones, roughly light to dark. */
+export const LABELS = ['water', 'plaza', 'sand', 'meadow', 'field', 'park', 'allot', 'wood', 'works', 'suburb', 'rows', 'old', 'blocks', 'towers'] as const;
+export type Label = (typeof LABELS)[number];
+/** Labels that are buildings, with a warmth (share of pitched roofs) as well as a level. */
+export const BUILT = new Set<Label>(['works', 'suburb', 'rows', 'old', 'blocks', 'towers']);
+
+/**
+ * Pen coverage of a label at level 0 and 1, by pen (shadows, water, greenery, roofs, linework),
+ * with pitched roofs, and for built labels also with flat roofs (`flat…`).
+ */
+type Material = { lo: number[]; hi: number[]; flatLo?: number[]; flatHi?: number[] };
+
+/**
+ * How much of each pen a label lays down over a district, as a share of the paper: a sheet of
+ * nothing but that label, drawn by the real renderer and measured by `npm run calibrate`, so
+ * built labels include their streets, gardens and shadows. One scale and tilt for now; M5
+ * measures more and interpolates (docs/plans/image-mode.md §7.3). Ground labels don't vary with
+ * level yet, so their two rows are the same.
+ */
+const MATERIALS: Record<Label, Material> = {
+// Measured by npm run calibrate at 1:2500, tilt 40°, 2026-11-17.
+  water: { lo: [0, 0.103, 0, 0, 0.003], hi: [0, 0.103, 0, 0, 0.003] },
+  plaza: { lo: [0.001, 0.002, 0.004, 0, 0.132], hi: [0.001, 0.002, 0.004, 0, 0.132] },
+  sand: { lo: [0, 0, 0, 0, 0.034], hi: [0, 0, 0, 0, 0.034] },
+  meadow: { lo: [0.008, 0, 0.1, 0, 0], hi: [0.008, 0, 0.1, 0, 0] },
+  field: { lo: [0.008, 0, 0.193, 0, 0], hi: [0.008, 0, 0.193, 0, 0] },
+  park: { lo: [0.009, 0, 0.203, 0, 0], hi: [0.009, 0, 0.203, 0, 0] },
+  allot: { lo: [0.003, 0, 0.133, 0, 0.093], hi: [0.003, 0, 0.133, 0, 0.093] },
+  wood: { lo: [0.027, 0, 0.213, 0, 0], hi: [0.027, 0, 0.213, 0, 0] },
+  works: { lo: [0.038, 0, 0.024, 0.082, 0.139], hi: [0.094, 0, 0.02, 0.111, 0.134], flatLo: [0.041, 0, 0.024, 0.001, 0.167], flatHi: [0.101, 0, 0.02, 0, 0.181] },
+  suburb: { lo: [0.046, 0, 0.041, 0.115, 0.141], hi: [0.041, 0, 0.038, 0.144, 0.152], flatLo: [0.034, 0, 0.043, 0, 0.208], flatHi: [0.033, 0, 0.038, 0, 0.239] },
+  rows: { lo: [0.027, 0, 0.016, 0.154, 0.132], hi: [0.049, 0, 0.012, 0.185, 0.138], flatLo: [0.019, 0, 0.016, 0, 0.208], flatHi: [0.037, 0, 0.012, 0, 0.239] },
+  old: { lo: [0.075, 0, 0.024, 0.262, 0.14], hi: [0.058, 0, 0.006, 0.208, 0.219], flatLo: [0.062, 0, 0.022, 0, 0.288], flatHi: [0.055, 0, 0.005, 0, 0.324] },
+  blocks: { lo: [0.086, 0, 0.016, 0.187, 0.119], hi: [0.045, 0, 0.002, 0.209, 0.106], flatLo: [0.082, 0, 0.015, 0, 0.229], flatHi: [0.044, 0, 0.002, 0, 0.216] },
+  towers: { lo: [0.114, 0, 0.035, 0, 0.118], hi: [0.11, 0, 0.001, 0, 0.121], flatLo: [0.114, 0, 0.035, 0, 0.118], flatHi: [0.11, 0, 0.001, 0, 0.121] },
+};
+
+/** Pen coverage of a label at a level (0–1) and warmth (0 flat roofs, 1 pitched). */
+export function material(label: Label, level: number, warmth = 1): number[] {
+  const m = MATERIALS[label];
+  const at = (lo: number[], hi: number[]) => lo.map((v, i) => v + (hi[i] - v) * level);
+  const warm = at(m.lo, m.hi);
+  if (!m.flatLo || !m.flatHi) return warm;
+  const flat = at(m.flatLo, m.flatHi);
+  return warm.map((v, i) => flat[i] + (v - flat[i]) * warmth);
+}
+
+/** The OKLab colour of a label at a level and warmth through these pens and paper. */
+export function materialColour(label: Label, level: number, warmth: number, set: Pick<Settings, 'pens' | 'mono' | 'customBackground' | 'background'>): [number, number, number] {
+  const rgb = [0, 0, 0];
+  const c = material(label, level, warmth);
+  if (set.mono) c[4] = Math.min(1, c.reduce((a, v) => a + v, 0));
+  mix(hexToLinear(paperOf(set)), inksOf(set), set.mono ? [0, 0, 0, 0, c[4]] : c, rgb);
+  const lab: [number, number, number] = [0, 0, 0];
+  oklab(rgb[0], rgb[1], rgb[2], lab);
+  return lab;
 }

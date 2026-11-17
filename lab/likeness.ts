@@ -4,7 +4,8 @@
  */
 import { imageScene, type Picture } from '../src/image';
 import { TARGET_CELL } from '../src/image-read';
-import { coverage, likeness, toGamma, type Likeness } from '../src/image-tone';
+import { coverage, LABELS, likeness, toGamma, type Label, type Likeness } from '../src/image-tone';
+import { labelAt } from '../src/image-zones';
 import { PALETTES } from '../src/palettes';
 import { plan, toSvg } from '../src/plot';
 import { render } from '../src/render';
@@ -24,7 +25,7 @@ export type LikenessResult = {
   svg: string;
   likeness: Likeness;
   /** Milliseconds per step. */
-  ms: { read: number; layout: number; render: number; plan: number; score: number; total: number };
+  ms: { read: number; zone: number; layout: number; render: number; plan: number; score: number; total: number };
   stats: SheetStats;
   counts: Record<string, number>;
   rect: [number, number, number, number];
@@ -33,6 +34,18 @@ export type LikenessResult = {
   squint: Rgb;
   /** The picture itself. */
   source: Rgb;
+  /** The target's tone with its edges in red, bright lines in yellow and dark lines in blue. */
+  edges: Rgb;
+  /** The land plan as it lands on the sheet, a colour per label. */
+  zones: Rgb;
+  /** Share of the ground in each label. */
+  shares: Partial<Record<Label, number>>;
+};
+
+/** A colour per label for the zone view: water blue, green things green, built things warm to dark. */
+const ZONE_COLOUR: Record<Label, [number, number, number]> = {
+  water: [70, 130, 210], plaza: [235, 235, 225], sand: [240, 220, 150], meadow: [190, 225, 150], field: [215, 210, 120], park: [120, 190, 110],
+  allot: [160, 170, 90], wood: [40, 110, 60], works: [150, 150, 165], suburb: [240, 175, 150], rows: [215, 120, 100], old: [170, 70, 60], blocks: [120, 95, 110], towers: [50, 45, 60],
 };
 
 /** The settings a case is drawn with: the app's defaults in image mode, as on first switching to it, at this scale. */
@@ -71,7 +84,8 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const scene = imageScene(pic, set, (note) => marks.push([note, performance.now()]));
   const t1 = performance.now();
   const at = (note: string) => marks.find(([n]) => n === note)?.[1];
-  const read = (at('Laying out streets') ?? t1) - (at('Reading the image') ?? t0);
+  const read = (at('Zoning the ground') ?? t1) - (at('Reading the image') ?? t0);
+  const zoned = (at('Laying out streets') ?? t1) - (at('Zoning the ground') ?? t1);
   const tally = new Map<string, number[][]>();
   const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally);
   const t2 = performance.now();
@@ -85,17 +99,31 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const stats = measure(tally, scene.cam.rect, scene.set.penWidth, scene.set.speed);
   const source: Rgb = { w: pic.w, h: pic.h, data: new Uint8Array(pic.w * pic.h * 3) };
   for (let i = 0; i < pic.w * pic.h; i++) source.data.set(pic.rgba.subarray(i * 4, i * 4 + 3), i * 3);
+  const edges: Rgb = { w: t.W, h: t.H, data: new Uint8Array(t.W * t.H * 3) };
+  const zones: Rgb = { w: t.W, h: t.H, data: new Uint8Array(t.W * t.H * 3) };
+  for (let i = 0; i < t.W * t.H; i++) {
+    const g = Math.round(255 * (0.35 + 0.65 * t.tone[i]));
+    edges.data.set(t.edge[i] > 0 ? [230, 40, 40] : t.ridge[i] > 0 ? [230, 200, 0] : t.ridge[i] < 0 ? [40, 80, 230] : [g, g, g], i * 3);
+    const [gx, gy] = scene.cam.ground(t.x0 + ((i % t.W) + 0.5) * t.cell, t.y0 + (Math.floor(i / t.W) + 0.5) * t.cell);
+    const l = labelAt(scene.zones, gx, gy);
+    zones.data.set(l ? ZONE_COLOUR[l] : [255, 255, 255], i * 3);
+  }
+  const shares: Partial<Record<Label, number>> = {};
+  for (const v of scene.zones.label) shares[LABELS[v]] = (shares[LABELS[v]] ?? 0) + 1 / scene.zones.label.length;
   return {
     picture: name,
     scale,
     svg,
     likeness: scored.likeness,
-    ms: { read, layout: t1 - t0 - read, render: t2 - t1, plan: t3 - t2, score: t4 - t3, total: t4 - t0 },
+    ms: { read, zone: zoned, layout: t1 - t0 - read - zoned, render: t2 - t1, plan: t3 - t2, score: t4 - t3, total: t4 - t0 },
     stats,
     counts: drawing.counts,
     rect: scene.cam.rect,
     look: rgb(scored.views.look, t.W, t.H),
     squint: rgb(scored.views.drawing, t.W, t.H),
     source,
+    edges,
+    zones,
+    shares,
   };
 }

@@ -5,15 +5,14 @@
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
 import { Camera } from '@/camera';
-import { Frame } from '@/geo';
-import { drawnAs, imageRegion, imageTown, STYLE_PLACE } from '@/image';
+import { drawnAs, imageRegion, imageScene, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, toneAt } from '@/image-read';
-import { coverage, fromOklab, hexToLinear, likeness, mix, oklab } from '@/image-tone';
+import { BUILT, coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
+import { compat, labelAt, slic, zone } from '@/image-zones';
 import { toSvg } from '@/plot';
 import { reachHeight } from '@/render';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
-import { STYLES } from '@/styles';
 import { paint, PICTURES } from '../support/pictures';
 
 const RECT = [20, 20, 400, 260] as const;
@@ -147,13 +146,11 @@ describe('the drawn-as place', () => {
 });
 
 describe('the town', () => {
-  const base: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', scale: 2500, tilt: 40, sheet: 'a4' };
-  const lay = (set: Settings) => {
-    const d = drawnAs(set);
-    const cam = new Camera(d);
-    const t = readImage(PICTURES.landscape(), d, cam.rect);
-    return imageTown(t, d, cam, new Frame(d.center), cam.region(reachHeight(d)), STYLES.central);
-  };
+  const pic = PICTURES.landscape();
+  const base: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, scale: 2500, tilt: 40, sheet: 'a4' };
+  // A copy of the picture under another id each time, so the scene's cache can't answer.
+  let n = 0;
+  const lay = (set: Settings) => imageScene({ ...pic, id: `copy-${n++}` }, set).town;
 
   test('the same picture and settings lay out the same town', () => {
     expect(lay(base)).toEqual(lay(base));
@@ -161,9 +158,22 @@ describe('the town', () => {
 
   test('what only changes how it is drawn never moves a street or a house', () => {
     const town = lay(base);
-    for (const more of [{ detail: 1.8 }, { penWidth: 0.7 }, { trees: 0.1 }, { shadows: false }, { pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] as Settings['pens'] }]) {
+    for (const more of [{ detail: 1.8 }, { penWidth: 0.7 }, { trees: 0.1 }, { shadows: false }, { sunHeight: 20 }]) {
       expect(lay({ ...base, ...more })).toEqual(town);
     }
+  });
+
+  test('matching lightness alone, the pens never move a street or a house', () => {
+    const grey = { ...base, imageColour: 0 };
+    expect(lay({ ...grey, pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] })).toEqual(lay(grey));
+    const mono = { ...base, mono: true };
+    expect(lay({ ...mono, pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] })).toEqual(lay(mono));
+  });
+
+  test('image-made tags are not OSM tags', () => {
+    const town = lay(base);
+    expect(town.tagged.length).toBeGreaterThan(0);
+    expect(town.tagged.every((t) => t.from === 'image')).toBe(true);
   });
 
   test('a new seed varies the houses but not the streets', () => {
@@ -181,6 +191,105 @@ describe('the town', () => {
       for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) a += (p[j] - p[i]) * (p[j + 1] + p[i + 1]);
       expect(a).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('reading structure', () => {
+  const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image' };
+  const rect = [0, 0, 100, 60];
+  const mid = (t: ReturnType<typeof readImage>) => Math.floor(t.H / 2) * t.W;
+
+  test('a step makes one edge, where the step is, and no thin lines', () => {
+    const t = readImage(paint('Step', (u) => (u < 0.5 ? [40, 40, 40] : [230, 230, 230])), set, rect);
+    const xs = [...Array(t.W).keys()].filter((x) => t.edge[mid(t) + x] > 0);
+    expect(xs.length).toBeGreaterThan(0);
+    expect(xs.length).toBeLessThanOrEqual(2);
+    expect(Math.abs((xs[0] + 0.5) * t.cell - 50)).toBeLessThan(1);
+    expect(t.ridge.every((r) => r === 0)).toBe(true);
+    // Contours run down the step, a quarter turn from across it.
+    expect(Math.abs(Math.cos(t.dir[mid(t) + Math.round(t.W / 2)]))).toBeLessThan(0.05);
+    expect(t.coherence[mid(t) + Math.round(t.W / 2)]).toBeGreaterThan(0.9);
+  });
+
+  test('thin lines are found in their middle, bright or dark', () => {
+    for (const [v, sign] of [[250, 1], [20, -1]] as const) {
+      const t = readImage(paint('Line', (u) => (Math.abs(u - 0.5) < 0.004 ? [v, v, v] : [128, 128, 128])), set, rect);
+      const xs = [...Array(t.W).keys()].filter((x) => t.ridge[mid(t) + x] !== 0);
+      expect(xs.length).toBeGreaterThan(0);
+      expect(xs.every((x) => t.ridge[mid(t) + x] === sign && Math.abs((x + 0.5) * t.cell - 50) < 1)).toBe(true);
+    }
+  });
+
+  test("Fit's margins make no edge", () => {
+    const t = readImage(PICTURES.gradient(), { ...set, imageFit: 'fit' }, [0, 0, 400, 100]);
+    expect(t.edge.every((e) => e === 0)).toBe(true);
+  });
+});
+
+describe('zoning', () => {
+  const base: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', scale: 2500, tilt: 40, sheet: 'a4' };
+  const plan = (pic: ReturnType<typeof paint>, set = base) => {
+    const d = drawnAs(set);
+    const cam = new Camera(d);
+    return { cam, zones: zone(readImage(pic, d, cam.rect), d, cam, cam.region(reachHeight(d))) };
+  };
+
+  test('compat is symmetric and free between like labels', () => {
+    for (const a of LABELS) for (const b of LABELS) expect(compat(a, b)).toBe(compat(b, a));
+    for (const a of LABELS) expect(compat(a, a)).toBe(0);
+  });
+
+  test('materials grow darker with level and stay on the paper', () => {
+    for (const l of LABELS) {
+      for (const w of [0, 1]) for (const v of [0, 0.5, 1]) for (const c of material(l, v, w)) expect(c >= 0 && c <= 1).toBe(true);
+    }
+    const ink = (l: (typeof LABELS)[number], v: number) => material(l, v).reduce((a, c) => a + c, 0);
+    expect(ink('old', 0.5)).toBeGreaterThan(ink('meadow', 0.5));
+  });
+
+  test('superpixels cover the grid, connected, about the size asked', () => {
+    const W = 60;
+    const H = 40;
+    const lab = new Float32Array(W * H * 3).map((_, i) => (i % 3 ? 0 : Math.floor(i / 3) % W < 30 ? 0.5 : 0.9));
+    const sp = slic(lab, W, H, 6);
+    const count = Math.max(...sp) + 1;
+    expect(sp.every((v) => v >= 0)).toBe(true);
+    expect(count).toBeGreaterThan(30);
+    expect(count).toBeLessThan(120);
+    // None straddles the step.
+    for (let s = 0; s < count; s++) {
+      const xs = [...sp.keys()].filter((c) => sp[c] === s).map((c) => c % W);
+      expect(Math.max(...xs) < 30 || Math.min(...xs) >= 30).toBe(true);
+    }
+  });
+
+  test('a picture of two halves zones into town and country, split along the edge', () => {
+    const { cam, zones } = plan(paint('Halves', (u) => (u < 0.5 ? [45, 45, 45] : [235, 235, 235])));
+    let right = 0;
+    let total = 0;
+    for (let sy = 40; sy < 150; sy += 4) {
+      for (let sx = 30; sx < 270; sx += 4) {
+        if (Math.abs(sx - 148.5) < 8) continue;
+        // Buildings are read where their roofs show, a little up the sheet from their footprints.
+        const [x, y] = cam.ground(sx, sy);
+        const l = labelAt(zones, x, y);
+        total++;
+        if (l && BUILT.has(l) === sx < 148.5) right++;
+      }
+    }
+    expect(right / total).toBeGreaterThan(0.95);
+  });
+
+  test('specks smaller than a patch can be are absorbed', () => {
+    const { zones } = plan(paint('Specks', (u, v) => (Math.hypot((u * 300) % 50 - 25, (v * 200) % 50 - 25) < 2 ? [30, 30, 30] : [230, 230, 230])));
+    const built = [...zones.label].filter((k) => BUILT.has(LABELS[k])).length;
+    expect(built / zones.label.length).toBeLessThan(0.01);
+  });
+
+  test('more likeness keeps smaller patches', () => {
+    const pic = paint('Blots', (u, v) => (Math.hypot(u - 0.3, v - 0.5) < 0.04 || Math.hypot(u - 0.7, v - 0.5) < 0.04 ? [30, 30, 30] : [230, 230, 230]));
+    const built = (likeness: number) => [...plan(pic, { ...base, likeness }).zones.label].filter((k) => BUILT.has(LABELS[k])).length;
+    expect(built(1)).toBeGreaterThan(built(0));
   });
 });
 

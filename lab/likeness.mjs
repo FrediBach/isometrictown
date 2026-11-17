@@ -99,12 +99,15 @@ for (const picture of pictures) {
         writeFileSync(path.join(outDir, `${file}-look.png`), encodePng(r.look));
         writeFileSync(path.join(outDir, `${file}-squint.png`), encodePng(r.squint));
         writeFileSync(path.join(outDir, `${picture}-source.png`), encodePng(r.source));
+        writeFileSync(path.join(outDir, `${file}-edges.png`), encodePng(r.edges));
+        writeFileSync(path.join(outDir, `${file}-zones.png`), encodePng(r.zones));
       }
       const l = r.likeness;
       const ms = Object.fromEntries(Object.entries(r.ms).map(([k, v]) => [k, Math.round(v)]));
-      console.log(`${label} likeness ${fmt(l.score * 100, 1).padStart(6)}  ΔE ${fmt(l.dE[0], 3)} / ${fmt(l.dE[1], 3)}  SSIM ${fmt(l.ssim, 3)}  tone ${pct(r.stats.tone).padStart(6)}  waste ${pct(r.stats.total.waste).padStart(6)}  ${fmt(r.counts.buildings)} buildings  ${ms.total} ms (read ${ms.read}, layout ${ms.layout}, render ${ms.render}, score ${ms.score})`);
+      console.log(`${label} likeness ${fmt(l.score * 100, 1).padStart(6)}  ΔE ${fmt(l.dE[0], 3)} / ${fmt(l.dE[1], 3)}  SSIM ${fmt(l.ssim, 3)}  tone ${pct(r.stats.tone).padStart(6)}  waste ${pct(r.stats.total.waste).padStart(6)}  ${fmt(r.counts.buildings)} buildings  ${ms.total} ms (read ${ms.read}, zone ${ms.zone}, layout ${ms.layout}, render ${ms.render}, score ${ms.score})`);
+      console.log(`${''.padEnd(22)} zones ${Object.entries(r.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.01).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', ')}`);
       const { marks, ...stats } = r.stats;
-      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
+      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, shares: r.shares, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
     } catch (e) {
       console.log(`${label} failed: ${e instanceof Error ? e.stack : e}`);
       report.cases.push({ picture, scale, error: String(e) });
@@ -174,7 +177,7 @@ function html(r, withPng) {
       }
       const l = c.likeness;
       body += `<h3>1:${c.scale} <small>likeness ${fmt(l.score * 100, 1)} · ΔE ${fmt(l.dE[0], 3)} / ${fmt(l.dE[1], 3)} · SSIM ${fmt(l.ssim, 3)} · tone ${pct(c.tone)} · waste ${pct(c.waste)} · ${fmt(c.counts.buildings)} buildings · ${fmt(c.minutes, 0)} min to plot · ${c.ms.total} ms</small></h3>`;
-      if (withPng) body += `<div class="row"><figure><img src="${picture}-source.png" alt=""><figcaption>Picture</figcaption></figure><figure><img src="${c.file}-look.png" alt=""><figcaption>What it should look like</figcaption></figure><figure><img src="${c.file}-squint.png" alt=""><figcaption>What it looks like</figcaption></figure><figure><a href="${c.file}.svg"><img src="${c.file}.png" alt=""></a><figcaption>Drawing</figcaption></figure></div>`;
+      if (withPng) body += `<div class="row"><figure><img src="${picture}-source.png" alt=""><figcaption>Picture</figcaption></figure><figure><img src="${c.file}-look.png" alt=""><figcaption>What it should look like</figcaption></figure><figure><img src="${c.file}-squint.png" alt=""><figcaption>What it looks like</figcaption></figure><figure><a href="${c.file}.svg"><img src="${c.file}.png" alt=""></a><figcaption>Drawing</figcaption></figure><figure><img src="${c.file}-edges.png" alt=""><figcaption>Edges (red), bright (yellow) and dark (blue) lines</figcaption></figure><figure><img src="${c.file}-zones.png" alt=""><figcaption>Zones: ${esc(Object.entries(c.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.02).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', '))}</figcaption></figure></div>`;
     }
     body += '</section>';
   }

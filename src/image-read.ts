@@ -1,11 +1,11 @@
 /**
  * Reading the image in image mode: what the drawing should look like over the drawing area,
  * in OKLab on a fine sheet grid, with its tone mapped into what pens on paper can reach.
- * See docs/plans/image-mode.md §6. Edges, orientation and ridges come with zoning (M1).
+ * See docs/plans/image-mode.md §6.
  */
 import type { Picture } from './image';
 import { fitImage, toImage } from './image-fit';
-import { hexToLinear, lightnessAt, oklab, paperOf, toLinear, type Look } from './image-tone';
+import { blur, hexToLinear, lightnessAt, oklab, paperOf, toLinear, type Look } from './image-tone';
 import { LINEWORK, type Settings } from './settings';
 
 /** What the drawing should look like, and the range of lightness the drawing can reach. */
@@ -15,6 +15,14 @@ export type Target = Look & {
    * before the pens: the layout reads this, so the pens never move a street.
    */
   tone: Float32Array;
+  /** Edge strength 0–1, thinned to the crest of each edge and kept where it joins a strong one (Canny). */
+  edge: Float32Array;
+  /** Which way contours run on the sheet, radians (x right, y down), from the structure tensor. */
+  dir: Float32Array;
+  /** How strongly the image is oriented there, 0–1. */
+  coherence: Float32Array;
+  /** Thin bright (+1) or dark (−1) lines: bright ones want to be streets and paths, dark ones tree rows and hedges. */
+  ridge: Int8Array;
   /** OKLab lightness of the paper and of the darkest tone a believable town lays down. */
   paper: number;
   dark: number;
@@ -23,7 +31,7 @@ export type Target = Look & {
 /** Side of a target cell, mm. */
 export const TARGET_CELL = 0.5;
 /** Coverage of the darkest pen that the image's black is mapped to: as dark as a town gets without blotting. */
-const DARKEST = 0.55;
+export const DARKEST = 0.55;
 /** The least spread of lightness auto levels stretch to, so a nearly flat image isn't blown up into noise. */
 const MIN_SPREAD = 0.25;
 /** Width of the soft knee at each end of the tone curve. */
@@ -164,7 +172,120 @@ export function readImage(pic: Picture, set: ReadSettings, rect: readonly number
     A[i] *= chroma;
     B[i] *= chroma;
   }
-  return { x0, y0, cell, W, H, L, a: A, b: B, weight, tone, paper, dark };
+  return { x0, y0, cell, W, H, L, a: A, b: B, weight, tone, paper, dark, ...structure(tone, weight, W, H, cell) };
+}
+
+/** Blur for gradients, for the structure tensor and for thin lines, mm. */
+const EDGE_BLUR = 1;
+const TENSOR_BLUR = 4;
+const RIDGE_BLUR = 1.5;
+/** Gradient (tone per mm) an edge must reach somewhere, and may fall to along its length. */
+const EDGE_HIGH = 0.08;
+const EDGE_LOW = 0.04;
+/** Gradient that counts as a full-strength edge. */
+const EDGE_FULL = 0.3;
+/** Scale-normalised curvature across a thin line, and how much more it must curve across than along. */
+const RIDGE_MIN = 0.06;
+const RIDGE_ASPECT = 2;
+
+/**
+ * Edges, orientation and thin lines of the tone, as §6 step 5 describes: Canny edges on the tone
+ * lightly blurred, the structure tensor for which way contours run, and the Hessian for lines.
+ * Cells next to where there is no image get none, so Fit's margins make no edges.
+ */
+function structure(tone: Float32Array, weight: Float32Array, W: number, H: number, cell: number) {
+  const n = W * H;
+  const at = (v: Float32Array, x: number, y: number) => v[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
+  const g = tone.slice();
+  blur(g, W, H, EDGE_BLUR / cell);
+  const gx = new Float32Array(n);
+  const gy = new Float32Array(n);
+  const mag = new Float32Array(n);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      gx[i] = (at(g, x + 1, y) - at(g, x - 1, y)) / (2 * cell);
+      gy[i] = (at(g, x, y + 1) - at(g, x, y - 1)) / (2 * cell);
+      mag[i] = Math.hypot(gx[i], gy[i]);
+    }
+  // Where the image ends (Fit's margins, transparency) is no edge of the picture.
+  const bare = new Uint8Array(n);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) if (at(weight, x, y) < 0.5 || at(weight, x - 3, y) < 0.5 || at(weight, x + 3, y) < 0.5 || at(weight, x, y - 3) < 0.5 || at(weight, x, y + 3) < 0.5) bare[y * W + x] = 1;
+
+  // The structure tensor, smoothed: which way contours run, and how clearly.
+  const jxx = new Float32Array(n);
+  const jyy = new Float32Array(n);
+  const jxy = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    jxx[i] = gx[i] * gx[i];
+    jyy[i] = gy[i] * gy[i];
+    jxy[i] = gx[i] * gy[i];
+  }
+  for (const j of [jxx, jyy, jxy]) blur(j, W, H, TENSOR_BLUR / cell);
+  const dir = new Float32Array(n);
+  const coherence = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const d = jxx[i] - jyy[i];
+    const spread = Math.sqrt(d * d + 4 * jxy[i] * jxy[i]);
+    const sum = jxx[i] + jyy[i];
+    // The gradient's orientation, turned a quarter: contours run across it.
+    dir[i] = 0.5 * Math.atan2(2 * jxy[i], d) + Math.PI / 2;
+    coherence[i] = sum > 1e-9 && !bare[i] ? (spread / sum) ** 2 : 0;
+  }
+
+  // Canny: keep each gradient's crest, then the weak crests joined to a strong one.
+  const crest = new Float32Array(n);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (mag[i] < EDGE_LOW || bare[i]) continue;
+      const a = ((Math.atan2(gy[i], gx[i]) * 4) / Math.PI + 8) % 4;
+      const [dx, dy] = a < 0.5 || a >= 3.5 ? [1, 0] : a < 1.5 ? [1, 1] : a < 2.5 ? [0, 1] : [-1, 1];
+      if (mag[i] >= at(mag, x + dx, y + dy) && mag[i] >= at(mag, x - dx, y - dy)) crest[i] = mag[i];
+    }
+  const edge = new Float32Array(n);
+  const stack: number[] = [];
+  for (let i = 0; i < n; i++) if (crest[i] >= EDGE_HIGH) stack.push(i);
+  while (stack.length) {
+    const i = stack.pop()!;
+    if (edge[i]) continue;
+    edge[i] = Math.min(1, crest[i] / EDGE_FULL);
+    const x = i % W;
+    const y = (i - x) / W;
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const j = ny * W + nx;
+        if (!edge[j] && crest[j] >= EDGE_LOW) stack.push(j);
+      }
+  }
+
+  // Thin lines: the Hessian's stronger curvature, much stronger than the other.
+  const h = tone.slice();
+  const s = RIDGE_BLUR / cell;
+  blur(h, W, H, s);
+  const ridge = new Int8Array(n);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (bare[i]) continue;
+      const hxx = at(h, x + 1, y) - 2 * h[i] + at(h, x - 1, y);
+      const hyy = at(h, x, y + 1) - 2 * h[i] + at(h, x, y - 1);
+      const hxy = (at(h, x + 1, y + 1) - at(h, x - 1, y + 1) - at(h, x + 1, y - 1) + at(h, x - 1, y - 1)) / 4;
+      const m = (hxx + hyy) / 2;
+      const r = Math.sqrt(((hxx - hyy) / 2) ** 2 + hxy * hxy);
+      const [big, small] = Math.abs(m + r) > Math.abs(m - r) ? [m + r, m - r] : [m - r, m + r];
+      // Normalised by scale (σ² in cells), so the threshold holds whatever the grid. At a line's
+      // middle the slope is flat; beside a step it isn't, which tells the two apart.
+      if (Math.abs(big) * s * s < RIDGE_MIN || Math.abs(big) < RIDGE_ASPECT * Math.abs(small)) continue;
+      const slope = Math.hypot(at(h, x + 1, y) - at(h, x - 1, y), at(h, x, y + 1) - at(h, x, y - 1)) / 2;
+      if (slope > Math.abs(big) * s * 0.2) continue;
+      ridge[i] = big < 0 ? 1 : -1;
+    }
+  return { edge, dir, coherence, ridge };
 }
 
 /** How light the target is at a sheet position, from 0 (as dark as the drawing gets) to 1 (bare paper); null where there is no image. */

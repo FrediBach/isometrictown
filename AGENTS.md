@@ -13,6 +13,7 @@ npm run build    # tsc type check + vite build: run this to verify every change
 npm run doctor   # React Doctor; run after changing React code
 npm run lod      # LOD lab: draws test places at 1:500–1:8000 and scores wasted ink (docs/lod.md)
 npm run likeness # likeness lab: image mode on test pictures, scored against them (docs/testing.md)
+npm run calibrate  # measures what each image-mode zone lays down, for MATERIALS in src/image-tone.ts
 npm test         # unit tests and golden drawings, offline, ~15 s (docs/testing.md)
 npm run test:update   # accept changed goldens once you've checked the change is meant
 npm run test:record   # fetch map data for new or moved test cases
@@ -30,7 +31,7 @@ npm run test:record   # fetch map data for new or moved test cases
 - `src/lod.ts`: level-of-detail rules, one per kind of thing. `lab/`: the LOD lab.
 - `src/gcode.ts`: G-code for GRBL pen plotters (UUNA TEK 3.0). `src/app/grbl.ts` plots over Web Serial; the Pen Plot dialog is `src/components/plot-dialog.tsx`.
 - `test/`: Vitest. `unit/` for pure logic, `render/` draws the cases in `test/cases.ts` from recorded map data (`fixtures/net`) and checks them against `golden/`. See [docs/testing.md](docs/testing.md).
-- Image mode (`src/image*.ts`, being built to [docs/plans/image-mode.md](docs/plans/image-mode.md)): `imageScene()` lays out a `Town` from a picture instead of the map, and `render()` draws it unchanged. `image-fit.ts` places the image on the sheet, `image-read.ts` reads it into a target, `image-tone.ts` mixes pens and scores likeness. Pictures are kept on the main thread by `src/app/image-store.ts`.
+- Image mode (`src/image*.ts`, being built to [docs/plans/image-mode.md](docs/plans/image-mode.md)): `imageScene()` lays out a `Town` from a picture instead of the map, and `render()` draws it unchanged. `image-fit.ts` places the image on the sheet, `image-read.ts` reads it into a target (tone, colour, edges, lines), `image-zones.ts` zones the ground to match it, `image-tone.ts` holds the materials, mixes pens and scores likeness. Pictures are kept on the main thread by `src/app/image-store.ts`.
 - `src/catalogue.ts`: every thing detected, inferred or made up, with how it is found and where its strokes are filed. The catalogue dialog shows it against the drawing.
 - Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `ships`, `sport`, `vehicles`, `power`, `marginalia`.
 - UI: `src/App.tsx`, `src/app/` (state, renderer, persistence), `src/components/`. Visual rules are in [DESIGN.md](DESIGN.md).

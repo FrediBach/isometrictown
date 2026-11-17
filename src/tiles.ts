@@ -16,8 +16,11 @@ export type Shape = Ring[];
  * any view; `render()` drops these once buildings are classified.
  */
 export type Building = { shape: Shape; h: number; min: number; guess?: boolean; context?: boolean; info?: Info };
-/** Building tags from OpenStreetMap, at the building's centre. */
-export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean };
+/**
+ * Building tags from OpenStreetMap, at the building's centre. Image mode gives the same evidence
+ * for the buildings it lays out, marked `from: 'image'` so they don't count as OSM tags.
+ */
+export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean; from?: 'image' };
 export type WayKind = 'road' | 'rail' | 'path';
 /** `sub` is the OpenMapTiles subclass (tram, narrow_gauge, steps…), `service` the kind of service road (parking_aisle, driveway…). */
 export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean; oneway?: 1 | -1 };

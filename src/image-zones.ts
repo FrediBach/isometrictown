@@ -1,0 +1,547 @@
+/**
+ * Zoning in image mode: a land plan on a grid over the ground, saying what each patch of the
+ * town is (water, park, wood, field, suburb, old town…), how dense, and how many of its roofs
+ * are pitched, so that the drawing's tone and colour follow the image. See
+ * docs/plans/image-mode.md §8.
+ *
+ * The ground is cut into superpixels about a parcel across that follow the image's edges (SLIC),
+ * each gets the label whose material best matches the image where it shows (lifted, for
+ * buildings, to where their roofs and walls land on the sheet), and neighbours are then made to
+ * agree, cheaply across the image's edges and dearly elsewhere (ICM). Patches too small for their
+ * kind are merged away. Likeness weighs the image against the priors that keep the town ordinary.
+ */
+import type { Camera } from './camera';
+import { DARKEST, type Target } from './image-read';
+import { blur, BUILT, chromaWeight, LABELS, lightnessAt, materialColour, type Label } from './image-tone';
+import type { Settings } from './settings';
+
+/** A land plan on a ground grid in local metres: cell (i, j) has its centre at (x0 + (i + ½) cell, y0 + (j + ½) cell). */
+export type Zones = {
+  x0: number;
+  y0: number;
+  cell: number;
+  W: number;
+  H: number;
+  /** Index into `LABELS` per cell. */
+  label: Uint8Array;
+  /** How densely built, planted or drawn, 0–1, within the label's range. */
+  level: Float32Array;
+  /** Share of pitched roofs, 0–1, for built labels. */
+  warmth: Float32Array;
+  /** The superpixel each cell belongs to. */
+  sp: Int32Array;
+};
+
+/** Ground cell size, m: about a millimetre on paper, never under 2 m. */
+export function zoneCell(scale: number): number {
+  return scale <= 2000 ? 2 : scale <= 4000 ? 4 : 8;
+}
+
+/** About one superpixel per parcel, m across, but never finer than the drawing can show tone, mm on paper. */
+const SUPERPIXEL = 24;
+const SUPERPIXEL_MM = 5;
+/** SLIC's compactness: a colour difference worth one superpixel's distance. */
+const COMPACT = 0.03;
+const SLIC_ROUNDS = 5;
+/** Typical height of each label's buildings, m: the image is read half that high, where their roofs and walls show. */
+const HEIGHT: Partial<Record<Label, number>> = { works: 8, suburb: 7, rows: 11, old: 15, blocks: 20, towers: 50 };
+const LEVELS = [0, 0.25, 0.5, 0.75, 1];
+/** Radius over which built-up land counts as town rather than country, m. */
+const URBAN_RADIUS = 160;
+
+/** Soft costs that keep a town ordinary, in ΔE: a base for each label, and how much it minds being in town or out of it. */
+const BASE: Record<Label, number> = { water: 0.006, plaza: 0.008, sand: 0.006, meadow: 0.004, field: 0.004, park: 0.002, allot: 0.008, wood: 0.004, works: 0.008, suburb: 0, rows: 0.003, old: 0.006, blocks: 0.006, towers: 0.012 };
+/** Positive: wants the town; negative: wants the country. */
+const URBAN: Partial<Record<Label, number>> = { works: 0.006, suburb: 0.008, rows: 0.01, old: 0.012, blocks: 0.012, towers: 0.025, plaza: 0.006, field: -0.012, meadow: -0.01, wood: -0.008 };
+/**
+ * The urban gradient: dense labels cost more the farther they are from a core (the middle of
+ * one of the largest dense built masses), fading in from their free radius over `CORE_FADE` m.
+ * Rows ease off later. Cores are masses of at least `CORE_MIN` ha, at most `CORES` of them.
+ */
+const CORE_COST: Partial<Record<Label, [cost: number, free: number]>> = { old: [0.045, 150], blocks: [0.035, 300], towers: [0.045, 200], rows: [0.015, 600] };
+const CORE_FADE = 400;
+const CORE_MIN = 2;
+const CORES = 3;
+/** Sand away from water is unlikely. */
+const SAND_INLAND = 0.08;
+/** Smoothness between differing neighbours, at full realism, in ΔE per superpixel side. */
+const SMOOTH = 0.006;
+/** Smallest patch of each label at full realism, ha; at full likeness, `MIN_LIKE` for all. */
+const MIN_AREA: Record<Label, number> = { water: 0.5, plaza: 0.15, sand: 0.2, meadow: 1, field: 2, park: 1.5, allot: 0.5, wood: 3, works: 1, suburb: 1, rows: 0.6, old: 0.6, blocks: 0.6, towers: 0.8 };
+const MIN_LIKE = 0.1;
+
+const L = (name: Label) => LABELS.indexOf(name);
+const GREEN = new Set<Label>(['meadow', 'field', 'park', 'allot', 'wood']);
+const DENSE = new Set<Label>(['old', 'blocks', 'towers']);
+/** Pairs of built labels and how badly they sit side by side. */
+const BUILT_PAIRS: Record<string, number> = {
+  'suburb rows': 0.3, 'rows old': 0.3, 'old blocks': 0.4, 'blocks towers': 0.4, 'rows blocks': 0.4, 'suburb blocks': 0.6,
+  'suburb old': 0.7, 'rows towers': 0.7, 'suburb towers': 0.8, 'old towers': 1.2, 'works old': 1.5,
+};
+
+/** How badly two labels sit next to each other (§8.2): cheap for water, a park by houses or a wood by fields, dear for towers in fields. */
+export function compat(a: Label, b: Label): number {
+  if (a === b) return 0;
+  if (a === 'water' || b === 'water') return a === 'sand' || b === 'sand' ? 0 : 0.1;
+  if (a === 'sand' || b === 'sand') return 0.6;
+  if (a === 'plaza' || b === 'plaza') return BUILT.has(a === 'plaza' ? b : a) ? 0.3 : 0.5;
+  const ga = GREEN.has(a);
+  const gb = GREEN.has(b);
+  if (ga && gb) return (a === 'wood' && b === 'field') || (a === 'field' && b === 'wood') || (a === 'park' && b === 'meadow') || (a === 'meadow' && b === 'park') ? 0.2 : 0.3;
+  if (!ga && !gb) return BUILT_PAIRS[`${a} ${b}`] ?? BUILT_PAIRS[`${b} ${a}`] ?? 0.6;
+  const [green, built] = ga ? [a, b] : [b, a];
+  if (green === 'park') return 0.4;
+  if (green === 'allot') return built === 'suburb' || built === 'rows' ? 0.4 : 0.8;
+  if (DENSE.has(built)) return green === 'wood' ? 1.2 : 1.5;
+  return built === 'works' ? 0.8 : 0.6;
+}
+
+/**
+ * Whether the pens shape the plan. They do when colour counts; matching lightness alone, zoning
+ * compares through a black pen on white paper instead, so the pens never move a street.
+ */
+export const colourCounts = (set: Pick<Settings, 'imageColour' | 'mono'>) => !set.mono && set.imageColour > 0;
+/** The pens and paper zoning sees when only lightness counts. */
+const REFERENCE = { pens: ['#000000', '#000000', '#000000', '#000000', '#000000'] as Settings['pens'], mono: false, customBackground: false, background: '#ffffff' };
+
+/** `compat()` for every pair of label indices, looked up in the hot loops. */
+const COMPAT = Float32Array.from({ length: LABELS.length ** 2 }, (_, i) => compat(LABELS[Math.floor(i / LABELS.length)], LABELS[i % LABELS.length]));
+
+/** What zoning needs from the settings. */
+export type ZoneSettings = Pick<Settings, 'scale' | 'likeness' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
+
+/**
+ * Zone the ground in `box` (local metres) to look like the target through `cam`. The pens shape
+ * the materials' colours, so they count here; the tone of what is drawn does not depend on them.
+ */
+export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[]): Zones {
+  const cell = zoneCell(set.scale);
+  const [bx0, by0, bx1, by1] = box;
+  const W = Math.max(1, Math.ceil((bx1 - bx0) / cell));
+  const H = Math.max(1, Math.ceil((by1 - by0) / cell));
+  const n = W * H;
+  const likeness = Math.max(0, Math.min(1, set.likeness));
+  const across = Math.max(SUPERPIXEL, SUPERPIXEL_MM / cam.s, 2 * cell);
+  const colour = colourCounts(set);
+  const chroma = colour ? chromaWeight(set) : 0;
+  const seen = colour ? set : { ...set, ...REFERENCE };
+  // Lightness alone: the target's tone, in the reference's range.
+  const refPaper = 1;
+  const refDark = lightnessAt('#ffffff', '#000000', DARKEST);
+
+  // The target where each ground cell shows on the sheet, at the heights the labels are read at.
+  const lifts = [0, ...new Set(Object.values(HEIGHT).map((h) => h / 2))];
+  const liftOf = (l: Label) => lifts.indexOf((HEIGHT[l] ?? 0) / 2);
+  const lab = lifts.map(() => new Float32Array(n * 3));
+  const weight = new Float32Array(n);
+  const tone = new Float32Array(n);
+  const edge = new Float32Array(n);
+  const reach = Math.max(0, Math.ceil((cell * cam.s) / target.cell / 2));
+  const tcell = (sx: number, sy: number) => {
+    const cx = Math.max(0, Math.min(target.W - 1, Math.floor((sx - target.x0) / target.cell)));
+    const cy = Math.max(0, Math.min(target.H - 1, Math.floor((sy - target.y0) / target.cell)));
+    return [cx, cy];
+  };
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const c = j * W + i;
+      const x = bx0 + (i + 0.5) * cell;
+      const y = by0 + (j + 0.5) * cell;
+      const sx = cam.sx(x, y);
+      lifts.forEach((z, k) => {
+        const [cx, cy] = tcell(sx, cam.sy(x, y, z));
+        const t = cy * target.W + cx;
+        lab[k][c * 3] = colour ? target.L[t] : refDark + (refPaper - refDark) * target.tone[t];
+        lab[k][c * 3 + 1] = colour ? target.a[t] : 0;
+        lab[k][c * 3 + 2] = colour ? target.b[t] : 0;
+        if (k) return;
+        weight[c] = target.weight[t];
+        tone[c] = target.tone[t];
+        // An edge anywhere under the cell counts: edges are thin and cells aren't.
+        let e = 0;
+        for (let dy = -reach; dy <= reach; dy++)
+          for (let dx = -reach; dx <= reach; dx++) {
+            const ex = cx + dx;
+            const ey = cy + dy;
+            if (ex >= 0 && ey >= 0 && ex < target.W && ey < target.H) e = Math.max(e, target.edge[ey * target.W + ex]);
+          }
+        edge[c] = e;
+      });
+    }
+  }
+
+  // How much like town the land round each cell is, from how dark the image is there; no image counts as middling.
+  const dark = new Float32Array(n);
+  const has = new Float32Array(n);
+  for (let c = 0; c < n; c++) {
+    dark[c] = weight[c] * (1 - tone[c]);
+    has[c] = weight[c];
+  }
+  blur(dark, W, H, URBAN_RADIUS / cell);
+  blur(has, W, H, URBAN_RADIUS / cell);
+  const urban = new Float32Array(n);
+  for (let c = 0; c < n; c++) urban[c] = Math.max(0, Math.min(1, ((has[c] > 0.05 ? dark[c] / has[c] : 0.45) - 0.15) / 0.6));
+
+  const sp = slic(lab[0], W, H, Math.round(across / cell));
+  const count = sp.reduce((m, v) => Math.max(m, v + 1), 0);
+
+  // What each superpixel looks like, and which superpixels touch, with how strong an edge runs between them.
+  const area = new Float32Array(count);
+  const spLab = lifts.map(() => new Float32Array(count * 3));
+  const spWeight = new Float32Array(count);
+  const spUrban = new Float32Array(count);
+  for (let c = 0; c < n; c++) {
+    const s = sp[c];
+    area[s]++;
+    spWeight[s] += weight[c];
+    spUrban[s] += urban[c];
+    for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] += lab[k][c * 3 + ch];
+  }
+  for (let s = 0; s < count; s++) {
+    spWeight[s] /= area[s];
+    spUrban[s] /= area[s];
+    for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] /= area[s];
+  }
+  const sides = new Map<number, [number, number]>();
+  const side = (a: number, b: number, e: number) => {
+    const key = a < b ? a * count + b : b * count + a;
+    const v = sides.get(key);
+    if (v) {
+      v[0]++;
+      v[1] += e;
+    } else sides.set(key, [1, e]);
+  };
+  for (let j = 0; j < H; j++)
+    for (let i = 0; i < W; i++) {
+      const c = j * W + i;
+      if (i + 1 < W && sp[c] !== sp[c + 1]) side(sp[c], sp[c + 1], Math.max(edge[c], edge[c + 1]));
+      if (j + 1 < H && sp[c] !== sp[c + W]) side(sp[c], sp[c + W], Math.max(edge[c], edge[c + W]));
+    }
+  /** A superpixel's side, in cells. */
+  const sideCells = across / cell;
+  const lambda = SMOOTH * (1.2 - likeness);
+  /** Per superpixel: [neighbour, weight of the shared side], the weight already cheapened by the edge along it. */
+  const nbrs: [number, number][][] = Array.from({ length: count }, () => []);
+  for (const [key, [len, e]] of sides) {
+    const a = Math.floor(key / count);
+    const b = key % count;
+    const w = lambda * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
+    nbrs[a].push([b, w]);
+    nbrs[b].push([a, w]);
+  }
+
+  // Data cost: the closest the label's material comes to the image, plus the priors.
+  const K = LABELS.length;
+  const colours = LABELS.map((l) => LEVELS.map((v) => (BUILT.has(l) ? [0, 1] : [1]).map((w) => materialColour(l, v, w, seen))));
+  const prior = 1 - 0.75 * likeness;
+  const data = new Float32Array(count * K);
+  const bestLevel = new Float32Array(count * K);
+  const bestWarmth = new Float32Array(count * K);
+  for (let s = 0; s < count; s++) {
+    for (let k = 0; k < K; k++) {
+      const l = LABELS[k];
+      const t = spLab[liftOf(l)];
+      let best = Infinity;
+      LEVELS.forEach((v, li) => colours[k][li].forEach((col, wi) => {
+        const dL = t[s * 3] - col[0];
+        const da = t[s * 3 + 1] - col[1];
+        const db = t[s * 3 + 2] - col[2];
+        const d = Math.sqrt(dL * dL + chroma * chroma * (da * da + db * db));
+        if (d < best) {
+          best = d;
+          bestLevel[s * K + k] = v;
+          bestWarmth[s * K + k] = BUILT.has(l) ? wi : 0;
+        }
+      }));
+      const u = URBAN[l] ?? 0;
+      const urb = u > 0 ? u * (1 - spUrban[s]) : -u * spUrban[s];
+      data[s * K + k] = spWeight[s] * best + prior * (BASE[l] + urb);
+    }
+  }
+
+  // Greedy by data, then iterated conditional modes with the neighbours, in a fixed order.
+  const label = new Uint8Array(count);
+  for (let s = 0; s < count; s++) {
+    let best = 0;
+    for (let k = 1; k < K; k++) if (data[s * K + k] < data[s * K + best]) best = k;
+    label[s] = best;
+  }
+  const WATER = L('water');
+  const SAND = L('sand');
+  /** Superpixels where sand was tried away from water, and isn't allowed again. */
+  const dry = new Uint8Array(count);
+  const cost = (s: number, k: number) => {
+    if (k === SAND && dry[s]) return Infinity;
+    let c = data[s * K + k];
+    let wet = false;
+    for (const [t, w] of nbrs[s]) {
+      c += w * COMPAT[k * K + label[t]];
+      if (label[t] === WATER) wet = true;
+    }
+    if (k === SAND && !wet) c += prior * SAND_INLAND;
+    return c;
+  };
+  const settle = () => {
+    for (let round = 0; round < 12; round++) {
+      let changed = 0;
+      for (let s = 0; s < count; s++) {
+        let best = label[s];
+        let bc = cost(s, best);
+        for (let k = 0; k < K; k++) {
+          const c = cost(s, k);
+          if (c < bc - 1e-9) {
+            bc = c;
+            best = k;
+          }
+        }
+        if (best !== label[s]) {
+          label[s] = best;
+          changed++;
+        }
+      }
+      if (!changed) break;
+    }
+  };
+  settle();
+  // The urban gradient: find the cores, then make density fall away from them, and settle again.
+  const cores = coresOf(label, nbrs, area, sp, W, (CORE_MIN * 10000) / (cell * cell));
+  if (cores.length) {
+    const cx = new Float32Array(count);
+    const cy = new Float32Array(count);
+    for (let c = 0; c < n; c++) {
+      cx[sp[c]] += c % W;
+      cy[sp[c]] += Math.floor(c / W);
+    }
+    for (let s = 0; s < count; s++) {
+      let d = Infinity;
+      for (const [x, y] of cores) d = Math.min(d, Math.hypot(cx[s] / area[s] - x, cy[s] / area[s] - y) * cell);
+      for (const [l, [c, free]] of Object.entries(CORE_COST) as [Label, [number, number]][]) data[s * K + L(l)] += prior * c * Math.max(0, Math.min(1, (d - free) / CORE_FADE));
+    }
+    settle();
+  }
+  // Patches too small for their kind join whichever neighbour suits them best.
+  const mergeSmall = () => {
+    for (let pass = 0; pass < 6; pass++) {
+      const comp = new Int32Array(count).fill(-1);
+      const comps: number[][] = [];
+      for (let s = 0; s < count; s++) {
+        if (comp[s] >= 0) continue;
+        const list = [s];
+        comp[s] = comps.length;
+        for (let q = 0; q < list.length; q++)
+          for (const [t] of nbrs[list[q]])
+            if (comp[t] < 0 && label[t] === label[s]) {
+              comp[t] = comps.length;
+              list.push(t);
+            }
+        comps.push(list);
+      }
+      let merged = 0;
+      const order = comps.map((_, i) => i).sort((a, b) => comps[a].length - comps[b].length || a - b);
+      for (const ci of order) {
+        const list = comps[ci];
+        const k = label[list[0]];
+        const real = MIN_AREA[LABELS[k]];
+        const min = (real + (Math.min(real, MIN_LIKE) - real) * likeness) * 10000;
+        if (list.reduce((a, s) => a + area[s], 0) * cell * cell >= min) continue;
+        const around = new Set<number>();
+        for (const s of list) for (const [t] of nbrs[s]) if (label[t] !== k) around.add(label[t]);
+        if (!around.size) continue;
+        let best = -1;
+        let bc = Infinity;
+        for (const o of around) {
+          const c = list.reduce((a, s) => a + data[s * K + o], 0);
+          if (c < bc) {
+            bc = c;
+            best = o;
+          }
+        }
+        for (const s of list) label[s] = best;
+        merged++;
+      }
+      if (!merged) break;
+    }
+  };
+
+  mergeSmall();
+  // ICM can't move a whole inland beach at once, and merging can take away the water that made a
+  // beach likely: sand more than a couple of superpixels from water goes back to the next best
+  // thing, and the rest settles round it.
+  for (let round = 0; round < 3; round++) {
+    let found = false;
+    for (let s = 0; s < count; s++) {
+      if (label[s] !== SAND) continue;
+      let wet = false;
+      for (const [t] of nbrs[s]) {
+        if (label[t] === WATER) wet = true;
+        for (const [u] of nbrs[t]) if (label[u] === WATER) wet = true;
+      }
+      if (wet) continue;
+      found = true;
+      dry[s] = 1;
+      let best = -1;
+      for (let k = 0; k < K; k++) if (k !== SAND && (best < 0 || data[s * K + k] < data[s * K + best])) best = k;
+      label[s] = best;
+    }
+    if (!found) break;
+    settle();
+  }
+
+  mergeSmall();
+  // And any sand merging left without water nearby, without settling again.
+  for (let s = 0; s < count; s++) {
+    if (label[s] !== SAND || nbrs[s].some(([t]) => label[t] === WATER || nbrs[t].some(([u]) => label[u] === WATER))) continue;
+    let best = -1;
+    for (let k = 0; k < K; k++) if (k !== SAND && (best < 0 || data[s * K + k] < data[s * K + best])) best = k;
+    label[s] = best;
+  }
+
+  // Levels and warmth from each superpixel's label, calmed within each zone.
+  const lv = new Float32Array(count);
+  const wm = new Float32Array(count);
+  for (let s = 0; s < count; s++) {
+    let sum = bestLevel[s * K + label[s]] * area[s];
+    let ws = bestWarmth[s * K + label[s]] * area[s];
+    let tot = area[s];
+    for (const [t] of nbrs[s]) {
+      if (label[t] !== label[s]) continue;
+      sum += bestLevel[t * K + label[t]] * area[t];
+      ws += bestWarmth[t * K + label[t]] * area[t];
+      tot += area[t];
+    }
+    lv[s] = sum / tot;
+    wm[s] = ws / tot;
+  }
+
+  const out: Zones = { x0: bx0, y0: by0, cell, W, H, label: new Uint8Array(n), level: new Float32Array(n), warmth: new Float32Array(n), sp };
+  for (let c = 0; c < n; c++) {
+    out.label[c] = label[sp[c]];
+    out.level[c] = lv[sp[c]];
+    out.warmth[c] = wm[sp[c]];
+  }
+  return out;
+}
+
+/**
+ * SLIC superpixels (Achanta et al. 2012) on a grid of OKLab colours, about `S` cells across, made
+ * connected. Returns each cell's superpixel, numbered from 0.
+ */
+export function slic(lab: Float32Array, W: number, H: number, S: number): Int32Array {
+  const n = W * H;
+  const cx: number[] = [];
+  const cy: number[] = [];
+  const cl: number[] = [];
+  for (let y = S / 2; y < H; y += S)
+    for (let x = S / 2; x < W; x += S) {
+      const c = Math.floor(y) * W + Math.floor(x);
+      cx.push(x);
+      cy.push(y);
+      cl.push(lab[c * 3], lab[c * 3 + 1], lab[c * 3 + 2]);
+    }
+  const k = cx.length;
+  const assign = new Int32Array(n).fill(-1);
+  const dist = new Float32Array(n);
+  const m2 = 1 / (COMPACT * COMPACT);
+  const s2 = 1 / (S * S);
+  for (let round = 0; round < SLIC_ROUNDS; round++) {
+    dist.fill(Infinity);
+    for (let q = 0; q < k; q++) {
+      const x0 = Math.max(0, Math.floor(cx[q] - S));
+      const x1 = Math.min(W - 1, Math.ceil(cx[q] + S));
+      const y0 = Math.max(0, Math.floor(cy[q] - S));
+      const y1 = Math.min(H - 1, Math.ceil(cy[q] + S));
+      for (let y = y0; y <= y1; y++)
+        for (let x = x0; x <= x1; x++) {
+          const c = y * W + x;
+          const dL = lab[c * 3] - cl[q * 3];
+          const da = lab[c * 3 + 1] - cl[q * 3 + 1];
+          const db = lab[c * 3 + 2] - cl[q * 3 + 2];
+          const d = (dL * dL + da * da + db * db) * m2 + ((x - cx[q]) ** 2 + (y - cy[q]) ** 2) * s2;
+          if (d < dist[c]) {
+            dist[c] = d;
+            assign[c] = q;
+          }
+        }
+    }
+    const sum = new Float64Array(k * 6);
+    for (let c = 0; c < n; c++) {
+      const q = assign[c];
+      sum[q * 6] += c % W;
+      sum[q * 6 + 1] += Math.floor(c / W);
+      for (let ch = 0; ch < 3; ch++) sum[q * 6 + 2 + ch] += lab[c * 3 + ch];
+      sum[q * 6 + 5]++;
+    }
+    for (let q = 0; q < k; q++) {
+      const m = sum[q * 6 + 5];
+      if (!m) continue;
+      cx[q] = sum[q * 6] / m;
+      cy[q] = sum[q * 6 + 1] / m;
+      for (let ch = 0; ch < 3; ch++) cl[q * 3 + ch] = sum[q * 6 + 2 + ch] / m;
+    }
+  }
+
+  // Connected pieces, each its own superpixel; scraps join the one they touch first.
+  const out = new Int32Array(n).fill(-1);
+  const min = Math.max(1, (S * S) / 4);
+  let next = 0;
+  const queue: number[] = [];
+  for (let start = 0; start < n; start++) {
+    if (out[start] >= 0) continue;
+    const q = assign[start];
+    queue.length = 0;
+    queue.push(start);
+    out[start] = next;
+    let touching = -1;
+    for (let h = 0; h < queue.length; h++) {
+      const c = queue[h];
+      const x = c % W;
+      for (const d of [x > 0 ? c - 1 : -1, x < W - 1 ? c + 1 : -1, c - W, c + W]) {
+        if (d < 0 || d >= n) continue;
+        if (out[d] < 0 && assign[d] === q) {
+          out[d] = next;
+          queue.push(d);
+        } else if (out[d] >= 0 && out[d] !== next && touching < 0) touching = out[d];
+      }
+    }
+    if (queue.length < min && touching >= 0) for (const c of queue) out[c] = touching;
+    else next++;
+  }
+  return out;
+}
+
+/** The label at a ground point, or null outside the plan. */
+export function labelAt(z: Zones, x: number, y: number): Label | null {
+  const i = Math.floor((x - z.x0) / z.cell);
+  const j = Math.floor((y - z.y0) / z.cell);
+  return i < 0 || j < 0 || i >= z.W || j >= z.H ? null : LABELS[z.label[j * z.W + i]];
+}
+
+/** Middles of the largest masses of dense built superpixels (old town, blocks, towers) of at least `min` cells, in cells. */
+function coresOf(label: Uint8Array, nbrs: [number, number][][], area: Float32Array, sp: Int32Array, W: number, min: number): [number, number][] {
+  const dense = new Set([L('old'), L('blocks'), L('towers')]);
+  const count = label.length;
+  const comp = new Int32Array(count).fill(-1);
+  const sizes: number[] = [];
+  for (let s = 0; s < count; s++) {
+    if (comp[s] >= 0 || !dense.has(label[s])) continue;
+    const id = sizes.length;
+    const list = [s];
+    comp[s] = id;
+    for (let q = 0; q < list.length; q++)
+      for (const [t] of nbrs[list[q]])
+        if (comp[t] < 0 && dense.has(label[t])) {
+          comp[t] = id;
+          list.push(t);
+        }
+    sizes.push(list.reduce((a, t) => a + area[t], 0));
+  }
+  const big = sizes.map((size, id) => ({ size, id })).filter((m) => m.size >= min).sort((a, b) => b.size - a.size || a.id - b.id).slice(0, CORES);
+  const sum = new Map(big.map((m) => [m.id, [0, 0]]));
+  for (let c = 0; c < sp.length; c++) {
+    const t = sum.get(comp[sp[c]]);
+    if (!t) continue;
+    t[0] += c % W;
+    t[1] += Math.floor(c / W);
+  }
+  return big.map((m) => [sum.get(m.id)![0] / m.size, sum.get(m.id)![1] / m.size]);
+}

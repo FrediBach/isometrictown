@@ -548,7 +548,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       // Towers joined by party walls are one development: they share a window scheme.
       facade: chooseFacade(kind, t?.building, roof, H, style.id, kind === 'terrace' ? row : kind === 'tall' && hasParty ? g : r, office),
       seed,
-      tagged: !!tagRoof,
+      tagged: !!tagRoof && !t?.from,
     };
   }
 

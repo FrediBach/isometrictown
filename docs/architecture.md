@@ -45,7 +45,8 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | --- | --- |
 | `tiles.ts` | OpenFreeMap z14 vector tiles → a `Town` in local metres; road widths, POI sets |
 | `image.ts` | Image mode: a `Town` laid out from a picture, the fictional place it stands in (`drawnAs()`), and the cached layout |
-| `image-fit.ts`, `image-read.ts`, `image-tone.ts` | Where the image lies on the sheet; the picture read into a target in OKLab; pen mixing and the likeness score |
+| `image-fit.ts`, `image-read.ts`, `image-tone.ts` | Where the image lies on the sheet; the picture read into a target (OKLab, tone, edges, orientation, thin lines); the materials, pen mixing and the likeness score |
+| `image-zones.ts` | Image mode's land plan: superpixels that follow the image's edges, each labelled water, park, wood, field, suburb, old town and so on to match it |
 | `osm.ts` | Overpass roof shapes and building types (best effort, time-boxed) |
 | `netcache.ts` | Cache Storage wrapper: cache-first, stale on failure, pruned |
 | `styles.ts` | Regional building styles and offline country detection |

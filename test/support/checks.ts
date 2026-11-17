@@ -71,8 +71,10 @@ export function sheetChecks(sheet: () => Sheet, set: Settings): void {
   test('planning joins and orders strokes without losing ink', () => {
     const s = sheet();
     const rawInk = s.raw.reduce((t, p) => t + p.reduce((u, l) => u + length(l), 0), 0);
-    // Joining snaps ends that meet within 0.03 mm, so ink moves by a hair, never by a stroke.
-    expect(Math.abs(s.stats.ink - rawInk) / rawInk).toBeLessThan(1e-5);
+    // Joining snaps ends that meet within 0.03 mm, so ink moves by a hair at each join, never by a
+    // stroke. Dense rows of buildings make tens of thousands of joins, so the hair is per join.
+    const joins = s.stats.rawLifts - s.stats.lifts;
+    expect(Math.abs(s.stats.ink - rawInk)).toBeLessThan(Math.max(1e-5 * rawInk, 2e-4 * joins));
     expect(s.stats.lifts).toBeLessThanOrEqual(s.stats.rawLifts);
     expect(s.stats.travel).toBeLessThan(s.stats.rawTravel);
   });
