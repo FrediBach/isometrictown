@@ -111,8 +111,7 @@ export function compat(a: Label, b: Label): number {
 }
 
 /**
- * Whether the pens shape the plan. They do when colour counts; matching lightness alone, zoning
- * compares through a black pen on white paper instead, so the pens never move a street.
+ * Whether zoning matches colour using the layout palette. A tone-only plan uses black on white.
  */
 export const colourCounts = (set: Pick<Settings, 'imageColour' | 'mono'>) => !set.mono && set.imageColour > 0;
 /** The pens and paper zoning sees when only lightness counts. */

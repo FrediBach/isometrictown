@@ -53,11 +53,9 @@ export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture
           { value: 'image', label: 'Image' },
         ]}
       />
-      {/* Hidden rather than unmounted, so the locator map keeps its state. */}
-      <div hidden={image}>
-        <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />
-      </div>
-      {image && <ImageSource picture={picture} onFile={onFile} />}
+      {image
+        ? <ImageSource picture={picture} onFile={onFile} />
+        : <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />}
     </Section>
   );
 }

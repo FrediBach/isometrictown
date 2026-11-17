@@ -11,16 +11,16 @@
 import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
-import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext } from './image-buildings';
+import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { tune, type Prediction, type Seen } from './image-tune';
-import { readImage, type Target } from './image-read';
+import { readImage, remapTarget, type Target } from './image-read';
 import { streets, type Graph } from './image-streets';
-import { colourCounts, zone, type Zones } from './image-zones';
-import { reachHeight } from './render';
+import { zone, type Zones } from './image-zones';
+import { reachHeight, streamShapes } from './render';
 import { hash } from './rng';
-import type { Settings } from './settings';
+import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { IMAGE_STYLE, STYLES, type Region, type Style, type StyleId } from './styles';
 import { empty, type Town } from './tiles';
 
@@ -66,47 +66,53 @@ export function imageRegion(set: Settings): Region {
 }
 
 /** Everything a drawing from an image needs: the drawn-as settings, the camera, the target, the land plan and the town. */
-export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style };
+export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction };
 
 /**
- * Settings the town's layout depends on, besides the pens when colour counts (see
- * `colourCounts()`). Detail, pen width, sun, shadows and the layer switches only change how it
+ * Settings the layout depends on. Colour zoning uses the Classic pens on white paper.
+ * Detail, pen width, pen colours, sun, shadows and the layer switches only change how it
  * is drawn, so they never move a street.
  */
 const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
 /** And the target, on what decides how the drawing should look. */
-const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'pens', 'customBackground', 'background', 'sheet', 'landscape', 'margin', 'marginalia'];
+const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia'];
 
-const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[], more: unknown = null) => JSON.stringify([pic.id, ...keys.map((k) => set[k]), more]);
+const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[]) => JSON.stringify([pic.id, ...keys.map((k) => set[k])]);
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
 let laid: { key: string; zones: Zones; layout: Layout } | null = null;
 let built: { key: string; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
-/** Lay out the town for a picture (or take the last one, if nothing it depends on changed), reporting each step. */
-export function imageScene(pic: Picture, set: Settings, note: (text: string) => void = () => {}): Scene {
+/** Lay out the town for a picture, reusing the last layout. The lab can request a tuned build of its own. */
+export function imageScene(pic: Picture, set: Settings, note: (text: string) => void = () => {}, tuned = false): Scene {
   const drawn = drawnAs(set);
   const cam = new Camera(drawn);
   const frame = new Frame(drawn.center);
   const box = cam.region(reachHeight(drawn));
   const region = imageRegion(drawn);
   const style = STYLES[region.style];
+  const reference = { ...drawn, pens: DEFAULT_SETTINGS.pens, customBackground: false };
   const lookKey = keyOf(pic, drawn, LOOK);
   if (read?.key !== lookKey) {
     note('Reading the image');
-    read = { key: lookKey, target: readImage(pic, drawn, cam.rect) };
+    read = { key: lookKey, target: readImage(pic, reference, cam.rect) };
   }
   const target = read.target;
-  const townKey = keyOf(pic, drawn, STRUCTURE, colourCounts(drawn) ? [drawn.pens, drawn.customBackground, drawn.background] : null);
+  const townKey = keyOf(pic, drawn, STRUCTURE);
   if (laid?.key !== townKey) {
     note('Zoning the ground');
-    const zones = zone(target, drawn, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
+    const zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
     note('Laying out streets');
     laid = { key: townKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note) };
   }
+  const scene = { set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style };
+  if (tuned) {
+    const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true);
+    return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
+  }
   if (built?.key !== townKey) built = { key: townKey, town: imageBuild(laid.layout, target, drawn, cam, note).town };
-  return { set: drawn, cam, frame, box, target, zones: laid.zones, streets: laid.layout.streets, blocks: laid.layout.blocks, town: structuredClone(built.town), region, style };
+  return { ...scene, blocks: laid.layout.blocks, town: structuredClone(built.town) };
 }
 
 /** The land plan reaches this far beyond the ground that can show, m, so streets run off the sheet and buildings at its edge have neighbours. */
@@ -155,12 +161,12 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   const occ = new Occupancy(zones.x0, zones.y0, Math.max(OCCUPY, zones.cell / 4), zones.W * zones.cell, zones.H * zones.cell);
   for (const w of st.ways) occ.way(w);
   for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
-  for (const s of [...town.water, ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
+  for (const s of [...town.water, ...streamShapes(town.streams), ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
   const mmPerMetre = 1000 / set.scale;
   note('Cutting blocks into lots');
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
-  const ground = new Ground({ ways: town.ways, water: town.water, green: parks, wood: town.wood, plazas: town.plazas });
+  const ground = new Ground(town);
   const context: BuildContext = { z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre };
   landmarks(blocks, context);
   return { town, streets: st.graph, blocks, context };
@@ -173,16 +179,24 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
  * M5), so drawings are built untuned.
  */
 export function imageBuild(layout: Layout, target: Target, set: Settings, cam: Camera, note: (text: string) => void = () => {}, tuned = false, seenBefore?: Seen): { town: Town; blocks: Block[]; prediction: Prediction | null } {
-  const town: Town = { ...layout.town, landuse: [...layout.town.landuse] };
+  // Buildings add land use, and rendering can put roundabout islands in the parks.
+  const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
-  const ctx: BuildContext = { ...layout.context, set, occ: layout.context.occ.clone(), laid: new Footprints() };
+  const buildingGround = (): BuildContext => ({ ...layout.context, set, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
+  let tunedFronts: Map<number, FrontageLot> | undefined;
   if (tuned) {
+    // The streets take only ground left free by the block lots. Find the exact plots first so
+    // the predictor changes real rows; the final placement checks every changed footprint again.
+    const fronts: FrontageLot[] = [];
+    buildingsOf(blocks, buildingGround(), { record: fronts });
     note('Tuning to the image');
-    prediction = tune(blocks, ctx.z, target, cam, set, ctx.box, { seenBefore });
+    prediction = tune(blocks, layout.context.z, target, cam, set, layout.context.box, { seenBefore, frontages: fronts });
+    tunedFronts = new Map(fronts.map((l) => [l.index, l]));
   }
   note('Putting up buildings');
-  const built = buildingsOf(blocks, ctx);
+  const ctx = buildingGround();
+  const built = buildingsOf(blocks, ctx, tunedFronts ? { tuned: tunedFronts } : undefined);
   town.buildings = built.buildings;
   town.tagged = built.tagged;
   town.pois = built.pois;

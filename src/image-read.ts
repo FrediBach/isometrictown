@@ -21,8 +21,10 @@ export type Target = Look & {
   dir: Float32Array;
   /** How strongly the image is oriented there, 0–1. */
   coherence: Float32Array;
-  /** Thin bright (+1) or dark (−1) lines: bright ones want to be streets and paths, dark ones tree rows and hedges. */
+  /** Thin dark (−1) or bright (+1) lines, and the centrelines of broad bright strokes (+2). */
   ridge: Int8Array;
+  /** Paper colour used to map this target, including cells where the picture is transparent. */
+  paperColour: string;
   /** OKLab lightness of the paper and of the darkest tone a believable town lays down. */
   paper: number;
   dark: number;
@@ -56,6 +58,27 @@ function percentile(hist: Float64Array, total: number, share: number): number {
 
 /** The settings that shape the target. */
 export type ReadSettings = Pick<Settings, 'imageFit' | 'imageFocus' | 'imageLight' | 'imageContrast' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
+
+type InkSettings = Pick<Settings, 'pens' | 'mono' | 'customBackground' | 'background'>;
+
+/** Apply the current paper and linework ink to a target without reading the pixels or finding its edges again. */
+export function remapTarget(t: Target, set: InkSettings): Target {
+  const paperColour = paperOf(set);
+  const dark = lightnessAt(paperColour, set.mono ? '#000000' : set.pens[LINEWORK], DARKEST);
+  if (paperColour === t.paperColour && dark === t.dark) return t;
+  const tint = [0, 0, 0];
+  oklab(...hexToLinear(paperColour), tint);
+  const paper = tint[0];
+  const L = Float32Array.from(t.tone, (v) => dark + (paper - dark) * v);
+  // The uncovered cells of a fitted or transparent image take the tint of the new paper.
+  const a = t.a.slice();
+  const b = t.b.slice();
+  for (let i = 0; i < L.length; i++) if (!t.weight[i]) {
+    a[i] = tint[1];
+    b[i] = tint[2];
+  }
+  return { ...t, L, a, b, dark, paper, paperColour };
+}
 
 /** Sample the picture over the drawing area `rect` (sheet mm) and map it into the drawing's range of tone. */
 export function readImage(pic: Picture, set: ReadSettings, rect: readonly number[]): Target {
@@ -172,7 +195,7 @@ export function readImage(pic: Picture, set: ReadSettings, rect: readonly number
     A[i] *= chroma;
     B[i] *= chroma;
   }
-  return { x0, y0, cell, W, H, L, a: A, b: B, weight, tone, paper, dark, ...structure(tone, weight, W, H, cell) };
+  return { x0, y0, cell, W, H, L, a: A, b: B, weight, tone, paperColour: paperHex, paper, dark, ...structure(tone, weight, W, H, cell) };
 }
 
 /** Blur for gradients, for the structure tensor and for thin lines, mm. */
@@ -285,6 +308,48 @@ function structure(tone: Float32Array, weight: Float32Array, W: number, H: numbe
       if (slope > Math.abs(big) * s * 0.2) continue;
       ridge[i] = big < 0 ? 1 : -1;
     }
+  // A broad bright stroke has two facing edges but little curvature in its flat middle.
+  // Trace inward from each bank and mark halfway to the opposite one. Stop at the first
+  // strong edge so a road cannot jump across intervening detail or a transparent margin.
+  const maxSpan = Math.round(36 / cell);
+  // Surrounded by other stripes of similar brightness, a band is texture for the zones.
+  // Look beyond each bank for another light band within two widths of the first. An edge
+  // of the picture leaves that flank unknown, so judge it from the side still in view.
+  const nextBand = (x: number, y: number, nx: number, ny: number, span: number, light: number): boolean | undefined => {
+    const step = Math.max(1, Math.floor(span / 4));
+    for (let d = Math.ceil(span / 2); d < 2 * span; d += step) {
+      const xx = x + Math.round(d * nx);
+      const yy = y + Math.round(d * ny);
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H || bare[yy * W + xx]) return undefined;
+      if (g[yy * W + xx] > light - EDGE_LOW) return true;
+    }
+    return false;
+  };
+  for (let i = 0; i < n; i++) {
+    if (!edge[i]) continue;
+    const x = i % W;
+    const y = Math.floor(i / W);
+    const nx = gx[i] / mag[i];
+    const ny = gy[i] / mag[i];
+    for (let d = 3; d <= maxSpan; d++) {
+      const xx = x + Math.round(d * nx);
+      const yy = y + Math.round(d * ny);
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H) break;
+      const j = yy * W + xx;
+      if (bare[j]) break;
+      if (!edge[j]) continue;
+      if (d * cell >= 4 && gx[j] * nx + gy[j] * ny < -0.95 * mag[j]) {
+        const mid = Math.round((y + yy) / 2) * W + Math.round((x + xx) / 2);
+        if (!ridge[mid] && g[mid] > Math.max(g[i], g[j]) + EDGE_LOW) {
+          const before = nextBand(x, y, -nx, -ny, d, g[mid]);
+          const after = nextBand(xx, yy, nx, ny, d, g[mid]);
+          const repeated = (before || after) && before !== false && after !== false;
+          if (!repeated) ridge[mid] = 2;
+        }
+      }
+      break;
+    }
+  }
   return { edge, dir, coherence, ridge };
 }
 

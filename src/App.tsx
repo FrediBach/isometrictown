@@ -3,8 +3,8 @@ import { Camera } from './camera';
 import { Frame, type LngLat } from './geo';
 import type { Locator } from './locator';
 import { cn } from '@/lib/utils';
-import { defaultsAt, loadSettings, persist, REFIT_KEYS, slug, toImageMode, VIEW_KEYS } from './app/model';
-import { Renderer, type RenderResult, type RenderStatus } from './app/renderer';
+import { defaultsAt, loadSettings, persist, REFIT_KEYS, selectPicture, slug, toImageMode, VIEW_KEYS } from './app/model';
+import { Renderer, scoreLook, type RenderResult, type RenderStatus } from './app/renderer';
 import { SettingsContext, type Change } from './app/settings-context';
 import { usePicture } from './app/use-picture';
 import { AboutDialog } from './components/about-dialog';
@@ -58,7 +58,7 @@ export function App() {
   }, []);
 
   // The picture image mode draws from; a stored one is loaded when its id turns up, then drawn.
-  const picture = usePicture(set.image, () => schedule(0));
+  const picture = usePicture(set.source === 'image' ? set.image : '', () => schedule(0));
   const currentPicture = picture.current;
 
   /** In image mode, score the drawing on show again for new pens or paper; it needn't be drawn again. */
@@ -116,26 +116,25 @@ export function App() {
   /** Switch between drawing a place from the map and a town laid out from an image. */
   function setSource(source: Settings['source']): void {
     if (source === live.current.source) return;
+    picture.cancelChoice();
+    locator.current = null;
+    setResult(null);
+    setStatus({ text: '', state: 'idle' });
     commit(source === 'image' ? toImageMode(live.current) : { ...live.current, source });
-    if (source === 'map') locator.current?.setView(live.current.center, live.current.bearing);
-    // The map's drawing isn't one of the image; until there is an image, the sheet stays blank.
-    else if (!live.current.image) setResult(null);
-    updateFootprint(true);
-    schedule(0);
   }
 
   /** Read an image file, keep it, and draw from it. */
   async function chooseImage(file: File): Promise<void> {
     const p = await picture.choose(file);
-    if (!p) return;
-    const base = live.current.source === 'image' ? live.current : toImageMode(live.current);
-    commit({ ...base, image: p.id, imageName: p.name, imageFocus: [0.5, 0.5] });
-    updateFootprint(true);
+    if (!p || live.current.source !== 'image') return;
+    if (p.id !== live.current.image) setResult(null);
+    commit(selectPicture(live.current, p));
     schedule(0);
   }
 
   function onMapMove(center: LngLat, bearing: number): void {
     const s = live.current;
+    if (s.source !== 'map') return;
     const moved = Math.abs(center[0] - s.center[0]) + Math.abs(center[1] - s.center[1]) > 1e-6;
     if (!moved && norm(bearing) === Math.round(s.bearing)) return;
     commit({ ...s, center, bearing: norm(bearing) });
@@ -144,6 +143,7 @@ export function App() {
   }
 
   function onMapReady(loc: Locator): void {
+    if (live.current.source !== 'map') return;
     locator.current = loc;
     loc.map.once('load', () => updateFootprint(true));
   }
@@ -228,13 +228,16 @@ export function App() {
     return () => window.removeEventListener('keydown', key);
   }, [full]);
 
+  // Switching sources releases the old worker and any map downloads before starting the new drawing.
   useEffect(() => {
     const r = new Renderer(() => live.current, currentPicture, setStatus, setResult);
     renderer.current = r;
-    updateFootprint(false);
     schedule(0);
-    return () => r.dispose();
-  }, [currentPicture, schedule, updateFootprint]);
+    return () => {
+      renderer.current = null;
+      r.dispose();
+    };
+  }, [currentPicture, schedule, set.source]);
 
   const image = set.source === 'image';
   const rect = new Camera(set).rect;
@@ -274,7 +277,7 @@ export function App() {
           look={image ? { overlay, squint, onOverlay: setOverlay, onSquint: setSquint } : undefined}
         />
         <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} />
-        {!full && <Stats result={result} onPlot={openPlot} />}
+        {!full && <Stats result={result} look={scoreLook(set)} onPlot={openPlot} />}
       </main>
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />

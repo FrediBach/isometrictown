@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { defaultsAt, fromSlider, IMAGE_DEFAULTS, isDefault, loadSettings, minutes, persist, slug, toImageMode, toSlider } from '@/app/model';
+import { defaultsAt, fromSlider, IMAGE_DEFAULTS, isDefault, loadSettings, minutes, persist, selectPicture, slug, toImageMode, toSlider } from '@/app/model';
 import { PALETTES } from '@/palettes';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 
@@ -153,6 +153,14 @@ describe('image mode', () => {
   test('every image setting survives a share link, and the map place stays', () => {
     const set = { ...image(), center: [4.89, 52.37] as [number, number], place: 'Amsterdam' };
     expect(share(set)).toEqual(set);
+  });
+
+  test('supplying the file for a shared image keeps its title and crop', () => {
+    const set = share({ ...image(), imageFit: 'fill' });
+    expect(selectPicture(set, { id: set.image, name: 'Original filename' })).toEqual(set);
+    expect(selectPicture(set, { id: 'fedcba9876543210', name: 'Another picture' })).toEqual({
+      ...set, image: 'fedcba9876543210', imageName: 'Another picture', imageFocus: [0.5, 0.5],
+    });
   });
 
   test('bad image settings in a link are dropped or mended', () => {

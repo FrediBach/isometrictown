@@ -7,7 +7,7 @@ import type { Settings } from './settings';
 import type { StageProgress } from './app/stages';
 import { loadTags } from './osm';
 import { imageScene, type Picture } from './image';
-import { TARGET_CELL, type Target } from './image-read';
+import { remapTarget, TARGET_CELL, type Target } from './image-read';
 import { coverage, likeness, type Likeness } from './image-tone';
 import { detectRegion, STYLES, type Region } from './styles';
 import { loadTown, TooBigError, type Tagged } from './tiles';
@@ -61,7 +61,7 @@ function picture(id: string, sent?: Picture): Picture | undefined {
 /** How like its image the last image-mode drawing is, through the pens and paper of `set`. */
 function score(set: Settings): Likeness | null {
   if (!scored) return null;
-  const t = scored.target;
+  const t = remapTarget(scored.target, set);
   return likeness(scored.cov, t, set, t.paper - t.dark).likeness;
 }
 

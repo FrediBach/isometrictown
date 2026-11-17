@@ -2,6 +2,10 @@
  * The likeness lab: draws towns from pictures at a run of scales, headless, and scores how like
  * each picture the drawing is. `npm run likeness` drives it through `lab/likeness.mjs`.
  */
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { PNG } from 'pngjs';
+import { imageFeatures } from './image-features';
 import { imageScene, plausibility, type Picture } from '../src/image';
 import { TARGET_CELL } from '../src/image-read';
 import { blur, coverage, LABELS, likeness, oklab, toGamma, type Label, type Likeness } from '../src/image-tone';
@@ -12,13 +16,20 @@ import { PALETTES } from '../src/palettes';
 import { plan, toSvg } from '../src/plot';
 import { render } from '../src/render';
 import { DEFAULT_SETTINGS, type Settings } from '../src/settings';
-import { PICTURES } from '../test/support/pictures';
+import { PICTURES as synthetic } from '../test/support/pictures';
 import { measure, type SheetStats } from './metrics';
 
-export { PICTURES };
+/** A real photograph and a transparent mark, checked in so the lab stays offline. */
+function fixture(name: string): Picture {
+  const { width: w, height: h, data } = PNG.sync.read(readFileSync(new URL(`./images/${name}.png`, import.meta.url)));
+  const id = createHash('sha256').update(`${w}x${h}:`).update(data).digest('hex').slice(0, 16);
+  return { id, name, w, h, rgba: new Uint8ClampedArray(data) };
+}
+
+export const PICTURES: Record<string, () => Picture> = { ...synthetic, astronaut: () => fixture('astronaut'), logo: () => fixture('logo') };
 export const SCALES = [1000, 2500, 5000, 8000];
 
-export type LikenessOptions = { likeness?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
+export type LikenessOptions = { tuned?: boolean; likeness?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
 /** An RGB image, 8 bits a channel, for writing out. */
 export type Rgb = { w: number; h: number; data: Uint8Array };
 export type LikenessResult = {
@@ -44,6 +55,7 @@ export type LikenessResult = {
   shares: Partial<Record<Label, number>>;
   /** Streets in the network, and breaches of the street rules (§10.5). */
   streets: number;
+  features: Record<string, number>;
   violations: string[];
   /** Blocks and lots laid out, and what makes the town implausible (§11.4). */
   blocks: number;
@@ -97,12 +109,12 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const set = caseSettings(pic, scale, o);
   const marks: [string, number][] = [];
   const t0 = performance.now();
-  const scene = imageScene(pic, set, (note) => marks.push([note, performance.now()]));
+  const scene = imageScene(pic, set, (note) => marks.push([note, performance.now()]), o.tuned);
   const t1 = performance.now();
   const at = (note: string) => marks.find(([n]) => n === note)?.[1];
   const read = (at('Zoning the ground') ?? t1) - (at('Reading the image') ?? t0);
   const zoned = (at('Laying out streets') ?? t1) - (at('Zoning the ground') ?? t1);
-    const tally = new Map<string, number[][]>();
+  const tally = new Map<string, number[][]>();
   const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally);
   const t2 = performance.now();
   const planned = plan(drawing.pens, scene.set);
@@ -113,9 +125,12 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const scored = likeness(cov, t, scene.set, t.paper - t.dark);
   const t4 = performance.now();
   const stats = measure(tally, scene.cam.rect, scene.set.penWidth, scene.set.speed);
-  const predicted = predict(structuredClone(scene.blocks), scene.zones, t, scene.cam, scene.set, scene.box);
+  const predicted = scene.prediction ?? predict(structuredClone(scene.blocks), scene.zones, t, scene.cam, scene.set, scene.box);
   const source: Rgb = { w: pic.w, h: pic.h, data: new Uint8Array(pic.w * pic.h * 3) };
-  for (let i = 0; i < pic.w * pic.h; i++) source.data.set(pic.rgba.subarray(i * 4, i * 4 + 3), i * 3);
+  for (let i = 0; i < pic.w * pic.h; i++) {
+    const a = pic.rgba[i * 4 + 3] / 255;
+    for (let c = 0; c < 3; c++) source.data[i * 3 + c] = Math.round(pic.rgba[i * 4 + c] * a + 255 * (1 - a));
+  }
   const edges: Rgb = { w: t.W, h: t.H, data: new Uint8Array(t.W * t.H * 3) };
   const zones: Rgb = { w: t.W, h: t.H, data: new Uint8Array(t.W * t.H * 3) };
   for (let i = 0; i < t.W * t.H; i++) {
@@ -142,6 +157,7 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
     edges,
     zones,
     shares,
+    features: imageFeatures(name, scene, pic, scored.views),
     streets: scene.streets.edges.length,
     violations: streetRules(scene.streets),
     blocks: scene.blocks.length,

@@ -14,11 +14,11 @@ import type { Camera } from './camera';
 import { pointInRing } from './geo';
 import type { Target } from './image-read';
 import { blur, BUILT, LABELS, type Label } from './image-tone';
-import { streamsOf, traceLines } from './image-water';
+import { simplify, streamsOf, traceLines } from './image-water';
 import type { Zones } from './image-zones';
 import type { Settings } from './settings';
 import { patch } from './rng';
-import { atLeast, LOD } from './lod';
+import { LOD } from './lod';
 import { offsetRing } from './shape';
 import { ROAD_WIDTH, type Shape, type Stream, type Way } from './tiles';
 
@@ -209,7 +209,9 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
           const v = ty + dy;
           if (u < 0 || v < 0 || u >= target.W || v >= target.H) continue;
           const r = target.ridge[v * target.W + u];
-          if (r) {
+          // Broad strokes are traced once on the sheet below. Widening their middles to the
+          // ground cells would turn a single centreline into several tracks beside one another.
+          if (r === 1 || r === -1) {
             ridge[c] = r;
             break;
           }
@@ -297,6 +299,48 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     if (top >= 0 && streetable(top)) keep(pts, 'minor');
     else if (top === L('park') || top === L('wood')) paths.push({ pts, kind: 'path', width: 0, cls: 'footway' });
     else if (top === L('field') || top === L('meadow') || top === L('allot')) paths.push({ pts, kind: 'path', width: 0, cls: 'track', unpaved: true });
+  }
+
+  // Broad strokes read as local streets in town, walks across squares and parks, or field tracks.
+  // Trace in sheet mm before projecting. Break at water and where the kind of route changes.
+  const routeAt = (x: number, y: number) => {
+    const l = LABELS[labelAt(x, y)];
+    if (BUILT.has(l)) return 'road';
+    if (l === 'plaza' || l === 'park' || l === 'wood') return 'footway';
+    if (l === 'field' || l === 'meadow' || l === 'allot') return 'track';
+    return null;
+  };
+  for (const sheet of traceLines((i) => target.ridge[i] === 2, target, minLine * cam.s * cam.sa)) {
+    let run: number[] = [];
+    let route: ReturnType<typeof routeAt> = null;
+    const finish = () => {
+      if (route && lengthOf(run) >= minLine) {
+        const pts = simplify(run, z.cell / 2);
+        if (route === 'road') keep(pts, 'minor');
+        else paths.push({ pts, kind: 'path', width: 0, cls: route, unpaved: route === 'track' });
+      }
+    };
+    let [ax, ay] = cam.ground(sheet[0], sheet[1]);
+    for (let i = 2; i < sheet.length; i += 2) {
+      const [bx, by] = cam.ground(sheet[i], sheet[i + 1]);
+      const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / z.cell));
+      for (let j = 0; j < steps; j++) {
+        const x = ax + ((bx - ax) * j) / steps;
+        const y = ay + ((by - ay) * j) / steps;
+        const dx = (bx - ax) / steps;
+        const dy = (by - ay) / steps;
+        const next = routeAt(x + dx / 2, y + dy / 2);
+        if (next !== route) {
+          finish();
+          run = next ? [x, y] : [];
+          route = next;
+        }
+        if (route) run.push(x + dx, y + dy);
+      }
+      ax = bx;
+      ay = by;
+    }
+    finish();
   }
 
   // Local streets, traced along the field from the streets already laid.
@@ -424,8 +468,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   // A planar graph, cleaned until the hard rules hold, joined into one network, and ranked.
   const water = (x: number, y: number) => labelAt(x, y) === WATER;
   const g = clean(planar(lines), water);
-  // Lanes only where the renderer draws them as narrow as they are; coarser, it widens them over the houses.
-  rank(g, z, atLeast(cam, LOD.road, ROAD_WIDTH.service) <= ROAD_WIDTH.service + 0.01);
+  // Plan lanes where their true width meets the road rule at reference detail and pen width.
+  rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 
   // Turning circles where suburban streets end.
   const deg = degrees(g);

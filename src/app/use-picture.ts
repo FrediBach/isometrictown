@@ -16,6 +16,8 @@ export type PictureState = {
   current: () => Picture | null;
   /** Read and keep a file; resolves to the picture, or null if it couldn't be read. */
   choose: (file: File) => Promise<Picture | null>;
+  /** Ignore a file still being read when the user switches sources. */
+  cancelChoice: () => void;
 };
 
 /**
@@ -29,6 +31,7 @@ export function usePicture(id: string, onLoaded: () => void): PictureState {
   const [error, setError] = useState('');
   const [shown, setShown] = useState<{ id: string; url: string } | null>(null);
   const ref = useRef<Picture | null>(null);
+  const choice = useRef(0);
   const loaded = useEffectEvent(onLoaded);
   const current = useCallback(() => ref.current, []);
 
@@ -66,23 +69,31 @@ export function usePicture(id: string, onLoaded: () => void): PictureState {
   }, [picture]);
 
   async function choose(file: File): Promise<Picture | null> {
+    const request = ++choice.current;
     setReading(true);
     setError('');
     try {
       const p = await readPicture(file, file.name);
+      if (request !== choice.current) return null;
       void savePicture(p);
       ref.current = p;
       setPicture(p);
       return p;
     } catch (e) {
-      setError(e instanceof UnreadableImage ? e.message : 'That image couldn’t be read.');
+      if (request === choice.current) setError(e instanceof UnreadableImage ? e.message : 'That image couldn’t be read.');
       return null;
     } finally {
-      setReading(false);
+      if (request === choice.current) setReading(false);
     }
+  }
+
+  function cancelChoice(): void {
+    choice.current++;
+    setReading(false);
+    setError('');
   }
 
   const here = picture?.id === id ? picture : null;
   const status: PictureStatus = reading ? 'loading' : !id ? 'none' : here ? 'ready' : missing === id ? 'missing' : 'loading';
-  return { picture: here, url: here && shown?.id === here.id ? shown.url : null, status, error, current, choose };
+  return { picture: here, url: here && shown?.id === here.id ? shown.url : null, status, error, current, choose, cancelChoice };
 }

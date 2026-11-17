@@ -5,7 +5,7 @@
  * that would break a rule; `plausibility()` checks a finished town against the same tests.
  */
 import { pointInRing, ringArea } from './geo';
-import type { Shape, Town, Way } from './tiles';
+import type { Shape, Town } from './tiles';
 
 /** A building stands at most this far from a street or path, m, to front it. */
 export const FRONTS = 90;
@@ -13,6 +13,34 @@ export const FRONTS = 90;
 const INSET = 0.6;
 const SIZE = 50;
 const EDGE = 255;
+
+/** Whether two closed segments meet, including at their ends or along a common line. */
+function meet(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): boolean {
+  if (Math.max(ax, bx) < Math.min(cx, dx) || Math.max(cx, dx) < Math.min(ax, bx) ||
+      Math.max(ay, by) < Math.min(cy, dy) || Math.max(cy, dy) < Math.min(ay, by)) return false;
+  const c = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  const d = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+  const a = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
+  const b = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+  return c * d <= 0 && a * b <= 0;
+}
+
+/** Whether a footprint goes once round its outline, with no doubled-back edge or crossing. */
+export function simpleFootprint(p: number[]): boolean {
+  if (p.length < 6 || p.length % 2 || !p.every(Number.isFinite)) return false;
+  for (let i = 0; i < p.length; i += 2) {
+    const j = (i + 2) % p.length;
+    const prev = (i + p.length - 2) % p.length;
+    const dx = p[j] - p[i], dy = p[j + 1] - p[i + 1];
+    const ux = p[i] - p[prev], uy = p[i + 1] - p[prev + 1];
+    if ((!dx && !dy) || (dx * uy === dy * ux && dx * ux + dy * uy < 0)) return false;
+    for (let k = i + 4; k < p.length; k += 2) {
+      const l = (k + 2) % p.length;
+      if (l !== i && meet(p[i], p[i + 1], p[j], p[j + 1], p[k], p[k + 1], p[l], p[l + 1])) return false;
+    }
+  }
+  return true;
+}
 
 /** The middle of a ring's points. */
 export const centre = (p: number[]): [number, number] => {
@@ -68,12 +96,13 @@ class Index {
 }
 
 type Seg = { ax: number; ay: number; bx: number; by: number; r: number };
-const toSeg = (s: Seg, x: number, y: number) => {
-  const dx = s.bx - s.ax;
-  const dy = s.by - s.ay;
-  const t = Math.max(0, Math.min(1, ((x - s.ax) * dx + (y - s.ay) * dy) / (dx * dx + dy * dy || 1)));
-  return Math.hypot(x - s.ax - dx * t, y - s.ay - dy * t);
+const distance = (x: number, y: number, ax: number, ay: number, bx: number, by: number) => {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(x - ax - dx * t, y - ay - dy * t);
 };
+const toSeg = (s: Seg, x: number, y: number) => distance(x, y, s.ax, s.ay, s.bx, s.by);
 const inShape = (s: Shape, x: number, y: number) => pointInRing(x, y, s[0].pts) && !s.slice(1).some((r) => pointInRing(x, y, r.pts));
 
 /** The ground buildings may not stand on, and the streets and paths they front. */
@@ -81,6 +110,8 @@ export class Ground {
   private segs: Seg[] = [];
   private roads = new Index();
   private fronts = new Index();
+  private streams: Seg[] = [];
+  private banks = new Index();
   private open: { what: string; shapes: Shape[]; index: Index }[];
   /**
    * Open land on a coarse raster, so most points need no test against long outlines: per cell,
@@ -94,7 +125,7 @@ export class Ground {
   private gw = 0;
   private gh = 0;
 
-  constructor(t: { ways: Way[]; water: Shape[]; green: Shape[]; wood: Shape[]; plazas: Shape[] }) {
+  constructor(t: Pick<Town, 'ways' | 'water' | 'streams' | 'green' | 'wood' | 'plazas'>) {
     for (const w of t.ways)
       for (let k = 2; k < w.pts.length; k += 2) {
         const s = { ax: w.pts[k - 2], ay: w.pts[k - 1], bx: w.pts[k], by: w.pts[k + 1], r: w.kind === 'road' ? w.width / 2 : 0 };
@@ -102,6 +133,12 @@ export class Ground {
         const p = [s.ax, s.ay, s.bx, s.by];
         if (s.r > 0) this.roads.add(n, p, s.r);
         this.fronts.add(n, p, FRONTS);
+      }
+    for (const { pts, width } of t.streams)
+      for (let k = 2; k < pts.length; k += 2) {
+        const s = { ax: pts[k - 2], ay: pts[k - 1], bx: pts[k], by: pts[k + 1], r: width / 2 };
+        const n = this.streams.push(s) - 1;
+        this.banks.add(n, [s.ax, s.ay, s.bx, s.by], s.r);
       }
     const open: [string, Shape[]][] = [['water', t.water], ['a park', t.green], ['a wood', t.wood], ['a square', t.plazas]];
     this.open = open.map(([what, shapes]) => {
@@ -161,8 +198,27 @@ export class Ground {
     this.cells = cells;
   }
 
-  /** What a point stands on that no building may: 'a road', 'water', 'a park', 'a wood', 'a square', or null. */
-  under(x: number, y: number): string | null {
+  /** Whether a stream or either bank touches a footprint, even between its corners. */
+  crossesStream(ring: number[]): boolean {
+    if (!this.streams.length) return false;
+    for (const k of this.banks.around(ring)) {
+      const s = this.streams[k];
+      if (pointInRing(s.ax, s.ay, ring)) return true;
+      for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+        const ax = ring[j], ay = ring[j + 1], bx = ring[i], by = ring[i + 1];
+        if (meet(ax, ay, bx, by, s.ax, s.ay, s.bx, s.by) || toSeg(s, ax, ay) < s.r ||
+            distance(s.ax, s.ay, ax, ay, bx, by) < s.r || distance(s.bx, s.by, ax, ay, bx, by) < s.r) return true;
+      }
+    }
+    return false;
+  }
+
+  /** What a point stands on that no building may. A tree also keeps its crown clear of stream banks. */
+  under(x: number, y: number, crown = 0): string | null {
+    if (this.streams.length) {
+      const near = crown ? this.banks.around([x - crown, y - crown, x + crown, y + crown]) : this.banks.at(x, y);
+      for (const k of near) if (toSeg(this.streams[k], x, y) < this.streams[k].r + crown) return 'a stream';
+    }
     for (const k of this.roads.at(x, y)) if (toSeg(this.segs[k], x, y) < this.segs[k].r) return 'a road';
     const i = Math.floor((x - this.gx) / this.gc);
     const j = Math.floor((y - this.gy) / this.gc);
@@ -175,7 +231,7 @@ export class Ground {
 
   /** Whether a footprint keeps off everything it may not stand on. */
   clear(ring: number[]): boolean {
-    return inside(ring).every(([x, y]) => !this.under(x, y));
+    return !this.crossesStream(ring) && inside(ring).every(([x, y]) => !this.under(x, y));
   }
 
   /** How far a point is from the edge of the nearest street or path within `FRONTS`, m; Infinity if none. */
@@ -225,23 +281,25 @@ export function plausibility(town: Town): string[] {
   const ground = new Ground(town);
   const bs = town.buildings;
   const near = new Index();
-  bs.forEach((b, i) => near.add(i, b.shape[0].pts));
+  const simple = bs.map((b) => b.shape.length > 0 && b.shape.every((r) => simpleFootprint(r.pts)));
+  bs.forEach((b, i) => { if (simple[i]) near.add(i, b.shape[0].pts); });
   bs.forEach((b, i) => {
+    if (!simple[i]) return note('a footprint is not a simple ring', b.shape[0]?.pts[0] ?? 0, b.shape[0]?.pts[1] ?? 0);
     const p = b.shape[0].pts;
     const [cx, cy] = centre(p);
-    if (p.length < 6 || !p.every(Number.isFinite)) return note('a footprint is not a ring', cx, cy);
     if (ringArea(p) <= 0) note('a footprint runs clockwise', cx, cy);
     if (b.shape.some((r) => r.seam.some((s) => s))) note('a footprint has seams', cx, cy);
     if (!(b.h > 0 && Number.isFinite(b.h))) note('a building has no height', cx, cy);
+    if (ground.crossesStream(p)) note('a building stands on a stream', cx, cy);
     for (const [x, y] of inside(p)) {
       for (const j of near.at(x, y)) if (j !== i && pointInRing(x, y, bs[j].shape[0].pts)) note('buildings overlap', x, y);
       const on = ground.under(x, y);
-      if (on) note(`a building stands on ${on}`, x, y);
+      if (on && on !== 'a stream') note(`a building stands on ${on}`, x, y);
     }
     if (ground.front(cx, cy) > FRONTS) note('a building fronts no street', cx, cy);
   });
   for (const t of town.trees) {
-    const on = ground.under(t.x, t.y);
+    const on = ground.under(t.x, t.y, t.r);
     if (on) note(`a tree stands on ${on}`, t.x, t.y);
     if (near.at(t.x, t.y).some((j) => pointInRing(t.x, t.y, bs[j].shape[0].pts))) note('a tree stands in a building', t.x, t.y);
   }

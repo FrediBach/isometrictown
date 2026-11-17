@@ -159,7 +159,8 @@ const YARD_SPACING = 14;
 export function treesOf(blocks: Block[], yards: Area[], laid: Footprints, ground: Ground, vary: Vary): Town['trees'] {
   const trees: Town['trees'] = [];
   const clear = (x: number, y: number, r: number) => {
-    for (const [dx, dy] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]]) if (laid.covers(x + dx, y + dy) || ground.under(x + dx, y + dy)) return false;
+    if (laid.covers(x, y) || ground.under(x, y, r)) return false;
+    for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r]]) if (laid.covers(x + dx, y + dy) || ground.under(x + dx, y + dy)) return false;
     return true;
   };
   /** Trees over a ring on a jittered grid, kept `edge` m in from its outline. */

@@ -124,6 +124,11 @@ export function toImageMode(set: Settings): Settings {
   return next;
 }
 
+/** Restore a shared image with its saved crop and title, or centre a newly chosen picture. */
+export function selectPicture(set: Settings, pic: { id: string; name: string }): Settings {
+  return pic.id === set.image ? set : { ...set, image: pic.id, imageName: pic.name, imageFocus: [0.5, 0.5] };
+}
+
 /** A place name from the link; a broken escape (a link cut short) keeps the text as it came. */
 function decodePlace(raw: string): string {
   try {

@@ -1,7 +1,7 @@
 {
-  "likeness": {"score":0.504,"dE":[0.058,0.049],"ssim":0.681},
+  "likeness": {"score":0.504,"dE":[0.058,0.049],"ssim":0.68},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":553,"houses":484,"trees":1651,"cars":197,"lamps":156},
+  "counts": {"buildings":553,"houses":485,"trees":1651,"cars":196,"lamps":156},
   "census": {
     "broadleaf": 1351,
     "bush": 286,
@@ -11,32 +11,32 @@
     "flat-roof": 66,
     "gabled-roof": 276,
     "garden-trees": 50,
-    "glazing-bars": 265,
+    "glazing-bars": 266,
     "grid-windows": 397,
     "halfHipped-roof": 70,
     "has-parapet": 11,
     "hedgerows": 343,
-    "hipped-roof": 101,
-    "mansard-roof": 40,
+    "hipped-roof": 102,
+    "mansard-roof": 39,
     "mapped-height": 553,
     "paired-windows": 156,
-    "party-walls": 526,
-    "shutters": 173,
+    "party-walls": 527,
+    "shutters": 174,
     "street-trees": 1250,
     "terrace": 553,
     "wild-trees": 8
   },
   "plan": {
-    "lifts": 6864,
-    "rawLifts": 9585,
-    "inkMm": 28552.1,
-    "travelMm": 19414.4,
-    "minutes": 50.3,
-    "pens": [["Shadows",1551,4112.9],["Water",0,0],["Greenery",1655,4008.8],["Roofs",1901,10371.2],["Linework",1757,10059.2]]
+    "lifts": 6858,
+    "rawLifts": 9574,
+    "inkMm": 28527.6,
+    "travelMm": 19392.9,
+    "minutes": 50.2,
+    "pens": [["Shadows",1549,4110.7],["Water",0,0],["Greenery",1655,4008.8],["Roofs",1901,10371.2],["Linework",1753,10036.8]]
   },
   "features": {
     "buildings": [1041,3052.3],
-    "cars": [214,813.5],
+    "cars": [205,791.1],
     "details": [248,394.7],
     "ground": [1228,2565.5],
     "lamps": [141,244],
@@ -44,7 +44,7 @@
     "roofHatch": [1171,2977],
     "roofs": [2905,7387.4],
     "shadeWalls": [358,894.6],
-    "shadows": [1193,3218.3],
+    "shadows": [1191,3216.1],
     "streets:kerbs": [412,2910.7],
     "trees": [438,1443.3]
   },
@@ -132,5 +132,5 @@
     "trees/hedgerows": [6,19.6],
     "trees/street-trees": [369,1159]
   },
-  "svg": {"bytes":363001,"sha1":"6c9d2c2c6f82d377"}
+  "svg": {"bytes":362678,"sha1":"78e314eb81db8fef"}
 }

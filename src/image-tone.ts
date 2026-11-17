@@ -50,13 +50,19 @@ export function inksOf(set: Pick<Settings, 'pens' | 'mono'>): [number, number, n
 /**
  * The colour of paper with pen coverages `c` (0–1 each), seen from far enough that the strokes
  * blend, assuming strokes of different pens overlap at random: per linear channel,
- * paper × Π (1 − c + c × pen / paper). Written into `out` at `i`.
+ * darker inks multiply the reflectance of the paper; a brighter ink covers that share of
+ * the channel underneath it, including on black paper. Written into `out` at `i`.
  */
 export function mix(paper: readonly number[], inks: readonly (readonly number[])[], c: ArrayLike<number>, out: Float32Array | number[], i = 0): void {
   for (let ch = 0; ch < 3; ch++) {
-    const p = Math.max(1e-6, paper[ch]);
+    const p = paper[ch];
     let v = p;
-    for (let k = 0; k < inks.length; k++) if (c[k] > 0) v *= 1 - c[k] + (c[k] * inks[k][ch]) / p;
+    for (let k = 0; k < inks.length; k++) {
+      if (!c[k]) continue;
+      const ink = inks[k][ch];
+      if (ink > p) v += c[k] * (ink - v);
+      else if (ink < p) v *= 1 - c[k] + (c[k] * ink) / p;
+    }
     out[i + ch] = v;
   }
 }
@@ -248,8 +254,9 @@ function ssim(x: Float32Array, y: Float32Array, w: Float32Array, g: Grid, sigma:
     xy[i] = x[i] * y[i];
   }
   for (const p of [mx, my, xx, yy, xy]) blur(p, g.W, g.H, sigma);
-  const c1 = (0.01 * range) ** 2;
-  const c2 = (0.03 * range) ** 2;
+  const contrast = Math.max(1e-6, Math.abs(range));
+  const c1 = (0.01 * contrast) ** 2;
+  const c2 = (0.03 * contrast) ** 2;
   let sum = 0;
   let total = 0;
   for (let i = 0; i < n; i++) {

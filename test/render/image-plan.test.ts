@@ -33,11 +33,47 @@ describe('the town', () => {
     }
   });
 
+  test('old-town lanes are the same after adjusting Detail and pen width and after a reload', () => {
+    const ramp = PICTURES.gradient();
+    const start = { ...base, image: ramp.id };
+    const first = imageScene(ramp, start).town;
+    expect(first.ways.some((w) => w.cls === 'service')).toBe(true);
+    const set = { ...start, detail: 0.25, penWidth: 0.7 };
+    const warm = imageScene(ramp, set).town;
+    imageScene(pic, base); // Evict the gradient so the next visit lays it out afresh.
+    const cold = imageScene(ramp, set).town;
+    expect(cold.ways).toEqual(warm.ways);
+    expect(cold.buildings).toEqual(warm.buildings);
+  });
+
+  test('a narrow blue stream through built land keeps its banks clear', () => {
+    const pic = paint('Stream', (u, v) => {
+      const g = 90 + 80 * u;
+      return Math.abs(u - v) < 0.005 ? [12, 28, 80] : [g, g + 4, g + 12];
+    });
+    const town = imageScene(pic, { ...base, image: pic.id }).town;
+    expect(town.streams.length).toBeGreaterThan(0);
+    expect(town.buildings.length).toBeGreaterThan(0);
+    expect(plausibility(town)).toEqual([]);
+  });
+
   test('matching lightness alone, the pens never move a street or a house', () => {
     const grey = { ...base, imageColour: 0 };
     expect(lay({ ...grey, pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] })).toEqual(lay(grey));
     const mono = { ...base, mono: true };
     expect(lay({ ...mono, pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] })).toEqual(lay(mono));
+  });
+
+  test('switching pens and paper recolours the same town that a fresh session would draw', () => {
+    const pic = PICTURES.bands();
+    const baseTown = imageScene(pic, base).town;
+    const changed = { ...base, pens: ['#464500', '#7292d0', '#317061', '#822b2e', '#04263f'] as Settings['pens'], customBackground: true, background: '#aaaabb' };
+    const cached = imageScene(pic, changed);
+    imageScene(PICTURES.disc(), base);
+    const fresh = imageScene(pic, changed);
+    expect(fresh.town).toEqual(baseTown);
+    expect(cached.town).toEqual(fresh.town);
+    expect(cached.target.L).toEqual(fresh.target.L);
   });
 
   test('image-made tags are not OSM tags', () => {

@@ -9,6 +9,7 @@
  *   npm run likeness -- --images gradient,disc --scales 2500
  *   npm run likeness -- --name before                  keep a run under a name
  *   npm run likeness -- --name after --compare before  what changed, per picture and scale
+ *   npm run likeness -- --tuned                     experimental tuning before drawing
  *   npm run likeness -- --likeness 0.2                 another Likeness
  *   npm run likeness -- --pens archive                 another palette
  *   npm run likeness -- --sheet a4                     another sheet (A3 by default)
@@ -36,6 +37,7 @@ const outDir = path.join(here, 'out', name);
 const png = !flag('no-png');
 const compare = opt('compare', null);
 const options = {
+  tuned: flag('tuned'),
   likeness: opt('likeness', null) === null ? undefined : Number(opt('likeness')),
   pens: opt('pens', undefined),
   sheet: opt('sheet', undefined),
@@ -108,8 +110,10 @@ for (const picture of pictures) {
       console.log(`${''.padEnd(22)} ${r.streets} streets, ${r.violations.length ? `rules broken: ${r.violations.slice(0, 3).join('; ')}` : 'rules kept'}; ${r.blocks} blocks, ${r.lots} lots, ${r.implausible.length ? `implausible: ${r.implausible.join('; ')}` : 'plausible'}`);
       console.log(`${''.padEnd(22)} follows the image ${r.corr.toFixed(3)}; ink per pen predicted ${r.guard.predicted.map((v) => (v * 100).toFixed(1)).join('/')} %, drawn ${r.guard.drawn.map((v) => (v * 100).toFixed(1)).join('/')} %`);
       console.log(`${''.padEnd(22)} zones ${Object.entries(r.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.01).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', ')}`);
+      const features = Object.entries(r.features).map(([label, v]) => `${label} ${pct(v)}`);
+      if (features.length) console.log(`${''.padEnd(22)} ${features.join(', ')}`);
       const { marks, ...stats } = r.stats;
-      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, shares: r.shares, streets: r.streets, violations: r.violations, blocks: r.blocks, lots: r.lots, implausible: r.implausible, corr: r.corr, guard: r.guard, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
+      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, features: r.features, shares: r.shares, streets: r.streets, violations: r.violations, blocks: r.blocks, lots: r.lots, implausible: r.implausible, corr: r.corr, guard: r.guard, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
     } catch (e) {
       console.log(`${label} failed: ${e instanceof Error ? e.stack : e}`);
       report.cases.push({ picture, scale, error: String(e) });
@@ -183,7 +187,8 @@ function html(r, withPng) {
       }
       const l = c.likeness;
       body += `<h3>1:${c.scale} <small>likeness ${fmt(l.score * 100, 1)} · ΔE ${fmt(l.dE[0], 3)} / ${fmt(l.dE[1], 3)} · SSIM ${fmt(l.ssim, 3)} · tone ${pct(c.tone)} · waste ${pct(c.waste)} · ${fmt(c.counts.buildings)} buildings · ${c.streets} streets${c.violations.length ? ` · <span class="bad">${c.violations.length} street rules broken</span>` : ''}${c.implausible?.length ? ` · <span class="bad">${c.implausible.join('; ')}</span>` : ''} · ${fmt(c.minutes, 0)} min to plot · ${c.ms.total} ms</small></h3>`;
-      if (withPng) body += `<div class="row"><figure><img src="${picture}-source.png" alt=""><figcaption>Picture</figcaption></figure><figure><img src="${c.file}-look.png" alt=""><figcaption>What it should look like</figcaption></figure><figure><img src="${c.file}-squint.png" alt=""><figcaption>What it looks like</figcaption></figure><figure><a href="${c.file}.svg"><img src="${c.file}.png" alt=""></a><figcaption>Drawing</figcaption></figure><figure><img src="${c.file}-edges.png" alt=""><figcaption>Edges (red), bright (yellow) and dark (blue) lines</figcaption></figure><figure><img src="${c.file}-zones.png" alt=""><figcaption>Zones: ${esc(Object.entries(c.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.02).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', '))}</figcaption></figure></div>`;
+      if (Object.keys(c.features).length) body += `<p>${Object.entries(c.features).map(([k, v]) => `${esc(k)} ${pct(v)}`).join(' · ')}</p>`;
+      if (withPng) body += `<div class="row"><figure><img src="${picture}-source.png" alt=""><figcaption>Picture</figcaption></figure><figure><img src="${c.file}-look.png" alt=""><figcaption>What it should look like</figcaption></figure><figure><img src="${c.file}-squint.png" alt=""><figcaption>What it looks like</figcaption></figure><figure><a href="${c.file}.svg"><img src="${existsSync(path.join(outDir, `${c.file}.png`)) ? `${c.file}.png` : `${c.file}.svg`}" alt=""></a><figcaption>Drawing</figcaption></figure><figure><img src="${c.file}-edges.png" alt=""><figcaption>Edges (red), bright (yellow) and dark (blue) lines</figcaption></figure><figure><img src="${c.file}-zones.png" alt=""><figcaption>Zones: ${esc(Object.entries(c.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.02).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', '))}</figcaption></figure></div>`;
     }
     body += '</section>';
   }

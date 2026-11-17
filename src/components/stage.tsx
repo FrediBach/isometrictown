@@ -118,19 +118,23 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
   const paper = useRef<HTMLDivElement>(null);
   const ink = useRef<HTMLDivElement>(null);
 
+  const drawing = result?.svg;
   useEffect(() => {
-    if (!result) return;
+    if (!drawing) {
+      ink.current!.replaceChildren();
+      return;
+    }
     // Parse as XML rather than HTML: the SVG is our own output, and this keeps it out of the HTML parser.
-    const doc = new DOMParser().parseFromString(result.svg, 'image/svg+xml');
+    const doc = new DOMParser().parseFromString(drawing, 'image/svg+xml');
     ink.current!.replaceChildren(document.importNode(doc.documentElement, true));
-  }, [result]);
+  }, [drawing]);
 
   // Pen colours change without redrawing: just restyle the preview layers.
   useEffect(() => {
     const svg = ink.current!.querySelector('svg');
     if (!svg || mono) return;
     pens.forEach((c, i) => svg.querySelector<SVGGElement>(`#pen-${i + 1}`)?.setAttribute('stroke', c));
-  }, [pens, mono, result]);
+  }, [pens, mono, drawing]);
 
   useLayoutEffect(() => {
     const vp = viewport.current!;
@@ -217,7 +221,8 @@ function PlotButton({ disabled, onPlot }: { disabled: boolean; onPlot: () => voi
   );
 }
 
-export function Stats({ result, onPlot }: { result: RenderResult | null; onPlot: () => void }) {
+export function Stats({ result, look, onPlot }: { result: RenderResult | null; look: string; onPlot: () => void }) {
+  const likeness = result?.likeness?.look === look ? result.likeness : undefined;
   const rows = result ? result.stats.pens.map((p, i) => ({ p, i })).filter(({ p }) => p.lifts > 0) : [];
   const total = result?.stats.seconds || 1;
   const th = 'micro pb-2 text-left font-normal';
@@ -316,7 +321,7 @@ export function Stats({ result, onPlot }: { result: RenderResult | null; onPlot:
               <dt className="text-muted-foreground">Scene</dt>
               <dd className="m-0 text-pretty">{scene}</dd>
             </div>
-            {result.likeness && (
+            {likeness && (
               <div className="grid grid-cols-[96px_1fr] items-baseline gap-3 border-b py-1.5">
                 <dt className="text-muted-foreground">Likeness</dt>
                 <dd
@@ -324,10 +329,10 @@ export function Stats({ result, onPlot }: { result: RenderResult | null; onPlot:
                   title="How closely the drawing, seen from a step away, matches the image's light, dark and colour through these pens: 0 is no better than blank paper, 100 a perfect match."
                 >
                   <span>
-                    {Math.round(Math.max(0, result.likeness.score) * 100)}
+                    {Math.round(Math.max(0, likeness.score) * 100)}
                     <span className="text-muted-foreground"> of 100</span>
                   </span>
-                  <span className="text-muted-foreground">ΔE {result.likeness.dE[1].toFixed(3)}</span>
+                  <span className="text-muted-foreground">ΔE {likeness.dE[1].toFixed(3)}</span>
                 </dd>
               </div>
             )}

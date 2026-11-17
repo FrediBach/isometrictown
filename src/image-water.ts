@@ -214,8 +214,8 @@ export function waterOf(z: Zones): { shapes: Shape[]; cls: string[] } {
 }
 
 /**
- * Thin lines traced from a grid of flags (a cell is on the line where `on` says so) into
- * polylines in metres, simplified; lines shorter than `min` m are dropped.
+ * Trace thin lines on a grid into simplified polylines. Points and minimum length use the
+ * grid's units: local metres for ground features, sheet millimetres for image strokes.
  */
 export function traceLines(on: (c: number) => boolean, g: GroundGrid, min: number): number[][] {
   const { W, H } = g;

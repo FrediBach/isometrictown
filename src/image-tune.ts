@@ -2,8 +2,8 @@
  * Tuning for image mode (§14 of docs/plans/image-mode.md): the structure gives a believable town
  * at roughly the right tone, and tuning makes it match. Each row of terraces, and each other lot,
  * is a group whose level (how densely and how high it is built) and roof (pitched or flat) may
- * move within limits that Likeness sets; trees are then planted where the drawing is still
- * lighter than the image wants.
+ * move within limits that Likeness sets. Street-front plots outside the blocks can take
+ * part once placement has found which stretches are free to build on.
  *
  * The predictor is the calibrated materials of §7 laid on a grid of about a millimetre on paper:
  * each cell takes the material of the lot that shows there, at the lot's own level and roof, or
@@ -14,6 +14,7 @@
 import type { Camera } from './camera';
 import { pointInRing } from './geo';
 import { lotRing, ROWS, type Block, type Lot } from './image-blocks';
+import type { FrontageLot } from './image-buildings';
 import { DARKEST, type Target } from './image-read';
 import { blur, BUILT, chromaWeight, hexToLinear, lightnessAt, inksOf, LABELS, material, mix, oklab, paperOf, type Label } from './image-tone';
 import { colourCounts, HEIGHT, REFERENCE, type Zones } from './image-zones';
@@ -45,6 +46,11 @@ export const predict = (blocks: Block[], z: Zones, target: Target, cam: Camera, 
 /** Settings tuning reads: what changes the tone of what is drawn, and Likeness. */
 export type TuneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'detail' | 'penWidth' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background' | 'seed' | 'trees'>;
 
+type Plot = Lot | FrontageLot;
+
+/** Lots along one side of a block or the street beyond it, with a row for each building zone. */
+const sideOf = (l: Plot) => 'way' in l ? `way:${l.way}:${l.side}:${l.label}` : `block:${l.block}:${l.side}`;
+
 /** The predictor's grid, and what it ended with, for planting trees and for the lab. */
 export type Prediction = {
   x0: number;
@@ -56,7 +62,7 @@ export type Prediction = {
   owner: Int32Array;
   ground: Int32Array;
   at: Int32Array;
-  lots: Lot[];
+  lots: Plot[];
   /** Predicted colour, unblurred, and the target, both OKLab, 3 per cell; the weight of each cell. */
   colour: Float32Array;
   target: Float32Array;
@@ -82,8 +88,8 @@ export type Prediction = {
  * drawing most like the target, within the realism Likeness asks for. Only lots on ground that
  * shows (`box`) are tuned.
  */
-export function tune(blocks: Block[], z: Zones, target: Target, cam: Camera, set: TuneSettings, box: readonly number[], opts: { moves?: boolean; seenBefore?: Seen } = {}): Prediction {
-  const { moves = true, seenBefore } = opts;
+export function tune(blocks: Block[], z: Zones, target: Target, cam: Camera, set: TuneSettings, box: readonly number[], opts: { moves?: boolean; seenBefore?: Seen; frontages?: FrontageLot[] } = {}): Prediction {
+  const { moves = true, seenBefore, frontages = [] } = opts;
   const likeness = Math.max(0, Math.min(1, set.likeness));
   const colour = colourCounts(set);
   const chroma = colour ? chromaWeight(set) : 0;
@@ -156,12 +162,13 @@ export function tune(blocks: Block[], z: Zones, target: Target, cam: Camera, set
     }
 
   // Which lot shows in each cell, and the groups: rows of terraces share a roof, other lots have their own.
-  const lots: Lot[] = [];
+  // An accepted street-front plot takes precedence over any block lot rejected when building.
+  const lots: Plot[] = [...frontages];
   for (const b of blocks) for (const l of b.lots) lots.push(l);
   const owner = new Int32Array(n).fill(-1);
   const cells: number[][] = lots.map(() => []);
   lots.forEach((l, li) => {
-    const ring = lotRing(l);
+    const ring = 'ring' in l ? l.ring : lotRing(l);
     let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
     for (let k = 0; k < ring.length; k += 2) [x0, y0, x1, y1] = [Math.min(x0, ring[k]), Math.min(y0, ring[k + 1]), Math.max(x1, ring[k]), Math.max(y1, ring[k + 1])];
     for (let j = Math.max(0, Math.floor((y0 - by0) / cell)); j <= Math.min(H - 1, Math.floor((y1 - by0) / cell)); j++)
@@ -177,26 +184,30 @@ export function tune(blocks: Block[], z: Zones, target: Target, cam: Camera, set
   const kOf = lots.map((l) => K(l.label));
   const home = lots.map((l) => l.level);
   // The roof chance gave each group, which realism prefers to keep.
-  const roofKey = (l: Lot) => (ROWS.has(l.label) ? `${l.block}:${l.side}` : `${l.block}:${l.side}:${l.index}`);
   const roofs = new Map<string, number[]>();
   lots.forEach((l, li) => {
     if (!cells[li].length || !BUILT.has(l.label)) return;
-    const key = roofKey(l);
+    const key = ROWS.has(l.label) ? sideOf(l) : `${sideOf(l)}:${l.index}`;
     (roofs.get(key) ?? roofs.set(key, []).get(key)!).push(li);
   });
   const roof = new Uint8Array(lots.length);
   const chance = new Uint8Array(lots.length);
   for (const list of roofs.values()) {
     const l = lots[list[0]];
-    const pitched = hash(l.block, ROWS.has(l.label) ? l.side : l.side * 4096 + l.index, set.seed, 14090) < l.warmth ? 1 : 0;
-    for (const li of list) roof[li] = chance[li] = pitched;
+    // Frontage placement records each building's actual roof, including mixed rows.
+    if ('way' in l) {
+      for (const li of list) roof[li] = chance[li] = lots[li].warmth;
+    } else {
+      const pitched = hash(l.block, ROWS.has(l.label) ? l.side : l.side * 4096 + l.index, set.seed, 14090) < l.warmth ? 1 : 0;
+      for (const li of list) roof[li] = chance[li] = pitched;
+    }
   }
   const level = Float32Array.from(home);
   // Neighbours along a street side, for the smoothness of a row.
   const nextTo: number[][] = lots.map(() => []);
   const bySide = new Map<string, number[]>();
   lots.forEach((l, li) => {
-    const key = `${l.block}:${l.side}`;
+    const key = sideOf(l);
     (bySide.get(key) ?? bySide.set(key, []).get(key)!).push(li);
   });
   for (const list of bySide.values()) {
@@ -295,6 +306,7 @@ export function tune(blocks: Block[], z: Zones, target: Target, cam: Camera, set
   for (; moves && sweeps < SWEEPS; sweeps++) {
     // Roofs: each row or lot tries the other roof, at the levels it has.
     for (const list of roofs.values()) {
+      if (lots[list[0]].label === 'towers') continue;
       const all = list.flatMap((li) => cells[li]);
       if (!all.length) continue;
       const now = errorWith(all, [0, 0, 0]) + list.reduce((a, li) => a + cells[li].length * FLIP * realism * (roof[li] !== chance[li] ? 1 : 0), 0);

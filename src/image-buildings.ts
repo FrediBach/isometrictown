@@ -7,7 +7,7 @@
  */
 import { pointInRing, ringArea } from './geo';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
-import { centre, type Footprints, type Ground } from './image-check';
+import { centre, simpleFootprint, type Footprints, type Ground } from './image-check';
 import { LABELS, type Label } from './image-tone';
 import type { Zones } from './image-zones';
 import { hash } from './rng';
@@ -98,8 +98,13 @@ const allowance = (w: number, style: Style) => Math.min((w / 2) * Math.tan(((sty
 
 type Plan = { ring: number[]; h: number; building: string; roof?: string; across?: boolean; poi?: Poi };
 
+/** A building plot on a street the blocks don't reach. Its index follows the street walk, even where a plot is skipped. */
+export type FrontageLot = { ring: number[]; label: Label; level: number; warmth: number; way: number; side: number; index: number };
+
+type FrontageOptions = { record?: FrontageLot[]; tuned?: ReadonlyMap<number, FrontageLot> };
+
 /** Lay out the buildings on the blocks' lots, then along the streets the blocks don't reach. */
-export function buildingsOf(blocks: Block[], c: BuildContext): Built {
+export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: FrontageOptions): Built {
   const { set, style, vary, occ, laid } = c;
   const [bx0, by0, bx1, by1] = c.box;
   const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
@@ -124,7 +129,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
 
   const towers: [number, number, number][] = [];
   const add = (p: Plan): boolean => {
-    if (out.buildings.length >= MAX_BUILDINGS || !c.ground.clear(p.ring) || laid.clash(p.ring)) return false;
+    if (out.buildings.length >= MAX_BUILDINGS || !simpleFootprint(p.ring) || !c.ground.clear(p.ring) || laid.clash(p.ring)) return false;
     laid.add(p.ring);
     const [cx, cy] = centre(p.ring);
     const b: Building = { shape: [{ pts: p.ring, seam: new Uint8Array(p.ring.length / 2) }], h: p.h, min: 0 };
@@ -305,7 +310,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
     return [];
   }
 
-  frontages(c, out, add);
+  frontages(c, out, add, frontageOptions);
   return out;
 }
 
@@ -523,7 +528,7 @@ const FRONTAGE: Partial<Record<Label, Frontage>> = {
  * ground free: up dead ends, along the town's outer edge, and in blocks too awkward to inset.
  * The occupancy raster keeps them off roads, lots and each other; houses in a row share walls.
  */
-function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void {
+function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, options?: FrontageOptions): void {
   const { z, style, occ, vary } = c;
   const zoneAt = (x: number, y: number) => {
     const i = Math.floor((x - z.x0) / z.cell);
@@ -545,6 +550,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void
   const RANKS: Record<string, number> = { primary: 4, secondary: 3, tertiary: 2, minor: 1 };
   const ways = c.ways;
   const order = ways.map((_, i) => i).sort((a, b) => (RANKS[ways[b].cls] ?? 0) - (RANKS[ways[a].cls] ?? 0) || a - b);
+  let index = 0;
   for (const wi of order) {
     const w = ways[wi];
     if (w.bridge) continue;
@@ -565,6 +571,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void
       const rowHash = vary(p[0], p[1], sideSign > 0 ? 14020 : 14021);
       let s = 4;
       while (s < total - 4 && out.buildings.length < MAX_BUILDINGS) {
+        const plot = index++;
         // The street's way here: along the chord a few metres either side.
         const [fx, fy] = pointAt(s);
         const [gx, gy] = pointAt(Math.min(total, s + 6));
@@ -578,10 +585,14 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void
           s += 6;
           continue;
         }
-        const level = z.level[probe];
+        // The plot's frontage stays fixed when tuning changes its building's depth, height or roof.
+        const home = z.level[probe];
+        const tuned = options?.tuned?.get(plot);
+        const level = tuned?.level ?? home;
         const at = (r: [number, number]) => r[0] + (r[1] - r[0]) * level;
         const row = f.width[1] === 0;
-        const lot = row ? Math.max(at(f.lot), ROW_LOT_MM / c.mmPerMetre) : at(f.lot);
+        const span = f.lot[0] + (f.lot[1] - f.lot[0]) * home;
+        const lot = row ? Math.max(span, ROW_LOT_MM / c.mmPerMetre) : span;
         if (s + lot > total - 4) break;
         const [ax, ay] = pointAt(s);
         const [bx, by] = pointAt(s + lot);
@@ -625,11 +636,14 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void
         if (inBox(qx, qy, MARGIN) && free(q, z.label[probe])) {
           const [lo, hi] = STOREYS[label] ?? [1, 2];
           const st = Math.max(lo, Math.min(hi, Math.round(lo + (hi - lo) * level + (r(14025) - 0.5) * 0.9)));
-          const warm = z.warmth[probe];
+          const warm = tuned?.warmth ?? z.warmth[probe];
           const roof = label === 'works' ? (r(14026) < warm ? 'sawtooth' : 'flat') : label === 'towers' || r(14027) >= warm ? 'flat' : undefined;
           const h = label === 'works' ? 6 + 2.5 * st : st * style.floor + (roof ? 0 : allowance(depth, style));
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
-          if (add({ ring: q, h, building, roof })) occ.take(q, SHARED);
+          if (add({ ring: q, h, building, roof })) {
+            occ.take(q, SHARED);
+            options?.record?.push({ ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot });
+          }
         }
         s += lot;
       }

@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
-import { readImage, toneAt } from '@/image-read';
+import { readImage, remapTarget, toneAt } from '@/image-read';
 import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
 import { compat, slic } from '@/image-zones';
 import { clean, degrees, planar, streetRules, type Graph } from '@/image-streets';
@@ -90,6 +90,14 @@ describe('colour', () => {
     out.forEach((v, i) => expect(v).toBeCloseTo((1 + ink[i]) / 2));
   });
 
+  test('overlapping light inks on dark paper stay in the printable colour range', () => {
+    const paper = [0, 0.04, 0.12];
+    const out = [0, 0, 0];
+    mix(paper, [[1, 0.8, 0.01], [0.9, 0.03, 1]], [0.3, 0.4], out);
+    expect(out.every((v) => v >= 0 && v <= 1)).toBe(true);
+    expect(out[0]).toBeGreaterThan(0.3);
+  });
+
   test('a stroke lays its length times the pen width', () => {
     const g = { x0: 0, y0: 0, cell: 0.5, W: 40, H: 40 };
     const [c] = coverage([[[1, 5.1, 11, 5.1]]], g, 0.35);
@@ -127,6 +135,26 @@ describe('readImage', () => {
     expect(toneAt(t, 1, 50)).toBeNull();
     const clear = paint('Clear', () => [0, 0, 0, 0]);
     expect(readImage(clear, set, RECT).weight.every((w) => w === 0)).toBe(true);
+  });
+
+  test('rescoring through new paper and linework matches a fresh read, including transparent cells', () => {
+    const pic = paint('Ink', (u, v) => [100, 75, 150, v > u ? 255 : 0], 24, 16);
+    const rect = [0, 0, 40, 40];
+    for (const colour of [0, 0.7]) {
+      const first = { ...set, imageColour: colour };
+      const t = readImage(pic, first, rect);
+      const next = { ...first, customBackground: true, background: '#555588', pens: [...first.pens] as Settings['pens'] };
+      next.pens[4] = '#dddddd';
+      const remapped = remapTarget(t, next);
+      const fresh = readImage(pic, next, rect);
+      expect(remapped.L).toEqual(fresh.L);
+      expect(remapped.a).toEqual(fresh.a);
+      expect(remapped.b).toEqual(fresh.b);
+      const cov = next.pens.map((_, i) => new Float32Array(t.L.length).fill(i / 16));
+      const score = (target: typeof t) => likeness(cov, target, next, target.paper - target.dark).likeness;
+      expect(score(remapped)).toEqual(score(fresh));
+      expect(t.paper).toBeGreaterThan(remapped.paper);
+    }
   });
 
   test('one pen matches lightness only', () => {
@@ -177,6 +205,19 @@ describe('reading structure', () => {
       expect(xs.length).toBeGreaterThan(0);
       expect(xs.every((x) => t.ridge[mid(t) + x] === sign && Math.abs((x + 0.5) * t.cell - 50) < 1)).toBe(true);
     }
+  });
+
+  test('an isolated broad stroke gets a centreline while repeating bands keep their zoning edges', () => {
+    const bands = (centres: number[]) => readImage(paint('Bands', (u) =>
+      centres.some((c) => Math.abs(u - c) < 0.06) ? [240, 240, 240] : [100, 100, 100]), set, rect);
+    const centreline = (t: ReturnType<typeof readImage>) => {
+      const i = mid(t) + Math.floor(t.W / 2);
+      return t.ridge.subarray(i - 2, i + 3).includes(2);
+    };
+    expect(centreline(bands([0.5]))).toBe(true);
+    const repeated = bands([0.26, 0.5, 0.74]);
+    expect(centreline(repeated)).toBe(false);
+    expect(repeated.edge.subarray(mid(repeated), mid(repeated) + repeated.W).some((e) => e > 0)).toBe(true);
   });
 
   test("Fit's margins make no edge", () => {

@@ -11,6 +11,14 @@ export type RenderStatus = { text: string; state: 'idle' | 'working' | 'error'; 
 
 const working = (p: StageProgress, source: Settings['source']): RenderStatus => ({ text: stageLabel(p.stage, source), state: 'working', progress: p });
 
+/** The pens, paper and colour weight through which a likeness score was measured. */
+export function scoreLook(set: Settings): string {
+  const paper = set.customBackground ? set.background : '#ffffff';
+  return set.mono ? `${paper}/mono` : `${paper}/${set.imageColour}/${set.pens.join(',')}`;
+}
+
+type DrawingLikeness = Likeness & { look: string };
+
 export type RenderResult = {
   svg: string;
   sheet: [number, number];
@@ -26,16 +34,20 @@ export type RenderResult = {
   mono: boolean;
   speed: number;
   /** In image mode, how like the image the drawing is. */
-  likeness?: Likeness;
+  likeness?: DrawingLikeness;
 };
 
 /** Pictures the worker keeps, as it does: the last two used. */
 const PICTURES = 2;
 
+/** Whether a reply belongs to the source and picture the user is looking at. */
+const sameSource = (a: Settings, b: Settings) => a.source === b.source && (a.source === 'map' || a.image === b.image);
+
 /** Runs drawings on the worker, one at a time, always drawing the latest settings next. */
 export class Renderer {
   private worker = new Worker(new URL('../worker.ts', import.meta.url), { type: 'module' });
   private jobId = 0;
+  private submitted: Settings | null = null;
   private busy = false;
   private queued = false;
   private timer = 0;
@@ -70,11 +82,19 @@ export class Renderer {
         this.scoring.delete(r.id);
         return;
       }
+      const drawn = this.submitted;
+      if (!drawn || r.id !== this.jobId) return;
+      const set = this.settings();
+      const current = sameSource(drawn, set);
       if (r.kind === 'progress') {
-        if (r.id === this.jobId) this.onStatus(working(r, this.settings().source));
+        if (current) this.onStatus(working(r, drawn.source));
         return;
       }
       this.busy = false;
+      if (!current) {
+        this.dispatch();
+        return;
+      }
       if (r.kind === 'error' && r.missing !== undefined && this.picture()?.id === r.missing) {
         // The worker lost track of the picture; send it again with the next drawing.
         this.sent = this.sent.filter((id) => id !== r.missing);
@@ -82,21 +102,16 @@ export class Renderer {
       } else if (r.kind === 'error') {
         this.onStatus({ text: r.text, state: 'error' });
       } else {
-        const set = this.settings();
         this.onStatus({ text: '', state: 'idle' });
         // Pens may have changed while this drawing was on the worker; colour costs no redraw.
-        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed, likeness: r.likeness }, set));
+        const likeness = r.likeness && { ...r.likeness, look: scoreLook(drawn) };
+        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(drawn), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: drawn.mono, speed: drawn.speed, likeness }, { ...set, mono: drawn.mono }));
       }
       this.dispatch();
     };
     this.worker.onerror = () => {
       this.busy = false;
-      for (const resolve of this.picking.values()) resolve(null);
-      this.picking.clear();
-      for (const resolve of this.asking.values()) resolve(null);
-      this.asking.clear();
-      for (const resolve of this.scoring.values()) resolve(null);
-      this.scoring.clear();
+      this.cancelQueries();
       this.sent = [];
       this.onStatus({ text: 'The drawing failed. Try another place or setting.', state: 'error' });
     };
@@ -122,6 +137,7 @@ export class Renderer {
     }
     this.queued = false;
     this.busy = true;
+    this.submitted = set;
     this.onStatus(working({ stage: 'map' }, set.source));
     const job: Job = { kind: 'draw', id: ++this.jobId, set };
     const transfer: Transferable[] = [];
@@ -137,10 +153,13 @@ export class Renderer {
   }
 
   /** How like its image the drawing on show is through the pens of `set`, without drawing it again. */
-  score(set: Settings): Promise<Likeness | null> {
+  score(set: Settings): Promise<DrawingLikeness | null> {
+    const drawn = this.submitted;
+    if (!drawn || !sameSource(drawn, set) || drawn.mono !== set.mono || drawn.imageColour !== set.imageColour) return Promise.resolve(null);
     const id = ++this.pickId;
+    const look = scoreLook(set);
     return new Promise((resolve) => {
-      this.scoring.set(id, resolve);
+      this.scoring.set(id, this.forDrawing<Likeness>((l) => resolve(l && look === scoreLook(this.settings()) ? { ...l, look } : null)));
       this.worker.postMessage({ kind: 'score', id, set: structuredClone(set) } satisfies Job);
     });
   }
@@ -149,7 +168,7 @@ export class Renderer {
   pick(x: number, y: number): Promise<string | null> {
     const id = ++this.pickId;
     return new Promise((resolve) => {
-      this.picking.set(id, resolve);
+      this.picking.set(id, this.forDrawing(resolve));
       this.worker.postMessage({ kind: 'pick', id, x, y } satisfies Job);
     });
   }
@@ -158,13 +177,29 @@ export class Renderer {
   strokes(names: string[]): Promise<Strokes | null> {
     const id = ++this.pickId;
     return new Promise((resolve) => {
-      this.asking.set(id, resolve);
+      this.asking.set(id, this.forDrawing(resolve));
       this.worker.postMessage({ kind: 'strokes', id, names } satisfies Job);
     });
   }
 
+  /** A score, pick or catalogue query follows the drawing the worker was answering for. */
+  private forDrawing<T>(resolve: (answer: T | null) => void): (answer: T | null) => void {
+    const drawn = this.submitted;
+    return (answer) => resolve(drawn && drawn === this.submitted && sameSource(drawn, this.settings()) ? answer : null);
+  }
+
+  private cancelQueries(): void {
+    for (const waiting of [this.picking, this.asking, this.scoring]) {
+      for (const resolve of waiting.values()) resolve(null);
+      waiting.clear();
+    }
+  }
+
   dispose(): void {
     clearTimeout(this.timer);
+    this.worker.onmessage = null;
+    this.worker.onerror = null;
     this.worker.terminate();
+    this.cancelQueries();
   }
 }

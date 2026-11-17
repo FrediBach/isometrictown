@@ -426,7 +426,7 @@ function pools(paper: Paper, M: Masks, shapes: Shape[]): void {
 }
 
 /** Waterway centre lines as water shapes: a strip per segment and a disc per joint. */
-function streamShapes(streams: Stream[]): Shape[] {
+export function streamShapes(streams: Stream[]): Shape[] {
   const out: Shape[] = [];
   const ring = (pts: number[]) => [{ pts, seam: new Uint8Array(pts.length / 2) }];
   for (const s of streams) {
