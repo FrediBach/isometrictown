@@ -106,9 +106,10 @@ for (const picture of pictures) {
       const ms = Object.fromEntries(Object.entries(r.ms).map(([k, v]) => [k, Math.round(v)]));
       console.log(`${label} likeness ${fmt(l.score * 100, 1).padStart(6)}  ΔE ${fmt(l.dE[0], 3)} / ${fmt(l.dE[1], 3)}  SSIM ${fmt(l.ssim, 3)}  tone ${pct(r.stats.tone).padStart(6)}  waste ${pct(r.stats.total.waste).padStart(6)}  ${fmt(r.counts.buildings)} buildings  ${ms.total} ms (read ${ms.read}, zone ${ms.zone}, layout ${ms.layout}, render ${ms.render}, score ${ms.score})`);
       console.log(`${''.padEnd(22)} ${r.streets} streets, ${r.violations.length ? `rules broken: ${r.violations.slice(0, 3).join('; ')}` : 'rules kept'}; ${r.blocks} blocks, ${r.lots} lots, ${r.implausible.length ? `implausible: ${r.implausible.join('; ')}` : 'plausible'}`);
+      console.log(`${''.padEnd(22)} follows the image ${r.corr.toFixed(3)}; ink per pen predicted ${r.guard.predicted.map((v) => (v * 100).toFixed(1)).join('/')} %, drawn ${r.guard.drawn.map((v) => (v * 100).toFixed(1)).join('/')} %`);
       console.log(`${''.padEnd(22)} zones ${Object.entries(r.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.01).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', ')}`);
       const { marks, ...stats } = r.stats;
-      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, shares: r.shares, streets: r.streets, violations: r.violations, blocks: r.blocks, lots: r.lots, implausible: r.implausible, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
+      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, shares: r.shares, streets: r.streets, violations: r.violations, blocks: r.blocks, lots: r.lots, implausible: r.implausible, corr: r.corr, guard: r.guard, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
     } catch (e) {
       console.log(`${label} failed: ${e instanceof Error ? e.stack : e}`);
       report.cases.push({ picture, scale, error: String(e) });
@@ -159,8 +160,12 @@ if (compare) {
     const b = base.cases.find((x) => x.picture === c.picture && x.scale === c.scale);
     if (!b?.likeness || !c.likeness) continue;
     const d = (c.likeness.score - b.likeness.score) * 100;
-    console.log(`${`${c.picture} 1:${c.scale}`.padEnd(22)} likeness ${fmt(b.likeness.score * 100, 1)} → ${fmt(c.likeness.score * 100, 1)} (${d >= 0 ? '+' : ''}${fmt(d, 1)})  SSIM ${fmt(b.likeness.ssim, 3)} → ${fmt(c.likeness.ssim, 3)}  time ${b.ms.total} → ${c.ms.total} ms`);
+    console.log(`${`${c.picture} 1:${c.scale}`.padEnd(22)} likeness ${fmt(b.likeness.score * 100, 1)} → ${fmt(c.likeness.score * 100, 1)} (${d >= 0 ? '+' : ''}${fmt(d, 1)})  SSIM ${fmt(b.likeness.ssim, 3)} → ${fmt(c.likeness.ssim, 3)}${b.corr !== undefined ? `  follows ${fmt(b.corr, 3)} → ${fmt(c.corr, 3)}` : ''}  time ${b.ms.total} → ${c.ms.total} ms`);
   }
+  const mean = (cs, f) => cs.reduce((a, c) => a + f(c), 0) / cs.length;
+  const both = report.cases.filter((c) => c.likeness && base.cases.some((x) => x.picture === c.picture && x.scale === c.scale && x.likeness));
+  const was = both.map((c) => base.cases.find((x) => x.picture === c.picture && x.scale === c.scale));
+  console.log(`${'mean'.padEnd(22)} likeness ${fmt(mean(was, (c) => c.likeness.score) * 100, 1)} → ${fmt(mean(both, (c) => c.likeness.score) * 100, 1)}${was.every((c) => c.corr !== undefined) ? `  follows ${fmt(mean(was, (c) => c.corr), 3)} → ${fmt(mean(both, (c) => c.corr), 3)}` : ''}`);
 }
 
 /** The report page: per picture, each scale's numbers and the picture, the look, the squint and the drawing side by side. */

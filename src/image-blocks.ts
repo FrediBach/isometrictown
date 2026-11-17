@@ -35,6 +35,13 @@ export class Occupancy {
     this.taken = new Uint8Array(this.W * this.H);
   }
 
+  /** A copy to lay buildings into, leaving this one as it is. */
+  clone(): Occupancy {
+    const o = new Occupancy(this.x0, this.y0, this.cs, this.W * this.cs, this.H * this.cs);
+    o.taken.set(this.taken);
+    return o;
+  }
+
   cellOf(x: number, y: number): number {
     const i = Math.floor((x - this.x0) / this.cs);
     const j = Math.floor((y - this.y0) / this.cs);
@@ -42,7 +49,7 @@ export class Occupancy {
   }
 
   /** Mark a road and its pavement taken, a cell short, so a front wall on the pavement's edge stays free. */
-  way(w: Way, pavement = PAVEMENT): void {
+  way(w: Way, pavement = pavementOf(w.cls)): void {
     const cs = this.cs;
     const r = w.width / 2 + pavement - cs;
     const p = w.pts;
@@ -167,7 +174,9 @@ export class Occupancy {
 export type Face = { pts: number[]; reach: number[] };
 
 /** How far a street of a class reaches from its centre line to the front of the lots, m. */
-export const reachOf = (cls: string): number => (ROAD_WIDTH[cls] ?? ROAD_WIDTH.minor) / 2 + PAVEMENT;
+export const reachOf = (cls: string): number => (ROAD_WIDTH[cls] ?? ROAD_WIDTH.minor) / 2 + pavementOf(cls);
+/** The pavement along a street of a class, m: lanes have only a kerbstone's width. */
+export const pavementOf = (cls: string): number => (cls === 'service' ? 1 : PAVEMENT);
 
 /**
  * The bounded faces of the street graph, found by walking half-edges and always taking the next
@@ -334,6 +343,8 @@ export const PARCEL: Partial<Record<Label, { depth: [number, number]; width: [nu
   works: { depth: [45, 80], width: [85, 45] },
   towers: { depth: [40, 70], width: [80, 50] },
 };
+/** How deep the plots of rows get at their densest, m: deep enough for a back building behind a yard. */
+const DEEP: Partial<Record<Label, number>> = { old: 32, rows: 28, blocks: 34 };
 /** Labels whose lots carry rows of buildings sharing their walls. */
 export const ROWS = new Set<Label>(['old', 'rows', 'blocks']);
 /** A turn sharper than this along a block's rim is a corner, where a cut falls, degrees. */
@@ -441,7 +452,10 @@ export function blocksOf(g: Graph, z: Zones, vary: Vary, minRow: number): Block[
     const lv = level / built;
     const [cx, cy] = [(x0 + x1) / 2, (y0 + y1) / 2];
     const narrow = bestRect(rim).rect?.w ?? 0;
-    let depth = Math.min(P.depth[0] + (P.depth[1] - P.depth[0]) * vary(cx, cy, 14040), narrow * 0.45);
+    // Denser rows stand on deeper plots, with room behind for back buildings.
+    const own = P.depth[0] + (P.depth[1] - P.depth[0]) * vary(cx, cy, 14040);
+    const deep = DEEP[label];
+    let depth = Math.min(deep ? own + (deep - own) * lv : own, narrow * 0.45);
     let court: number[] | null = null;
     for (let tries = 0; tries < 3 && depth >= 4; tries++) {
       court = offsetRing(rim, () => depth);

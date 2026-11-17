@@ -5,7 +5,8 @@
  * for `src/image-tone.ts`. See lab/calibrate.ts.
  *
  *   npm run calibrate                      at 1:1000, 1:2500, 1:5000 and 1:8000
- *   npm run calibrate -- --scales 2500 --tilt 30
+ *   npm run calibrate -- --scales 2500 --tilt 25   one tilt; the table in src/image-tone.ts holds 25°, 40° and 55°
+ *   npm run calibrate -- --fit             fit the table in src/image-tone.ts to towns from the test pictures
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,27 @@ const BUILT = new Set(['works', 'suburb', 'rows', 'old', 'blocks', 'towers']);
 const r3 = (v) => Number(v.toFixed(3));
 const row = (c) => `[${c.map(r3).join(', ')}]`;
 
+if (argv.includes('--fit')) {
+  // Fitted to real towns drawn from the test pictures, with the swatches as the prior.
+  const pictures = opt('images', 'gradient,disc,bands,stripes,cross,landscape').split(',');
+  console.log(`// Measured by npm run calibrate at tilt ${tilt}°, then fitted to towns drawn from the test pictures (--fit), ${new Date().toISOString().slice(0, 10)}.`);
+  for (const scale of scales) {
+    const t0 = performance.now();
+    const table = lab.fit(scale, pictures);
+    console.log(`  ${scale}: {`);
+    for (const label of lab.LABELS) {
+      const m = table[label];
+      let line = `    ${label}: { lo: ${row(m.lo)}, hi: ${row(m.hi)}`;
+      if (BUILT.has(label)) line += `, flatLo: ${row(m.flatLo)}, flatHi: ${row(m.flatHi)}`;
+      console.log(`${line} },`);
+    }
+    console.log('  },');
+    process.stderr.write(`1:${scale} fitted in ${Math.round(performance.now() - t0)} ms\n`);
+  }
+  await runner.close();
+  await server.close();
+  process.exit(0);
+}
 console.log(`// Measured by npm run calibrate at tilt ${tilt}°, ${new Date().toISOString().slice(0, 10)}.`);
 for (const scale of scales) {
   console.log(`  ${scale}: {`);

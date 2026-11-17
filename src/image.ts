@@ -11,9 +11,10 @@
 import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
-import { buildingsOf, ROW_LOT_MM } from './image-buildings';
+import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
+import { tune, type Prediction, type Seen } from './image-tune';
 import { readImage, type Target } from './image-read';
 import { streets, type Graph } from './image-streets';
 import { colourCounts, zone, type Zones } from './image-zones';
@@ -79,7 +80,8 @@ const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'image
 const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[], more: unknown = null) => JSON.stringify([pic.id, ...keys.map((k) => set[k]), more]);
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
-let laid: { key: string; town: Town; zones: Zones; streets: Graph; blocks: Block[] } | null = null;
+let laid: { key: string; zones: Zones; layout: Layout } | null = null;
+let built: { key: string; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture (or take the last one, if nothing it depends on changed), reporting each step. */
@@ -101,9 +103,10 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     note('Zoning the ground');
     const zones = zone(target, drawn, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
     note('Laying out streets');
-    laid = { key: townKey, zones, ...imageTown(zones, target, drawn, cam, frame, box, style, note) };
+    laid = { key: townKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note) };
   }
-  return { set: drawn, cam, frame, box, target, zones: laid.zones, streets: laid.streets, blocks: laid.blocks, town: structuredClone(laid.town), region, style };
+  if (built?.key !== townKey) built = { key: townKey, town: imageBuild(laid.layout, target, drawn, cam, note).town };
+  return { set: drawn, cam, frame, box, target, zones: laid.zones, streets: laid.layout.streets, blocks: laid.layout.blocks, town: structuredClone(built.town), region, style };
 }
 
 /** The land plan reaches this far beyond the ground that can show, m, so streets run off the sheet and buildings at its edge have neighbours. */
@@ -116,11 +119,14 @@ const OCCUPY = 0.75;
  * streets over the built zones; and along every street, buildings the way the zone it passes
  * through has them.
  */
-export function imageTown(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}): { town: Town; streets: Graph; blocks: Block[] } {
+/** The structure of a town (§4): its ground, streets, blocks and lots with their landmarks, and what laying buildings out on them needs. */
+export type Layout = { town: Town; streets: Graph; blocks: Block[]; context: BuildContext };
+
+/** Lay out a town's structure on a land plan: everything but the buildings and the trees tuning plants. */
+export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}): Layout {
   const town = empty();
   // Map-fixed keys, as `B.key` gives them, from the fictional frame.
   const key = (x: number, y: number): [number, number] => [Math.round(frame.mx0 + x / frame.k), Math.round(frame.my0 + y / frame.k)];
-
   const vary = (x: number, y: number, salt: number) => {
     const k = key(x, y);
     return hash(k[0], k[1], set.seed, salt);
@@ -143,11 +149,9 @@ export function imageTown(zones: Zones, target: Target, set: Settings, cam: Came
   town.ways = [...st.ways, ...st.paths, ...fields.tracks, ...allots.tracks];
   town.plazas.push(...st.circles);
   town.streams = st.streams;
+  town.landuse = land.landuse;
 
-  const landuse = land.landuse;
-  town.landuse = landuse;
-
-  // Blocks and their lots, kept off roads, paths, water, parks, woods and squares.
+  // Blocks and their lots, kept off roads, paths, water, parks, woods and squares, and the landmarks among them.
   const occ = new Occupancy(zones.x0, zones.y0, Math.max(OCCUPY, zones.cell / 4), zones.W * zones.cell, zones.H * zones.cell);
   for (const w of st.ways) occ.way(w);
   for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
@@ -156,22 +160,49 @@ export function imageTown(zones: Zones, target: Target, set: Settings, cam: Came
   note('Cutting blocks into lots');
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
-  note('Putting up buildings');
   const ground = new Ground({ ways: town.ways, water: town.water, green: parks, wood: town.wood, plazas: town.plazas });
-  const laid = new Footprints();
-  const built = buildingsOf(blocks, { z: zones, set, style, box, vary, occ, ground, laid, plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre });
+  const context: BuildContext = { z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre };
+  landmarks(blocks, context);
+  return { town, streets: st.graph, blocks, context };
+}
+
+/**
+ * Put up a town's buildings on its structure and plant its trees, leaving the structure as it was.
+ * With `tuned`, the lots are first tuned to the target (§14), refined against how the drawing came
+ * out when `seenBefore` says so (§14.3). Tuning gains no likeness yet (see the plan's notes from
+ * M5), so drawings are built untuned.
+ */
+export function imageBuild(layout: Layout, target: Target, set: Settings, cam: Camera, note: (text: string) => void = () => {}, tuned = false, seenBefore?: Seen): { town: Town; blocks: Block[]; prediction: Prediction | null } {
+  const town: Town = { ...layout.town, landuse: [...layout.town.landuse] };
+  const blocks = structuredClone(layout.blocks);
+  const ctx: BuildContext = { ...layout.context, set, occ: layout.context.occ.clone(), laid: new Footprints() };
+  let prediction: Prediction | null = null;
+  if (tuned) {
+    note('Tuning to the image');
+    prediction = tune(blocks, ctx.z, target, cam, set, ctx.box, { seenBefore });
+  }
+  note('Putting up buildings');
+  const built = buildingsOf(blocks, ctx);
   town.buildings = built.buildings;
   town.tagged = built.tagged;
   town.pois = built.pois;
-  landuse.push(...built.landuse);
+  town.landuse.push(...built.landuse);
   note('Planting trees');
-  town.trees = treesOf(blocks, built.landuse.filter((a) => a.cls === 'cemetery'), laid, ground, vary);
+  town.trees = treesOf(blocks, built.landuse.filter((a) => a.cls === 'cemetery'), ctx.laid, ctx.ground, ctx.vary);
+  town.density = { built: [], shops: [] };
   for (const b of town.buildings) {
     if (b.context) continue;
     const p = b.shape[0].pts;
     const [cx, cy] = centre(p);
     town.density.built.push(cx, cy, Math.abs(ringArea(p)));
   }
-  town.nearby = { landuse, pois: town.pois, numbers: [], helipads: [], ways: town.ways };
-  return { town, streets: st.graph, blocks };
+  town.nearby = { landuse: town.landuse, pois: town.pois, numbers: [], helipads: [], ways: town.ways };
+  return { town, blocks, prediction };
+}
+
+/** A town laid out and built in one go, untuned unless asked: for calibration and tests. */
+export function imageTown(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}, tuned = false): { town: Town; streets: Graph; blocks: Block[] } {
+  const layout = imageLayout(zones, target, set, cam, frame, box, style, note);
+  const { town, blocks } = imageBuild(layout, target, set, cam, note, tuned);
+  return { town, streets: layout.streets, blocks };
 }

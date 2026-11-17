@@ -4,7 +4,8 @@
  */
 import { imageScene, plausibility, type Picture } from '../src/image';
 import { TARGET_CELL } from '../src/image-read';
-import { coverage, LABELS, likeness, toGamma, type Label, type Likeness } from '../src/image-tone';
+import { blur, coverage, LABELS, likeness, oklab, toGamma, type Label, type Likeness } from '../src/image-tone';
+import { predict } from '../src/image-tune';
 import { labelAt } from '../src/image-zones';
 import { streetRules } from '../src/image-streets';
 import { PALETTES } from '../src/palettes';
@@ -48,6 +49,13 @@ export type LikenessResult = {
   blocks: number;
   lots: number;
   implausible: string[];
+  /**
+   * How well the drawing's lightness follows the image's, seen from across the room: a Pearson
+   * correlation, which unlike the score doesn't depend on how the target's range is set.
+   */
+  corr: number;
+  /** Each pen's mean coverage as the predictor has it and as drawn: the calibration guard (§7.3). */
+  guard: { predicted: number[]; drawn: number[] };
 };
 
 /** A colour per label for the zone view: water blue, green things green, built things warm to dark. */
@@ -94,7 +102,7 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const at = (note: string) => marks.find(([n]) => n === note)?.[1];
   const read = (at('Zoning the ground') ?? t1) - (at('Reading the image') ?? t0);
   const zoned = (at('Laying out streets') ?? t1) - (at('Zoning the ground') ?? t1);
-  const tally = new Map<string, number[][]>();
+    const tally = new Map<string, number[][]>();
   const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally);
   const t2 = performance.now();
   const planned = plan(drawing.pens, scene.set);
@@ -105,6 +113,7 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const scored = likeness(cov, t, scene.set, t.paper - t.dark);
   const t4 = performance.now();
   const stats = measure(tally, scene.cam.rect, scene.set.penWidth, scene.set.speed);
+  const predicted = predict(structuredClone(scene.blocks), scene.zones, t, scene.cam, scene.set, scene.box);
   const source: Rgb = { w: pic.w, h: pic.h, data: new Uint8Array(pic.w * pic.h * 3) };
   for (let i = 0; i < pic.w * pic.h; i++) source.data.set(pic.rgba.subarray(i * 4, i * 4 + 3), i * 3);
   const edges: Rgb = { w: t.W, h: t.H, data: new Uint8Array(t.W * t.H * 3) };
@@ -138,5 +147,43 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
     blocks: scene.blocks.length,
     lots: scene.blocks.reduce((n, b) => n + b.lots.length, 0),
     implausible: plausibility(scene.town),
+    corr: correlation(scored.views.drawing, scored.views.look, t),
+    guard: {
+      predicted: predicted.pens,
+      drawn: cov.map((plane) => {
+        let sum = 0;
+        let w = 0;
+        for (let i = 0; i < plane.length; i++)
+          if (t.weight[i] > 0) {
+            sum += plane[i];
+            w++;
+          }
+        return sum / Math.max(1, w);
+      }),
+    },
   };
 }
+
+/** Pearson correlation of two views' lightness, blurred a further 3 mm (across the room), where the target has weight. */
+function correlation(drawn: Float32Array[], look: Float32Array[], t: { W: number; H: number; cell: number; weight: Float32Array }): number {
+  const L = (rgb: Float32Array[]) => {
+    const v = new Float32Array(t.W * t.H);
+    const lab = [0, 0, 0];
+    for (let i = 0; i < v.length; i++) {
+      oklab(rgb[0][i], rgb[1][i], rgb[2][i], lab);
+      v[i] = lab[0];
+    }
+    blur(v, t.W, t.H, 3 / t.cell);
+    return v;
+  };
+  const a = L(drawn);
+  const b = L(look);
+  let [n, ma, mb] = [0, 0, 0];
+  for (let i = 0; i < a.length; i++) if (t.weight[i] > 0) [n, ma, mb] = [n + 1, ma + a[i], mb + b[i]];
+  ma /= n || 1;
+  mb /= n || 1;
+  let [ab, aa, bb] = [0, 0, 0];
+  for (let i = 0; i < a.length; i++) if (t.weight[i] > 0) [ab, aa, bb] = [ab + (a[i] - ma) * (b[i] - mb), aa + (a[i] - ma) ** 2, bb + (b[i] - mb) ** 2];
+  return ab / Math.sqrt(aa * bb || 1);
+}
+

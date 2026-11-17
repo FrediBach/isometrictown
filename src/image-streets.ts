@@ -18,6 +18,7 @@ import { streamsOf, traceLines } from './image-water';
 import type { Zones } from './image-zones';
 import type { Settings } from './settings';
 import { patch } from './rng';
+import { atLeast, LOD } from './lod';
 import { offsetRing } from './shape';
 import { ROAD_WIDTH, type Shape, type Stream, type Way } from './tiles';
 
@@ -423,7 +424,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   // A planar graph, cleaned until the hard rules hold, joined into one network, and ranked.
   const water = (x: number, y: number) => labelAt(x, y) === WATER;
   const g = clean(planar(lines), water);
-  rank(g, z);
+  // Lanes only where the renderer draws them as narrow as they are; coarser, it widens them over the houses.
+  rank(g, z, atLeast(cam, LOD.road, ROAD_WIDTH.service) <= ROAD_WIDTH.service + 0.01);
 
   // Turning circles where suburban streets end.
   const deg = degrees(g);
@@ -765,6 +767,8 @@ function leaving(e: GraphEdge, v: number): [number, number] {
   return [dx / l, dy / l];
 }
 
+/** The old town's label, whose quiet streets are lanes. */
+const OLD = LABELS.indexOf('old');
 const RANK: Record<string, number> = { primary: 4, secondary: 3, tertiary: 2, minor: 1 };
 const weaker = (e: GraphEdge, f: GraphEdge) => (e.main !== f.main ? !e.main : RANK[e.cls] !== RANK[f.cls] ? RANK[e.cls] < RANK[f.cls] : lengthOf(e.pts) < lengthOf(f.pts));
 
@@ -947,9 +951,10 @@ function compact(g: Graph): void {
 
 /**
  * Rank the streets by how many routes between the network's ends use them (a sampled
- * betweenness): main roads keep their class, the busiest of the rest become tertiary.
+ * betweenness): main roads keep their class, the busiest of the rest become tertiary, and the
+ * quiet streets of the old town become lanes.
  */
-function rank(g: Graph, z: Zones): void {
+function rank(g: Graph, z: Zones, lanes: boolean): void {
   const N = g.nodes.length / 2;
   if (!N) return;
   const adj: [number, number, number][][] = Array.from({ length: N }, () => []);
@@ -1000,7 +1005,15 @@ function rank(g: Graph, z: Zones): void {
   const busy = new Set(order.slice(0, Math.ceil(order.length * 0.15)));
   g.edges.forEach((e, i) => {
     if (!e.main) e.cls = busy.has(i) ? 'tertiary' : 'minor';
+    // In the old town, the quiet streets are lanes: narrow, with no pavement to speak of.
+    if (lanes && e.cls === 'minor' && labelOfMid(e.pts) === OLD) e.cls = 'service';
   });
+  function labelOfMid(p: number[]): number {
+    const k = (p.length >> 2) * 2;
+    const i = Math.floor((p[k] - z.x0) / z.cell);
+    const j = Math.floor((p[k + 1] - z.y0) / z.cell);
+    return i < 0 || j < 0 || i >= z.W || j >= z.H ? -1 : z.label[j * z.W + i];
+  }
 }
 
 /**

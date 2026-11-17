@@ -6,7 +6,7 @@
  * blocks don't reach (dead ends, the town's outer edge) get buildings set along them.
  */
 import { pointInRing, ringArea } from './geo';
-import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, PAVEMENT, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
+import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
 import { centre, type Footprints, type Ground } from './image-check';
 import { LABELS, type Label } from './image-tone';
 import type { Zones } from './image-zones';
@@ -107,7 +107,6 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
   const likeness = Math.max(0, Math.min(1, set.likeness));
   const worship = style.id === 'arid' ? 'mosque' : style.id === 'eastAsian' ? 'temple' : 'church';
 
-  landmarks(blocks, c);
 
   // Lots in order: landmarks first, then block by block; each takes its ground or is dropped.
   const all: Lot[] = blocks.flatMap((b) => b.lots).filter((l) => {
@@ -216,7 +215,16 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
       const roof = pitched(14047) ? undefined : 'flat';
       const h = s * style.floor + (roof ? 0 : allowance(Math.min(dep, D), style));
       const building = hall?.building ?? (l.label === 'old' && s > 3 ? 'apartments' : l.label === 'blocks' ? 'apartments' : 'terrace');
-      return [{ ring: q, h, building, roof, poi: hall?.poi }];
+      const plans: Plan[] = [{ ring: q, h, building, roof, poi: hall?.poi }];
+      // A back building behind a yard, on a plot deep enough, the more often the denser the zone.
+      const yard = 3 + 3 * side(14096);
+      const rear0 = back + dep + yard;
+      const rearDepth = Math.min(l.depth - rear0 - 1, 8 + 6 * side(14097));
+      if (!hall && rearDepth >= 5 && r(14098) < l.level) {
+        const rs = Math.max(1, s - 2);
+        plans.push({ ring: strip(l, rear0 / l.depth, (rear0 + rearDepth) / l.depth), h: rs * style.floor + (roof ? 0 : allowance(rearDepth, style)), building: 'terrace', roof });
+      }
+      return plans;
     }
     if (l.label === 'suburb') {
       if (hall) {
@@ -308,7 +316,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
  * a school beside each large park in suburbs and rows. A landmark takes a run of neighbouring
  * lots on one side, merged until its frontage is long enough.
  */
-function landmarks(blocks: Block[], c: BuildContext): void {
+export function landmarks(blocks: Block[], c: BuildContext): void {
   // Every lot once, with where it is, filed by 50 m cell; `live` holds those not yet merged away.
   type Entry = { b: Block; l: Lot; at: [number, number] };
   // Only lots on the ground that shows: a landmark laid out of sight is no landmark.
@@ -563,7 +571,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void
         const len = Math.hypot(gx - fx, gy - fy) || 1;
         const ux = (gx - fx) / len;
         const uy = (gy - fy) / len;
-        const probe = zoneAt(fx - uy * sideSign * (w.width / 2 + PAVEMENT + 6), fy + ux * sideSign * (w.width / 2 + PAVEMENT + 6));
+        const probe = zoneAt(fx - uy * sideSign * (w.width / 2 + pavementOf(w.cls) + 6), fy + ux * sideSign * (w.width / 2 + pavementOf(w.cls) + 6));
         const label = probe < 0 ? undefined : LABELS[z.label[probe]];
         const f = label && FRONTAGE[label];
         if (!f || !label) {
@@ -591,7 +599,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean): void
         const my = (ay + by) / 2;
         const r = (salt: number) => vary(mx, my, salt);
         const depth = at(f.depth) + (row ? 2 * rowHash : 2 * r(14023));
-        const back = w.width / 2 + PAVEMENT + at(f.back) * (row ? 1 : 0.7 + 0.6 * r(14024));
+        const back = w.width / 2 + pavementOf(w.cls) + at(f.back) * (row ? 1 : 0.7 + 0.6 * r(14024));
         let q: number[];
         if (row) {
           // Rows are cut square to the street at each end, so on a bend neighbours share the cut

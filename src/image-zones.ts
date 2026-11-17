@@ -44,7 +44,7 @@ const SUPERPIXEL_MM = 5;
 const COMPACT = 0.03;
 const SLIC_ROUNDS = 5;
 /** Typical height of each label's buildings, m: the image is read half that high, where their roofs and walls show. */
-const HEIGHT: Partial<Record<Label, number>> = { works: 8, suburb: 7, rows: 11, old: 15, blocks: 20, towers: 50 };
+export const HEIGHT: Partial<Record<Label, number>> = { works: 8, suburb: 7, rows: 11, old: 15, blocks: 20, towers: 50 };
 const LEVELS = [0, 0.25, 0.5, 0.75, 1];
 /** Radius over which built-up land counts as town rather than country, m. */
 const URBAN_RADIUS = 160;
@@ -77,6 +77,12 @@ const MIN_LIKE = 0.1;
  * texture matches the image. What lies beyond is relabelled.
  */
 const MAX_AREA: Partial<Record<Label, number>> = { allot: 5, plaza: 2 };
+/**
+ * The narrowest a patch of each built label can be and still be built on, m: a tower needs its
+ * plot and the open ground round it, a terrace a street front and a yard. Narrower parts would
+ * stay bare, so they take the next best label.
+ */
+const MIN_WIDTH: Partial<Record<Label, number>> = { towers: 50, works: 40, blocks: 28, suburb: 22, rows: 14, old: 14 };
 
 const L = (name: Label) => LABELS.indexOf(name);
 const GREEN = new Set<Label>(['meadow', 'field', 'park', 'allot', 'wood']);
@@ -110,13 +116,13 @@ export function compat(a: Label, b: Label): number {
  */
 export const colourCounts = (set: Pick<Settings, 'imageColour' | 'mono'>) => !set.mono && set.imageColour > 0;
 /** The pens and paper zoning sees when only lightness counts. */
-const REFERENCE = { pens: ['#000000', '#000000', '#000000', '#000000', '#000000'] as Settings['pens'], mono: false, customBackground: false, background: '#ffffff' };
+export const REFERENCE = { pens: ['#000000', '#000000', '#000000', '#000000', '#000000'] as Settings['pens'], mono: false, customBackground: false, background: '#ffffff' };
 
 /** `compat()` for every pair of label indices, looked up in the hot loops. */
 const COMPAT = Float32Array.from({ length: LABELS.length ** 2 }, (_, i) => compat(LABELS[Math.floor(i / LABELS.length)], LABELS[i % LABELS.length]));
 
 /** What zoning needs from the settings. */
-export type ZoneSettings = Pick<Settings, 'scale' | 'likeness' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
+export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
 
 /**
  * Zone the ground in `box` (local metres) to look like the target through `cam`. The pens shape
@@ -434,6 +440,36 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       mergeSmall();
     }
   }
+  // Built land too narrow to build on is opened away: per label, the cells at least half the
+  // width from its edge, grown back by as much; superpixels mostly outside that take their next
+  // best label.
+  {
+    const cellLabel = new Uint8Array(n);
+    for (let c = 0; c < n; c++) cellLabel[c] = label[sp[c]];
+    const keep = new Uint8Array(n);
+    for (const [l, width] of Object.entries(MIN_WIDTH) as [Label, number][]) {
+      const k = L(l);
+      const r = width / 2 / cell;
+      if (r < 1) continue;
+      const inside = distanceIn(cellLabel, k, W, H);
+      const core = new Float32Array(n);
+      for (let c = 0; c < n; c++) core[c] = inside[c] >= r ? 0 : Infinity;
+      grow(core, W, H);
+      for (let c = 0; c < n; c++) if (cellLabel[c] === k && core[c] <= r) keep[c] = 1;
+    }
+    const kept = new Float32Array(count);
+    for (let c = 0; c < n; c++) if (keep[c]) kept[sp[c]]++;
+    let opened = 0;
+    for (let s = 0; s < count; s++) {
+      const k = label[s];
+      if (MIN_WIDTH[LABELS[k]] === undefined || MIN_WIDTH[LABELS[k]]! / 2 / cell < 1 || kept[s] >= area[s] * 0.5) continue;
+      let best = -1;
+      for (let o = 0; o < K; o++) if (o !== SAND && o !== k && o !== WATER && (best < 0 || data[s * K + o] < data[s * K + best])) best = o;
+      label[s] = best;
+      opened++;
+    }
+    if (opened) mergeSmall();
+  }
   // Water no more than a superpixel across is opened away, unless the image draws its banks: a
   // chain of water along a smooth band of tone is no river. Water stays where some of it is
   // surrounded by water, or edged by the image, and grows back one step from there.
@@ -620,3 +656,41 @@ function coresOf(label: Uint8Array, nbrs: [number, number, number][][], area: Fl
   }
   return big.map((m) => [sum.get(m.id)![0] / m.size, sum.get(m.id)![1] / m.size]);
 }
+
+/** Per cell, how far it is inside the patch of label `k`, in cells (0 outside), by a two-pass chamfer. */
+function distanceIn(label: Uint8Array, k: number, W: number, H: number): Float32Array {
+  const d = new Float32Array(W * H);
+  for (let c = 0; c < d.length; c++) d[c] = label[c] === k ? Infinity : 0;
+  grow(d, W, H);
+  return d;
+}
+
+/** Chamfer distance in place: each cell becomes its distance to the nearest cell holding 0, in cells. */
+function grow(d: Float32Array, W: number, H: number): void {
+  const D = Math.SQRT2;
+  for (let j = 0; j < H; j++)
+    for (let i = 0; i < W; i++) {
+      const c = j * W + i;
+      let v = d[c];
+      if (i > 0) v = Math.min(v, d[c - 1] + 1);
+      if (j > 0) {
+        v = Math.min(v, d[c - W] + 1);
+        if (i > 0) v = Math.min(v, d[c - W - 1] + D);
+        if (i < W - 1) v = Math.min(v, d[c - W + 1] + D);
+      }
+      d[c] = v;
+    }
+  for (let j = H - 1; j >= 0; j--)
+    for (let i = W - 1; i >= 0; i--) {
+      const c = j * W + i;
+      let v = d[c];
+      if (i < W - 1) v = Math.min(v, d[c + 1] + 1);
+      if (j < H - 1) {
+        v = Math.min(v, d[c + W] + 1);
+        if (i < W - 1) v = Math.min(v, d[c + W + 1] + D);
+        if (i > 0) v = Math.min(v, d[c + W - 1] + D);
+      }
+      d[c] = v;
+    }
+}
+
