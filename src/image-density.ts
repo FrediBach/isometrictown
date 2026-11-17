@@ -8,13 +8,15 @@ import type { Target } from './image-read';
 export type Density = (x: number, y: number) => number;
 
 /** The adjusted tone drives density only where the picture covers the sheet. */
-export function densityOf(target: Target, cam: Camera): Density {
+export function densityOf(target: Target, cam: Camera, thin = false): Density {
   const { x0, y0, W, H, cell, weight, tone } = target;
   return (x, y) => {
     const col = Math.floor((cam.sx(x, y) - x0) / cell);
     const row = Math.floor((cam.sy(x, y, 0) - y0) / cell);
     if (col < 0 || col >= W || row < 0 || row >= H) return 0;
     const i = row * W + col;
+    // Thinning opens plots across the picture, most strongly in its pale areas.
+    if (thin) return -weight[i] * (0.5 + 0.5 * tone[i]);
     return weight[i] * (1 - 2 * tone[i]);
   };
 }

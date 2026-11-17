@@ -37,6 +37,21 @@ test('density deepens dark plots and opens light ones while retaining streets, c
   expect(at(0).town).toEqual(plain.town);
 });
 
+test('negative density progressively opens plots in both dark and light areas', () => {
+  const pic = PICTURES.gradient();
+  const at = (imageDensity: number) => imageScene(pic, { ...settings, image: pic.id, imageDensity });
+  const plain = at(0), half = at(-0.5), sparse = at(-1);
+  const [d0, l0] = coverage(plain), [dh, lh] = coverage(half), [ds, ls] = coverage(sparse);
+  expect(ds).toBeLessThan(dh);
+  expect(dh).toBeLessThan(d0);
+  expect(ls).toBeLessThan(lh);
+  expect(lh).toBeLessThan(l0);
+  expect(sparse.town.buildings.length).toBeLessThan(half.town.buildings.length);
+  expect(half.town.buildings.length).toBeLessThan(plain.town.buildings.length);
+  expect(sparse.town.ways).toEqual(plain.town.ways);
+  expect(plausibility(sparse.town)).toEqual([]);
+});
+
 test('street-front rows fill more ground in a dark disc while keeping their sites', () => {
   const pic = PICTURES.disc();
   const at = (imageDensity: number) => imageScene(pic, { ...settings, image: pic.id, imageDensity });

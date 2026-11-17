@@ -107,7 +107,8 @@ function validateImage(s: Settings): void {
   s.imageLight = within(s.imageLight, -1, 1, d.imageLight);
   s.imageContrast = within(s.imageContrast, 0.5, 2, d.imageContrast);
   s.imageColour = within(s.imageColour, 0, 1, d.imageColour);
-  for (const key of ['imageRelief', 'imageDensity', 'imageHatching', 'imageContours', 'imageHighlight'] as const) {
+  s.imageDensity = within(s.imageDensity, -1, 1, d.imageDensity);
+  for (const key of ['imageRelief', 'imageHatching', 'imageContours', 'imageHighlight'] as const) {
     s[key] = within(s[key], 0, 1, d[key]);
   }
   s.imagePreserveSpace = s.imagePreserveSpace === true;

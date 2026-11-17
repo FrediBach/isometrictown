@@ -188,7 +188,7 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   // Buildings add land use, and rendering can put roundabout islands in the parks.
   const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
-  const density = set.imageDensity > 0 ? densityOf(target, cam) : undefined;
+  const density = set.imageDensity !== 0 ? densityOf(target, cam, set.imageDensity < 0) : undefined;
   const buildingGround = (): BuildContext => ({ ...layout.context, set, density, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
   let tunedFronts: Map<number, FrontageLot> | undefined;

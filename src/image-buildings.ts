@@ -160,7 +160,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     if (c.density && plots && plans.length && !l.use) {
       const lot = lotRing(l);
       const [x, y] = centre(lot);
-      const densityPlot = { empty: vacant(set.imageDensity * c.density(x, y), x, y, vary), row: ROWS.has(l.label), fits: (ring: number[]) => within(ring, lot) };
+      const densityPlot = { empty: vacant(Math.abs(set.imageDensity) * c.density(x, y), x, y, vary), row: ROWS.has(l.label), fits: (ring: number[]) => within(ring, lot) };
       for (const p of plans) if (add(p)) plots[out.buildings.length - 1] = densityPlot;
     } else for (const p of plans) add(p);
   }
@@ -340,9 +340,9 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
         if (full !== ring) {
           // Find the room each plot has at full strength first. A house with little room
           // behind it then deepens gradually over the same slider range as its neighbours.
-          if (set.imageDensity === 1) ring = full;
+          if (Math.abs(set.imageDensity) === 1) ring = full;
           else {
-            const blended = ring.map((v, k) => v + (full[k] - v) * set.imageDensity);
+            const blended = ring.map((v, k) => v + (full[k] - v) * Math.abs(set.imageDensity));
             if (fits(blended)) {
               ring = blended;
               extensions.add(ring);
@@ -698,7 +698,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
             occ.take(q, SHARED);
             const record = options?.record && { ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot };
             if (c.density && plots) {
-              plots[out.buildings.length - 1] = { empty: vacant(c.set.imageDensity * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
+              plots[out.buildings.length - 1] = { empty: vacant(Math.abs(c.set.imageDensity) * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
             } else if (record) options?.record?.push(record);
           }
         }

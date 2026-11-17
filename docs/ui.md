@@ -81,7 +81,7 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 Section 1 starts with the **Map | Image** switch. In Image, drop or choose a picture in the image well (`components/image-well.tsx`). With Fill selected, dragging or using the arrow keys moves the crop. Brightness and Contrast adjust the tones the controls below read. Colour, Likeness and Street pattern (Auto | Organic | Grid) set the overall character of the town.
 
 - **Height from image** raises towers in the darkest parts of the picture and tapers buildings down in lighter areas.
-- **Building density from image** gives buildings more ground in dark blocks and opens space for gardens in pale blocks.
+- **Building density from image** below zero opens plots across the picture, especially in pale areas. Above zero it gives buildings more ground in dark blocks and opens space for gardens in pale blocks.
 - **Hatching from image** changes how closely roofs, walls, fields, parks and cast shadows are hatched. It follows the tone where the strokes land on the sheet.
 - **Streets follow image lines** guides roads and paths along connected edges, including curves. The selected street pattern fills the surrounding neighbourhoods.
 - **Preserve empty space** clears town linework from transparent areas, holes and Fit margins. With the switch on, **Highlight cutoff** initially reads *Transparency only*. Set it to 90% to clear areas with adjusted lightness of 90% or higher. The frame and margin lettering can still be plotted.
