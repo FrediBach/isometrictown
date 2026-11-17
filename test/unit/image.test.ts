@@ -4,7 +4,8 @@
  */
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
-import { amenitiesOf, civicSites } from '@/image-amenities';
+import { amenitiesOf, civicSites, parkingSites } from '@/image-amenities';
+import { fieldBarns } from '@/image-buildings';
 import { Footprints, Ground, inShape } from '@/image-check';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
@@ -509,6 +510,38 @@ describe('image neighbourhood amenities', () => {
     expect(town.tagged.map(t => t.building)).toEqual(['hospital', 'apartments']);
     expect(town.tagged[0].roof).toBe('flat');
     expect(town.pois).toEqual([{ x: 20, y: 10, cls: 'hospital', sub: 'hospital' }]);
+  });
+
+  test('a parking aisle connects to the street and gives way to a crossing footpath', () => {
+    const z: Zones = { x0: 0, y0: 0, W: 1, H: 1, cell: 200, label: Uint8Array.of(LABELS.indexOf('works')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
+    const road: Way = { pts: [20, 90, 55, 90], kind: 'road', cls: 'minor', width: 6 };
+    const place = (ways: Way[]) => {
+      const town = empty();
+      town.ways = ways;
+      const occ = new Occupancy(0, 0, 2, 200, 200);
+      occ.way(road);
+      parkingSites(town, z, occ, () => 0);
+      return town;
+    };
+    const town = place([road]);
+    expect(town.ways.map(w => w.service)).toEqual([undefined, 'driveway', 'parking_aisle']);
+    expect(town.ways[1].pts.slice(2)).toEqual(town.ways[2].pts.slice(0, 2));
+    expect(new Ground(town).under(39, 73)).toBe('a car park');
+    expect(place([road, { kind: 'path', cls: 'footway', width: 0, pts: [10, 72, 60, 72] }]).ways).toHaveLength(2);
+  });
+
+  test('a barn and its silo yard fit beside a field track and stay out of the next parcel', () => {
+    const town = empty();
+    const field = [{ pts: [0, 0, 200, 0, 200, 200, 0, 200], seam: new Uint8Array(4) }];
+    town.cover.push({ cls: 'farmland', shape: field });
+    town.ways.push({ kind: 'path', cls: 'track', width: 0, pts: [20, 100, 170, 100] });
+    const z: Zones = { x0: 0, y0: 0, W: 1, H: 1, cell: 200, label: Uint8Array.of(LABELS.indexOf('field')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
+    fieldBarns(town, { box: [0, 0, 200, 200], vary: () => 0, laid: new Footprints(), ground: new Ground(town), z });
+    expect(town.tagged.map(t => t.building)).toEqual(['barn']);
+    expect(ringArea(town.buildings[0].shape[0].pts)).toBeCloseTo(288);
+    const yard = town.landuse[0];
+    expect(yard.cls).toBe('farmyard');
+    expect([0, 2, 4, 6].every(i => inShape(field, yard.shape[0].pts[i], yard.shape[0].pts[i + 1]))).toBe(true);
   });
 
   test('a park court follows its path and a school pitch keeps its ground', () => {

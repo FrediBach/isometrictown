@@ -126,7 +126,7 @@ export class Ground {
   private gw = 0;
   private gh = 0;
 
-  constructor(t: Pick<Town, 'ways' | 'water' | 'streams' | 'green' | 'wood' | 'plazas'>) {
+  constructor(t: Pick<Town, 'ways' | 'water' | 'streams' | 'green' | 'wood' | 'plazas' | 'landuse'>) {
     for (const w of t.ways)
       for (let k = 2; k < w.pts.length; k += 2) {
         const s = { ax: w.pts[k - 2], ay: w.pts[k - 1], bx: w.pts[k], by: w.pts[k + 1], r: w.kind === 'road' ? w.width / 2 : 0 };
@@ -142,6 +142,8 @@ export class Ground {
         this.banks.add(n, [s.ax, s.ay, s.bx, s.by], s.r);
       }
     const open: [string, Shape[]][] = [['water', t.water], ['a park', t.green], ['a wood', t.wood], ['a square', t.plazas]];
+    const parking = t.landuse.filter(a => a.cls === 'parking').map(a => a.shape);
+    if (parking.length) open.push(['a car park', parking]);
     this.open = open.map(([what, shapes]) => {
       const index = new Index();
       shapes.forEach((s, k) => index.add(k, s[0].pts));

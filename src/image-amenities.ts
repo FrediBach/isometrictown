@@ -1,9 +1,12 @@
-/** Sites for the shared renderer in a fictional town, chosen after its buildings and paths are fixed. */
+/** Civic buildings, parking and neighbourhood amenities for the shared renderer in a fictional town. */
 import { pointInRing, ringArea } from './geo';
 import type { BuildContext, Built } from './image-buildings';
+import type { Occupancy } from './image-blocks';
 import { Footprints, inShape } from './image-check';
-import { labelAt } from './image-zones';
-import type { Town } from './tiles';
+import { labelAt, type Zones } from './image-zones';
+import { walk } from './streets';
+import { corners } from './shape';
+import type { Town, Way } from './tiles';
 
 const CIVIC_CANDIDATES = new Set(['apartments', 'terrace', 'industrial', 'warehouse']);
 
@@ -50,6 +53,44 @@ export function civicSites(town: Built, { vary, style }: Pick<BuildContext, 'var
     } else continue;
     town.pois.push({ x, y, cls, sub: cls });
   }
+}
+
+/** Reserve small car parks off urban streets, including the bays on both sides of each aisle. */
+export function parkingSites(town: Town, z: Zones, occ: Occupancy, vary: BuildContext['vary']): void {
+  const spaced = catchments();
+  const drives: Way[] = [];
+  // Narrow paths and rails can pass between the occupancy raster's cell centres.
+  const paths = new Footprints();
+  for (const w of town.ways) {
+    if (w.kind === 'road' || w.bridge) continue;
+    const p = w.pts;
+    for (let i = 2; i < p.length; i += 2) {
+      const dx = p[i] - p[i - 2], dy = p[i + 1] - p[i - 1], L = Math.hypot(dx, dy);
+      if (L > 0) paths.add(corners({ cx: p[i] - dx / 2, cy: p[i + 1] - dy / 2, ux: dx / L, uy: dy / L, L, w: Math.max(2, w.width) }));
+    }
+  }
+  for (const w of town.ways) {
+    if (w.kind !== 'road' || w.bridge || w.streetTram || w.cls === 'service') continue;
+    walk(w.pts, 12, 45, 12, (x, y, dx, dy) => {
+      if (vary(x, y, 14750) >= 0.16) return;
+      const side = vary(x, y, 14751) < 0.5 ? -1 : 1;
+      const ux = -dy * side, uy = dx * side;
+      const entry = w.width / 2 + 3, cx = x + ux * (entry + 12), cy = y + uy * (entry + 12);
+      const label = labelAt(z, cx, cy);
+      if (label !== 'works' && label !== 'blocks' && !(label === 'rows' && w.cls !== 'minor')) return;
+      const yard = corners({ cx, cy, ux, uy, L: 24, w: 17 });
+      const driveway = corners({ cx: x + ux * entry / 2, cy: y + uy * entry / 2, ux, uy, L: entry, w: 4 });
+      if (![0, 2, 4, 6].every(k => labelAt(z, yard[k], yard[k + 1]) === label) || !occ.allows(yard, 0) ||
+          paths.touches(yard) || paths.touches(driveway) || !spaced('parking', cx, cy, 220)) return;
+      const ax = x + ux * entry, ay = y + uy * entry;
+      drives.push({ kind: 'road', cls: 'service', service: 'driveway', width: 4, pts: [x, y, ax, ay] },
+        { kind: 'road', cls: 'service', service: 'parking_aisle', width: 5, pts: [ax, ay, ax + ux * 24, ay + uy * 24] });
+      occ.fill([yard]);
+      occ.fill([driveway]);
+      town.landuse.push({ cls: 'parking', shape: [{ pts: yard, seam: new Uint8Array(4) }] });
+    });
+  }
+  town.ways.push(...drives);
 }
 
 /** Give finished streets shops and stops, and lay out recreation grounds beside paths. */

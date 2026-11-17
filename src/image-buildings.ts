@@ -8,15 +8,16 @@
 import { pointInRing, ringArea } from './geo';
 import { civicSites } from './image-amenities';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
-import { centre, Footprints, simpleFootprint, type Ground } from './image-check';
+import { centre, Footprints, inShape, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type Density } from './image-density';
 import { LABELS, type Label } from './image-tone';
 import { labelAt, type Zones } from './image-zones';
 import { hash } from './rng';
 import { bestRect, corners } from './shape';
+import { walk } from './streets';
 import type { Settings } from './settings';
 import type { Style } from './styles';
-import type { Area, Building, Poi, Shape, Tagged, Way } from './tiles';
+import type { Area, Building, Poi, Shape, Tagged, Town, Way } from './tiles';
 
 /** Buildings are laid out this far beyond the ground that can show, m; those beyond it are context only. */
 const MARGIN = 60;
@@ -92,6 +93,40 @@ function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (sal
     outline[i + 1] = q[1] + uy * a + vy * b;
   }
   return outline;
+}
+
+/** Place gabled barns beside rural routes, with an open yard for silos and farm machinery. */
+export function fieldBarns(town: Town, { box, vary, ground, laid, z }: Pick<BuildContext, 'box' | 'vary' | 'ground' | 'laid' | 'z'>): void {
+  const fields = town.cover.filter(a => a.cls === 'farmland' || a.cls === 'meadow');
+  if (!fields.length) return;
+  const barns: [number, number][] = [];
+  for (const w of town.ways) {
+    if (w.bridge || w.service || (w.cls !== 'track' && w.kind !== 'road')) continue;
+    walk(w.pts, 8, 60, 6, (mx, my, ux, uy) => {
+      if (town.buildings.length >= MAX_BUILDINGS || vary(mx, my, 14752) >= 0.45) return;
+      const side = vary(mx, my, 14753) < 0.5 ? -1 : 1;
+      const back = w.width / 2 + 22 + 10 * vary(mx, my, 14754);
+      // A wider verge or another building may leave the first clear field farther from the road.
+      for (const offset of [back * side, -back * side, (back + 24) * side, -(back + 24) * side]) {
+        const x = mx - uy * offset, y = my + ux * offset;
+        if (x < box[0] || y < box[1] || x > box[2] || y > box[3]) continue;
+        const label = labelAt(z, x, y);
+        if ((label !== 'field' && label !== 'meadow') || barns.some(([a, b]) => Math.hypot(x - a, y - b) < 220)) continue;
+        const site = { cx: x, cy: y, ux, uy };
+        const yard = corners({ ...site, L: 29, w: 26 });
+        const reach = Math.hypot(14.5, 13);
+        if (ground.front(x, y) < reach || !ground.clear(yard) || laid.touches(yard)) continue;
+        if (!fields.some(a => inShape(a.shape, x, y) && a.shape.every(r => toRing(x, y, r.pts) > reach))) continue;
+        const pts = corners({ ...site, L: 24, w: 12 });
+        town.buildings.push({ shape: [{ pts, seam: new Uint8Array(4) }], h: 7, min: 0 });
+        town.tagged.push({ x, y, building: 'barn', roof: 'gabled', from: 'image' });
+        town.landuse.push({ cls: 'farmyard', shape: [{ pts: yard, seam: new Uint8Array(4) }] });
+        laid.add(yard);
+        barns.push([x, y]);
+        break;
+      }
+    });
+  }
 }
 
 /** How far a point is from a ring's outline, m. */

@@ -1,7 +1,7 @@
 {
   "likeness": {"score":0.401,"dE":[0.077,0.071],"ssim":0.368},
   "region": {"country":"Image","code":"","style":"british","left":true},
-  "counts": {"buildings":889,"houses":173,"trees":1672,"cars":292,"lamps":198},
+  "counts": {"buildings":889,"houses":173,"trees":1672,"cars":293,"lamps":198},
   "census": {
     "blank-windows": 17,
     "broadleaf": 1589,

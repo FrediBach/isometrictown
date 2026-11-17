@@ -10,9 +10,9 @@
  */
 import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
-import { amenitiesOf } from './image-amenities';
+import { amenitiesOf, parkingSites } from './image-amenities';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
-import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
+import { buildingsOf, fieldBarns, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
 import { densityOf } from './image-density';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
@@ -171,6 +171,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   for (const w of st.ways) occ.way(w);
   for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
   for (const s of [...town.water, ...streamShapes(town.streams), ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
+  parkingSites(town, zones, occ, vary);
   const mmPerMetre = 1000 / set.scale;
   note('Cutting blocks into lots');
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
@@ -212,6 +213,7 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   town.pois = built.pois;
   town.pools = built.pools;
   town.landuse.push(...built.landuse);
+  fieldBarns(town, ctx);
   amenitiesOf(town, ctx);
   note('Planting trees');
   town.trees = treesOf(blocks, built.landuse.filter((a) => a.cls === 'cemetery'), ctx.laid, ctx.ground, ctx.vary);
