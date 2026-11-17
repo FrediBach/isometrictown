@@ -41,12 +41,12 @@
     "wild-trees": 74
   },
   "plan": {
-    "lifts": 9257,
-    "rawLifts": 13692,
-    "inkMm": 41838.8,
-    "travelMm": 23565.7,
+    "lifts": 9250,
+    "rawLifts": 13687,
+    "inkMm": 41842.1,
+    "travelMm": 23574.2,
     "minutes": 68.6,
-    "pens": [["Shadows",1943,6207],["Water",115,438],["Greenery",1623,4557.1],["Roofs",1800,9891.8],["Linework",3776,20744.9]]
+    "pens": [["Shadows",1943,6207],["Water",115,438.2],["Greenery",1623,4557.1],["Roofs",1800,9891.8],["Linework",3769,20748]]
   },
   "features": {
     "buildings": [3199,11230.4],
@@ -64,7 +64,7 @@
     "streets:kerbs": [755,3829],
     "streets:plazas": [7,76],
     "trees": [928,3134.4],
-    "water": [131,660],
+    "water": [126,663.3],
     "windows": [146,519.1]
   },
   "facets": {
@@ -198,7 +198,7 @@
     "trees/image-trees": [48,216.9],
     "trees/street-trees": [617,2003.3],
     "trees/wild-trees": [2,7.5],
-    "water/pools": [16,29.4],
+    "water/pools": [11,32.6],
     "water/shores": [5,202.7],
     "water/waves": [110,427.9],
     "windows/apartment": [15,35.2],
@@ -223,5 +223,5 @@
     "windows/skirt-roof": [1,2.3],
     "windows/terrace": [127,468.4]
   },
-  "svg": {"bytes":530041,"sha1":"b849eda7c03270dc"}
+  "svg": {"bytes":530681,"sha1":"b1b6f15b9c03b07e"}
 }

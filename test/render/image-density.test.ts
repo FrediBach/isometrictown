@@ -76,13 +76,15 @@ test('garden pools keep clear of the finished houses and paths as density change
     const occupied = new Footprints();
     const ground = new Ground(town);
     for (const b of town.buildings) occupied.add(b.shape[0].pts);
-    if (!imageDensity) expect(town.pools.length).toBeGreaterThan(0);
+    if (!imageDensity) expect(new Set(town.pools.map(pool => pool[0].pts.length)).size).toBeGreaterThan(1);
     for (const pool of town.pools) {
       const p = pool[0].pts;
-      expect(ringArea(p)).toBeCloseTo(28);
+      expect(ringArea(p)).toBeGreaterThan(0);
+      expect(pool[0].seam).toHaveLength(p.length / 2);
       expect(occupied.touches(p)).toBe(false);
       expect(ground.clear(p)).toBe(true);
-      expect(ground.front(...centre(p))).toBeGreaterThan(5);
+      const [x, y] = centre(p);
+      for (let i = 0; i < p.length; i += 2) expect(ground.front(x, y)).toBeGreaterThan(Math.hypot(p[i] - x, p[i + 1] - y) + 1);
       occupied.add(p);
     }
   }

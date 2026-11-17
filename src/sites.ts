@@ -654,6 +654,44 @@ export function quarries(_B: Build, paper: Paper, town: Town, M: Masks): Extra {
 
 // ---------------------------------------------------------------- Squares
 
+/** An image-town fountain with a basin aligned to the square and jets scaled to its width. */
+function imageFountain(B: Build, s: Solid, r: Rect, radius: number, water: { pen: number; pts: number[] }[]): void {
+  const [kx, ky] = B.key(r.cx, r.cy);
+  const pick = (salt: number) => hash(kx, ky, B.set.seed, salt);
+  const sides = pick(14736) < 0.45 ? 6 + 2 * Math.floor(2 * pick(14737)) : 24;
+  const breadth = radius * (0.65 + 0.35 * pick(14738));
+  const rim: number[][] = [], inner: number[] = [];
+  for (let i = 0; i < sides; i++) {
+    const a = i * 2 * Math.PI / sides, dx = Math.cos(a), dy = Math.sin(a);
+    rim.push([radius * dx, breadth * dy]);
+    const u = (radius - 0.35) * dx, v = (breadth - 0.35) * dy;
+    inner.push(r.cx + r.ux * u - r.uy * v, r.cy + r.uy * u + r.ux * v, 0.55);
+  }
+  const basin = place(r.cx, r.cy, r.ux, r.uy, rim);
+  slab(B, s, basin, 0, 0.55);
+  s.casts.push({ ring: basin, h: 0.55 });
+  water.push({ pen: WATER, pts: [...inner, ...inner.slice(0, 3)] });
+  const height = 1.1 + 0.32 * breadth, jets = 3 + Math.floor(4 * pick(14739));
+  const bowl = pick(14742) < 0.5;
+  if (bowl) {
+    cylinder(B, s, r.cx, r.cy, 0.25, 0.55, height);
+    cylinder(B, s, r.cx, r.cy, breadth * 0.28, height, height + 0.2);
+  }
+  for (let i = 0; i < jets; i++) {
+    const a = i * 2 * Math.PI / jets;
+    const pts: number[] = [];
+    for (let k = 0; k <= 8; k++) {
+      const t = k / 8;
+      const start = bowl ? 0.28 * breadth : 0;
+      const dx = Math.cos(a) * (start * (1 - t) + 0.65 * radius * t);
+      const dy = Math.sin(a) * (start * (1 - t) + 0.65 * breadth * t);
+      const z = 0.55 + (bowl ? height - 0.35 : 0) * (1 - t) + 4 * t * (1 - t) * height * (bowl ? 0.24 : 0.85);
+      pts.push(r.cx + r.ux * dx - r.uy * dy, r.cy + r.uy * dx + r.ux * dy, z);
+    }
+    water.push({ pen: WATER, pts });
+  }
+}
+
 /** A fountain or a statue in the middle of each town square big enough to hold one. */
 export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const solids: Solid[] = [];
@@ -675,6 +713,11 @@ export function squares(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     if (h(0) < 0.6) {
       // A round basin, a column carrying a bowl, and water falling from it.
       const R = Math.min(Math.max(2.5, Math.sqrt(area) * (0.05 + h(1) * 0.02)), 7, r.w * 0.2);
+      if (B.set.source === 'image') {
+        imageFountain(B, s, r, R, lines);
+        solids.push(s);
+        continue;
+      }
       const ring = cylinder(B, s, x, y, R, 0, 0.55);
       const inner: number[] = [];
       for (let q = 0; q < 24; q++) inner.push(x + Math.cos((q / 24) * Math.PI * 2) * (R - 0.35), y + Math.sin((q / 24) * Math.PI * 2) * (R - 0.35), 0.55);

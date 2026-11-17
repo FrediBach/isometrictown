@@ -623,7 +623,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     group: 'streets',
     name: 'Fountains and statues',
     source: ['invented'],
-    what: 'A round basin with a column and falling water, or a statue on a plinth, in the middle of a square.',
+    what: 'A fountain or a statue on a plinth in the middle of a square. Image-town fountains have oval or polygonal basins with arcing jets or a raised bowl.',
     how: 'Squares between 400 and 40,000 m² wide enough to hold one: a fountain in six of ten, a statue in the rest.',
     lod: ['fountain'],
     strokes: ['streets:squares'],

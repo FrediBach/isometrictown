@@ -50,14 +50,34 @@ export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
 ];
-/** A seven-by-four metre garden pool parallel to the front wall, three metres beyond the rear wing. */
-function poolBehind(house: number[]): number[] {
+/** A pool fitted across the back garden, three metres beyond the furthest wall. */
+function poolBehind(house: number[], r: (salt: number) => number): number[] {
   const dx = house[2] - house[0], dy = house[3] - house[1], width = Math.hypot(dx, dy);
   const u: [number, number] = [dx / width, dy / width], v: [number, number] = [-u[1], u[0]];
   let depth = 0;
   for (let i = 4; i < house.length; i += 2)
     depth = Math.max(depth, (house[i] - house[0]) * v[0] + (house[i + 1] - house[1]) * v[1]);
-  return rect([house[0] + (width - 7) / 2 * u[0] + (depth + 3) * v[0], house[1] + (width - 7) / 2 * u[1] + (depth + 3) * v[1]], u, v, 7, 4);
+  const length = Math.min(width, 5.5 + 4 * r(14731)), breadth = 2.8 + 2 * r(14732);
+  const along = (width - length) * (0.25 + 0.5 * r(14733));
+  const start: [number, number] = [house[0] + along * u[0] + (depth + 3) * v[0], house[1] + along * u[1] + (depth + 3) * v[1]];
+  const form = r(14734);
+  if (form < 0.35) return rect(start, u, v, length, breadth);
+  // The same curve ranges from an oval plunge pool to a lap pool with softly rounded corners.
+  const exponent = 0.32 + 0.68 * r(14735);
+  const round = (n: number) => Math.sign(n) * Math.abs(n) ** exponent;
+  const pts: number[] = [];
+  for (let i = 0; i < 20; i++) {
+    const a = i * Math.PI / 10;
+    const dx = length * (1 + round(Math.cos(a))) / 2, dy = breadth * (1 + round(Math.sin(a))) / 2;
+    pts.push(start[0] + dx * u[0] + dy * v[0], start[1] + dx * u[1] + dy * v[1]);
+  }
+  return pts;
+}
+
+function poolClearance(pts: number[], x: number, y: number): number {
+  let radius = 0;
+  for (let i = 0; i < pts.length; i += 2) radius = Math.max(radius, Math.hypot(pts[i] - x, pts[i + 1] - y));
+  return radius + 1;
 }
 /** Cut a street-facing rectangle back to form wings, a service court or a bevelled tower. */
 function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (salt: number) => number): number[] {
@@ -373,9 +393,9 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       const s = Math.min(st, 2);
       plans.push({ ring: house.length === 8 ? shapedPlan(house, l.label, roof, r) : house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
       if (r(14730) < 0.16) {
-        const pool = poolBehind(plans[0].ring);
+        const pool = poolBehind(plans[0].ring, r);
         const [cx, cy] = centre(pool);
-        if (pointInRing(cx, cy, ring) && toRing(cx, cy, ring) > Math.hypot(3.5, 2) + 1) plans[0].pool = pool;
+        if (pointInRing(cx, cy, ring) && toRing(cx, cy, ring) > poolClearance(pool, cx, cy)) plans[0].pool = pool;
       }
       if (r(14057) < 0.25) {
         const back = sb + dd + (wing ? ex : 0) + 3;
@@ -482,8 +502,8 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     const pts = gardenPools.get(b);
     if (!pts) continue;
     const [x, y] = centre(pts);
-    if (c.ground.front(x, y) <= Math.hypot(3.5, 2) + 1 || !c.ground.clear(pts) || c.laid.touches(pts)) continue;
-    out.pools.push([{ pts, seam: new Uint8Array(4) }]);
+    if (c.ground.front(x, y) <= poolClearance(pts, x, y) || !c.ground.clear(pts) || c.laid.touches(pts)) continue;
+    out.pools.push([{ pts, seam: new Uint8Array(pts.length / 2) }]);
     c.laid.add(pts);
   }
   return out;
@@ -818,7 +838,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           const h = label === 'works' ? 6 + 2.5 * st : st * style.floor + (roof ? 0 : allowance(depth, style));
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
           if (!row) q = shapedPlan(q, label, roof, r);
-          const pool = label === 'suburb' && r(14730) < 0.16 ? poolBehind(q) : undefined;
+          const pool = label === 'suburb' && r(14730) < 0.16 ? poolBehind(q, r) : undefined;
           if (add({ ring: q, h, building, roof, pool: pool && free(pool, z.label[probe]) ? pool : undefined })) {
             occ.take(q, SHARED);
             if ((label === 'rows' || label === 'suburb') && r(14711) < 0.08) {
