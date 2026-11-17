@@ -6,6 +6,7 @@
  * blocks don't reach (dead ends, the town's outer edge) get buildings set along them.
  */
 import { pointInRing, ringArea } from './geo';
+import { civicSites } from './image-amenities';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
 import { centre, Footprints, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type Density } from './image-density';
@@ -273,6 +274,13 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
         const rs = Math.max(1, s - 2);
         plans.push({ ring: strip(l, rear0 / l.depth, (rear0 + rearDepth) / l.depth), h: rs * style.floor + (roof ? 0 : allowance(rearDepth, style)), building: 'terrace', roof });
       }
+      // On less built-up plots a small workshop stands at the far end of the yard.
+      if (!hall && plans.length === 1 && D > rear0 + 7 && L >= 6 && r(14710) < 0.22) {
+        const w = Math.min(6, L - 2), d = 4;
+        const back = Math.min(D - d - 1, rear0 + 4);
+        const q = rect([A[0] + u[0] + v[0] * back, A[1] + u[1] + v[1] * back], u, v, w, d);
+        if (within(q, ring)) plans.push({ ring: q, h: 3, building: 'shed', roof: style.id === 'arid' ? 'flat' : 'skillion' });
+      }
       return plans;
     }
     if (l.label === 'suburb') {
@@ -356,6 +364,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
   }
 
   frontages(c, out, add, frontageOptions, plots);
+  civicSites(out, c);
   if (c.density && plots) {
     // Reserve all accepted sites before extending any of them. A deep house may take up
     // its own back garden, but it should never knock a neighbour out of the street front.
@@ -365,7 +374,9 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     out.buildings = [];
     out.tagged = [];
     for (let i = 0; i < buildings.length; i++) {
-      const plot = plots[i];
+      const use = tagged[i].building;
+      const civic = use === worship || use === 'hospital' || use === 'civic';
+      const plot = civic ? undefined : plots[i];
       if (plot?.empty) continue;
       const b = buildings[i], tag = tagged[i];
       let ring = b.shape[0].pts;
@@ -639,6 +650,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
   const RANKS: Record<string, number> = { primary: 4, secondary: 3, tertiary: 2, minor: 1 };
   const ways = c.ways;
   const order = ways.map((_, i) => i).sort((a, b) => (RANKS[ways[b].cls] ?? 0) - (RANKS[ways[a].cls] ?? 0) || a - b);
+  const workshops: { ring: number[]; zone: number; parent: number }[] = [];
   let index = 0;
   for (const wi of order) {
     const w = ways[wi];
@@ -732,6 +744,13 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           if (!row) q = shapedPlan(q, label, roof, r);
           if (add({ ring: q, h, building, roof })) {
             occ.take(q, SHARED);
+            if ((label === 'rows' || label === 'suburb') && r(14711) < 0.08) {
+              // A detached workshop across a back yard. Reserve all street fronts before trying it.
+              const w = Math.min(5.5, chord - 2);
+              const d = back + depth + 5;
+              const F: [number, number] = [mx - cx0 * w * sideSign / 2 + nx * d, my - cy0 * w * sideSign / 2 + ny * d];
+              workshops.push({ ring: rect(F, [cx0 * sideSign, cy0 * sideSign], [nx, ny], w, 4), zone: z.label[probe], parent: out.buildings.length - 1 });
+            }
             const record = options?.record && { ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot };
             if (c.density && plots) {
               plots[out.buildings.length - 1] = { empty: vacant(Math.abs(c.set.imageDensity) * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
@@ -741,5 +760,11 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
         s += lot;
       }
     }
+  }
+  for (const { ring, zone, parent } of workshops) {
+    if (!free(ring, zone) || !add({ ring, h: 3, building: 'shed', roof: style.id === 'arid' ? 'flat' : 'skillion' })) continue;
+    occ.take(ring, SHARED);
+    const plot = plots?.[parent];
+    if (plots && plot) plots[out.buildings.length - 1] = { ...plot, record: undefined };
   }
 }

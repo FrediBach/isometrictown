@@ -10,6 +10,7 @@
  */
 import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
+import { amenitiesOf } from './image-amenities';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
@@ -208,9 +209,11 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   town.tagged = built.tagged;
   town.pois = built.pois;
   town.landuse.push(...built.landuse);
+  amenitiesOf(town, ctx);
   note('Planting trees');
   town.trees = treesOf(blocks, built.landuse.filter((a) => a.cls === 'cemetery'), ctx.laid, ctx.ground, ctx.vary);
   town.density = { built: [], shops: [] };
+  for (const p of town.pois) if (p.cls === 'shop') town.density.shops.push(p.x, p.y);
   for (const b of town.buildings) {
     if (b.context) continue;
     const p = b.shape[0].pts;

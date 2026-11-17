@@ -90,7 +90,10 @@ export function patchwork(fields: Shape[], P: Patchwork, vary: Vary): { cover: A
             .map((h) => clip(h.pts, box))
             .filter((h): h is number[] => !!h && Math.abs(ringArea(h)) > 1);
           const shape: Shape = [outer, ...holes].map((pts) => ({ pts, seam: new Uint8Array(pts.length / 2) }));
-          cover.push({ shape, cls: P.cls });
+          // Fruit trees and vines occupy whole parcels and follow the same farm tracks.
+          const crop = P.cls === 'farmland' ? q(14708) : 1;
+          const cls = crop < 0.12 ? 'orchard' : crop < 0.23 ? 'vineyard' : P.cls;
+          cover.push({ shape, cls });
         } else if (outer && ringArea(outer) > 1) cover.push({ shape: [{ pts: outer, seam: new Uint8Array(outer.length / 2) }], cls: P.rest });
         a = a1;
       }

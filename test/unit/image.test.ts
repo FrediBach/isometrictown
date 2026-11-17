@@ -4,6 +4,8 @@
  */
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
+import { amenitiesOf, civicSites } from '@/image-amenities';
+import { Footprints, Ground } from '@/image-check';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, remapTarget, toneAt } from '@/image-read';
@@ -485,6 +487,33 @@ describe('evidence for classify', () => {
   });
 });
 
+describe('image neighbourhood amenities', () => {
+  test('a hospital takes a roomy building and leaves neighbouring blocks in housing', () => {
+    const town = empty();
+    for (const x of [0, 90]) {
+      town.buildings.push({ h: 20, min: 0, shape: [{ pts: [x, 0, x + 40, 0, x + 40, 20, x, 20], seam: new Uint8Array(4) }] });
+      town.tagged.push({ x: x + 20, y: 10, building: 'apartments', from: 'image' });
+    }
+    civicSites(town, { style: STYLES.central, vary: () => 0 });
+    expect(town.tagged.map(t => t.building)).toEqual(['hospital', 'apartments']);
+    expect(town.tagged[0].roof).toBe('flat');
+    expect(town.pois).toEqual([{ x: 20, y: 10, cls: 'hospital', sub: 'hospital' }]);
+  });
+
+  test('a park court follows its path and a school pitch keeps its ground', () => {
+    const town = empty();
+    town.green.push([{ pts: [0, 0, 200, 0, 200, 200, 0, 200], seam: new Uint8Array(4) }]);
+    town.ways.push({ pts: [20, 70, 160, 70], kind: 'path', cls: 'footway', width: 0 });
+    const z: Zones = { x0: 0, y0: 0, W: 1, H: 1, cell: 200, label: Uint8Array.of(LABELS.indexOf('park')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
+    const ctx = { z, ground: new Ground(town), laid: new Footprints(), vary: () => 0 };
+    amenitiesOf(town, ctx);
+    expect(town.pois).toEqual([{ x: 90, y: 54, cls: 'pitch', sub: 'tennis' }]);
+    expect(ringArea(town.landuse[0].shape[0].pts)).toBeCloseTo(26 * 14);
+    amenitiesOf(town, ctx);
+    expect(town.landuse).toHaveLength(1);
+  });
+});
+
 describe('fields and allotments', () => {
   const vary = (x: number, y: number, salt: number) => (Math.abs(Math.sin(x * 12.9898 + y * 78.233 + salt)) * 43758.5453) % 1;
   // A field 900 by 500 m, turned, with a pond in it.
@@ -501,6 +530,8 @@ describe('fields and allotments', () => {
     const { cover } = patchwork([field], FIELDS, vary);
     const farms = cover.filter((a) => a.cls === 'farmland');
     expect(farms.length).toBeGreaterThan(15);
+    expect(cover.some(a => a.cls === 'orchard')).toBe(true);
+    expect(cover.some(a => a.cls === 'vineyard')).toBe(true);
     expect(cover.reduce((t, a) => t + area(a.shape), 0)).toBeCloseTo(area(field), -2);
     const sizes = farms.map((a) => area(a.shape)).sort((p, q) => p - q);
     expect(sizes[Math.floor(sizes.length / 2)]).toBeGreaterThan(8000);
