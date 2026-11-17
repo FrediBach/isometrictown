@@ -526,6 +526,12 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       office = [p[best * 2], p[best * 2 + 1]];
     }
     const pick2 = (prob: number, salt: number) => (kind === 'terrace' ? row(salt) : r(salt)) < prob;
+    // A compact detached house can turn its gable to the street. Image plans start on the front wall.
+    let across = t?.across;
+    if (t?.from === 'image' && kind === 'house' && (roof === 'gabled' || roof === 'halfHipped') && p.length === 8 && r(14741) < 0.35) {
+      const front = Math.hypot(p[2] - p[0], p[3] - p[1]), side = Math.hypot(p[6] - p[0], p[7] - p[1]);
+      if (front >= side && front <= 1.35 * side) across = true;
+    }
     b.info = {
       kind,
       roof,
@@ -540,7 +546,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       castle: !!(marks[i] & 1) && area > 150,
       hospital: !!(marks[i] & 2) || (land[i] === 'hospital' && area > 4000 && r(14) < 0.5),
       townHall: !!(marks[i] & 4),
-      across: t?.across,
+      across,
       chimney: isHome && pick2(style.chimney, 7),
       dormers: (isHome || kind === 'civic') && pick2(style.dormer, 8),
       gableFront: isHome && roof === 'gabled' && r(9) < style.gableFront ? (r(10) < 0.55 ? 1 : 2) : 0,

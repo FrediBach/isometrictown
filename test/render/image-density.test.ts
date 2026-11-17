@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { ringArea } from '@/geo';
+import { pointInRing, ringArea } from '@/geo';
 import { imageScene, plausibility, type Scene } from '@/image';
 import { centre, Footprints, Ground } from '@/image-check';
 import { densityOf } from '@/image-density';
@@ -86,4 +86,21 @@ test('garden pools keep clear of the finished houses and paths as density change
       occupied.add(p);
     }
   }
+});
+
+test('a courtyard keep retains its site as neighbouring plots thin or expand', () => {
+  const pic = PICTURES.gradient();
+  const keep = (imageDensity: number) => {
+    const { town } = imageScene(pic, { ...settings, image: pic.id, sheet: 'a3', imageDensity });
+    const sites = town.pois.filter(p => p.cls === 'castle');
+    expect(sites).toHaveLength(1);
+    const { x, y } = sites[0];
+    const buildings = town.buildings.filter(b => pointInRing(x, y, b.shape[0].pts));
+    expect(buildings).toHaveLength(1);
+    expect(ringArea(buildings[0].shape[0].pts)).toBeGreaterThan(150);
+    return buildings[0].shape;
+  };
+  const plain = keep(0);
+  expect(keep(1)).toEqual(plain);
+  expect(keep(-1)).toEqual(plain);
 });

@@ -11,9 +11,9 @@ import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS
 import { centre, Footprints, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type Density } from './image-density';
 import { LABELS, type Label } from './image-tone';
-import type { Zones } from './image-zones';
+import { labelAt, type Zones } from './image-zones';
 import { hash } from './rng';
-import { bestRect } from './shape';
+import { bestRect, corners } from './shape';
 import type { Settings } from './settings';
 import type { Style } from './styles';
 import type { Area, Building, Poi, Shape, Tagged, Way } from './tiles';
@@ -75,7 +75,9 @@ function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (sal
   } else if (label === 'suburb' || label === 'works') {
     if (width < 9 || depth < 8) return q;
     if (label === 'works' && width >= 24 && pick < 0.26) {
-      outline = [0, 0, 1, 0, 1, 1, 0.68, 1, 0.68, 1 - cut, 0.32, 1 - cut, 0.32, 1, 0, 1];
+      // Two parallel halls can share a central link, leaving loading courts at both ends.
+      const front = depth >= 22 && pick < 0.12 ? [0.32, 0, 0.32, cut, 0.68, cut, 0.68, 0] : [];
+      outline = [0, 0, ...front, 1, 0, 1, 1, 0.68, 1, 0.68, 1 - cut, 0.32, 1 - cut, 0.32, 1, 0, 1];
     } else if (label === 'suburb' && width >= 10 && pick < 0.22) {
       outline = [0, 0, 1, 0, 1, 1 - cut, 0.73, 1 - cut, 0.73, 1, 0.27, 1, 0.27, 1 - cut, 0, 1 - cut];
     } else if (r(14683) < 0.5) {
@@ -380,6 +382,20 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
   }
 
   frontages(c, out, add, frontageOptions, plots);
+  // One freestanding keep can occupy a spacious old-town or terraced courtyard.
+  for (const { court, label } of blocks) {
+    if (!court || (label !== 'old' && label !== 'rows')) continue;
+    const [x, y] = centre(court);
+    if (!inBox(x, y, 0) || (label === 'rows' && vary(x, y, 14740) >= 0.5) || labelAt(c.z, x, y) !== label) continue;
+    if (!pointInRing(x, y, court) || c.ground.front(x, y) > 75) continue;
+    const room = toRing(x, y, court) - 2;
+    if (room < Math.hypot(8, 6)) continue;
+    const axis = bestRect(court).rect;
+    if (!axis) continue;
+    const large = room >= Math.hypot(10.5, 8);
+    const q = corners({ ...axis, cx: x, cy: y, L: large ? 21 : 16, w: large ? 16 : 12 });
+    if (add({ ring: q, h: 16, building: 'civic', roof: 'flat', poi: { x, y, cls: 'castle', sub: 'castle' } })) break;
+  }
   civicSites(out, c);
   if (c.density && plots) {
     // Reserve all accepted sites before extending any of them. A deep house may take up
