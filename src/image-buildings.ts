@@ -48,6 +48,40 @@ export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
 ];
+/** Cut a street-facing rectangle back to form wings, a service court or a bevelled tower. */
+function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (salt: number) => number): number[] {
+  const pick = r(14680);
+  if (pick >= 0.55 || roof === 'sawtooth') return q;
+  const ux = q[2] - q[0], uy = q[3] - q[1];
+  const vx = q[6] - q[0], vy = q[7] - q[1];
+  const width = Math.hypot(ux, uy), depth = Math.hypot(vx, vy);
+  const cut = 0.26 + 0.10 * r(14681);
+  let outline: number[];
+  if (label === 'towers') {
+    // Equal setbacks in metres keep the corner facets square on long slabs too.
+    const setback = Math.min(width, depth) * (0.16 + 0.08 * r(14682));
+    const a = setback / width, b = setback / depth;
+    outline = [a, 0, 1 - a, 0, 1, b, 1, 1 - b, 1 - a, 1, a, 1, 0, 1 - b, 0, b];
+  } else if (label === 'suburb' || label === 'works') {
+    if (width < 9 || depth < 8) return q;
+    if (label === 'works' && width >= 24 && pick < 0.26) {
+      outline = [0, 0, 1, 0, 1, 1, 0.68, 1, 0.68, 1 - cut, 0.32, 1 - cut, 0.32, 1, 0, 1];
+    } else if (label === 'suburb' && width >= 10 && pick < 0.22) {
+      outline = [0, 0, 1, 0, 1, 1 - cut, 0.73, 1 - cut, 0.73, 1, 0.27, 1, 0.27, 1 - cut, 0, 1 - cut];
+    } else if (r(14683) < 0.5) {
+      outline = [0, 0, 1, 0, 1, 1 - cut, 0.56, 1 - cut, 0.56, 1, 0, 1];
+    } else {
+      outline = [0, 0, 1, 0, 1, 1, 0.44, 1, 0.44, 1 - cut, 0, 1 - cut];
+    }
+  } else return q;
+  for (let i = 0; i < outline.length; i += 2) {
+    const a = outline[i], b = outline[i + 1];
+    outline[i] = q[0] + ux * a + vx * b;
+    outline[i + 1] = q[1] + uy * a + vy * b;
+  }
+  return outline;
+}
+
 /** How far a point is from a ring's outline, m. */
 function toRing(x: number, y: number, p: number[]): number {
   let best = Infinity;
@@ -281,7 +315,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       if (!house) return [];
       const roof = pitched(14056) ? undefined : 'flat';
       const s = Math.min(st, 2);
-      plans.push({ ring: house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
+      plans.push({ ring: house.length === 8 ? shapedPlan(house, l.label, roof, r) : house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
       if (r(14057) < 0.25) {
         const back = sb + dd + (wing ? ex : 0) + 3;
         const off = right ? m - ww / 2 : m + ww / 2 - 3;
@@ -299,7 +333,8 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       if (ww < 15 || dd < 10) return [];
       const q = rect([A[0] + u[0] * gap + v[0] * sb, A[1] + u[1] * gap + v[1] * sb], u, v, ww, dd);
       if (!within(q, ring)) return [];
-      return [{ ring: q, h: 6 + 2.5 * st, building: r(14061) < 0.4 ? 'warehouse' : 'industrial', roof: r(14062) < l.warmth ? 'sawtooth' : 'flat' }];
+      const roof = r(14062) < l.warmth ? 'sawtooth' : 'flat';
+      return [{ ring: shapedPlan(q, l.label, roof, r), h: 6 + 2.5 * st, building: r(14061) < 0.4 ? 'warehouse' : 'industrial', roof }];
     }
     if (l.label === 'towers') {
       const slab = r(14063) < 0.4;
@@ -312,7 +347,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
         const rad = Math.max(a, b) / 2;
         if (within(q, ring) && towers.every(([x, y, r2]) => Math.hypot(x - cx, y - cy) >= r2 + rad + 20)) {
           towers.push([cx, cy, rad]);
-          return [{ ring: q, h: st * style.floor, building: 'apartments', roof: 'flat' }];
+          return [{ ring: shapedPlan(q, l.label, 'flat', r), h: st * style.floor, building: 'apartments', roof: 'flat' }];
         }
         a = b = 18;
       }
@@ -694,6 +729,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           const roof = label === 'works' ? (r(14026) < warm ? 'sawtooth' : 'flat') : label === 'towers' || r(14027) >= warm ? 'flat' : undefined;
           const h = label === 'works' ? 6 + 2.5 * st : st * style.floor + (roof ? 0 : allowance(depth, style));
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
+          if (!row) q = shapedPlan(q, label, roof, r);
           if (add({ ring: q, h, building, roof })) {
             occ.take(q, SHARED);
             const record = options?.record && { ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot };

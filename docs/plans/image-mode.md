@@ -457,8 +457,8 @@ The inner ring of a perimeter block is a courtyard. Tuning decides whether it ge
 
 - **Rows and old town:** the lot's strip, to a depth tuning chooses, set on the street line. Neighbours share their side edges exactly, so `classify()` finds party walls (`PARTY_TOL` is 0.9 m), a terrace shares one seed, and rows read as rows.
 - **Suburbs:** a rectangle square to the front edge, set back 3–8 m, its area the lot's coverage. Some houses are L- or T-shaped (cross gables come for free), and some have a garage or shed at the back.
-- **Works:** one large rectangle per lot. `classify()` puts the offices in the corner nearest the street.
-- **Towers:** a square or slab footprint, at least 20 m clear of the next.
+- **Works:** sawtooth halls have rectangular plans. Flat-roofed halls may have a rear wing, or two wings around a service court on a wide site.
+- **Towers:** a square or slab footprint, at least 20 m clear of the next, sometimes with all four corners bevelled. The bevel depth follows the shorter side so long slabs keep their proportions.
 - Rings run counter-clockwise and have no seams.
 
 ### 12.2 Heights
