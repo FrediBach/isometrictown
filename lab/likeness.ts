@@ -29,7 +29,7 @@ function fixture(name: string): Picture {
 export const PICTURES: Record<string, () => Picture> = { ...synthetic, astronaut: () => fixture('astronaut'), logo: () => fixture('logo') };
 export const SCALES = [1000, 2500, 5000, 8000];
 
-export type LikenessOptions = { tuned?: boolean; likeness?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
+export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
 /** An RGB image, 8 bits a channel, for writing out. */
 export type Rgb = { w: number; h: number; data: Uint8Array };
 export type LikenessResult = {
@@ -90,6 +90,7 @@ export function caseSettings(pic: Picture, scale: number, o: LikenessOptions = {
     power: false,
     sheet: o.sheet ?? 'a3',
     likeness: o.likeness ?? DEFAULT_SETTINGS.likeness,
+    imageRelief: o.relief ?? DEFAULT_SETTINGS.imageRelief,
     detail: o.detail ?? DEFAULT_SETTINGS.detail,
     penWidth: o.penWidth ?? DEFAULT_SETTINGS.penWidth,
     pens: pens ? [...pens] : [...DEFAULT_SETTINGS.pens],

@@ -14,8 +14,11 @@ test('opening an image link mounts the image well without a map locator', () => 
     createElement(SourceSection, { picture, onFile: noop, onSource: noop, onGoTo: noop, onMapReady: noop, onMapMove: noop }),
   ));
 
-  expect(section('map')).toContain('class="locator ');
+  const map = section('map');
+  expect(map).toContain('class="locator ');
+  expect(map).not.toContain('Height from image');
   const image = section('image');
   expect(image).toContain('aria-label="Image well"');
+  expect(image).toContain('Height from image');
   expect(image).not.toContain('class="locator ');
 });

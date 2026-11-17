@@ -107,6 +107,7 @@ function validateImage(s: Settings): void {
   s.imageLight = within(s.imageLight, -1, 1, d.imageLight);
   s.imageContrast = within(s.imageContrast, 0.5, 2, d.imageContrast);
   s.imageColour = within(s.imageColour, 0, 1, d.imageColour);
+  s.imageRelief = within(s.imageRelief, 0, 1, d.imageRelief);
   s.likeness = within(s.likeness, 0, 1, d.likeness);
 }
 
@@ -265,13 +266,14 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   imageLight: (v) => (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)),
   imageContrast: (v) => `${v.toFixed(2)}×`,
   imageColour: (v) => `${Math.round(v * 100)}%`,
+  imageRelief: (v) => `${Math.round(v * 100)}%`,
   likeness: (v) => `${Math.round(v * 100)}%`,
   bearing: (v) => `${Math.round(v)}°`,
   tilt: (v) => `${Math.round(v)}°`,

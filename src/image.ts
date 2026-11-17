@@ -14,6 +14,7 @@ import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
+import { imageHeights } from './image-heights';
 import { tune, type Prediction, type Seen } from './image-tune';
 import { readImage, remapTarget, type Target } from './image-read';
 import { streets, type Graph } from './image-streets';
@@ -111,8 +112,10 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true);
     return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
   }
-  if (built?.key !== townKey) built = { key: townKey, town: imageBuild(laid.layout, target, drawn, cam, note).town };
-  return { ...scene, blocks: laid.layout.blocks, town: structuredClone(built.town) };
+  if (built?.key !== townKey) built = { key: townKey, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note).town };
+  const town = structuredClone(built.town);
+  imageHeights(town, target, cam, drawn, laid.layout.context);
+  return { ...scene, blocks: laid.layout.blocks, town };
 }
 
 /** The land plan reaches this far beyond the ground that can show, m, so streets run off the sheet and buildings at its edge have neighbours. */
@@ -211,6 +214,7 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
     town.density.built.push(cx, cy, Math.abs(ringArea(p)));
   }
   town.nearby = { landuse: town.landuse, pois: town.pois, numbers: [], helipads: [], ways: town.ways };
+  imageHeights(town, target, cam, set, ctx);
   return { town, blocks, prediction };
 }
 

@@ -195,11 +195,12 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
 | `imageLight` | `number`, −1…1 | `0` | Brightness, as a shift of the tone curve. |
 | `imageContrast` | `number`, 0.5…2 | `1` | Contrast round the middle tone. |
 | `imageColour` | `number`, 0…1 | `0.7` | How much colour counts against tone. At 0 only lightness is matched, as in one-pen output. |
+| `imageRelief` | `number`, 0…1 | `0` | Height from image. Blends the town's usual heights with a skyline that rises in dark areas (§12.2). |
 | `likeness` | `number`, 0…1 | `0.6` | Likeness against realism (§14.4). |
 | `fabric` | `'auto' \| 'organic' \| 'grid'` | `'auto'` | Street pattern. Auto picks grid for the North American and Australian styles and organic elsewhere. |
 
 - Add the numbers to `NumberKey`, with `FORMAT` entries. Handle `source`, `fabric` and `imageFit` in `shared()`/`fromQuery()` the way `style` is handled, and encode `imageFocus` the way `center` is. Validate all of them in `loadSettings()`.
-- None of them goes in `VIEW_KEYS`, because image mode has no locator map. All the image keys are structure keys (§3, rule 5).
+- None of them goes in `VIEW_KEYS`, because image mode has no locator map. Height from image can reuse the ground plan and its building footprints.
 - **Defaults on first switching to Image:** scale 1:2500, tilt 40° (a higher view shifts less of the image up the sheet), power lines off and the title off. They are applied the way a preset's `extra` is applied in `goTo()`, and only to settings the user hasn't changed. Switching back to Map finds the map place untouched.
 
 ### 5.2 Drawn-as settings and the fictional place
@@ -458,6 +459,10 @@ The inner ring of a perimeter block is a courtyard. Tuning decides whether it ge
 ### 12.2 Heights
 
 Heights are given explicitly: `h` in metres with `guess: false`, so `classify()` keeps them. A height is storeys × `style.floor`, plus the same roof allowance for pitched roofs that `classify()` would add itself. Heights stay smooth along a row: neighbours differ by at most one storey at full realism and three at full likeness, landmarks aside.
+
+**Height from image** blends those heights with a skyline driven by the adjusted picture. At 100%, pale ground has low buildings, middle tones carry mid-rise blocks, and the darkest patches can support towers. The upper end takes its scale from the bundled Sapporo preset. At 1:3050, 90% of its buildings are under 33 m, 99% are under 81 m and the tallest reaches 148 m. The View panel's **Building height** control scales the resulting buildings together.
+
+Where a dark patch contains a row of narrow houses, several plots sharing complete party walls can form one tower site. Existing streets and civic landmarks keep their places. The height calculation follows each façade up the picture and stops its rise at a light band. Tall buildings hide some of the pitched roofs behind them, so a more pronounced skyline can score lower on whole-image likeness.
 
 ### 12.3 Steering `classify()` with the evidence it reads
 

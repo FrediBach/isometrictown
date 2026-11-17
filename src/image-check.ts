@@ -253,11 +253,12 @@ export class Footprints {
   covers(x: number, y: number): boolean {
     return this.index.at(x, y).some((j) => pointInRing(x, y, this.rings[j]));
   }
-  /** Whether a footprint overlaps one already laid, tested a little inside both outlines. */
-  clash(ring: number[]): boolean {
+  /** Whether a footprint overlaps another, apart from the consecutive plots it replaces when joined. */
+  clash(ring: number[], first = -1, last = -1): boolean {
     const near = this.index.around(ring);
     const mine = inside(ring);
     for (const j of near) {
+      if (j >= first && j <= last) continue;
       const o = this.rings[j];
       if (mine.some(([x, y]) => pointInRing(x, y, o)) || inside(o).some(([x, y]) => pointInRing(x, y, ring))) return true;
     }

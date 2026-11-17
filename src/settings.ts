@@ -21,6 +21,8 @@ export type Settings = {
   imageContrast: number;
   /** How much colour counts against tone, 0 to 1. At 0 only lightness is matched. */
   imageColour: number;
+  /** How much image tone sets building heights, from the usual town (0) to towers in its darkest areas (1). */
+  imageRelief: number;
   /** How far the image may bend the rules that keep the town ordinary, 0 to 1. */
   likeness: number;
   /** Street pattern in image mode; auto picks grid for the North American and Australian styles. */
@@ -168,6 +170,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageLight: 0,
   imageContrast: 1,
   imageColour: 0.7,
+  imageRelief: 0,
   likeness: 0.6,
   fabric: 'auto',
   bearing: 35,

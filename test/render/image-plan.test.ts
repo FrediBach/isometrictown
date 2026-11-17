@@ -5,7 +5,8 @@
 import { describe, expect, test } from 'vitest';
 import { Camera } from '@/camera';
 import { classify } from '@/classify';
-import { drawnAs, imageRegion, imageScene, plausibility } from '@/image';
+import { drawnAs, imageRegion, imageScene, plausibility, type Scene } from '@/image';
+import { centre } from '@/image-check';
 import { readImage } from '@/image-read';
 import { streetRules } from '@/image-streets';
 import { BUILT, LABELS } from '@/image-tone';
@@ -74,6 +75,62 @@ describe('the town', () => {
     expect(fresh.town).toEqual(baseTown);
     expect(cached.town).toEqual(fresh.town);
     expect(cached.target.L).toEqual(fresh.target.L);
+  });
+
+  test('image height raises the dark end of a gradient through intermediate skylines and leaves the light end low', () => {
+    const ramp = PICTURES.gradient();
+    const at = (imageRelief: number) => imageScene(ramp, { ...base, image: ramp.id, imageRelief });
+    const heights = (scene: Scene, low: number, high: number) => {
+      const { cam, target: t } = scene;
+      const result: number[] = [];
+      for (const b of scene.town.buildings) {
+        const [x, y] = centre(b.shape[0].pts);
+        const col = Math.floor((cam.sx(x, y) - t.x0) / t.cell);
+        const row = Math.floor((cam.sy(x, y, 0) - t.y0) / t.cell);
+        if (col < 0 || row < 0 || col >= t.W || row >= t.H) continue;
+        const i = row * t.W + col;
+        if (t.weight[i] > 0.95 && t.tone[i] >= low && t.tone[i] <= high) result.push(b.h);
+      }
+      return result;
+    };
+    const ordinary = at(0);
+    const half = at(0.5);
+    const full = at(1);
+    const [low, mid, peak] = [ordinary, half, full].map((s) => Math.max(...heights(s, 0, 0.2)));
+    expect(mid).toBeGreaterThan(low + 15);
+    expect(peak).toBeGreaterThan(mid + 15);
+    expect(peak).toBeGreaterThan(75);
+    const light = heights(full, 0.8, 1);
+    expect(light.length).toBeGreaterThan(0);
+    expect(Math.max(...light)).toBeLessThan(15);
+    expect(full.town.ways).toEqual(ordinary.town.ways);
+    expect(plausibility(full.town)).toEqual([]);
+    expect(at(0).town).toEqual(ordinary.town);
+  });
+
+  test('towers rooted in a black patch leave the white band above it visible', () => {
+    const pic = paint('Dark ground', (_u, v) => v < 0.25 ? [0, 0, 0, 0] : v < 0.5 ? [255, 255, 255] : [0, 0, 0]);
+    const { cam, town, target: t } = imageScene(pic, { ...base, image: pic.id, imageRelief: 1 });
+    const edge = (cam.rect[1] + cam.rect[3]) / 2;
+    let towers = 0;
+    for (const b of town.buildings) {
+      if (b.h < 60) continue;
+      const [x, y] = centre(b.shape[0].pts);
+      const sx = cam.sx(x, y);
+      const sy = cam.sy(x, y, 0);
+      if (sx < cam.rect[0] || sx > cam.rect[2] || sy < edge || sy > cam.rect[3]) continue;
+      towers++;
+      expect(cam.sy(x, y, b.h * base.heightScale)).toBeGreaterThan(edge - 4 * t.cell);
+    }
+    expect(towers).toBeGreaterThan(0);
+  });
+
+  test('coarse-scale tower sites keep clear of the surrounding plots', () => {
+    const pic = PICTURES.disc();
+    const scene = imageScene(pic, { ...base, image: pic.id, imageRelief: 1, sheet: 'a3', scale: 8000, tilt: 55, style: 'eastAsian' });
+    expect(plausibility(scene.town)).toEqual([]);
+    classify(scene.town, scene.style, scene.set, (x, y) => [Math.round(x), Math.round(y)]);
+    expect(scene.town.buildings.some((b) => b.h > 75 && b.info?.kind === 'tall' && b.info.roof === 'flat')).toBe(true);
   });
 
   test('image-made tags are not OSM tags', () => {

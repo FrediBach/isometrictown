@@ -12,6 +12,8 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 ## What it draws
 
+- **Height from image** in the Image panel lets a picture shape the skyline. At 0% each neighbourhood keeps its usual building heights. Turn it up for low buildings in pale areas, rising through mid-rise blocks to towers in the darkest patches.
+
 - **Humanize** in View loosens the drawing from precise linework to a hand sketch, with uneven strokes and early or late starts and stops. Zero keeps the original drawing. The frame and map notes stay precise.
 
 - **Buildings** use their real footprints and heights from the map data. Most buildings have no height in the map, so their storeys are worked out from what they are, the region and how densely built the town is round them: low houses in suburbs, taller rows and blocks in town centres.
