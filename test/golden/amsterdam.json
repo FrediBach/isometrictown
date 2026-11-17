@@ -128,6 +128,7 @@
     "details/terrace": [274,570.3],
     "ground/lawns": [17,30.8],
     "life/trains": [23,121.6],
+    "rails/catenary": [42,383.2],
     "roofHatch/apartment": [150,1173.9],
     "roofHatch/chimneys": [579,2249.2],
     "roofHatch/church-roof": [52,632.1],

@@ -1,7 +1,7 @@
 {
-  "likeness": {"score":0.462,"dE":[0.027,0.024],"ssim":0.548},
+  "likeness": {"score":0.461,"dE":[0.027,0.024],"ssim":0.543},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":251,"houses":218,"trees":864,"cars":104,"lamps":85},
+  "counts": {"buildings":251,"houses":218,"trees":864,"cars":85,"lamps":85},
   "census": {
     "blank-windows": 8,
     "broadleaf": 495,
@@ -36,27 +36,29 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 4888,
-    "rawLifts": 6030,
-    "inkMm": 18575,
-    "travelMm": 14331.4,
-    "minutes": 35.2,
-    "pens": [["Shadows",537,1928.8],["Water",0,0],["Greenery",2357,6188.8],["Roofs",875,4343.2],["Linework",1119,6114.3]]
+    "lifts": 4891,
+    "rawLifts": 6038,
+    "inkMm": 18811.1,
+    "travelMm": 14259.7,
+    "minutes": 35.3,
+    "pens": [["Shadows",538,1950.5],["Water",0,0],["Greenery",2357,6188.8],["Roofs",875,4343.2],["Linework",1121,6328.7]]
   },
   "features": {
     "buildings": [527,1428.8],
-    "cars": [145,403.2],
+    "cars": [102,300.9],
     "details": [203,236.4],
     "ground": [1758,3738.1],
     "lamps": [73,146.6],
-    "markings": [34,33.3],
+    "life": [25,53],
+    "markings": [24,22.8],
     "parks": [213,1079.8],
     "paths": [23,25.1],
+    "rails": [36,274],
     "roofHatch": [497,1255.2],
     "roofs": [1285,3075.3],
     "shadeWalls": [20,63.1],
-    "shadows": [517,1865.6],
-    "streets:kerbs": [165,1272.9],
+    "shadows": [518,1887.4],
+    "streets:kerbs": [164,1273.1],
     "trees": [400,1370.9],
     "windows": [26,91.9]
   },
@@ -105,8 +107,10 @@
     "details/terrace": [203,236.4],
     "ground/lawns": [64,123.6],
     "ground/meadows": [1694,3614.5],
+    "life/trains": [25,53],
     "parks/grass": [202,705.1],
     "parks/park-edges": [11,374.7],
+    "rails/catenary": [25,92.7],
     "roofHatch/chimneys": [209,529.5],
     "roofHatch/church-roof": [3,8.9],
     "roofHatch/dormers": [225,563.3],
@@ -182,5 +186,5 @@
     "windows/shutters": [2,4.4],
     "windows/terrace": [26,91.9]
   },
-  "svg": {"bytes":281886,"sha1":"82d5d6cadf536495"}
+  "svg": {"bytes":283169,"sha1":"9581b23fcbb17e6a"}
 }

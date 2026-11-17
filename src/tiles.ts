@@ -22,8 +22,8 @@ export type Building = { shape: Shape; h: number; min: number; guess?: boolean; 
  */
 export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean; from?: 'image' };
 export type WayKind = 'road' | 'rail' | 'path';
-/** `sub` is the OpenMapTiles subclass (tram, narrow_gauge, steps…), `service` the kind of service road (parking_aisle, driveway…). */
-export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean; oneway?: 1 | -1 };
+/** `sub` is the OpenMapTiles subclass (tram, narrow_gauge, steps…), `service` the kind of service road (parking_aisle, driveway…). `streetTram` marks a shared tram corridor on both road and rail. */
+export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean; oneway?: 1 | -1; streetTram?: boolean };
 /** A cable car, gondola, chair lift or drag lift. */
 export type Lift = { pts: number[]; cls: string };
 /** A point of interest, e.g. a place of worship with its religion as `sub`. */

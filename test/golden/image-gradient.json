@@ -1,7 +1,7 @@
 {
-  "likeness": {"score":0.658,"dE":[0.042,0.032],"ssim":0.209},
+  "likeness": {"score":0.658,"dE":[0.042,0.032],"ssim":0.207},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":1201,"houses":667,"trees":2118,"cars":367,"lamps":239},
+  "counts": {"buildings":1201,"houses":667,"trees":2118,"cars":329,"lamps":239},
   "census": {
     "apartment": 93,
     "blank-windows": 16,
@@ -41,26 +41,27 @@
     "wild-trees": 73
   },
   "plan": {
-    "lifts": 9133,
-    "rawLifts": 13569,
-    "inkMm": 41423.8,
-    "travelMm": 23106.3,
-    "minutes": 67.7,
-    "pens": [["Shadows",1838,6000.2],["Water",110,427.9],["Greenery",1599,4527.1],["Roofs",1800,9891.8],["Linework",3786,20576.9]]
+    "lifts": 9099,
+    "rawLifts": 13531,
+    "inkMm": 41587.1,
+    "travelMm": 23110,
+    "minutes": 67.6,
+    "pens": [["Shadows",1827,6027.8],["Water",110,427.9],["Greenery",1600,4528.1],["Roofs",1800,9891.8],["Linework",3762,20711.6]]
   },
   "features": {
     "buildings": [3199,11230.4],
-    "cars": [449,1210.8],
+    "cars": [383,1049.1],
     "details": [317,514.3],
-    "ground": [721,1442.7],
+    "ground": [722,1443.6],
     "lamps": [200,390.5],
-    "markings": [3,3.3],
+    "life": [17,41.1],
+    "rails": [28,248.4],
     "roofHatch": [882,2086.9],
     "roofs": [3857,7794.7],
     "rooftops": [17,46.3],
     "shadeWalls": [9,25.5],
-    "shadows": [1829,5974.6],
-    "streets:kerbs": [754,3804.6],
+    "shadows": [1818,6002.3],
+    "streets:kerbs": [750,3814.9],
     "streets:plazas": [7,76],
     "trees": [912,3084.5],
     "water": [115,630.6],
@@ -119,9 +120,11 @@
     "details/shop-front": [36,43.9],
     "details/shutters": [102,153.8],
     "details/terrace": [298,424.7],
-    "ground/lawns": [424,811.4],
+    "ground/lawns": [425,812.3],
     "ground/meadows": [296,629.1],
     "ground/open-country": [1,2.1],
+    "life/trains": [17,41.1],
+    "rails/catenary": [25,89.3],
     "roofHatch/chimneys": [383,915.7],
     "roofHatch/dormers": [363,861.9],
     "roofHatch/gabled-roof": [491,1179.3],
@@ -215,5 +218,5 @@
     "windows/skirt-roof": [1,2.3],
     "windows/terrace": [127,468.4]
   },
-  "svg": {"bytes":524983,"sha1":"a81e4aa0d48e7fc6"}
+  "svg": {"bytes":524242,"sha1":"28f1ead4311ae03d"}
 }

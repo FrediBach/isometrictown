@@ -24,7 +24,7 @@ const BUDGET: Record<Family, number> = { main: 1, yard: 1, tram: 2, metro: 1, na
 const APART = 70;
 
 type Family = 'main' | 'yard' | 'tram' | 'metro' | 'narrow' | 'funicular';
-type Track = { pts: number[]; cum: Float64Array; L: number; family: Family; bridge: boolean };
+type Track = { pieces: Way[]; pts: number[]; cum: Float64Array; L: number; family: Family; bridge: boolean };
 type CarKind = 'loco' | 'diesel' | 'cab' | 'coach' | 'tram' | 'metro' | 'box' | 'tank' | 'flat' | 'stack' | 'gondola' | 'funicular';
 type Car = { kind: CarKind; len: number };
 /** Drawn in linework only, like the cars on the roads. */
@@ -43,8 +43,7 @@ function family(w: Way): Family {
  * Join rail pieces end to end into longer tracks. At a switch the straightest way on wins, so a
  * track runs through a junction rather than turning off at it.
  */
-function tracks(ways: Way[]): Track[] {
-  const rails = ways.filter((w) => w.kind === 'rail' && w.pts.length >= 4);
+export function joinedTracks(rails: Way[]): Track[] {
   const key = (x: number, y: number) => `${Math.round(x * 2)},${Math.round(y * 2)}`;
   const at = new Map<string, number[]>();
   rails.forEach((w, i) => {
@@ -57,7 +56,7 @@ function tracks(ways: Way[]): Track[] {
   const used = new Uint8Array(rails.length);
   const out: Track[] = [];
   // Extend pts (flat x, y) from its last point, appending pieces that carry on in the same direction.
-  const grow = (pts: number[], fam: Family) => {
+  const grow = (pts: number[], fam: Family, pieces: Way[]) => {
     for (;;) {
       const n = pts.length;
       const [ex, ey] = [pts[n - 2], pts[n - 1]];
@@ -81,6 +80,7 @@ function tracks(ways: Way[]): Track[] {
       }
       if (best < 0) return;
       used[best] = 1;
+      pieces.push(rails[best]);
       const p = rails[best].pts;
       const q = flip ? reversed(p) : p;
       for (let i = 2; i < q.length; i++) pts.push(q[i]);
@@ -91,11 +91,12 @@ function tracks(ways: Way[]): Track[] {
     used[i] = 1;
     const fam = family(w);
     const pts = [...w.pts];
-    grow(pts, fam);
+    const pieces = [w];
+    grow(pts, fam, pieces);
     const back = reversed(pts);
-    grow(back, fam);
+    grow(back, fam, pieces);
     const cum = measure(back);
-    out.push({ pts: back, cum, L: cum[cum.length - 1], family: fam, bridge: !!w.bridge });
+    out.push({ pieces, pts: back, cum, L: cum[cum.length - 1], family: fam, bridge: !!w.bridge });
   });
   return out;
 }
@@ -387,7 +388,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   const { set, cam } = B;
   const out: Solid[] = [];
   if (!set.rails || !set.life || !shows(cam, LOD.train)) return out;
-  const all = tracks(town.ways);
+  const all = joinedTracks(town.ways.filter((w) => w.kind === 'rail' && w.pts.length >= 4));
   if (!all.length) return out;
   const visible = (x: number, y: number, bridge: boolean) => {
     const sx = cam.sx(x, y);

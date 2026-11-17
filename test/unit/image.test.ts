@@ -11,14 +11,14 @@ import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, remapTarget, toneAt } from '@/image-read';
 import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
 import { compat, slic } from '@/image-zones';
-import { clean, degrees, planar, streetRules, type Graph } from '@/image-streets';
+import { clean, degrees, planar, streetRules, tramRoute, type Graph } from '@/image-streets';
 import { ALLOTMENTS, FIELDS, patchwork } from '@/image-ground';
 import { blocksOf, facesOf, lotRing, MIN_FILL, Occupancy, PARCEL, strip, type Lot } from '@/image-blocks';
 import type { Zones } from '@/image-zones';
 import { classify } from '@/classify';
 import { bestRect } from '@/shape';
 import { STYLES } from '@/styles';
-import { empty, type Tagged } from '@/tiles';
+import { empty, type Tagged, type Way } from '@/tiles';
 import { chaikin, contours, simplify, waterOf } from '@/image-water';
 import { pointInRing, ringArea } from '@/geo';
 import { toSvg } from '@/plot';
@@ -334,6 +334,17 @@ describe('outlines and water', () => {
 });
 
 describe('the street graph', () => {
+  test('a tram follows a broad avenue through the centre and stops at a bridge or a sharp turn', () => {
+    const road = (pts: number[], width = 12): Way => ({ pts, width, kind: 'road', cls: 'secondary' });
+    const avenue = [road([0, 0, 160, 0]), road([320, 0, 160, 0])];
+    const others = [road([160, 0, 160, 110]), road([320, 0, 450, 0], 8), { ...road([0, 0, -150, 0]), bridge: true }, road([0, 700, 600, 700])];
+    expect(tramRoute(others, [[160, 0]])).toBeNull();
+    const route = tramRoute([...avenue, ...others], [[160, 0]]);
+    expect(route?.pts).toEqual([320, 0, 160, 0, 0, 0]);
+    expect(avenue.every(w => w.streetTram)).toBe(true);
+    expect(others.some(w => w.streetTram)).toBe(false);
+  });
+
   const line = (pts: number[], cls = 'minor', main = false) => ({ pts, cls, main });
 
   test('lines are split where they cross and where one ends on another', () => {

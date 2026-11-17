@@ -72,7 +72,7 @@ Read [architecture.md](../architecture.md), [render-pipeline.md](../render-pipel
 - **No network.** Image mode fetches nothing: no tiles, no Overpass, no Nominatim, no country lookup.
 - **Likeness against realism.** One slider (§14.4) trades a closer match for a more ordinary town.
 
-**Not in the first version:** railways, motorways, airfields, lifts and power lines (the image can't suggest where they'd run; M8 in §19 adds some later), terrain, legible text or faces at close scales (the town can't resolve them, §21), and physical ink mixing beyond the simple model in §2.3.
+**Not in the first version:** main-line railways, motorways, airfields, lifts and power lines (the image can't suggest where they'd run; M8 in §19 adds some later), terrain, legible text or faces at close scales (the town can't resolve them, §21), and physical ink mixing beyond the simple model in §2.3.
 
 ---
 
@@ -418,6 +418,8 @@ The graph is planarised (split where streets cross) and cleaned until all of the
 
 - **Paths** (`kind: 'path'`): a loop and one or two crossings in every park over 1 ha, laid along bright ridges where the image has them; a promenade along shores in town; cut-throughs across blocks over 2 ha; and `track`s between field parcels. Their dashes add `LINEWORK` texture where tuning wants it.
 - **Plazas:** `plaza` zones inside the network become `Town.plazas`, bounded by the streets round them. `squares()` gives the big ones a fountain or a statue, and `people()` puts people on them.
+
+Where streets at least 10 m wide form a continuous avenue of 260 m or more, image mode can lay one street tram along it. The route favours stretches near the built-up centres and stops at bridges and sharp junction turns. The Railways and lifts switch draws the rails and overhead equipment, and Life adds the tramcars.
 
 ---
 

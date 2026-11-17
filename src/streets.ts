@@ -1,4 +1,5 @@
 import type { Build } from './buildings';
+import { onMask } from './infra';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
 import { LINEWORK } from './settings';
@@ -205,7 +206,7 @@ export function shifted(p: number[], o: number, z = 0): number[] {
  * Railway: two rails and sleepers when there's room, else one line. Narrow gauge sits
  * closer; trams run on bare rails under a contact wire hung from poles.
  */
-export function railways(B: Build, paper: Paper, ways: Way[]): void {
+export function railways(B: Build, paper: Paper, ways: Way[], M?: Masks): void {
   const { cam } = B;
   for (const w of ways) {
     if (w.kind !== 'rail') continue;
@@ -217,23 +218,34 @@ export function railways(B: Build, paper: Paper, ways: Way[]): void {
     for (const o of twin ? [g, -g] : [0]) paper.line3(LINEWORK, shifted(p, o));
     if (tram) {
       if (!shows(cam, LOD.catenary, 6.4)) continue;
-      if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
-      walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
-        const side = k % 2 ? 1 : -1;
-        const px = x - uy * 3.4 * side;
-        const py = y + ux * 3.4 * side;
-        paper.line3(LINEWORK, [px, py, 0, px, py, 6.4, x, y, 5.9]);
+      paper.facet('catenary', () => {
+        if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
+        walk(p, 6, 30, 3, (x, y, ux, uy, k) => {
+          const side = k % 2 ? 1 : -1;
+          let px = x - uy * 3.4 * side, py = y + ux * 3.4 * side;
+          if (w.streetTram && M) {
+            // Step out to the pavement. At wide junctions there may be no clear site within reach.
+            for (let offset = 4.4; offset <= 9 && onMask(paper, M.road, px, py); offset++) {
+              px = x - uy * offset * side;
+              py = y + ux * offset * side;
+            }
+            if (onMask(paper, M.road, px, py) || onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py)) return;
+          }
+          paper.line3(LINEWORK, [px, py, 0, px, py, 6.4, x, y, 5.9]);
+        });
       });
       continue;
     }
     // Overhead line: masts beside the track with an arm out over it, and the contact wire.
     if (ELECTRIC.has(B.style.id) && shows(cam, LOD.catenary) && w.service !== 'yard' && w.service !== 'siding' && w.sub !== 'subway') {
-      if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
-      walk(p, 20, 55, 10, (x, y, ux, uy) => {
-        const px = x - uy * 3;
-        const py = y + ux * 3;
-        paper.line3(LINEWORK, [px, py, 0, px, py, 7.4]);
-        paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
+      paper.facet('catenary', () => {
+        if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
+        walk(p, 20, 55, 10, (x, y, ux, uy) => {
+          const px = x - uy * 3;
+          const py = y + ux * 3;
+          paper.line3(LINEWORK, [px, py, 0, px, py, 7.4]);
+          paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
+        });
       });
     }
     if (twin && shows(cam, LOD.sleepers)) {

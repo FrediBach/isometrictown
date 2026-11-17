@@ -164,7 +164,7 @@ function lanes(B: Build, w: Way, park: boolean): Lane[] {
     return out;
   }
   const n = big ? Math.max(1, Math.floor((hw - 0.5) / 3.4)) : 1;
-  const inner = 0.3;
+  const inner = w.streetTram && B.set.rails ? 1.65 : 0.3;
   const kerb = hw - 0.4 - (park ? 2.2 : 0);
   const lw = (kerb - inner) / n;
   for (const dir of [1, -1] as const) for (let i = 0; i < n; i++) out.push({ o: side(dir) * (kerb - (i + 0.5) * lw), dir, outer: i === 0 });
@@ -263,7 +263,7 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
     if (L < 6) continue;
     const [mx, my] = at(p, cum, L / 2);
     const uw = urban(mx, my);
-    const park = PARK_FROM[w.cls] !== undefined && uw > PARK_FROM[w.cls] && w.width >= 8;
+    const park = !(w.streetTram && set.rails) && PARK_FROM[w.cls] !== undefined && uw > PARK_FROM[w.cls] && w.width >= 8;
     const j0 = junction(p[0], p[1]);
     const j1 = junction(p[p.length - 2], p[p.length - 1]);
     const hw = w.width / 2;

@@ -1,7 +1,7 @@
 {
   "likeness": {"score":0.663,"dE":[0.058,0.05],"ssim":0.307},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":4646,"houses":631,"trees":3674,"cars":5,"lamps":0},
+  "counts": {"buildings":4646,"houses":631,"trees":3674,"cars":3,"lamps":0},
   "census": {
     "blank-windows": 145,
     "broadleaf": 3525,
@@ -38,20 +38,21 @@
     "worship": 6
   },
   "plan": {
-    "lifts": 14266,
-    "rawLifts": 20625,
-    "inkMm": 59120.7,
-    "travelMm": 28395.2,
-    "minutes": 101.9,
-    "pens": [["Shadows",2559,4880.2],["Water",0,0],["Greenery",2772,8555.5],["Roofs",758,4044.7],["Linework",8177,41640.3]]
+    "lifts": 14279,
+    "rawLifts": 20639,
+    "inkMm": 59239.1,
+    "travelMm": 28484.5,
+    "minutes": 102,
+    "pens": [["Shadows",2559,4880.2],["Water",0,0],["Greenery",2772,8555.5],["Roofs",758,4044.7],["Linework",8190,41758.7]]
   },
   "features": {
     "buildings": [10287,32476.3],
-    "cars": [15,38.5],
+    "cars": [10,23.1],
     "details": [7,5.4],
     "ground": [1221,3157.3],
     "parks": [153,1181],
     "paths": [146,160.5],
+    "rails": [19,133.9],
     "roofHatch": [78,97.4],
     "roofs": [2669,3947.3],
     "rooftops": [4,8],
@@ -167,5 +168,5 @@
     "windows/tall-windows": [8,6.4],
     "windows/worship": [8,6.4]
   },
-  "svg": {"bytes":1076119,"sha1":"cf39f9d97437696b"}
+  "svg": {"bytes":1077857,"sha1":"758d917506f0ab52"}
 }

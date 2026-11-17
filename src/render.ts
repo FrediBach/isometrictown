@@ -356,7 +356,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
   withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');
-  if (set.rails) withPen('rails', () => { railways(B, paper, town.ways); });
+  if (set.rails) withPen('rails', () => { railways(B, paper, town.ways, M); });
   if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M); });
   if (set.lamps && at('lamps', () => shows(cam, LOD.lamp))) withPen('lamps', () => { counts.lamps = lamps(B, paper, town.ways, M); });
   withPen('streets', () => { railings(paper, town.ways); }, 'railings');

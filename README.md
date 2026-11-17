@@ -12,7 +12,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 
 ## What it draws
 
-- Image towns can have bus shelters along main streets, petrol stations in industrial districts, fire stations and hospitals, and small places of worship among the terraces. Park paths can lead to tennis courts and playgrounds. Farm tracks divide fields, orchards and vineyards, and some meadow tracks serve campsites.
+- Image towns can run a street tram along a broad avenue through the centre. They can have bus shelters along main streets, petrol stations in industrial districts, fire stations and hospitals, and small places of worship among the terraces. Park paths can lead to tennis courts and playgrounds. Farm tracks divide fields, orchards and vineyards, and some meadow tracks serve campsites.
 - **Height from image** in the Image panel lets a picture shape the skyline. At 0% each neighbourhood keeps its usual building heights. Turn it up for low buildings in pale areas, rising through mid-rise blocks to towers in the darkest patches.
 - **Building density from image** below zero thins buildings across the picture, especially in pale areas. Above zero it fills more of each dark block with buildings and leaves gardens and gaps in pale areas. **Hatching from image** changes the spacing of lines on roofs, walls, fields, parks and cast shadows. Use the two independently to shape the town or change how much ink it lays down.
 - **Streets follow image lines** draws roads and paths along long, connected edges in the picture. **Preserve empty space** leaves transparent areas as bare paper, including holes inside a logo. Lower its **Highlight cutoff** to leave the lightest parts of an opaque picture blank too.

@@ -132,6 +132,7 @@
     "parks/grass": [38,430.2],
     "parks/park-edges": [126,1282.7],
     "parks/wood-edges": [24,190],
+    "rails/catenary": [16,82.8],
     "roofHatch/chimneys": [588,2092.1],
     "roofHatch/church-roof": [25,250.4],
     "roofHatch/civic": [27,91.2],

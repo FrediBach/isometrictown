@@ -1,7 +1,7 @@
 {
-  "likeness": {"score":0.734,"dE":[0.059,0.043],"ssim":0.317},
+  "likeness": {"score":0.736,"dE":[0.058,0.043],"ssim":0.317},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":1654,"houses":1431,"trees":2558,"cars":568,"lamps":288},
+  "counts": {"buildings":1654,"houses":1431,"trees":2558,"cars":545,"lamps":288},
   "census": {
     "blank-windows": 38,
     "broadleaf": 2543,
@@ -34,26 +34,28 @@
     "terrace": 1604
   },
   "plan": {
-    "lifts": 12995,
-    "rawLifts": 20646,
-    "inkMm": 56654.1,
-    "travelMm": 14889.3,
-    "minutes": 91.7,
-    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",12995,56654.1]]
+    "lifts": 12972,
+    "rawLifts": 20626,
+    "inkMm": 56842.3,
+    "travelMm": 14856.7,
+    "minutes": 91.6,
+    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",12972,56842.3]]
   },
   "features": {
     "buildings": [3155,8397.2],
-    "cars": [627,1700],
+    "cars": [586,1597.5],
     "details": [921,1159],
-    "ground": [444,886.9],
+    "ground": [443,885.7],
     "lamps": [200,402.9],
-    "markings": [17,16.7],
+    "life": [23,50.5],
+    "markings": [4,4.2],
     "paths": [119,130.9],
+    "rails": [22,240.4],
     "roofHatch": [2991,7763.2],
     "roofs": [8032,19487.3],
     "shadeWalls": [66,182.8],
-    "shadows": [2369,7794.7],
-    "streets:kerbs": [771,3443.2],
+    "shadows": [2361,7802.5],
+    "streets:kerbs": [769,3448.9],
     "streets:plazas": [15,297.4],
     "trees": [586,1863.7],
     "windows": [187,595.6]
@@ -98,8 +100,10 @@
     "details/shop-front": [77,107],
     "details/shutters": [294,361.8],
     "details/terrace": [921,1159],
-    "ground/lawns": [239,450.4],
+    "ground/lawns": [238,449.2],
     "ground/meadows": [205,436.4],
+    "life/trains": [23,50.5],
+    "rails/catenary": [19,78.6],
     "roofHatch/chimneys": [1167,3008.3],
     "roofHatch/dormers": [1239,3265.5],
     "roofHatch/gabled-roof": [1744,4614],
@@ -169,5 +173,5 @@
     "windows/shutters": [75,248],
     "windows/terrace": [187,595.6]
   },
-  "svg": {"bytes":626492,"sha1":"d42d2efa9c71f889"}
+  "svg": {"bytes":627054,"sha1":"30eb67e6f0a15903"}
 }

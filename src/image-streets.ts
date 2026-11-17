@@ -20,6 +20,7 @@ import type { Settings } from './settings';
 import { patch } from './rng';
 import { LOD } from './lod';
 import { offsetRing } from './shape';
+import { joinedTracks } from './trains';
 import { ROAD_WIDTH, type Shape, type Stream, type Way } from './tiles';
 
 /** The street network as a graph: node coordinates as flat [x, y, …], edges as polylines between nodes. */
@@ -1197,6 +1198,34 @@ function waysOf(g: Graph, water: (x: number, y: number) => boolean): Way[] {
     });
   }
   return ways;
+}
+
+/** A street tram follows one long avenue serving a town centre, with its own strip between the traffic lanes. */
+export function tramRoute(ways: Way[], cores: [number, number][]): Way | null {
+  if (!cores.length) return null;
+  const avenues = ways.filter(w => w.kind === 'road' && !w.bridge && w.width >= 10 && w.pts.length >= 4);
+  const routes = joinedTracks(avenues);
+  let best: (typeof routes)[number] | undefined;
+  let bestScore = 0;
+  for (const track of routes) {
+    if (track.L < 260) continue;
+    // Count route metres serving the built-up cores. A long road on the outskirts may serve none.
+    let score = 0;
+    const p = track.pts;
+    for (let i = 2; i < p.length; i += 2) {
+      const x = (p[i] + p[i - 2]) / 2, y = (p[i + 1] + p[i - 1]) / 2;
+      let distance = Infinity;
+      for (const [cx, cy] of cores) distance = Math.min(distance, Math.hypot(x - cx, y - cy));
+      score += (track.cum[i / 2] - track.cum[i / 2 - 1]) * Math.max(0, 1 - distance / 450);
+    }
+    if (score > bestScore) {
+      best = track;
+      bestScore = score;
+    }
+  }
+  if (!best || bestScore < 100) return null;
+  for (const street of best.pieces) street.streetTram = true;
+  return { pts: best.pts, kind: 'rail', cls: 'transit', sub: 'tram', streetTram: true, width: 2 };
 }
 
 /** Breaches of §10.5's rules in a street graph, in words; empty when it keeps them all. */

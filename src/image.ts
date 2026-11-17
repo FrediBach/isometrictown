@@ -19,7 +19,7 @@ import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { imageHeights } from './image-heights';
 import { tune, type Prediction, type Seen } from './image-tune';
 import { readImage, remapTarget, type Target } from './image-read';
-import { streets, type Graph } from './image-streets';
+import { streets, tramRoute, type Graph } from './image-streets';
 import { zone, type Zones } from './image-zones';
 import { reachHeight, streamShapes } from './render';
 import { hash } from './rng';
@@ -160,6 +160,8 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   // Streets, paths and streams.
   const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id }, parks);
   town.ways = [...st.ways, ...st.paths, ...fields.tracks, ...allots.tracks];
+  const tram = tramRoute(st.ways, st.cores);
+  if (tram) town.ways.push(tram);
   town.plazas.push(...st.circles);
   town.streams = st.streams;
   town.landuse = land.landuse;

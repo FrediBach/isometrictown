@@ -762,7 +762,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Railways',
     source: ['map'],
     what: 'Two rails and sleepers when their projected spacing leaves room for ink, else one line. Narrow gauge sits closer; sleepers spread out under foreshortening.',
-    how: 'Rail and transit lines from the map.',
+    how: 'Rail and transit lines from the map. Image towns can run a tram along a continuous main street serving a built-up centre.',
     needs: ['rails'],
     lod: ['twinRails', 'sleepers'],
     strokes: ['=rails'],
@@ -777,7 +777,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     regions: `Electric main lines: ${listed(ELECTRIC)}.`,
     needs: ['rails'],
     lod: ['catenary', 'contactWire'],
-    strokes: ['=rails'],
+    strokes: ['=rails/catenary'],
   },
   {
     id: 'platforms',
