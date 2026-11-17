@@ -10,6 +10,7 @@ import { readImage, toneAt } from '@/image-read';
 import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
 import { compat, slic } from '@/image-zones';
 import { clean, degrees, planar, streetRules, type Graph } from '@/image-streets';
+import { ALLOTMENTS, FIELDS, patchwork } from '@/image-ground';
 import { blocksOf, facesOf, lotRing, MIN_FILL, Occupancy, PARCEL, strip, type Lot } from '@/image-blocks';
 import type { Zones } from '@/image-zones';
 import { classify } from '@/classify';
@@ -17,7 +18,7 @@ import { bestRect } from '@/shape';
 import { STYLES } from '@/styles';
 import { empty, type Tagged } from '@/tiles';
 import { chaikin, contours, simplify, waterOf } from '@/image-water';
-import { ringArea } from '@/geo';
+import { pointInRing, ringArea } from '@/geo';
 import { toSvg } from '@/plot';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { paint, PICTURES } from '../support/pictures';
@@ -440,6 +441,45 @@ describe('evidence for classify', () => {
     expect(hall.kind).toBe('civic');
     expect(hall.townHall).toBe(true);
     expect(one(10, 9, 6, { building: 'house', roof: 'gabled' }).tagged).toBe(false);
+  });
+});
+
+describe('fields and allotments', () => {
+  const vary = (x: number, y: number, salt: number) => (Math.abs(Math.sin(x * 12.9898 + y * 78.233 + salt)) * 43758.5453) % 1;
+  // A field 900 by 500 m, turned, with a pond in it.
+  const c = Math.cos(0.4);
+  const sn = Math.sin(0.4);
+  const at = (x: number, y: number) => [x * c - y * sn, x * sn + y * c];
+  const field = [
+    { pts: [...at(0, 0), ...at(900, 0), ...at(900, 500), ...at(0, 500)], seam: new Uint8Array(4) },
+    { pts: [...at(400, 200), ...at(400, 260), ...at(470, 260), ...at(470, 200)], seam: new Uint8Array(4) },
+  ];
+  const area = (s: { pts: number[] }[]) => ringArea(s[0].pts) + s.slice(1).reduce((t, r) => t + ringArea(r.pts), 0);
+
+  test('a field is cut into parcels of 1–5 ha that cover it, with tracks inside it', () => {
+    const { cover } = patchwork([field], FIELDS, vary);
+    const farms = cover.filter((a) => a.cls === 'farmland');
+    expect(farms.length).toBeGreaterThan(15);
+    expect(cover.reduce((t, a) => t + area(a.shape), 0)).toBeCloseTo(area(field), -2);
+    const sizes = farms.map((a) => area(a.shape)).sort((p, q) => p - q);
+    expect(sizes[Math.floor(sizes.length / 2)]).toBeGreaterThan(8000);
+    expect(sizes[Math.floor(sizes.length / 2)]).toBeLessThan(50000);
+    // Some parcels run across the strips, so the furrows turn.
+    const axes = farms.map((a) => Math.abs(bestRect(a.shape[0].pts).rect!.ux * c + bestRect(a.shape[0].pts).rect!.uy * sn));
+    expect(axes.some((d) => d < 0.5)).toBe(true);
+    expect(axes.some((d) => d > 0.9)).toBe(true);
+    // With a track on every strip boundary, each runs inside the field.
+    const all = patchwork([field], { ...FIELDS, paths: 1 }, vary).tracks;
+    expect(all.length).toBeGreaterThan(2);
+    for (const t of all) for (let k = 0; k < t.pts.length; k += 2) expect(pointInRing(t.pts[k], t.pts[k + 1], field[0].pts)).toBe(true);
+  });
+
+  test('allotments come as sites with footpaths between', () => {
+    const { cover, tracks } = patchwork([field], ALLOTMENTS, vary);
+    const sites = cover.filter((a) => a.cls === 'allotments');
+    expect(sites.length).toBeGreaterThan(20);
+    for (const s of sites) expect(area(s.shape)).toBeLessThan(25000);
+    expect(tracks.every((t) => t.cls === 'footway')).toBe(true);
   });
 });
 

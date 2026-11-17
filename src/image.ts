@@ -12,17 +12,16 @@ import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { buildingsOf, ROW_LOT_MM } from './image-buildings';
-import { centre, Ground } from './image-check';
+import { centre, Footprints, Ground } from './image-check';
+import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { readImage, type Target } from './image-read';
 import { streets, type Graph } from './image-streets';
-import type { Label } from './image-tone';
-import { maskOf, shapesOf, waterOf } from './image-water';
 import { colourCounts, zone, type Zones } from './image-zones';
 import { reachHeight } from './render';
 import { hash } from './rng';
 import type { Settings } from './settings';
 import { IMAGE_STYLE, STYLES, type Region, type Style, type StyleId } from './styles';
-import { empty, type Area, type Town } from './tiles';
+import { empty, type Town } from './tiles';
 
 export { plausibility } from './image-check';
 
@@ -122,50 +121,51 @@ export function imageTown(zones: Zones, target: Target, set: Settings, cam: Came
   // Map-fixed keys, as `B.key` gives them, from the fictional frame.
   const key = (x: number, y: number): [number, number] => [Math.round(frame.mx0 + x / frame.k), Math.round(frame.my0 + y / frame.k)];
 
-  // Ground: each kind of open land from its zones' outline.
-  const water = waterOf(zones);
-  town.water = water.shapes;
-  town.waterCls = water.cls;
-  town.plazas = shapesOf(maskOf(zones, ['plaza']), zones, 4);
-  const parks = shapesOf(maskOf(zones, ['park']), zones, 4);
+  const vary = (x: number, y: number, salt: number) => {
+    const k = key(x, y);
+    return hash(k[0], k[1], set.seed, salt);
+  };
+
+  // Ground: each kind of open land from its zones' outline, fields as a patchwork.
+  const land = landOf(zones);
+  town.water = land.water;
+  town.waterCls = land.waterCls;
+  town.plazas = land.plazas;
+  const parks = land.parks;
   town.green = parks;
-  town.wood = shapesOf(maskOf(zones, ['wood']), zones, 4);
-  const cover: [Label, string][] = [['field', 'farmland'], ['meadow', 'meadow'], ['allot', 'allotments'], ['sand', 'beach']];
-  for (const [l, cls] of cover) for (const shape of shapesOf(maskOf(zones, [l]), zones, 4)) town.cover.push({ shape, cls });
+  town.wood = land.wood;
+  const fields = patchwork(land.fields, FIELDS, vary);
+  const allots = patchwork(land.allotments, ALLOTMENTS, vary);
+  town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
   const st = streets(zones, target, cam, { likeness: set.likeness, fabric: set.fabric, seed: set.seed, style: style.id }, parks);
-  town.ways = [...st.ways, ...st.paths];
+  town.ways = [...st.ways, ...st.paths, ...fields.tracks, ...allots.tracks];
   town.plazas.push(...st.circles);
   town.streams = st.streams;
 
-  // Land use, so gardens, fences and works yards come with the buildings.
-  const landuse: Area[] = [
-    ...shapesOf(maskOf(zones, ['suburb', 'rows', 'old', 'blocks', 'towers']), zones, 4).map((shape) => ({ shape, cls: 'residential' })),
-    ...shapesOf(maskOf(zones, ['works']), zones, 4).map((shape) => ({ shape, cls: 'industrial' })),
-  ];
+  const landuse = land.landuse;
   town.landuse = landuse;
 
   // Blocks and their lots, kept off roads, paths, water, parks, woods and squares.
   const occ = new Occupancy(zones.x0, zones.y0, Math.max(OCCUPY, zones.cell / 4), zones.W * zones.cell, zones.H * zones.cell);
   for (const w of st.ways) occ.way(w);
-  for (const w of st.paths) occ.way({ ...w, width: 1.5 }, 0.5);
+  for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
   for (const s of [...town.water, ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
-  const vary = (x: number, y: number, salt: number) => {
-    const k = key(x, y);
-    return hash(k[0], k[1], set.seed, salt);
-  };
   const mmPerMetre = 1000 / set.scale;
   note('Cutting blocks into lots');
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
   note('Putting up buildings');
   const ground = new Ground({ ways: town.ways, water: town.water, green: parks, wood: town.wood, plazas: town.plazas });
-  const built = buildingsOf(blocks, { z: zones, set, style, box, vary, occ, ground, plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre });
+  const laid = new Footprints();
+  const built = buildingsOf(blocks, { z: zones, set, style, box, vary, occ, ground, laid, plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre });
   town.buildings = built.buildings;
   town.tagged = built.tagged;
   town.pois = built.pois;
   landuse.push(...built.landuse);
+  note('Planting trees');
+  town.trees = treesOf(blocks, built.landuse.filter((a) => a.cls === 'cemetery'), laid, ground, vary);
   for (const b of town.buildings) {
     if (b.context) continue;
     const p = b.shape[0].pts;

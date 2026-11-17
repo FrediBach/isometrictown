@@ -193,6 +193,10 @@ export class Footprints {
   add(ring: number[]): void {
     this.index.add(this.rings.push(ring) - 1, ring);
   }
+  /** Whether a point is inside any footprint laid. */
+  covers(x: number, y: number): boolean {
+    return this.index.at(x, y).some((j) => pointInRing(x, y, this.rings[j]));
+  }
   /** Whether a footprint overlaps one already laid, tested a little inside both outlines. */
   clash(ring: number[]): boolean {
     const near = this.index.around(ring);
@@ -208,8 +212,8 @@ export class Footprints {
 /**
  * What would make a laid-out town implausible: footprints that aren't proper counter-clockwise
  * rings with a height, that overlap each other, a road, water, a park, a wood or a square, or that
- * stand too far from any street or path to front it. One line per kind of breach, with how many
- * and where the first is.
+ * stand too far from any street or path to front it, and trees planted on any of those. One line
+ * per kind of breach, with how many and where the first is.
  */
 export function plausibility(town: Town): string[] {
   const found = new Map<string, { n: number; x: number; y: number }>();
@@ -236,5 +240,10 @@ export function plausibility(town: Town): string[] {
     }
     if (ground.front(cx, cy) > FRONTS) note('a building fronts no street', cx, cy);
   });
+  for (const t of town.trees) {
+    const on = ground.under(t.x, t.y);
+    if (on) note(`a tree stands on ${on}`, t.x, t.y);
+    if (near.at(t.x, t.y).some((j) => pointInRing(t.x, t.y, bs[j].shape[0].pts))) note('a tree stands in a building', t.x, t.y);
+  }
   return [...found].map(([what, f]) => `${what}: ${f.n} (first at ${f.x.toFixed(0)}, ${f.y.toFixed(0)})`);
 }

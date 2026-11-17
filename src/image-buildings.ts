@@ -7,10 +7,11 @@
  */
 import { pointInRing, ringArea } from './geo';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, PAVEMENT, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
-import { centre, Footprints, type Ground } from './image-check';
+import { centre, type Footprints, type Ground } from './image-check';
 import { LABELS, type Label } from './image-tone';
 import type { Zones } from './image-zones';
 import { hash } from './rng';
+import { bestRect } from './shape';
 import type { Settings } from './settings';
 import type { Style } from './styles';
 import type { Area, Building, Poi, Shape, Tagged, Way } from './tiles';
@@ -41,7 +42,7 @@ const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
 export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[] };
-export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number };
+export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
@@ -99,7 +100,7 @@ type Plan = { ring: number[]; h: number; building: string; roof?: string; across
 
 /** Lay out the buildings on the blocks' lots, then along the streets the blocks don't reach. */
 export function buildingsOf(blocks: Block[], c: BuildContext): Built {
-  const { set, style, vary, occ } = c;
+  const { set, style, vary, occ, laid } = c;
   const [bx0, by0, bx1, by1] = c.box;
   const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
   const out: Built = { buildings: [], tagged: [], pois: [], landuse: [] };
@@ -123,7 +124,6 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
   kept.sort((a, b) => a.block - b.block || a.side - b.side || a.index - b.index);
 
   const towers: [number, number, number][] = [];
-  const laid = new Footprints();
   const add = (p: Plan): boolean => {
     if (out.buildings.length >= MAX_BUILDINGS || !c.ground.clear(p.ring) || laid.clash(p.ring)) return false;
     laid.add(p.ring);
@@ -163,15 +163,31 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
     const at = (range: [number, number]) => range[0] + (range[1] - range[0]) * l.level;
     const pitched = (salt: number) => (ROWS.has(l.label) ? side(salt) : r(salt)) < l.warmth;
 
-    if (l.use === 'church') {
-      const deep = D >= 26;
-      const len = deep ? Math.min(D - 4, 32) : Math.min(L - 4, 30);
-      const wid = deep ? Math.min(L - 4, 12 + 3 * r(14043)) : Math.min(D - 1.5, 14);
-      if (len >= 16 && wid >= 8) {
-        const F: [number, number] = deep ? [A[0] + u[0] * (L - wid) * 0.5 + v[0] * 2, A[1] + u[1] * (L - wid) * 0.5 + v[1] * 2] : [A[0] + u[0] * (L - len) * 0.5 + v[0] * 0.5, A[1] + u[1] * (L - len) * 0.5 + v[1] * 0.5];
-        const q = deep ? rect(F, u, v, wid, len) : rect(F, u, v, len, wid);
-        if (within(q, ring)) return [{ ring: q, h: 13 + 4 * r(14044), building: worship }];
+    /** The first of some rectangles, centred on the front (along it, into the lot, set back, m), that fits on the lot. */
+    const fit = (sizes: [number, number, number][]) => {
+      for (const [along, into, back] of sizes) {
+        if (along < 6 || into < 6) continue;
+        const q = rect([A[0] + u[0] * (L - along) * 0.5 + v[0] * back, A[1] + u[1] * (L - along) * 0.5 + v[1] * back], u, v, along, into);
+        if (within(q, ring)) return q;
       }
+      return null;
+    };
+    if (l.use === 'church') {
+      // A nave into a deep lot, or along a shallow one, or a chapel where only that fits.
+      const nave = 12 + 3 * r(14043);
+      const q = fit([
+        [Math.min(L - 4, nave), Math.min(D - 4, 32), 2],
+        [Math.min(L - 4, 30), Math.min(D - 1.5, 14), 0.5],
+        [10, Math.min(D - 3, 20), 2],
+        [Math.min(L - 3, 20), 10, 1],
+      ]);
+      if (q && (bestRect(q).rect?.L ?? 0) >= 16) {
+        // A churchyard round it, where the lot has room for one.
+        if (ringArea(ring) > 2.2 * ringArea(q)) out.landuse.push({ shape: [{ pts: ring, seam: new Uint8Array(ring.length / 2) }], cls: 'cemetery' });
+        return [{ ring: q, h: 13 + 4 * r(14044), building: worship }];
+      }
+      // In a row on a bend, the church takes the row's own strip.
+      if (ROWS.has(l.label)) return [{ ring: strip(l, 0.05, Math.min(1, 14 / l.depth)), h: 13 + 4 * r(14044), building: worship }];
     }
     if (l.use === 'school') {
       // A hall set back on a deep lot; in a row, the row's own strip, three storeys and flat.
@@ -204,8 +220,13 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
     }
     if (l.label === 'suburb') {
       if (hall) {
-        const q = rect([A[0] + u[0] * (L - 24) * 0.5 + v[0] * 6, A[1] + u[1] * (L - 24) * 0.5 + v[1] * 6], u, v, 24, 14);
-        if (L >= 28 && within(q, ring)) return [{ ring: q, h: 3 * style.floor, building: 'civic', poi: hall.poi }];
+        const q = fit([
+          [24, 14, 6],
+          [20, 12, 4],
+          [16, 12, 3],
+          [Math.min(L - 5, 14), 11, 3],
+        ]);
+        if (q) return [{ ring: q, h: 3 * style.floor, building: 'civic', poi: hall.poi }];
       }
       const plans: Plan[] = [];
       let ww = Math.min(9 + 3 * r(14048), L - 5);
@@ -290,9 +311,21 @@ export function buildingsOf(blocks: Block[], c: BuildContext): Built {
 function landmarks(blocks: Block[], c: BuildContext): void {
   // Every lot once, with where it is, filed by 50 m cell; `live` holds those not yet merged away.
   type Entry = { b: Block; l: Lot; at: [number, number] };
-  const entries: Entry[] = blocks.flatMap((b) => b.lots.map((l) => ({ b, l, at: centre(lotRing(l)) })));
+  // Only lots on the ground that shows: a landmark laid out of sight is no landmark.
+  const [bx0, by0, bx1, by1] = c.box;
+  const entries: Entry[] = blocks
+    .flatMap((b) => b.lots.map((l) => ({ b, l, at: centre(lotRing(l)) })))
+    .filter(({ at: [x, y] }) => x >= bx0 && x <= bx1 && y >= by0 && y <= by1);
   const live = new Set(entries.map((x) => x.l));
   const open = (x: Entry) => live.has(x.l) && !x.l.use;
+  /** Whether a lot's front runs straight, within a metre of its chord, so a church or school fits square on it. */
+  const straight = (x: Entry) => {
+    const o = x.l.o;
+    const n = o.length;
+    const L = Math.hypot(o[n - 2] - o[0], o[n - 1] - o[1]) || 1;
+    for (let k = 2; k < n - 2; k += 2) if (Math.abs((o[k] - o[0]) * (o[n - 1] - o[1]) - (o[k + 1] - o[1]) * (o[n - 2] - o[0])) / L > 1) return false;
+    return true;
+  };
   const homely = (x: Entry) => x.l.label !== 'works' && x.l.label !== 'towers';
   const CELL = 50;
   const grid = new Map<number, Entry[]>();
@@ -334,7 +367,8 @@ function landmarks(blocks: Block[], c: BuildContext): void {
         take.unshift(before);
       } else break;
     }
-    if (frontage(m) < need) return null;
+    // Only ground a lot may take: a landmark refused later would leave the town without it.
+    if (frontage(m) < need || !c.occ.free(lotRing(m), LOT)) return null;
     m.index = take[0].index;
     m.use = use;
     for (const t of take) live.delete(t);
@@ -387,7 +421,8 @@ function landmarks(blocks: Block[], c: BuildContext): void {
     const tx = (i + 0.25 + 0.5 * hash(i, j, c.set.seed, 14066)) * PARISH;
     const ty = (j + 0.25 + 0.5 * hash(i, j, c.set.seed, 14067)) * PARISH;
     if (near(churches, tx, ty, CHURCH_SPACING)) continue;
-    const best = list.filter(open).sort((a, b) => Math.hypot(a.at[0] - tx, a.at[1] - ty) - Math.hypot(b.at[0] - tx, b.at[1] - ty));
+    const dist = (x: Entry) => Math.hypot(x.at[0] - tx, x.at[1] - ty) + (straight(x) ? 0 : 150);
+    const best = list.filter(open).sort((a, b) => dist(a) - dist(b));
     for (const x of best.slice(0, 8)) {
       if (near(churches, x.at[0], x.at[1], CHURCH_SPACING)) break;
       const ch = run(x.b, x.l, 22, 'church');

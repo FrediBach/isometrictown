@@ -71,6 +71,12 @@ const SMOOTH = 0.006;
 /** Smallest patch of each label at full realism, ha; at full likeness, `MIN_LIKE` for all. */
 const MIN_AREA: Record<Label, number> = { water: 0.5, plaza: 0.15, sand: 0.2, meadow: 1, field: 2, park: 1.5, allot: 0.5, wood: 3, works: 1, suburb: 1, rows: 0.6, old: 0.6, blocks: 0.6, towers: 0.8 };
 const MIN_LIKE = 0.1;
+/**
+ * Largest patch of a label at full realism, ha, three times that at full likeness: no town has a
+ * hundred hectares of allotments or a paved square the size of a district, however well their
+ * texture matches the image. What lies beyond is relabelled.
+ */
+const MAX_AREA: Partial<Record<Label, number>> = { allot: 5, plaza: 2 };
 
 const L = (name: Label) => LABELS.indexOf(name);
 const GREEN = new Set<Label>(['meadow', 'field', 'park', 'allot', 'wood']);
@@ -299,6 +305,29 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
   };
   settle();
+  /** Settle again without growing the labels named back. */
+  const settleExcept = (no: Set<number>) => {
+    for (let round = 0; round < 12; round++) {
+      let changed = 0;
+      for (let s = 0; s < count; s++) {
+        let best = label[s];
+        let bc = cost(s, best);
+        for (let k = 0; k < K; k++) {
+          if (no.has(k) && k !== label[s]) continue;
+          const c = cost(s, k);
+          if (c < bc - 1e-9) {
+            bc = c;
+            best = k;
+          }
+        }
+        if (best !== label[s]) {
+          label[s] = best;
+          changed++;
+        }
+      }
+      if (!changed) break;
+    }
+  };
   // The urban gradient: find the cores, then make density fall away from them, and settle again.
   const cores = coresOf(label, nbrs, area, sp, W, (CORE_MIN * 10000) / (cell * cell));
   if (cores.length) {
@@ -360,6 +389,51 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   };
 
   mergeSmall();
+  // Patches too large for their kind keep as much as they may round the part that suits them
+  // best, grown outwards; the rest takes the next best label, and small leftovers merge again.
+  {
+    const seen = new Uint8Array(count);
+    let cut = 0;
+    for (let s0 = 0; s0 < count; s0++) {
+      const k = label[s0];
+      const real = MAX_AREA[LABELS[k]];
+      if (seen[s0] || real === undefined) continue;
+      const list = [s0];
+      seen[s0] = 1;
+      for (let q = 0; q < list.length; q++)
+        for (const [t] of nbrs[list[q]])
+          if (!seen[t] && label[t] === k) {
+            seen[t] = 1;
+            list.push(t);
+          }
+      const max = real * (1 + 2 * likeness) * 10000;
+      if (list.reduce((a, s) => a + area[s], 0) * cell * cell <= max) continue;
+      let seed = list[0];
+      for (const s of list) if (data[s * K + k] < data[seed * K + k]) seed = s;
+      const keep = new Uint8Array(count);
+      const grow = [seed];
+      keep[seed] = 1;
+      let kept = area[seed] * cell * cell;
+      for (let q = 0; q < grow.length && kept < max; q++)
+        for (const [t] of nbrs[grow[q]])
+          if (!keep[t] && label[t] === k && kept + area[t] * cell * cell <= max) {
+            keep[t] = 1;
+            kept += area[t] * cell * cell;
+            grow.push(t);
+          }
+      for (const s of list) {
+        if (keep[s]) continue;
+        let best = -1;
+        for (let o = 0; o < K; o++) if (o !== SAND && o !== k && o !== WATER && (best < 0 || data[s * K + o] < data[s * K + best])) best = o;
+        label[s] = best;
+        cut++;
+      }
+    }
+    if (cut) {
+      settleExcept(new Set(Object.keys(MAX_AREA).map((l) => L(l as Label))));
+      mergeSmall();
+    }
+  }
   // Water no more than a superpixel across is opened away, unless the image draws its banks: a
   // chain of water along a smooth band of tone is no river. Water stays where some of it is
   // surrounded by water, or edged by the image, and grows back one step from there.

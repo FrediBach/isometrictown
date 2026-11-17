@@ -74,6 +74,8 @@ export type Town = {
   helipads: Shape[];
   /** Airfield labels: the class (international, regional, public, private, military, other), and whether the name says gliders or helicopters. */
   airports: Airport[];
+  /** Trees with a place of their own, as image mode plants them. Always empty from map tiles. */
+  trees: { x: number; y: number; r: number; h: number; conifer: boolean }[];
   /**
    * How built up the land is, from every tile loaded rather than only the area drawn, so that
    * what is worked out from it (traffic, parking, power lines) doesn't change as the view pans:
@@ -234,7 +236,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 
 /** A town with nothing in it. */
 export function empty(): Town {
-  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
+  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], trees: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */

@@ -230,6 +230,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (G) list = [...list.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
+    // Trees image mode planted where it wants them.
+    if (set.trees > 0) list.push(...from('image-trees', town.trees.map((t) => ({ ...t }))));
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
       const sx = cam.sx(t.x, t.y);

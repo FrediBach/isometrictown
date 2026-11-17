@@ -64,6 +64,13 @@ describe('the town', () => {
     expect(town.buildings.some((b) => b.info!.townHall)).toBe(true);
   });
 
+  test('fields come as a patchwork, and courtyards get trees of their own', () => {
+    const ramp = PICTURES.gradient();
+    const sc = imageScene(ramp, { ...base, image: ramp.id, scale: 5000 });
+    expect(sc.town.trees.length).toBeGreaterThan(0);
+    expect(sc.town.cover.filter((a) => a.cls === 'farmland').length).toBeGreaterThan(1);
+  });
+
   test('every house has an explicit height and a counter-clockwise footprint', () => {
     for (const b of lay(base).buildings) {
       expect(b.guess).toBeUndefined();
