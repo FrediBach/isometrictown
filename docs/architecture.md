@@ -18,7 +18,8 @@ App.tsx  ── settings ──►  Renderer  ── Job ──►   loadTown() 
 - **Main thread**: the settings panel, the locator map (MapLibre), place search, the SVG preview and stats. It never does geometry heavier than the locator footprint.
 - **Worker**: everything from download to SVG string. It is an ES module worker (`worker: { format: 'es' }` in `vite.config.ts`) because it lazy-loads `country-coder`.
 - The `Renderer` runs **one job at a time** and always draws the *latest* settings next; intermediate changes are dropped, not queued. Progress messages from stale jobs are ignored by id.
-- **Pen colours never go to the worker.** `recolor()` (`src/plot.ts`) rewrites the stroke colours in the finished SVG and stats, so palette changes are instant.
+- **Pen colours never go to the worker.** `recolor()` (`src/plot.ts`) rewrites the stroke colours in the finished SVG and stats, so palette changes are instant. In image mode a pen change also asks the worker to score the drawing on show again (a `score` job), which costs no redraw.
+- **Image mode** (`set.source === 'image'`) takes the place of the first step: instead of `loadTown()`, `loadTags()` and `detectRegion()`, the worker lays out a `Town` from a picture with `imageScene()` (`src/image.ts`) and draws it with the same `render()`. It fetches nothing. The main thread sends the picture with a job only when the worker doesn't have it yet; the worker keeps the last two. See [plans/image-mode.md](plans/image-mode.md).
 
 ## Module map
 
@@ -43,6 +44,8 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | Module | Role |
 | --- | --- |
 | `tiles.ts` | OpenFreeMap z14 vector tiles → a `Town` in local metres; road widths, POI sets |
+| `image.ts` | Image mode: a `Town` laid out from a picture, the fictional place it stands in (`drawnAs()`), and the cached layout |
+| `image-fit.ts`, `image-read.ts`, `image-tone.ts` | Where the image lies on the sheet; the picture read into a target in OKLab; pen mixing and the likeness score |
 | `osm.ts` | Overpass roof shapes and building types (best effort, time-boxed) |
 | `netcache.ts` | Cache Storage wrapper: cache-first, stale on failure, pruned |
 | `styles.ts` | Regional building styles and offline country detection |

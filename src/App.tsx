@@ -3,13 +3,15 @@ import { Camera } from './camera';
 import { Frame, type LngLat } from './geo';
 import type { Locator } from './locator';
 import { cn } from '@/lib/utils';
-import { defaultsAt, loadSettings, persist, REFIT_KEYS, slug, VIEW_KEYS } from './app/model';
+import { defaultsAt, loadSettings, persist, REFIT_KEYS, slug, toImageMode, VIEW_KEYS } from './app/model';
 import { Renderer, type RenderResult, type RenderStatus } from './app/renderer';
 import { SettingsContext, type Change } from './app/settings-context';
+import { usePicture } from './app/use-picture';
 import { AboutDialog } from './components/about-dialog';
-import { LightSection, PensSection, PlaceSection, ResetSettings, SeedSection, SheetSection, TitleSection, TownSection, ViewSection } from './components/sections';
+import { LightSection, PensSection, ResetSettings, SeedSection, SheetSection, SourceSection, TitleSection, TownSection, ViewSection } from './components/sections';
 import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
+import { fitImage } from './image-fit';
 import { recolor } from './plot';
 import { sheetSize, type Settings } from './settings';
 
@@ -19,6 +21,9 @@ const CatalogueDialog = lazy(() => import('./components/catalogue-dialog').then(
 const PlotDialog = lazy(() => import('./components/plot-dialog').then((m) => ({ default: m.PlotDialog })));
 
 const norm = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
+
+/** What the drawing is called: the place, or in image mode the image. */
+const drawingName = (set: Settings) => (set.source === 'image' ? set.imageName || 'Image' : set.place);
 
 export function App() {
   const [set, setSet] = useState(loadSettings);
@@ -36,6 +41,9 @@ export function App() {
   const [catalogueSeen, setCatalogueSeen] = useState(false);
   const [plotOpen, setPlotOpen] = useState(false);
   const [plotSeen, setPlotSeen] = useState(false);
+  // Image mode's views of the preview: the image laid over it, and the drawing blurred to its tone.
+  const [overlay, setOverlay] = useState(false);
+  const [squint, setSquint] = useState(false);
   // Bumped by a reset, so sections that keep their own drafts and undo history start afresh.
   const [resets, setResets] = useState(0);
 
@@ -47,6 +55,18 @@ export function App() {
   const schedule = useCallback((delay: number) => {
     persist(live.current);
     renderer.current?.schedule(delay);
+  }, []);
+
+  // The picture image mode draws from; a stored one is loaded when its id turns up, then drawn.
+  const picture = usePicture(set.image, () => schedule(0));
+  const currentPicture = picture.current;
+
+  /** In image mode, score the drawing on show again for new pens or paper; it needn't be drawn again. */
+  const rescore = useCallback(() => {
+    if (live.current.source !== 'image') return;
+    void renderer.current?.score(live.current).then((likeness) => {
+      if (likeness) setResult((r) => r && { ...r, likeness });
+    });
   }, []);
 
   const updateFootprint = useCallback((refit: boolean) => {
@@ -66,13 +86,14 @@ export function App() {
       if (key === 'background' || key === 'customBackground') {
         persist(live.current);
         setResult((r) => r && recolor(r, live.current));
+        rescore();
         return;
       }
       if (key === 'bearing') locator.current?.setView(live.current.center, live.current.bearing);
       if (VIEW_KEYS.has(key)) updateFootprint(REFIT_KEYS.has(key));
       schedule(fromSlider ? 220 : 0);
     },
-    [commit, schedule, updateFootprint],
+    [commit, rescore, schedule, updateFootprint],
   );
 
   const settings = useMemo(() => ({ set, change }), [set, change]);
@@ -88,6 +109,27 @@ export function App() {
   function goTo(center: LngLat, name: string, extra: Partial<Settings> = {}): void {
     commit({ ...live.current, center, place: name, ...extra });
     locator.current?.setView(live.current.center, live.current.bearing);
+    updateFootprint(true);
+    schedule(0);
+  }
+
+  /** Switch between drawing a place from the map and a town laid out from an image. */
+  function setSource(source: Settings['source']): void {
+    if (source === live.current.source) return;
+    commit(source === 'image' ? toImageMode(live.current) : { ...live.current, source });
+    if (source === 'map') locator.current?.setView(live.current.center, live.current.bearing);
+    // The map's drawing isn't one of the image; until there is an image, the sheet stays blank.
+    else if (!live.current.image) setResult(null);
+    updateFootprint(true);
+    schedule(0);
+  }
+
+  /** Read an image file, keep it, and draw from it. */
+  async function chooseImage(file: File): Promise<void> {
+    const p = await picture.choose(file);
+    if (!p) return;
+    const base = live.current.source === 'image' ? live.current : toImageMode(live.current);
+    commit({ ...base, image: p.id, imageName: p.name, imageFocus: [0.5, 0.5] });
     updateFootprint(true);
     schedule(0);
   }
@@ -152,6 +194,7 @@ export function App() {
   function recolorPens(): void {
     persist(live.current);
     setResult((r) => r && recolor(r, live.current));
+    rescore();
   }
 
   function setPens(pens: Settings['pens']): void {
@@ -170,7 +213,7 @@ export function App() {
     const url = URL.createObjectURL(new Blob([result.svg], { type: 'image/svg+xml' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `isometric-town-${slug(live.current.place)}-${live.current.seed}.svg`;
+    a.download = `isometric-town-${slug(drawingName(live.current))}-${live.current.seed}.svg`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -186,12 +229,18 @@ export function App() {
   }, [full]);
 
   useEffect(() => {
-    const r = new Renderer(() => live.current, setStatus, setResult);
+    const r = new Renderer(() => live.current, currentPicture, setStatus, setResult);
     renderer.current = r;
     updateFootprint(false);
     schedule(0);
     return () => r.dispose();
-  }, [schedule, updateFootprint]);
+  }, [currentPicture, schedule, updateFootprint]);
+
+  const image = set.source === 'image';
+  const rect = new Camera(set).rect;
+  const imageOverlay = image && overlay && picture.picture && picture.url
+    ? { url: picture.url, placed: fitImage(rect, picture.picture.w, picture.picture.h, set.imageFit, set.imageFocus), rect }
+    : null;
 
   return (
     <div className={cn('grid h-screen', full ? 'grid-cols-1' : 'grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1')}>
@@ -199,7 +248,7 @@ export function App() {
       <aside hidden={full} className="overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
         <SettingsContext value={settings}>
           <TitleBlock onPalette={setPens} />
-          <PlaceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} />
+          <SourceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} onSource={setSource} picture={picture} onFile={(f) => void chooseImage(f)} />
           <ViewSection />
           <TownSection region={result?.region} />
           <LightSection />
@@ -212,8 +261,19 @@ export function App() {
       </aside>
 
       <main className={cn('grid min-h-0 min-w-0 bg-stage', full ? 'grid-rows-[auto_1fr]' : 'grid-rows-[auto_1fr_auto] max-[900px]:grid-rows-[auto_70vh_auto]')}>
-        <Toolbar zoom={zoom} onZoom={setZoom} full={full} onFull={setFull} status={status} canDownload={!!result} onDownload={download} onAbout={() => setAboutOpen(true)} onCatalogue={openCatalogue} />
-        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} />
+        <Toolbar
+          zoom={zoom}
+          onZoom={setZoom}
+          full={full}
+          onFull={setFull}
+          status={status}
+          canDownload={!!result}
+          onDownload={download}
+          onAbout={() => setAboutOpen(true)}
+          onCatalogue={openCatalogue}
+          look={image ? { overlay, squint, onOverlay: setOverlay, onSquint: setSquint } : undefined}
+        />
+        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} />
         {!full && <Stats result={result} onPlot={openPlot} />}
       </main>
 
@@ -225,7 +285,7 @@ export function App() {
       )}
       {plotSeen && (
         <Suspense fallback={null}>
-          <PlotDialog open={plotOpen} onOpenChange={setPlotOpen} result={result} place={set.place} seed={set.seed} />
+          <PlotDialog open={plotOpen} onOpenChange={setPlotOpen} result={result} place={drawingName(set)} seed={set.seed} />
         </Suspense>
       )}
     </div>

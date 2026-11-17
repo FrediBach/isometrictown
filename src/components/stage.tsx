@@ -2,10 +2,12 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { DownloadIcon, Maximize2Icon, Minimize2Icon, PenToolIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Segmented } from '@/components/ui/segmented';
+import { ToggleKey } from '@/components/ui/toggle-key';
 import { cn } from '@/lib/utils';
 import { metres, minutes, MONO_INK, num } from '../app/model';
 import { usePlotActivity } from '../app/plot-activity';
 import type { RenderResult, RenderStatus } from '../app/renderer';
+import type { Placed } from '../image-fit';
 import { DrawingProgress } from './drawing-progress';
 import { PenDot } from './title-block';
 
@@ -24,9 +26,11 @@ type ToolbarProps = {
   onDownload: () => void;
   onAbout: () => void;
   onCatalogue: () => void;
+  /** In image mode: the image laid over the preview, and the preview blurred to show its tone. */
+  look?: { overlay: boolean; squint: boolean; onOverlay: (on: boolean) => void; onSquint: (on: boolean) => void };
 };
 
-export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout, onCatalogue }: ToolbarProps) {
+export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout, onCatalogue, look }: ToolbarProps) {
   return (
     <div className="dark flex h-14 items-center gap-4 border-b border-black/40 bg-background px-[18px] text-foreground max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:px-4 max-[900px]:py-2.5">
       <div className="flex items-center gap-3">
@@ -53,6 +57,16 @@ export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDow
         >
           {full ? <Minimize2Icon /> : <Maximize2Icon />}
         </Button>
+        {look && (
+          <>
+            <ToggleKey pressed={look.overlay} onPressedChange={look.onOverlay} className="w-auto" title="Lay the image over the drawing, to see how they line up">
+              Image
+            </ToggleKey>
+            <ToggleKey pressed={look.squint} onPressedChange={look.onSquint} className="w-auto" title="Blur the drawing, to see the light and dark it makes from a step away">
+              Squint
+            </ToggleKey>
+          </>
+        )}
       </div>
       <span role="status" className={cn('readout flex min-w-0 items-center gap-2 text-[11px] text-muted-foreground', status.state === 'error' && 'text-destructive')}>
         <span
@@ -90,22 +104,30 @@ type PreviewProps = {
   status: RenderStatus;
   /** Called with the sheet position (mm) of a click on the drawing. */
   onPick: (x: number, y: number) => void;
+  /** In image mode, the image to lay over the drawing area, where it lies on the sheet. */
+  overlay?: { url: string; placed: Placed; rect: [number, number, number, number] } | null;
+  /** Blur the drawing to its tone, as seen from a step away. */
+  squint?: boolean;
 };
 
-export function Preview({ result, sheet, zoom, pens, mono, status, onPick }: PreviewProps) {
+/** How far Squint blurs, mm on the sheet: about what arm's length does to a pen line. */
+const SQUINT_MM = 1.5;
+
+export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overlay, squint = false }: PreviewProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
+  const ink = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!result) return;
     // Parse as XML rather than HTML: the SVG is our own output, and this keeps it out of the HTML parser.
     const doc = new DOMParser().parseFromString(result.svg, 'image/svg+xml');
-    paper.current!.replaceChildren(document.importNode(doc.documentElement, true));
+    ink.current!.replaceChildren(document.importNode(doc.documentElement, true));
   }, [result]);
 
   // Pen colours change without redrawing: just restyle the preview layers.
   useEffect(() => {
-    const svg = paper.current!.querySelector('svg');
+    const svg = ink.current!.querySelector('svg');
     if (!svg || mono) return;
     pens.forEach((c, i) => svg.querySelector<SVGGElement>(`#pen-${i + 1}`)?.setAttribute('stroke', c));
   }, [pens, mono, result]);
@@ -121,6 +143,8 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick }: Pre
       } else scale = Number(zoom) * (96 / 25.4);
       paper.current!.style.width = `${w * scale}px`;
       paper.current!.style.height = `${h * scale}px`;
+      // Pixels per sheet mm, for anything sized on the sheet (Squint's blur).
+      paper.current!.style.setProperty('--mm', `${scale}px`);
     };
     layout();
     const ro = new ResizeObserver(layout);
@@ -154,13 +178,27 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick }: Pre
           ref={paper}
           title={result ? 'Click a building to try another look for it' : undefined}
           className={cn(
-            'sheet cursor-crosshair rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
+            'sheet relative cursor-crosshair overflow-hidden rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
             // Fade the old drawing only once the progress card shows, so quick redraws don't flicker.
             working && 'opacity-55 delay-350',
           )}
-        />
+        >
+          <div ref={ink} className="size-full" style={squint ? { filter: `blur(calc(var(--mm) * ${SQUINT_MM}))` } : undefined} />
+          {overlay && <ImageOverlay {...overlay} sheet={sheet} />}
+        </div>
       </div>
       <DrawingProgress status={status} />
+    </div>
+  );
+}
+
+/** The image laid over the drawing area at half strength, placed as the town was laid out under it. */
+function ImageOverlay({ url, placed, rect, sheet }: { url: string; placed: Placed; rect: [number, number, number, number]; sheet: [number, number] }) {
+  const [x0, y0, x1, y1] = rect;
+  const at = (v: number, of: number) => `${(v / of) * 100}%`;
+  return (
+    <div aria-hidden className="pointer-events-none absolute overflow-hidden" style={{ left: at(x0, sheet[0]), top: at(y0, sheet[1]), width: at(x1 - x0, sheet[0]), height: at(y1 - y0, sheet[1]) }}>
+      <img src={url} alt="" className="absolute max-w-none opacity-50" style={{ left: at(placed.x - x0, x1 - x0), top: at(placed.y - y0, y1 - y0), width: at(placed.w, x1 - x0), height: at(placed.h, y1 - y0) }} />
     </div>
   );
 }
@@ -278,6 +316,21 @@ export function Stats({ result, onPlot }: { result: RenderResult | null; onPlot:
               <dt className="text-muted-foreground">Scene</dt>
               <dd className="m-0 text-pretty">{scene}</dd>
             </div>
+            {result.likeness && (
+              <div className="grid grid-cols-[96px_1fr] items-baseline gap-3 border-b py-1.5">
+                <dt className="text-muted-foreground">Likeness</dt>
+                <dd
+                  className="readout m-0 flex items-baseline justify-between gap-2 text-[12px]"
+                  title="How closely the drawing, seen from a step away, matches the image's light, dark and colour through these pens: 0 is no better than blank paper, 100 a perfect match."
+                >
+                  <span>
+                    {Math.round(Math.max(0, result.likeness.score) * 100)}
+                    <span className="text-muted-foreground"> of 100</span>
+                  </span>
+                  <span className="text-muted-foreground">ΔE {result.likeness.dE[1].toFixed(3)}</span>
+                </dd>
+              </div>
+            )}
             <div className="grid grid-cols-[96px_1fr] items-baseline gap-3 py-1.5">
               <dt className="text-muted-foreground">Drawn in</dt>
               <dd className="readout m-0 text-[12px]">{(result.ms / 1000).toFixed(1)} s</dd>

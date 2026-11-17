@@ -25,7 +25,8 @@ These are small and exact, for the parts that are pure functions.
 | `roof-visibility.test.ts` | Exposed and occluded roof ends, full and partial coplanar joins, real gaps, rotations and panning, plus a recorded Mollis rim where pixel depth hid its own edge |
 | `geometry.test.ts` | `hash()` values (every made-up thing depends on them), Mercator and `Frame`, ring area, `bestRect`, `offsetRing`, the camera's projection, `ground()`, `region()`, `gap()`/`tone()`, `within()` |
 | `lod.test.ts` | Every rule in `LOD` cuts in where `coarsest()` says, the fade order, bigger things lasting longer, Detail and pen width, `thin`, `atLeast`, `spaced` |
-| `model.test.ts` | Share links: every kind of setting round-trips through the address bar, bad values are dropped, old four-pen sets migrate, the scale slider |
+| `model.test.ts` | Share links: every kind of setting round-trips through the address bar, bad values are dropped, old four-pen sets migrate, the scale slider, image-mode settings and defaults |
+| `image.test.ts` | Image mode: where the image lies on the sheet both ways, OKLab and pen mixing, the tone curve, Fit's margins and transparency, the drawn-as place, a deterministic layout that Detail, pen width and pens never move, the likeness score, the image store's format and ids |
 | `plot.test.ts` | Joining and ordering strokes, `plan()`, SVG output and `recolor()`, reading pens back with `layersOf()`, machine coordinates for each corner and turn, G-code that keeps the pen up for travel and stays on the bed |
 | `grbl.test.ts` | The GRBL streamer against a simulated controller: it never puts more than 128 unanswered bytes on the wire, keeps the buffer busy, reports errors and positions |
 | `catalogue.test.ts` | Entries are unique and complete, and point at gates and LOD rules that exist; stroke patterns match as documented |
@@ -45,6 +46,8 @@ These draw whole sheets with the real pipeline (`loadTown` → `render` → `pla
   - the SVG reads back stroke for stroke with `layersOf()`, in the right colours.
 
   At the end it draws the first case again and requires the identical SVG, which catches state leaking between drawings.
+- **`image.test.ts`** draws towns in image mode from pictures made in code (`test/support/pictures.ts`: a ramp, a disc, colour bands, stripes, a white cross, a soft landscape), with a stub `fetch` that fails on any call. Each has a golden, `test/golden/image-<id>.json`, which also records its likeness score, and the same checks as the map sheets.
+- The checks every sheet keeps live in `test/support/checks.ts` (`sheetChecks()`), shared by both.
 - **`gates.test.ts`** switches each setting that switches something on (Windows, Trees, Life, Markings…) off in turn. Whatever the catalogue says needs that setting must then be gone, and the setting must have had something to take away.
 - **`pan.test.ts`** pans the view 30 m and 47 m east and checks that trees, cars, people and animals, buildings, roofs, roof details, windows, streets and ground textures lay the same strokes, shifted. 47 m is a multiple of no grid the drawing uses, so a grid tied to the view shows up. Shadows, park grass and water waves are left out: they are tone hatching on the sheet's own grid.
 
@@ -72,4 +75,9 @@ Only `mollis-default` uses OSM tags; the other cases keep `osmTags` off.
 
 - A new drawn feature: the drawing tests will want a catalogue entry for its tally name, and its golden will change. If no case draws it, add or adjust a case in `test/cases.ts` and run `npm run test:record`.
 - A new switch: give its catalogue entries `needs` and `strokes`, and `gates.test.ts` checks it. Where an entry's strokes don't need the switch, leave them out of that entry; another entry can claim them. If neither base sheet has anything for it to switch off, add a base, as `RURAL_BASE` does for railways and power lines.
+- Image mode: a new picture goes in `test/support/pictures.ts`, a new case in `test/render/image.test.ts`. Check a changed planner with the likeness lab too.
 - Pure logic: a unit test in `test/unit/`. Use `vi.stubGlobal` for browser globals, as `model.test.ts` does for storage and the address bar.
+
+## The likeness lab
+
+`npm run likeness` draws image mode from the test pictures at 1:1000–1:8000, headless, with the fetch stubbed to fail, and writes `lab/out/<name>/`: per case the picture, what the drawing should look like (the picture after the tone curve, in the range pens on paper reach), what the drawing looks like from arm's length, and the drawing, with a report of likeness (score, ΔE at arm's length and across the room, SSIM), ink tone, waste and the time of each step. Like the LOD lab, it takes `--images`, `--scales`, `--name` and `--compare`, plus `--likeness`, `--pens <palette>`, `--sheet`, `--detail` and `--pen`. Use it for every change to the image-mode planner, and look at the drawings: whether the town is believable can only be judged by eye.

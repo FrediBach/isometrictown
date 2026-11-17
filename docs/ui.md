@@ -27,7 +27,8 @@ The View section’s **Humanize** slider runs from 0–100%. It is saved and sha
 
 Exceptions to the redraw:
 
-- **Pen colours** (`setPen`, `setPens`, `recolorPens`) only call `recolor()` on the existing result. No worker round-trip.
+- **Pen colours** (`setPen`, `setPens`, `recolorPens`) only call `recolor()` on the existing result. No redraw: in image mode they, and the background colour, ask the worker to score the drawing on show again (`Renderer.score()`), since how like the image it looks depends on the pens.
+- **Draw from** (the Map | Image switch) goes through `setSource()`. The first switch to Image applies `IMAGE_DEFAULTS` (scale, tilt, power lines, title) to settings still at their defaults. Choosing an image goes through `chooseImage()`, which keeps it (`app/image-store.ts`) and sets `image`, `imageName` and the focus at once.
 - **Place and seed** changes go through `goTo()` and `setSeed()`, which commit and schedule directly.
 - **Clicking a building** in the preview calls `reroll()`: it asks the renderer which building is at that sheet position, gives it a new entry in `seedLocks` and redraws. `unlockAll()` (the Seed section's Unlock all) clears them.
 
@@ -35,7 +36,7 @@ Exceptions to the redraw:
 
 Owns the worker. `schedule(delay)` debounces; `dispatch()` sends a `Job` with a `structuredClone` of the latest settings only if the worker is idle. When a job finishes, the next queued one goes out. Results are recoloured with the current pens on arrival, since they may have changed during the job.
 
-Jobs (`Job` in `worker.ts`) are `draw` (settings), `pick` (a sheet position in mm) or `strokes` (tally names). Worker messages (`Reply`): `progress` (a `StageProgress`), `done` (svg, stats, counts, census, features, region, ms), `error` (with `tooBig`), `picked` (the building's lock key, or null) or `strokes` (path data and the densest spot). `pick()` and `strokes()` return promises and never touch the draw queue. The worker answers from the last finished drawing, which is the one on show.
+Jobs (`Job` in `worker.ts`) are `draw` (settings, and in image mode the picture when the worker hasn't been sent it), `pick` (a sheet position in mm), `strokes` (tally names) or `score` (settings). Worker messages (`Reply`): `progress` (a `StageProgress`), `done` (svg, stats, counts, census, features, region, ms, and in image mode `likeness`), `error` (with `tooBig`, or `missing` when the worker lacks the picture, which the renderer answers by sending it again), `picked` (the building's lock key, or null), `strokes` (path data and the densest spot) or `scored` (likeness). `pick()`, `strokes()` and `score()` return promises and never touch the draw queue. In image mode the renderer sends nothing until the picture is on hand. The worker answers from the last finished drawing, which is the one on show.
 
 `census` counts the buildings and trees in the drawing by facet (`house`, `gabled-roof`, `shutters`, `palm`, `street-trees`); `features` gives strokes and ink per tally name (see [render-pipeline.md](render-pipeline.md#paper-srcrasterts)).
 
@@ -64,7 +65,7 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 `app/model.ts`:
 
-- `persist()` writes all settings to `localStorage` (`isometrictown:settings`) and the drawing to the URL hash: `#lat/lng/bearing/scale/seed/place/key=value&…`. The seventh part lists every setting that differs from `DEFAULT_SETTINGS` (`toQuery()`), seed locks and pens included, so a link reproduces the drawing. Only `speed` stays out, as it belongs to the plotter, not the drawing. Colours drop their `#`, pens are comma-separated, `layerPens` is `layer:pen,…` and `seedLocks` is `x,y:seed;…`.
+- `persist()` writes all settings to `localStorage` (`isometrictown:settings`) and the drawing to the URL hash: `#lat/lng/bearing/scale/seed/place/key=value&…`. The seventh part lists every setting that differs from `DEFAULT_SETTINGS` (`toQuery()`), seed locks and pens included, so a link reproduces the drawing. Only `speed` stays out, as it belongs to the plotter, not the drawing. Colours drop their `#`, pens are comma-separated, `layerPens` is `layer:pen,…`, `seedLocks` is `x,y:seed;…` and `imageFocus` is `x,y`. A link in image mode carries the image's id and settings but not the image: another browser can draw it only if it has that image stored, and the image well says so when it hasn't.
 - `loadSettings()` merges defaults ← saved ← hash, then validates (`migratePens`, unknown sheet or style → default, malformed `seedLocks` entries dropped). A hash with the seventh part (even an empty one) first resets every shared setting to its default, so the receiver's own saved settings don't leak into a shared drawing. An old six-part hash only sets the view and keeps the rest from `localStorage`.
 - Pasting a link into an open tab fires `hashchange`, and `App` reloads to read it. `persist()` uses `replaceState`, which does not fire it.
 - New settings fields get their default from `DEFAULT_SETTINGS` automatically for old saved states. Renamed or reshaped fields need a migration in `loadSettings()`.
@@ -76,6 +77,8 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 ## Panel sections
 
 `components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
+
+Section 1 starts with the **Map | Image** switch. In Image it is titled Image and holds the image well (`components/image-well.tsx`: drop or choose a picture; in Fill, drag it or use the arrow keys to move the crop, committed when the drag ends), Fill | Fit, and the Brightness, Contrast and Colour sliders. The place search and locator map are hidden, not unmounted, so the map keeps its state. `app/use-picture.ts` loads the stored picture when `set.image` changes and hands the renderer the one on hand. In image mode the toolbar adds two view keys, **Image** (the picture over the drawing area at half strength, placed with `fitImage()`) and **Squint** (the preview blurred by 1.5 mm, to show its tone), and the stats footer a **Likeness** readout.
 
 Light defaults to Automatic sun: geographic south-east in the north and north-east in the south. Turning it off exposes the existing view-relative direction slider; the section summary always shows the resulting compass bearing. Old saved settings with an adjusted sun angle, and old share links with an explicit sun angle, retain manual lighting. Links carry `autoSun` explicitly alongside a non-default manual angle so automatic lighting can retain that angle without changing mode when shared.
 

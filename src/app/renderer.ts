@@ -1,13 +1,15 @@
+import type { Picture } from '../image';
+import type { Likeness } from '../image-tone';
 import { recolor, type PlotStats } from '../plot';
 import type { Census, Counts } from '../render';
 import { sheetSize, type Settings } from '../settings';
 import type { Region } from '../styles';
 import type { Features, Job, Reply, Strokes } from '../worker';
-import { STAGE_LABEL, type StageProgress } from './stages';
+import { stageLabel, type StageProgress } from './stages';
 
 export type RenderStatus = { text: string; state: 'idle' | 'working' | 'error'; progress?: StageProgress };
 
-const working = (p: StageProgress): RenderStatus => ({ text: STAGE_LABEL[p.stage], state: 'working', progress: p });
+const working = (p: StageProgress, source: Settings['source']): RenderStatus => ({ text: stageLabel(p.stage, source), state: 'working', progress: p });
 
 export type RenderResult = {
   svg: string;
@@ -23,7 +25,12 @@ export type RenderResult = {
   /** Settings at the time the drawing came back, for the stats panel. */
   mono: boolean;
   speed: number;
+  /** In image mode, how like the image the drawing is. */
+  likeness?: Likeness;
 };
+
+/** Pictures the worker keeps, as it does: the last two used. */
+const PICTURES = 2;
 
 /** Runs drawings on the worker, one at a time, always drawing the latest settings next. */
 export class Renderer {
@@ -35,9 +42,14 @@ export class Renderer {
   private pickId = 0;
   private picking = new Map<number, (key: string | null) => void>();
   private asking = new Map<number, (s: Strokes | null) => void>();
+  private scoring = new Map<number, (l: Likeness | null) => void>();
+  /** Ids of the pictures the worker has, least recently used first, kept in step with its own list. */
+  private sent: string[] = [];
 
   constructor(
     private settings: () => Settings,
+    /** The picture image mode draws from, once it is loaded. */
+    private picture: () => Picture | null,
     private onStatus: (s: RenderStatus) => void,
     private onResult: (r: RenderResult) => void,
   ) {
@@ -53,18 +65,27 @@ export class Renderer {
         this.asking.delete(r.id);
         return;
       }
+      if (r.kind === 'scored') {
+        this.scoring.get(r.id)?.(r.likeness);
+        this.scoring.delete(r.id);
+        return;
+      }
       if (r.kind === 'progress') {
-        if (r.id === this.jobId) this.onStatus(working(r));
+        if (r.id === this.jobId) this.onStatus(working(r, this.settings().source));
         return;
       }
       this.busy = false;
-      if (r.kind === 'error') {
+      if (r.kind === 'error' && r.missing !== undefined && this.picture()?.id === r.missing) {
+        // The worker lost track of the picture; send it again with the next drawing.
+        this.sent = this.sent.filter((id) => id !== r.missing);
+        this.queued = true;
+      } else if (r.kind === 'error') {
         this.onStatus({ text: r.text, state: 'error' });
       } else {
         const set = this.settings();
         this.onStatus({ text: '', state: 'idle' });
         // Pens may have changed while this drawing was on the worker; colour costs no redraw.
-        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed }, set));
+        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(set), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: set.mono, speed: set.speed, likeness: r.likeness }, set));
       }
       this.dispatch();
     };
@@ -74,6 +95,9 @@ export class Renderer {
       this.picking.clear();
       for (const resolve of this.asking.values()) resolve(null);
       this.asking.clear();
+      for (const resolve of this.scoring.values()) resolve(null);
+      this.scoring.clear();
+      this.sent = [];
       this.onStatus({ text: 'The drawing failed. Try another place or setting.', state: 'error' });
     };
   }
@@ -88,11 +112,37 @@ export class Renderer {
 
   private dispatch(): void {
     if (this.busy || !this.queued) return;
+    const set = structuredClone(this.settings());
+    const pic = set.source === 'image' ? this.picture() : null;
+    if (set.source === 'image' && pic?.id !== set.image) {
+      // Nothing to draw until there is an image; the image well says so.
+      this.queued = false;
+      this.onStatus({ text: set.image ? '' : 'Choose an image to draw from', state: 'idle' });
+      return;
+    }
     this.queued = false;
     this.busy = true;
-    this.onStatus(working({ stage: 'map' }));
-    const job: Job = { kind: 'draw', id: ++this.jobId, set: structuredClone(this.settings()) };
-    this.worker.postMessage(job);
+    this.onStatus(working({ stage: 'map' }, set.source));
+    const job: Job = { kind: 'draw', id: ++this.jobId, set };
+    const transfer: Transferable[] = [];
+    if (pic) {
+      if (!this.sent.includes(pic.id)) {
+        // A copy, so the picture stays usable here once its pixels have moved to the worker.
+        job.picture = { ...pic, rgba: pic.rgba.slice() };
+        transfer.push(job.picture.rgba.buffer);
+      }
+      this.sent = [...this.sent.filter((id) => id !== pic.id), pic.id].slice(-PICTURES);
+    }
+    this.worker.postMessage(job, transfer);
+  }
+
+  /** How like its image the drawing on show is through the pens of `set`, without drawing it again. */
+  score(set: Settings): Promise<Likeness | null> {
+    const id = ++this.pickId;
+    return new Promise((resolve) => {
+      this.scoring.set(id, resolve);
+      this.worker.postMessage({ kind: 'score', id, set: structuredClone(set) } satisfies Job);
+    });
   }
 
   /** The lock key of the building at a sheet position (mm) in the drawing on show, or null. */

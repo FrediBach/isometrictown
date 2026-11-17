@@ -81,6 +81,9 @@ export const STYLES: Record<StyleId, Style> = {
 
 export const STYLE_IDS = Object.keys(STYLES) as StyleId[];
 
+/** The style `auto` stands for in image mode, where there is no country to take one from. */
+export const IMAGE_STYLE: StyleId = 'central';
+
 /** The style for each country, by ISO 3166 code. */
 export const BY_COUNTRY: Record<string, StyleId> = {
   CH: 'alpine', AT: 'alpine', LI: 'alpine',

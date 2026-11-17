@@ -230,7 +230,10 @@ export function toSvg(pens: number[][][], set: Settings, sheet: [number, number]
     })
     .join('\n');
   const [lng, lat] = set.center;
-  const desc = `${set.place} (${lat.toFixed(5)}, ${lng.toFixed(5)}), bearing ${Math.round(set.bearing)}°, 1:${Math.round(set.scale)}. Made with Isometric Town, isometrictown.com. Map data © OpenStreetMap contributors.`;
+  // A town laid out from an image uses no map data, so it has no coordinates or map credit.
+  const desc = set.source === 'image'
+    ? `${set.place}, a town laid out after an image, bearing ${Math.round(set.bearing)}°, 1:${Math.round(set.scale)}. Made with Isometric Town, isometrictown.com.`
+    : `${set.place} (${lat.toFixed(5)}, ${lng.toFixed(5)}), bearing ${Math.round(set.bearing)}°, 1:${Math.round(set.scale)}. Made with Isometric Town, isometrictown.com. Map data © OpenStreetMap contributors.`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">
 <title>${escape(set.place)}, Isometric Town</title>

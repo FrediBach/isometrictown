@@ -11,6 +11,7 @@ All data comes from public services, straight from the browser. Be a good citize
 | `public/cities.json` (Natural Earth) | `search.ts` | instant offline town suggestions | bundled |
 | `@rapideditor/country-coder` | `styles.ts` | country, regional style, drive side; offline | bundled, lazy |
 | OpenFreeMap Positron style | `locator.ts` | the little locator map (MapLibre) | for the UI only |
+| The user's own image | `app/image-store.ts` | image mode: a town laid out to look like it | in image mode; never leaves the browser |
 
 ## Vector tiles (`tiles.ts`)
 
@@ -41,7 +42,7 @@ To use a new OpenMapTiles layer or attribute, decode it in `decode()`, add a fie
 A tiny wrapper around Cache Storage, shared by all tabs and the worker:
 
 - `cached(store, key, ttl, as, load)`: fresh hit → no network; otherwise fetch and store; on failure use a stale copy if there is one.
-- Three stores: `TILES` (1500 entries, month TTL), `META` (5000 entries: TileJSON, Overpass cells, provider cooldowns), and `SEARCH` (300 entries, day TTL). Pruned oldest-first.
+- Four stores: `TILES` (1500 entries, month TTL), `META` (5000 entries: TileJSON, Overpass cells, provider cooldowns), `SEARCH` (300 entries, day TTL) and `IMAGES` (8 entries). Pruned oldest-first.
 - Keys that aren't real URLs use the synthetic `LOCAL` origin.
 - Empty results are stored as empty (`x-empty`) so "nothing here" is cached too.
 - If Cache Storage is missing or disabled, persistence is skipped; in-memory caches and cooldowns still work.
@@ -60,6 +61,10 @@ These client limits do not enforce an application-wide quota: [Nominatim's publi
 
 Regenerate the bundled cities with `node scripts/cities.mjs <ne_10m_populated_places_simple.geojson>`.
 
+## Images (`app/image-store.ts`)
+
+Image mode's pictures are decoded on the main thread (`createImageBitmap`, turned upright from their EXIF orientation), scaled to at most 1024 px on the long side and read back as straight RGBA. The id is the first 16 hex digits of the SHA-256 of the size and pixels, so the same picture gets the same id however it arrives. Pictures are kept in the `IMAGES` store under `${LOCAL}image/<id>` (a 16-byte header, the name, then the pixels) and in memory for the tab, which is all there is without Cache Storage. Nothing is uploaded: a share link carries the id, not the image.
+
 ## Attribution
 
-Map data © OpenStreetMap contributors must stay in the SVG `<desc>`, the about dialog and the README credits.
+Map data © OpenStreetMap contributors must stay in the SVG `<desc>`, the about dialog and the README credits. A drawing made in image mode uses no map data, so its `<desc>` and margin leave the credit out; the about dialog and the README keep it.

@@ -104,3 +104,5 @@ export const TILES: Store = { name: 'isometrictown-tiles-v1', maxEntries: 1500 }
 export const META: Store = { name: 'isometrictown-meta-v1', maxEntries: 5000 };
 /** Search answers have a separate budget so typing cannot evict map metadata. */
 export const SEARCH: Store = { name: 'isometrictown-search-v1', maxEntries: 300 };
+/** Images the user drew from, normalised (see `src/app/image-store.ts`): up to about 4 MB each. */
+export const IMAGES: Store = { name: 'isometrictown-images-v1', maxEntries: 8 };

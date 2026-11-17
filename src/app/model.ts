@@ -86,7 +86,42 @@ export function loadSettings(): Settings {
     /^-?\d+,-?\d+$/.test(key) && Number.isInteger(value) && value > 0));
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
+  validateImage(s);
   return s;
+}
+
+const oneOf = <T extends string>(v: unknown, options: readonly T[], def: T): T => (options.includes(v as T) ? (v as T) : def);
+const within = (v: unknown, lo: number, hi: number, def: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def);
+
+/** Image-mode settings from storage or a link: known values, numbers in range, and an id that looks like one. */
+function validateImage(s: Settings): void {
+  const d = DEFAULT_SETTINGS;
+  s.source = oneOf(s.source, ['map', 'image'], d.source);
+  s.imageFit = oneOf(s.imageFit, ['fill', 'fit'], d.imageFit);
+  s.fabric = oneOf(s.fabric, ['auto', 'organic', 'grid'], d.fabric);
+  if (typeof s.image !== 'string' || !/^([0-9a-f]{16})?$/.test(s.image)) s.image = '';
+  if (typeof s.imageName !== 'string') s.imageName = '';
+  s.imageName = s.imageName.slice(0, 80);
+  const f = Array.isArray(s.imageFocus) ? s.imageFocus : [];
+  s.imageFocus = [within(f[0], 0, 1, 0.5), within(f[1], 0, 1, 0.5)];
+  s.imageLight = within(s.imageLight, -1, 1, d.imageLight);
+  s.imageContrast = within(s.imageContrast, 0.5, 2, d.imageContrast);
+  s.imageColour = within(s.imageColour, 0, 1, d.imageColour);
+  s.likeness = within(s.likeness, 0, 1, d.likeness);
+}
+
+/**
+ * What a drawing made from an image starts with, the first time: a coarser scale fits more houses
+ * under the image, a higher view shifts less of it up the sheet, and power lines and the title
+ * would only get in the way. Each applies only while the setting is still at its default.
+ */
+export const IMAGE_DEFAULTS: Partial<Settings> = { scale: 2500, tilt: 40, power: false, title: false };
+
+/** The settings on switching to image mode, with the image defaults for whatever hasn't been changed. */
+export function toImageMode(set: Settings): Settings {
+  const next: Settings = { ...set, source: 'image' };
+  for (const [k, v] of Object.entries(IMAGE_DEFAULTS) as [keyof Settings, never][]) if (set[k] === DEFAULT_SETTINGS[k]) next[k] = v;
+  return next;
 }
 
 /** A place name from the link; a broken escape (a link cut short) keeps the text as it came. */
@@ -124,14 +159,16 @@ export function persist(set: Settings): void {
   history.replaceState(null, '', hash);
 }
 
-/** Every setting back to its default, staying at the same place. */
+/** Every setting back to its default, staying at the same place, or with the same image in image mode. */
 export function defaultsAt(set: Settings): Settings {
-  return { ...structuredClone(DEFAULT_SETTINGS), center: set.center, place: set.place };
+  const out: Settings = { ...structuredClone(DEFAULT_SETTINGS), center: set.center, place: set.place, image: set.image, imageName: set.imageName };
+  return set.source === 'image' ? { ...out, source: 'image', ...IMAGE_DEFAULTS } : out;
 }
 
-/** Whether anything but the place differs from the defaults. */
+/** Whether anything but the place (or the image) differs from the defaults. */
 export function isDefault(set: Settings): boolean {
-  return toQuery(set) === '' && (['bearing', 'scale', 'seed', 'speed'] as const).every((k) => set[k] === DEFAULT_SETTINGS[k]);
+  const d = defaultsAt(set);
+  return toQuery(set) === toQuery(d) && (['bearing', 'scale', 'seed', 'speed'] as const).every((k) => set[k] === d[k]);
 }
 
 /** Keys the hash path already carries, or that belong to this machine rather than the drawing. */
@@ -152,6 +189,7 @@ const esc = (v: string) => encodeURIComponent(v).replace(/%2C/g, ',').replace(/%
 
 function encodeValue(k: keyof Settings, v: Settings[keyof Settings]): string {
   if (k === 'pens') return (v as string[]).map((c) => c.replace('#', '')).join(',');
+  if (k === 'imageFocus') return (v as number[]).map((n) => Number(n.toFixed(4))).join(',');
   if (k === 'background') return (v as string).replace('#', '');
   if (k === 'layerPens' || k === 'layerDetail') return Object.entries(v as object).map(([l, p]) => `${l}:${p}`).join(',');
   if (k === 'seedLocks') return Object.entries(v as object).map(([key, seed]) => `${key}:${seed}`).join(';');
@@ -190,6 +228,10 @@ function fromQuery(query: string): Partial<Settings> {
       const pens = text.split(',').map((c) => `#${c}`);
       if (pens.length === PEN_COUNT && pens.every((c) => /^#[0-9a-f]{6}$/i.test(c))) out.pens = pens;
     } else if (k === 'background') out.background = `#${text}`;
+    else if (k === 'imageFocus') {
+      const f = text.split(',').map(Number);
+      if (f.length === 2 && f.every(Number.isFinite)) out.imageFocus = f;
+    }
     else if (k === 'layerPens' || k === 'layerDetail' || k === 'seedLocks') {
       const map: Record<string, number> = {};
       for (const item of text.split(k === 'seedLocks' ? ';' : ',')) {
@@ -218,10 +260,14 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
+  imageLight: (v) => (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)),
+  imageContrast: (v) => `${v.toFixed(2)}×`,
+  imageColour: (v) => `${Math.round(v * 100)}%`,
+  likeness: (v) => `${Math.round(v * 100)}%`,
   bearing: (v) => `${Math.round(v)}°`,
   tilt: (v) => `${Math.round(v)}°`,
   scale: (v) => `1:${Math.round(v).toLocaleString('en')}`,

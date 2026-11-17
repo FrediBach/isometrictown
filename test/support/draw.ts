@@ -11,6 +11,9 @@ import { reachHeight, render, type Census, type Counts } from '@/render';
 import type { Settings } from '@/settings';
 import { detectRegion, STYLES, type Region } from '@/styles';
 import { loadTown } from '@/tiles';
+import { imageScene, type Picture, type Scene } from '@/image';
+import { TARGET_CELL } from '@/image-read';
+import { coverage, likeness, type Likeness } from '@/image-tone';
 
 export type Sheet = {
   set: Settings;
@@ -42,6 +45,22 @@ export async function draw(set: Settings): Promise<Sheet> {
   const planned = plan(drawing.pens, set);
   const svg = toSvg(planned.pens, set, cam.sheet);
   return { set, cam, region, raw: drawing.pens, pens: planned.pens, stats: planned.stats, svg, counts: drawing.counts, census: drawing.census, tally, ms: performance.now() - t0 };
+}
+
+/** A sheet drawn from a picture, as the worker draws one in image mode, with how like the picture it is. */
+export type ImageSheet = Sheet & { scene: Scene; likeness: Likeness; cov: Float32Array[] };
+
+export function drawImage(set: Settings, picture: Picture): ImageSheet {
+  const t0 = performance.now();
+  const scene = imageScene(picture, set);
+  const tally = new Map<string, number[][]>();
+  const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally);
+  const planned = plan(drawing.pens, scene.set);
+  const svg = toSvg(planned.pens, scene.set, scene.cam.sheet);
+  const t = scene.target;
+  const cov = coverage(drawing.pens, { x0: t.x0, y0: t.y0, cell: TARGET_CELL, W: t.W, H: t.H }, scene.set.penWidth, scene.set.mono);
+  const like = likeness(cov, t, scene.set, t.paper - t.dark).likeness;
+  return { set: scene.set, cam: scene.cam, region: scene.region, raw: drawing.pens, pens: planned.pens, stats: planned.stats, svg, counts: drawing.counts, census: drawing.census, tally, ms: performance.now() - t0, scene, likeness: like, cov };
 }
 
 /** Length of a flat [x0, y0, x1, y1, …] polyline. */

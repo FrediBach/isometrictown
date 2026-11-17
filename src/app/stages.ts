@@ -12,5 +12,10 @@ export const STAGE_LABEL: Record<Stage, string> = {
   plan: 'Planning the pen path',
 };
 
+/** A step's label: in image mode the first step lays out a town instead of fetching the map. */
+export function stageLabel(stage: Stage, source: 'map' | 'image' = 'map'): string {
+  return source === 'image' && stage === 'map' ? 'Laying out the town' : STAGE_LABEL[stage];
+}
+
 /** Progress inside a step: a count, and an optional note on what is happening. */
 export type StageProgress = { stage: Stage; done?: number; total?: number; note?: string };

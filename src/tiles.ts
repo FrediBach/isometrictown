@@ -229,7 +229,8 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
   return job;
 }
 
-function empty(): Town {
+/** A town with nothing in it. */
+export function empty(): Town {
   return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 

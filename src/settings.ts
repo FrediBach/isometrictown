@@ -3,8 +3,28 @@ import { PALETTES } from './palettes';
 import type { StyleId } from './styles';
 
 export type Settings = {
+  /** Where the town comes from: the map at `center`, or an image the town is laid out to look like. */
+  source: 'map' | 'image';
   center: LngLat;
   place: string;
+  /** Content id of the stored image (see `src/app/image-store.ts`); empty for none. */
+  image: string;
+  /** Name of the image for the title and margin, from its file name. */
+  imageName: string;
+  /** Fill crops the image to the drawing area; Fit shows all of it, with free ground beside it. */
+  imageFit: 'fill' | 'fit';
+  /** Middle of the crop in Fill, as fractions of the image's width and height. */
+  imageFocus: [number, number];
+  /** Brightness, -1 to 1, as a shift of the tone curve. */
+  imageLight: number;
+  /** Contrast round the middle tone, 0.5 to 2. */
+  imageContrast: number;
+  /** How much colour counts against tone, 0 to 1. At 0 only lightness is matched. */
+  imageColour: number;
+  /** How far the image may bend the rules that keep the town ordinary, 0 to 1. */
+  likeness: number;
+  /** Street pattern in image mode; auto picks grid for the North American and Australian styles. */
+  fabric: 'auto' | 'organic' | 'grid';
   /** Compass direction that points up the sheet, in degrees. */
   bearing: number;
   /** Camera elevation above the ground, in degrees. */
@@ -138,8 +158,18 @@ export const LINEWORK = 4;
 export const PEN_COUNT = PEN_NAMES.length;
 
 export const DEFAULT_SETTINGS: Settings = {
+  source: 'map',
   center: [9.0744, 47.0934],
   place: 'Mollis',
+  image: '',
+  imageName: '',
+  imageFit: 'fill',
+  imageFocus: [0.5, 0.5],
+  imageLight: 0,
+  imageContrast: 1,
+  imageColour: 0.7,
+  likeness: 0.6,
+  fabric: 'auto',
   bearing: 35,
   tilt: 32,
   scale: 1000,

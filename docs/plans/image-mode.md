@@ -1,6 +1,8 @@
 # Image mode: plan
 
-**Status (2026-11-17):** proposal, nothing built yet. The work goes on the `image-mode` branch. Decisions that are yours to make are in §20. Each has a recommendation, and the plan assumes it until you say otherwise.
+**Status (2026-11-17):** M0 (plumbing) is built on the `image-mode` branch; M1 is next. Decisions that are yours to make are in §20. Each has a recommendation, and the plan assumes it until you say otherwise.
+
+**Notes from M0.** The crude town orders its blocks by the ink each actually lays down, not as §19 first had it: paved squares where the image is lightest, then water (lake ripples are nearly as light as paper), then parks, then houses, packed closer and taller where it is darker. Putting water in the darkest parts inverted the tone (the lab scored the disc at −88). `Target` carries a pen-free `tone` (0–1) beside OKLab, and the layout reads only that, so pens can't move a street even by rounding. Auto levels stretch a nearly flat picture less and keep how light it is. Colour, Likeness and Street pattern are settings already, but only Colour is in the panel, since it is the only one that changes anything yet (the score).
 
 In image mode the user gives the app an image instead of a place. The app lays out a town of its own, using no map data at all, so that the finished drawing, seen from a little way off, looks like the image: light where the image is light, dark where it is dark, and as close to its colours as the five pens allow. Close up, it must still be a town that could exist: streets that join up and lead somewhere, houses that face them with gardens behind, squares, parks with paths, woods and fields at the edge, water with banks and bridges.
 

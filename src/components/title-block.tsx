@@ -22,14 +22,19 @@ function Fact({ label, title, live, children }: { label: string; title?: string;
   );
 }
 
-/** The place name, edited in place. It looks like the other facts until it has focus, and commits on Enter or blur. */
+/**
+ * The place name (or in image mode the image's), edited in place. It looks like the other facts
+ * until it has focus, and commits on Enter or blur.
+ */
 function PlaceName() {
   const { set, change } = useSettings();
+  const field = set.source === 'image' ? 'imageName' : 'place';
+  const value = set[field];
 
   function commit(input: HTMLInputElement): void {
     const name = input.value.trim().replace(/\s+/g, ' ');
-    if (name && name !== set.place) change('place', name);
-    else input.value = set.place;
+    if (name && name !== value) change(field, name);
+    else input.value = value;
   }
 
   function key(e: KeyboardEvent<HTMLInputElement>): void {
@@ -37,18 +42,19 @@ function PlaceName() {
     if (e.key === 'Escape') {
       // Keep Escape from also leaving full size.
       e.preventDefault();
-      e.currentTarget.value = set.place;
+      e.currentTarget.value = value;
       e.currentTarget.blur();
     }
   }
 
   return (
     <input
-      // A new key resets the draft whenever the place changes elsewhere.
-      key={set.place}
-      defaultValue={set.place}
-      aria-label="Place name"
-      title="Rename the place on the sheet"
+      // A new key resets the draft whenever the name changes elsewhere.
+      key={`${field}:${value}`}
+      defaultValue={value}
+      placeholder={field === 'imageName' ? 'Image' : undefined}
+      aria-label={field === 'imageName' ? 'Image name' : 'Place name'}
+      title={field === 'imageName' ? 'Rename the image on the sheet' : 'Rename the place on the sheet'}
       spellCheck={false}
       autoComplete="off"
       maxLength={80}
@@ -138,7 +144,7 @@ export function TitleBlock({ onPalette }: { onPalette: (pens: Settings['pens']) 
         </div>
       </div>
       <dl className="m-0 grid grid-cols-[1.25fr_1fr] border-t border-input [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r">
-        <Fact label="Place" live>
+        <Fact label={set.source === 'image' ? 'Image' : 'Place'} live>
           <PlaceName />
         </Fact>
         <Fact label="Sheet" title={`${w} × ${h} mm`}>

@@ -214,7 +214,7 @@ function Panel({ status }: { status: RenderStatus }) {
           </span>
           <span className="tabular-nums">{(elapsed / 1000).toFixed(1)} s</span>
         </div>
-        <div className="mt-1.5 text-[15px] font-medium tracking-tight">{STAGE_LABEL[p.stage]}</div>
+        <div className="mt-1.5 text-[15px] font-medium tracking-tight">{status.text || STAGE_LABEL[p.stage]}</div>
         <div className="readout mt-0.5 h-4 truncate text-[11px] text-muted-foreground">{p.note}</div>
         <div className="readout h-4 truncate text-[11px] text-muted-foreground/70">{counted}</div>
         <div className="mt-3.5 flex gap-1">

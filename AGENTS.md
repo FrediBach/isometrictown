@@ -12,6 +12,7 @@ npm run dev      # dev server
 npm run build    # tsc type check + vite build: run this to verify every change
 npm run doctor   # React Doctor; run after changing React code
 npm run lod      # LOD lab: draws test places at 1:500–1:8000 and scores wasted ink (docs/lod.md)
+npm run likeness # likeness lab: image mode on test pictures, scored against them (docs/testing.md)
 npm test         # unit tests and golden drawings, offline, ~15 s (docs/testing.md)
 npm run test:update   # accept changed goldens once you've checked the change is meant
 npm run test:record   # fetch map data for new or moved test cases
@@ -29,6 +30,7 @@ npm run test:record   # fetch map data for new or moved test cases
 - `src/lod.ts`: level-of-detail rules, one per kind of thing. `lab/`: the LOD lab.
 - `src/gcode.ts`: G-code for GRBL pen plotters (UUNA TEK 3.0). `src/app/grbl.ts` plots over Web Serial; the Pen Plot dialog is `src/components/plot-dialog.tsx`.
 - `test/`: Vitest. `unit/` for pure logic, `render/` draws the cases in `test/cases.ts` from recorded map data (`fixtures/net`) and checks them against `golden/`. See [docs/testing.md](docs/testing.md).
+- Image mode (`src/image*.ts`, being built to [docs/plans/image-mode.md](docs/plans/image-mode.md)): `imageScene()` lays out a `Town` from a picture instead of the map, and `render()` draws it unchanged. `image-fit.ts` places the image on the sheet, `image-read.ts` reads it into a target, `image-tone.ts` mixes pens and scores likeness. Pictures are kept on the main thread by `src/app/image-store.ts`.
 - `src/catalogue.ts`: every thing detected, inferred or made up, with how it is found and where its strokes are filed. The catalogue dialog shows it against the drawing.
 - Feature modules: `buildings`, `roofs`, `streets`, `infra`, `sites`, `ground`, `gardens`, `nature`, `traffic`, `trains`, `aircraft`, `ships`, `sport`, `vehicles`, `power`, `marginalia`.
 - UI: `src/App.tsx`, `src/app/` (state, renderer, persistence), `src/components/`. Visual rules are in [DESIGN.md](DESIGN.md).
@@ -41,7 +43,7 @@ npm run test:record   # fetch map data for new or moved test cases
 4. **Emit linework only.** A feature returns `Solid`s: `faces` go to the depth buffer, `lines` to pens and `casts` to shadows. Flat ground marks go in an `Extra`'s `draw()`. Use the pen constants (`SHADOWS`, `WATER`, `GREENERY`, `ROOFS`, `LINEWORK`), never raw numbers.
 5. **Gate features.** Check the relevant setting (`B.set.life`, `.ground`, `.markings`, …) and a level-of-detail rule from `src/lod.ts`: `shows(B.cam, LOD.thing, actualSize, hash)`. Never compare `B.cam.lod` with a bare number, and keep `B.cam.s` for unit conversion. Space hatching and textures with `B.cam.gap(mm)` and tone hatching with `B.cam.tone(mm)`. Use masks (`M.road`, `M.water`, `M.foot`) to keep objects off roads, water and buildings.
 6. **Pen colours never trigger a redraw.** They go through `recolor()` on the finished SVG. Don't send colours to the worker.
-7. **Be gentle with the network.** Tiles go through `netcache.cached()`. Overpass is optional and time-boxed, and Nominatim is limited to 1 request per second. Don't add blocking dependencies on flaky services. Keep OSM attribution.
+7. **Be gentle with the network.** Tiles go through `netcache.cached()`. Overpass is optional and time-boxed, and Nominatim is limited to 1 request per second. Don't add blocking dependencies on flaky services. Keep OSM attribution. Image mode fetches nothing, and its drawings, which use no map data, carry no map credit.
 8. **Infer from OSM, don't rely on it.** Most tags are missing. Use real tags when they exist and fall back to inference from footprint, neighbours, POIs, land use and region.
 
 ## Code style

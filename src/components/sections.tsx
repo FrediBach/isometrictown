@@ -6,15 +6,18 @@ import { cn } from '@/lib/utils';
 import type { LngLat } from '../geo';
 import type { Locator } from '../locator';
 import type { RenderResult } from '../app/renderer';
+import type { PictureState } from '../app/use-picture';
+import { Camera } from '../camera';
 import { FORMAT, isDefault, MONO_INK, PRESETS, type BoolKey } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
 import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
-import { STYLE_IDS, STYLES } from '../styles';
+import { IMAGE_STYLE, STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
+import { ImageWell } from './image-well';
 import { LocatorMap } from './locator-map';
 import { PalettePicker } from './palette-picker';
 import { PlaceSearch } from './place-search';
@@ -25,16 +28,68 @@ const SEP = ' · ';
 /** The presets in alphabetical order, for the dropdown. */
 const TRY_PLACES = [...PRESETS].sort((a, b) => a.name.localeCompare(b.name));
 
-type PlaceSectionProps = {
+type SourceSectionProps = {
   onGoTo: (center: LngLat, name: string, extra?: Partial<Settings>) => void;
   onMapMove: (center: LngLat, bearing: number) => void;
   onMapReady: (locator: Locator) => void;
+  onSource: (source: Settings['source']) => void;
+  picture: PictureState;
+  onFile: (file: File) => void;
 };
 
-export function PlaceSection({ onGoTo, onMapMove, onMapReady }: PlaceSectionProps) {
+/** Where the town comes from: a place on the map, or an image it is laid out to look like. */
+export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture, onFile }: SourceSectionProps) {
+  const { set } = useSettings();
+  const image = set.source === 'image';
+  return (
+    <Section index={1} title={image ? 'Image' : 'Place'}>
+      <Segmented
+        aria-label="Draw from"
+        value={set.source}
+        onValueChange={onSource}
+        className="mb-3.5 flex w-full"
+        items={[
+          { value: 'map', label: 'Map' },
+          { value: 'image', label: 'Image' },
+        ]}
+      />
+      {/* Hidden rather than unmounted, so the locator map keeps its state. */}
+      <div hidden={image}>
+        <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />
+      </div>
+      {image && <ImageSource picture={picture} onFile={onFile} />}
+    </Section>
+  );
+}
+
+function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file: File) => void }) {
+  const { set, change } = useSettings();
+  const rect = new Camera(set).rect;
+  return (
+    <>
+      <ImageWell picture={picture} rect={rect} fit={set.imageFit} focus={set.imageFocus} onFile={onFile} onFocus={(f) => change('imageFocus', f)} />
+      <Segmented
+        aria-label="Image fit"
+        value={set.imageFit}
+        onValueChange={(v) => change('imageFit', v)}
+        className="mb-4 flex w-full"
+        items={[
+          { value: 'fill', label: 'Fill' },
+          { value: 'fit', label: 'Fit' },
+        ]}
+      />
+      <NumberSetting name="imageLight" label="Brightness" min={-1} max={1} step={0.05} />
+      <NumberSetting name="imageContrast" label="Contrast" min={0.5} max={2} step={0.05} />
+      <NumberSetting name="imageColour" label="Colour" min={0} max={1} step={0.01} hint="How much the image’s colours count against its light and dark." />
+      <Hint className="mt-2 mb-0">The town is laid out so that, seen from a step away, it looks like the image. The image stays in this browser: links carry its settings, but not the image itself.</Hint>
+    </>
+  );
+}
+
+function PlaceSection({ onGoTo, onMapMove, onMapReady }: Omit<SourceSectionProps, 'onSource' | 'picture' | 'onFile'>) {
   const { set } = useSettings();
   return (
-    <Section index={1} title="Place">
+    <>
       <PlaceSearch onPick={(center, name) => onGoTo(center, name)} />
       <Select
         value={PRESETS.some((p) => p.name === set.place) ? set.place : ''}
@@ -57,17 +112,24 @@ export function PlaceSection({ onGoTo, onMapMove, onMapReady }: PlaceSectionProp
       </Select>
       <LocatorMap center={set.center} bearing={set.bearing} onMove={onMapMove} onReady={onMapReady} />
       <Hint className="mt-2 mb-0">Drag the map to move. Right-drag or use the compass to turn. The red outline is the ground that lands on the sheet.</Hint>
-    </Section>
+    </>
   );
+}
+
+/** Roughly how many houses fit across the drawing area: in image mode, the finest detail the town can follow. */
+function housesAcross(set: Settings): number {
+  const cam = new Camera(set);
+  return Math.round((cam.rect[2] - cam.rect[0]) / cam.s / 19);
 }
 
 export function ViewSection() {
   const { set } = useSettings();
+  const image = set.source === 'image';
   return (
     <FoldingSection index={2} title="View" defaultOpen summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale), ...(set.humanize ? [`${FORMAT.humanize(set.humanize)} humanized`] : [])].join(SEP)}>
-      <NumberSetting name="bearing" label="Rotation" min={0} max={359} step={1} />
+      <NumberSetting name="bearing" label="Rotation" min={0} max={359} step={1} hint={image ? 'Turns the town under the image.' : undefined} />
       <NumberSetting name="tilt" label="Tilt" min={20} max={60} step={1} hint="How high you look from. 30° is the classic isometric look." />
-      <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint="Bigger towns need a smaller scale. Small scales skip windows." />
+      <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint={image ? `About ${housesAcross(set)} houses across. A smaller scale follows finer detail in the image.` : 'Bigger towns need a smaller scale. Small scales skip windows.'} />
       <NumberSetting name="heightScale" label="Building height" min={0.5} max={3} step={0.05} />
       <NumberSetting name="detail" label="Detail" min={0.25} max={2} step={0.05} hint="How close the hatching and textures are, and how small a thing can be before it is left out." />
       <LayerDetail />
@@ -95,9 +157,12 @@ const TOWN_KEYS: [BoolKey, string][] = [
 
 export function TownSection({ region }: { region?: RenderResult['region'] }) {
   const { set, change } = useSettings();
-  const autoStyle = region ? `Auto: ${STYLES[region.style].label} (${region.country})` : 'Auto, from the country';
+  const image = set.source === 'image';
+  // An image has no OSM tags to read, and no country to take a style from.
+  const keys = image ? TOWN_KEYS.filter(([k]) => k !== 'osmTags') : TOWN_KEYS;
+  const autoStyle = image ? `Auto: ${STYLES[IMAGE_STYLE].label}` : region ? `Auto: ${STYLES[region.style].label} (${region.country})` : 'Auto, from the country';
   return (
-    <FoldingSection index={3} title="Town" defaultOpen summary={`${TOWN_KEYS.filter(([k]) => set[k]).length} of ${TOWN_KEYS.length} layers`}>
+    <FoldingSection index={3} title="Town" defaultOpen summary={`${keys.filter(([k]) => set[k]).length} of ${keys.length} layers`}>
       <Caption className="mt-0">Building style</Caption>
       <Select value={set.style} onValueChange={(v) => change('style', v as Settings['style'])}>
         <SelectTrigger aria-label="Building style" className="mb-1 h-9 w-full rounded-md bg-card">
@@ -114,13 +179,13 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
           ))}
         </SelectContent>
       </Select>
-      <Hint>Roof shapes, pitches and details typical for the region. Auto picks them from the country.</Hint>
+      <Hint>Roof shapes, pitches and details typical for the region. {image ? 'Auto is Central European for a town made from an image.' : 'Auto picks them from the country.'}</Hint>
       <NumberSetting name="pitched" label="Pitched roofs" min={0} max={1} step={0.01} hint="How many houses get pitched roofs, compared with what is usual for the style." />
       <NumberSetting name="trees" label="Trees" min={0} max={1} step={0.01} />
       <NumberSetting name="cars" label="Traffic" min={0} max={1} step={0.01} />
       <Caption className="mt-4">Layers</Caption>
       <KeyGrid className="mt-0">
-        {TOWN_KEYS.map(([k, label]) => (
+        {keys.map(([k, label]) => (
           <BoolSetting key={k} name={k} label={label} />
         ))}
       </KeyGrid>

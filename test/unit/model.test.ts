@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { defaultsAt, fromSlider, isDefault, loadSettings, minutes, persist, slug, toSlider } from '@/app/model';
+import { defaultsAt, fromSlider, IMAGE_DEFAULTS, isDefault, loadSettings, minutes, persist, slug, toImageMode, toSlider } from '@/app/model';
 import { PALETTES } from '@/palettes';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 
@@ -144,6 +144,37 @@ describe('share links', () => {
   test('garbage in storage falls back to defaults', () => {
     store.set('isometrictown:settings', '{not json');
     expect(loadSettings()).toEqual(base());
+  });
+});
+
+describe('image mode', () => {
+  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, likeness: 0.9, fabric: 'grid' });
+
+  test('every image setting survives a share link, and the map place stays', () => {
+    const set = { ...image(), center: [4.89, 52.37] as [number, number], place: 'Amsterdam' };
+    expect(share(set)).toEqual(set);
+  });
+
+  test('bad image settings in a link are dropped or mended', () => {
+    loc.hash = '#47/9/35/1000/1/Mollis/source=photo&image=../../etc&imageFit=stretch&fabric=maze&imageFocus=2,-1&imageLight=9&imageContrast=0&imageColour=x&likeness=-3';
+    const s = loadSettings();
+    expect(s).toMatchObject({ source: 'map', image: '', imageFit: 'fill', fabric: 'auto', imageFocus: [1, 0], imageLight: 1, imageContrast: 0.5, imageColour: 0.7, likeness: 0 });
+  });
+
+  test('switching to image mode sets its defaults only where nothing was changed', () => {
+    expect(toImageMode(base())).toMatchObject({ source: 'image', ...IMAGE_DEFAULTS });
+    const mine = toImageMode({ ...base(), scale: 1600, power: true });
+    expect(mine).toMatchObject({ source: 'image', scale: 1600, tilt: IMAGE_DEFAULTS.tilt });
+    // power was already on by default, so the user's "on" can't be told from it: image mode turns it off.
+    expect(mine.power).toBe(false);
+  });
+
+  test('resetting in image mode keeps the image and image mode', () => {
+    const set = { ...image(), trees: 0.1, scale: 4000 };
+    const d = defaultsAt(set);
+    expect(d).toMatchObject({ source: 'image', image: set.image, imageName: set.imageName, trees: DEFAULT_SETTINGS.trees, ...IMAGE_DEFAULTS });
+    expect(isDefault(d)).toBe(true);
+    expect(isDefault(set)).toBe(false);
   });
 });
 
