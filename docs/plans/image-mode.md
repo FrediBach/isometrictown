@@ -500,7 +500,7 @@ Everything else stays the renderer's own choice: window patterns, chimneys, dorm
 
 A town needs a few things it has only one or two of. They make the place believable and give the eye somewhere to rest. The structure places them, and tuning may adjust them:
 
-- a **church** on or beside the main square of every `old` core, and one per 400–600 m of built town;
+- a **church** on or beside the main square of every `old` core, and one per 400–600 m of built town. In European styles, if no church is visible, a cluster of at least 30 residential buildings within 180 m can give a suitable existing street plot to a parish church. The projected nave and steeple must fit inside the image clear of transparency and near-white highlights;
 - a **school** with a pitch beside a park in suburbs and rows (a bright rectangle with markings makes a good highlight);
 - a **town hall** on the largest square, flying its flag;
 - **halls with sawtooth roofs** in the works zones.

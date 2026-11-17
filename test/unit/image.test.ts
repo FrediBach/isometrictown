@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
-import { amenitiesOf, civicSites, parkingSites } from '@/image-amenities';
+import { amenitiesOf, civicSites, parishChurch, parkingSites } from '@/image-amenities';
 import { fieldBarns } from '@/image-buildings';
 import { Footprints, Ground, inShape } from '@/image-check';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
@@ -16,6 +16,7 @@ import { clean, degrees, planar, streetRules, tramRoute, type Graph } from '@/im
 import { ALLOTMENTS, FIELDS, landOf, patchwork } from '@/image-ground';
 import { blocksOf, facesOf, lotRing, MIN_FILL, Occupancy, PARCEL, strip, type Lot } from '@/image-blocks';
 import type { Zones } from '@/image-zones';
+import { Camera } from '@/camera';
 import { classify } from '@/classify';
 import { bestRect } from '@/shape';
 import { STYLES } from '@/styles';
@@ -500,6 +501,37 @@ describe('evidence for classify', () => {
 });
 
 describe('image neighbourhood amenities', () => {
+  test('a European parish needs a cluster of homes and image tone above the site for its steeple', () => {
+    const set = { ...DEFAULT_SETTINGS, scale: 2000 }, cam = new Camera(set);
+    const target = readImage(PICTURES.gradient(), set, cam.rect);
+    target.weight.fill(1);
+    target.tone.fill(0.4);
+    const town = empty();
+    for (let i = 0; i < 30; i++) {
+      const x = (i % 6 - 3) * 25, y = (Math.floor(i / 6) - 2) * 20;
+      const half = i === 0 ? 9 : 4;
+      town.buildings.push({ h: 8, min: 0, shape: [{ pts: [x - half, y - 4, x + half, y - 4, x + half, y + 4, x - half, y + 4], seam: new Uint8Array(4) }] });
+      town.tagged.push({ x, y, building: 'house', from: 'image' });
+    }
+    const context = { cam, target, style: STYLES.central, set, cores: [] };
+    expect(parishChurch(town, { ...context, style: STYLES.eastAsian })).toBeUndefined();
+    town.buildings[0].context = true;
+    expect(parishChurch(town, context)).toBeUndefined();
+    town.buildings[0].context = false;
+    target.tone.fill(1);
+    expect(parishChurch(town, context)).toBeUndefined();
+    target.tone.fill(0.4);
+    // A transparent stripe above the one long footprint would cut the tower in two.
+    const { x, y } = town.tagged[0];
+    const row = Math.floor((cam.sy(x, y, 20) - target.y0) / target.cell);
+    target.weight.fill(0, row * target.W, (row + 1) * target.W);
+    expect(parishChurch(town, context)).toBeUndefined();
+    target.weight.fill(1);
+    expect(parishChurch(town, context)).toBeDefined();
+    expect(town.tagged.filter(t => t.building === 'church')).toHaveLength(1);
+    expect(parishChurch(town, context)).toBeUndefined();
+  });
+
   test('a hospital takes a roomy building and leaves neighbouring blocks in housing', () => {
     const town = empty();
     for (const x of [0, 90]) {

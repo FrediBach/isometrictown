@@ -267,6 +267,8 @@ function turnPart(part: Part): Part {
 
 /** Which way a part's ridge runs: along the street, gable to the street, between party walls, or along its length. */
 function orient(B: Build, part: Part, info: Info, roof: HouseOptions['roof'], main: boolean): Part {
+  // A fictional church needs its long nave even on a plot where house gables face the street.
+  if (main && B.set.source === 'image' && info.roof === 'church') return part.rect.L < part.rect.w ? turnPart(part) : part;
   const r = part.rect;
   const dot = (v?: [number, number]) => (v ? Math.abs(r.ux * v[0] + r.uy * v[1]) : 0);
   const partyEnds = part.party[1] || part.party[3];

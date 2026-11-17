@@ -177,7 +177,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
   const ground = new Ground(town);
-  const context: BuildContext = { z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre };
+  const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre };
   landmarks(blocks, context);
   return { town, streets: st.graph, blocks, context };
 }

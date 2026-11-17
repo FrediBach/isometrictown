@@ -2,11 +2,12 @@
 import { pointInRing, ringArea } from './geo';
 import type { BuildContext, Built } from './image-buildings';
 import type { Occupancy } from './image-blocks';
+import { toneAt, type Target } from './image-read';
 import { Footprints, inShape } from './image-check';
 import { labelAt, type Zones } from './image-zones';
 import { walk } from './streets';
-import { corners } from './shape';
-import type { Town, Way } from './tiles';
+import { bestRect, corners } from './shape';
+import type { Building, Town, Way } from './tiles';
 
 const CIVIC_CANDIDATES = new Set(['apartments', 'terrace', 'industrial', 'warehouse']);
 
@@ -52,6 +53,80 @@ export function civicSites(town: Built, { vary, style }: Pick<BuildContext, 'var
       continue;
     } else continue;
     town.pois.push({ x, y, cls, sub: cls });
+  }
+}
+
+const EUROPEAN = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern']);
+const HOMES = new Set(['house', 'apartments', 'terrace']);
+const PARISH_HOMES = 30;
+
+/** The palest tone behind the projected church, treating transparency as bare paper. */
+function churchTone(t: Target, x0: number, y0: number, x1: number, y1: number): number {
+  const left = Math.floor((x0 - t.x0) / t.cell), right = Math.floor((x1 - t.x0) / t.cell);
+  const top = Math.floor((y0 - t.y0) / t.cell), bottom = Math.floor((y1 - t.y0) / t.cell);
+  let lightest = 0;
+  for (let j = top; j <= bottom; j++) for (let i = left; i <= right; i++) {
+    const k = j * t.W + i;
+    if (t.weight[k] < 0.5) return 1;
+    lightest = Math.max(lightest, t.tone[k]);
+  }
+  return lightest;
+}
+
+/** Give a visible European settlement a parish church if the finished layout lacks one. */
+export function parishChurch(town: Built, { cam, target, style, set, cores }: Pick<BuildContext, 'cam' | 'target' | 'style' | 'set' | 'cores'>): Building | undefined {
+  if (!EUROPEAN.has(style.id)) return;
+  const [left, top, right, bottom] = cam.rect;
+  const homes = [];
+  for (let i = 0; i < town.buildings.length; i++) {
+    const b = town.buildings[i], tag = town.tagged[i];
+    if (b.context) continue;
+    const sx = cam.sx(tag.x, tag.y), sy = cam.sy(tag.x, tag.y, 0);
+    if (sx < left || sx >= right || sy < top || sy >= bottom) continue;
+    if (toneAt(target, sx, sy) === null) continue;
+    if (tag.building === 'church') return;
+    if (HOMES.has(tag.building ?? '')) homes.push({ b, tag });
+  }
+  if (homes.length < PARISH_HOMES) return;
+
+  const candidates = [];
+  for (const { b, tag } of homes) {
+    const p = b.shape[0].pts;
+    if (p.length !== 8 || b.h > 18) continue;
+    const { rect, fill } = bestRect(p);
+    if (!rect || fill < 0.95 || rect.w < 6 || rect.w > 16 || rect.L < 10 || rect.L > 36 || rect.L < 1.15 * rect.w) continue;
+    // Allow for the nave, belfry and spire whichever end of the church faces the street.
+    const towerWidth = Math.max(3.5, rect.w * 0.45);
+    const height = Math.max(15, b.h);
+    const nave = Math.min(22, height * set.heightScale) + rect.w * 0.6;
+    const tip = Math.max(height * set.heightScale, nave + 5 + towerWidth * 0.8) + towerWidth * 2.4;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let k = 0; k < p.length; k += 2) {
+      const x = cam.sx(p[k], p[k + 1]);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+      y0 = Math.min(y0, cam.sy(p[k], p[k + 1], tip));
+      y1 = Math.max(y1, cam.sy(p[k], p[k + 1], 0));
+    }
+    if (x0 < left || x1 >= right || y0 < top || y1 >= bottom) continue;
+    const lightest = churchTone(target, x0, y0, x1, y1);
+    if (lightest >= 0.88) continue;
+    // Prefer a long nave near a town centre, where the steeple fits the image's darker tone.
+    const distance = cores.reduce((d, [x, y]) => Math.min(d, Math.hypot(tag.x - x, tag.y - y)), 300);
+    const score = lightest + distance / 600 + Math.abs(rect.L - 22) / 45 + (tag.building === 'house' ? 0 : 0.4);
+    candidates.push({ b, tag, height, score });
+  }
+  for (const site of candidates.sort((a, b) => a.score - b.score)) {
+    let neighbours = 0;
+    for (const { tag } of homes) {
+      if (Math.hypot(tag.x - site.tag.x, tag.y - site.tag.y) > 180) continue;
+      if (++neighbours === PARISH_HOMES) {
+        site.tag.building = 'church';
+        site.tag.roof = undefined;
+        site.tag.across = undefined;
+        site.b.h = site.height;
+        return site.b;
+      }
+    }
   }
 }
 

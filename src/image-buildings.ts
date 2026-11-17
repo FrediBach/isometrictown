@@ -6,7 +6,7 @@
  * blocks don't reach (dead ends, the town's outer edge) get buildings set along them.
  */
 import { pointInRing, ringArea } from './geo';
-import { civicSites } from './image-amenities';
+import { civicSites, parishChurch } from './image-amenities';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
 import { centre, Footprints, inShape, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type Density } from './image-density';
@@ -15,6 +15,8 @@ import { labelAt, type Zones } from './image-zones';
 import { hash } from './rng';
 import { bestRect, corners } from './shape';
 import { walk } from './streets';
+import type { Camera } from './camera';
+import type { Target } from './image-read';
 import type { Settings } from './settings';
 import type { Style } from './styles';
 import type { Area, Building, Poi, Shape, Tagged, Town, Way } from './tiles';
@@ -45,7 +47,7 @@ const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
 export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[]; pools: Shape[] };
-export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density };
+export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
@@ -452,6 +454,8 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     if (add({ ring: q, h: 16, building: 'civic', roof: 'flat', poi: { x, y, cls: 'castle', sub: 'castle' } })) break;
   }
   civicSites(out, c);
+  const parish = parishChurch(out, c);
+  if (parish) gardenPools.delete(parish);
   if (c.density && plots) {
     // Reserve all accepted sites before extending any of them. A deep house may take up
     // its own back garden, but it should never knock a neighbour out of the street front.
