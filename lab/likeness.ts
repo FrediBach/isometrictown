@@ -6,6 +6,7 @@ import { imageScene, type Picture } from '../src/image';
 import { TARGET_CELL } from '../src/image-read';
 import { coverage, LABELS, likeness, toGamma, type Label, type Likeness } from '../src/image-tone';
 import { labelAt } from '../src/image-zones';
+import { streetRules } from '../src/image-streets';
 import { PALETTES } from '../src/palettes';
 import { plan, toSvg } from '../src/plot';
 import { render } from '../src/render';
@@ -40,6 +41,9 @@ export type LikenessResult = {
   zones: Rgb;
   /** Share of the ground in each label. */
   shares: Partial<Record<Label, number>>;
+  /** Streets in the network, and breaches of the street rules (§10.5). */
+  streets: number;
+  violations: string[];
 };
 
 /** A colour per label for the zone view: water blue, green things green, built things warm to dark. */
@@ -125,5 +129,7 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
     edges,
     zones,
     shares,
+    streets: scene.streets.edges.length,
+    violations: streetRules(scene.streets),
   };
 }

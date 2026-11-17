@@ -4,14 +4,15 @@
  */
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
-import { Camera } from '@/camera';
-import { drawnAs, imageRegion, imageScene, STYLE_PLACE } from '@/image';
+import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, toneAt } from '@/image-read';
-import { BUILT, coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
-import { compat, labelAt, slic, zone } from '@/image-zones';
+import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
+import { compat, slic } from '@/image-zones';
+import { clean, degrees, planar, streetRules } from '@/image-streets';
+import { chaikin, contours, simplify, waterOf } from '@/image-water';
+import { ringArea } from '@/geo';
 import { toSvg } from '@/plot';
-import { reachHeight } from '@/render';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { paint, PICTURES } from '../support/pictures';
 
@@ -145,55 +146,6 @@ describe('the drawn-as place', () => {
   });
 });
 
-describe('the town', () => {
-  const pic = PICTURES.landscape();
-  const base: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, scale: 2500, tilt: 40, sheet: 'a4' };
-  // A copy of the picture under another id each time, so the scene's cache can't answer.
-  let n = 0;
-  const lay = (set: Settings) => imageScene({ ...pic, id: `copy-${n++}` }, set).town;
-
-  test('the same picture and settings lay out the same town', () => {
-    expect(lay(base)).toEqual(lay(base));
-  });
-
-  test('what only changes how it is drawn never moves a street or a house', () => {
-    const town = lay(base);
-    for (const more of [{ detail: 1.8 }, { penWidth: 0.7 }, { trees: 0.1 }, { shadows: false }, { sunHeight: 20 }]) {
-      expect(lay({ ...base, ...more })).toEqual(town);
-    }
-  });
-
-  test('matching lightness alone, the pens never move a street or a house', () => {
-    const grey = { ...base, imageColour: 0 };
-    expect(lay({ ...grey, pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] })).toEqual(lay(grey));
-    const mono = { ...base, mono: true };
-    expect(lay({ ...mono, pens: ['#000000', '#111111', '#222222', '#333333', '#444444'] })).toEqual(lay(mono));
-  });
-
-  test('image-made tags are not OSM tags', () => {
-    const town = lay(base);
-    expect(town.tagged.length).toBeGreaterThan(0);
-    expect(town.tagged.every((t) => t.from === 'image')).toBe(true);
-  });
-
-  test('a new seed varies the houses but not the streets', () => {
-    const a = lay(base);
-    const b = lay({ ...base, seed: 2 });
-    expect(b.ways).toEqual(a.ways);
-    expect(b.buildings).not.toEqual(a.buildings);
-  });
-
-  test('every house has an explicit height and a counter-clockwise footprint', () => {
-    for (const b of lay(base).buildings) {
-      expect(b.guess).toBeUndefined();
-      const p = b.shape[0].pts;
-      let a = 0;
-      for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) a += (p[j] - p[i]) * (p[j + 1] + p[i + 1]);
-      expect(a).toBeGreaterThan(0);
-    }
-  });
-});
-
 describe('reading structure', () => {
   const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image' };
   const rect = [0, 0, 100, 60];
@@ -227,13 +179,6 @@ describe('reading structure', () => {
 });
 
 describe('zoning', () => {
-  const base: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', scale: 2500, tilt: 40, sheet: 'a4' };
-  const plan = (pic: ReturnType<typeof paint>, set = base) => {
-    const d = drawnAs(set);
-    const cam = new Camera(d);
-    return { cam, zones: zone(readImage(pic, d, cam.rect), d, cam, cam.region(reachHeight(d))) };
-  };
-
   test('compat is symmetric and free between like labels', () => {
     for (const a of LABELS) for (const b of LABELS) expect(compat(a, b)).toBe(compat(b, a));
     for (const a of LABELS) expect(compat(a, a)).toBe(0);
@@ -263,34 +208,6 @@ describe('zoning', () => {
     }
   });
 
-  test('a picture of two halves zones into town and country, split along the edge', () => {
-    const { cam, zones } = plan(paint('Halves', (u) => (u < 0.5 ? [45, 45, 45] : [235, 235, 235])));
-    let right = 0;
-    let total = 0;
-    for (let sy = 40; sy < 150; sy += 4) {
-      for (let sx = 30; sx < 270; sx += 4) {
-        if (Math.abs(sx - 148.5) < 8) continue;
-        // Buildings are read where their roofs show, a little up the sheet from their footprints.
-        const [x, y] = cam.ground(sx, sy);
-        const l = labelAt(zones, x, y);
-        total++;
-        if (l && BUILT.has(l) === sx < 148.5) right++;
-      }
-    }
-    expect(right / total).toBeGreaterThan(0.95);
-  });
-
-  test('specks smaller than a patch can be are absorbed', () => {
-    const { zones } = plan(paint('Specks', (u, v) => (Math.hypot((u * 300) % 50 - 25, (v * 200) % 50 - 25) < 2 ? [30, 30, 30] : [230, 230, 230])));
-    const built = [...zones.label].filter((k) => BUILT.has(LABELS[k])).length;
-    expect(built / zones.label.length).toBeLessThan(0.01);
-  });
-
-  test('more likeness keeps smaller patches', () => {
-    const pic = paint('Blots', (u, v) => (Math.hypot(u - 0.3, v - 0.5) < 0.04 || Math.hypot(u - 0.7, v - 0.5) < 0.04 ? [30, 30, 30] : [230, 230, 230]));
-    const built = (likeness: number) => [...plan(pic, { ...base, likeness }).zones.label].filter((k) => BUILT.has(LABELS[k])).length;
-    expect(built(1)).toBeGreaterThan(built(0));
-  });
 });
 
 describe('likeness', () => {
@@ -331,4 +248,65 @@ describe('the image store', () => {
     expect(nameOf('harbour_at-dusk.final.JPEG')).toBe('harbour at dusk.final');
     expect(nameOf('IMG 0042.heic')).toBe('IMG 0042');
   });
+});
+
+describe('outlines and water', () => {
+  const g = { x0: 0, y0: 0, cell: 1, W: 6, H: 5 };
+  const grid = (rows: string[]) => Uint8Array.from(rows.reverse().join(''), (c) => (c === '#' ? 1 : 0));
+
+  test('outlines run counter-clockwise round land and clockwise round holes, and corners keep cells apart', () => {
+    const rings = contours(grid(['######', '#....#', '#.##.#', '#....#', '######']), g);
+    expect(rings.map((r) => Math.sign(ringArea(r))).sort()).toEqual([-1, 1, 1]);
+    expect(rings.map((r) => Math.abs(ringArea(r))).sort((a, b) => a - b)).toEqual([2, 12, 30]);
+    const diag = contours(grid(['......', '.#....', '..#...', '......', '......']), g);
+    expect(diag.length).toBe(2);
+  });
+
+  test('simplify keeps corners and drops what is within tolerance; Chaikin keeps the ends of an open line', () => {
+    expect(simplify([0, 0, 1, 0.01, 2, 0, 2, 2], 0.1)).toEqual([0, 0, 2, 0, 2, 2]);
+    const c = chaikin([0, 0, 10, 0, 10, 10], 2);
+    expect(c.slice(0, 2)).toEqual([0, 0]);
+    expect(c.slice(-2)).toEqual([10, 10]);
+  });
+
+  test('water is a river when thin, the sea when it runs off the plan, else a lake', () => {
+    const z = (fill: (i: number, j: number) => boolean) => {
+      const W = 100;
+      const H = 100;
+      const label = new Uint8Array(W * H).fill(LABELS.indexOf('meadow'));
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (fill(i, j)) label[j * W + i] = LABELS.indexOf('water');
+      return { x0: 0, y0: 0, cell: 4, W, H, label, level: new Float32Array(W * H), warmth: new Float32Array(W * H), sp: new Int32Array(W * H) };
+    };
+    expect(waterOf(z((i, j) => Math.hypot(i - 50, j - 50) < 20)).cls).toEqual(['lake']);
+    expect(waterOf(z((i) => Math.abs(i - 50) < 3)).cls).toEqual(['river']);
+    expect(waterOf(z((_, j) => j < 30)).cls).toEqual(['ocean']);
+  });
+});
+
+describe('the street graph', () => {
+  const line = (pts: number[], cls = 'minor', main = false) => ({ pts, cls, main });
+
+  test('lines are split where they cross and where one ends on another', () => {
+    const g = planar([line([0, 50, 100, 50]), line([50, 0, 50, 100]), line([80, 50.8, 80, 120])]);
+    expect(g.nodes.length / 2).toBe(7);
+    expect(g.edges.length).toBe(6);
+    const deg = degrees(g);
+    expect([...deg].sort()).toEqual([1, 1, 1, 1, 1, 3, 4]);
+  });
+
+  test('cleaning mends what breaks the rules and keeps one network', () => {
+    const g = planar([
+      line([0, 0, 300, 0], 'primary', true),
+      line([100, 0, 100, 200]),
+      line([106, 0, 106, -150]), // a junction 6 m from another
+      line([200, 0, 200, 12]), // a dead end of 12 m
+      line([300, 0, 150, 30]), // a sharp angle with the main road
+      line([0, 400, 200, 400]), // a separate piece 200 m off
+    ]);
+    expect(streetRules(g).length).toBeGreaterThan(0);
+    const c = clean(g, () => false);
+    expect(streetRules(c)).toEqual([]);
+    expect(c.edges.some((e) => e.main)).toBe(true);
+  });
+
 });

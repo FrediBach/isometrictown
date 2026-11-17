@@ -62,8 +62,10 @@ const CORE_COST: Partial<Record<Label, [cost: number, free: number]>> = { old: [
 const CORE_FADE = 400;
 const CORE_MIN = 2;
 const CORES = 3;
-/** Sand away from water is unlikely. */
-const SAND_INLAND = 0.08;
+/** Mean edge strength along a superpixel's shore that says the image draws a bank there. */
+const BANK_EDGE = 0.3;
+/** Water a beach may lie beside: a body of at least this much, m². */
+const BEACH_WATER = 5000;
 /** Smoothness between differing neighbours, at full realism, in ΔE per superpixel side. */
 const SMOOTH = 0.006;
 /** Smallest patch of each label at full realism, ha; at full likeness, `MIN_LIKE` for all. */
@@ -220,14 +222,14 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   /** A superpixel's side, in cells. */
   const sideCells = across / cell;
   const lambda = SMOOTH * (1.2 - likeness);
-  /** Per superpixel: [neighbour, weight of the shared side], the weight already cheapened by the edge along it. */
-  const nbrs: [number, number][][] = Array.from({ length: count }, () => []);
+  /** Per superpixel: [neighbour, weight of the shared side (already cheapened by the edge along it), mean edge strength along it]. */
+  const nbrs: [number, number, number][][] = Array.from({ length: count }, () => []);
   for (const [key, [len, e]] of sides) {
     const a = Math.floor(key / count);
     const b = key % count;
     const w = lambda * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
-    nbrs[a].push([b, w]);
-    nbrs[b].push([a, w]);
+    nbrs[a].push([b, w, e / len]);
+    nbrs[b].push([a, w, e / len]);
   }
 
   // Data cost: the closest the label's material comes to the image, plus the priors.
@@ -260,25 +262,19 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   }
 
   // Greedy by data, then iterated conditional modes with the neighbours, in a fixed order.
+  const WATER = L('water');
+  const SAND = L('sand');
   const label = new Uint8Array(count);
   for (let s = 0; s < count; s++) {
     let best = 0;
-    for (let k = 1; k < K; k++) if (data[s * K + k] < data[s * K + best]) best = k;
+    for (let k = 1; k < K; k++) if (k !== SAND && data[s * K + k] < data[s * K + best]) best = k;
     label[s] = best;
   }
-  const WATER = L('water');
-  const SAND = L('sand');
-  /** Superpixels where sand was tried away from water, and isn't allowed again. */
-  const dry = new Uint8Array(count);
+  // Sand comes only after, along real water (below).
   const cost = (s: number, k: number) => {
-    if (k === SAND && dry[s]) return Infinity;
+    if (k === SAND) return Infinity;
     let c = data[s * K + k];
-    let wet = false;
-    for (const [t, w] of nbrs[s]) {
-      c += w * COMPAT[k * K + label[t]];
-      if (label[t] === WATER) wet = true;
-    }
-    if (k === SAND && !wet) c += prior * SAND_INLAND;
+    for (const [t, w] of nbrs[s]) c += w * COMPAT[k * K + label[t]];
     return c;
   };
   const settle = () => {
@@ -364,37 +360,42 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   };
 
   mergeSmall();
-  // ICM can't move a whole inland beach at once, and merging can take away the water that made a
-  // beach likely: sand more than a couple of superpixels from water goes back to the next best
-  // thing, and the rest settles round it.
-  for (let round = 0; round < 3; round++) {
-    let found = false;
-    for (let s = 0; s < count; s++) {
-      if (label[s] !== SAND) continue;
-      let wet = false;
-      for (const [t] of nbrs[s]) {
-        if (label[t] === WATER) wet = true;
-        for (const [u] of nbrs[t]) if (label[u] === WATER) wet = true;
-      }
-      if (wet) continue;
-      found = true;
-      dry[s] = 1;
-      let best = -1;
-      for (let k = 0; k < K; k++) if (k !== SAND && (best < 0 || data[s * K + k] < data[s * K + best])) best = k;
-      label[s] = best;
-    }
-    if (!found) break;
-    settle();
-  }
-
-  mergeSmall();
-  // And any sand merging left without water nearby, without settling again.
+  // Water no more than a superpixel across is opened away, unless the image draws its banks: a
+  // chain of water along a smooth band of tone is no river. Water stays where some of it is
+  // surrounded by water, or edged by the image, and grows back one step from there.
+  const inner = new Uint8Array(count);
   for (let s = 0; s < count; s++) {
-    if (label[s] !== SAND || nbrs[s].some(([t]) => label[t] === WATER || nbrs[t].some(([u]) => label[u] === WATER))) continue;
+    if (label[s] !== WATER) continue;
+    const shore = nbrs[s].filter(([t]) => label[t] !== WATER);
+    if (shore.length <= 0.25 * nbrs[s].length || shore.reduce((a, [, , e]) => a + e, 0) / shore.length >= BANK_EDGE) inner[s] = 1;
+  }
+  for (let s = 0; s < count; s++) {
+    if (label[s] !== WATER || inner[s] || nbrs[s].some(([t]) => inner[t])) continue;
     let best = -1;
-    for (let k = 0; k < K; k++) if (k !== SAND && (best < 0 || data[s * K + k] < data[s * K + best])) best = k;
+    for (let k = 0; k < K; k++) if (k !== SAND && k !== WATER && (best < 0 || data[s * K + k] < data[s * K + best])) best = k;
     label[s] = best;
   }
+  // Beaches last: open ground along real water (not a puddle) turns to sand where sand suits the
+  // image better. Left to ICM, sand invents puddles to lie beside.
+  const BEACHY = new Set([L('meadow'), L('park'), L('field'), L('plaza')]);
+  const lake = new Uint8Array(count);
+  {
+    const seen = new Uint8Array(count);
+    for (let s = 0; s < count; s++) {
+      if (seen[s] || label[s] !== WATER) continue;
+      const list = [s];
+      seen[s] = 1;
+      for (let q = 0; q < list.length; q++)
+        for (const [t] of nbrs[list[q]])
+          if (!seen[t] && label[t] === WATER) {
+            seen[t] = 1;
+            list.push(t);
+          }
+      if (list.reduce((a, t) => a + area[t], 0) * cell * cell >= BEACH_WATER) for (const t of list) lake[t] = 1;
+    }
+  }
+  for (let s = 0; s < count; s++)
+    if (BEACHY.has(label[s]) && nbrs[s].some(([t]) => lake[t]) && data[s * K + SAND] < data[s * K + label[s]]) label[s] = SAND;
 
   // Levels and warmth from each superpixel's label, calmed within each zone.
   const lv = new Float32Array(count);
@@ -517,7 +518,7 @@ export function labelAt(z: Zones, x: number, y: number): Label | null {
 }
 
 /** Middles of the largest masses of dense built superpixels (old town, blocks, towers) of at least `min` cells, in cells. */
-function coresOf(label: Uint8Array, nbrs: [number, number][][], area: Float32Array, sp: Int32Array, W: number, min: number): [number, number][] {
+function coresOf(label: Uint8Array, nbrs: [number, number, number][][], area: Float32Array, sp: Int32Array, W: number, min: number): [number, number][] {
   const dense = new Set([L('old'), L('blocks'), L('towers')]);
   const count = label.length;
   const comp = new Int32Array(count).fill(-1);

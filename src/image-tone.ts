@@ -328,44 +328,104 @@ export const BUILT = new Set<Label>(['works', 'suburb', 'rows', 'old', 'blocks',
 type Material = { lo: number[]; hi: number[]; flatLo?: number[]; flatHi?: number[] };
 
 /**
- * How much of each pen a label lays down over a district, as a share of the paper: a sheet of
- * nothing but that label, drawn by the real renderer and measured by `npm run calibrate`, so
- * built labels include their streets, gardens and shadows. One scale and tilt for now; M5
- * measures more and interpolates (docs/plans/image-mode.md §7.3). Ground labels don't vary with
- * level yet, so their two rows are the same.
+ * How much of each pen a label lays down over a district, as a share of the paper, at each scale
+ * measured: a sheet of nothing but that label, drawn by the real renderer and measured by
+ * `npm run calibrate`, so built labels include their streets, gardens and shadows. Ground
+ * labels don't vary with level yet, so their two rows are the same. Paste a new run in whole.
  */
-const MATERIALS: Record<Label, Material> = {
-// Measured by npm run calibrate at 1:2500, tilt 40°, 2026-11-17.
-  water: { lo: [0, 0.103, 0, 0, 0.003], hi: [0, 0.103, 0, 0, 0.003] },
-  plaza: { lo: [0.001, 0.002, 0.004, 0, 0.132], hi: [0.001, 0.002, 0.004, 0, 0.132] },
-  sand: { lo: [0, 0, 0, 0, 0.034], hi: [0, 0, 0, 0, 0.034] },
-  meadow: { lo: [0.008, 0, 0.1, 0, 0], hi: [0.008, 0, 0.1, 0, 0] },
-  field: { lo: [0.008, 0, 0.193, 0, 0], hi: [0.008, 0, 0.193, 0, 0] },
-  park: { lo: [0.009, 0, 0.203, 0, 0], hi: [0.009, 0, 0.203, 0, 0] },
-  allot: { lo: [0.003, 0, 0.133, 0, 0.093], hi: [0.003, 0, 0.133, 0, 0.093] },
-  wood: { lo: [0.027, 0, 0.213, 0, 0], hi: [0.027, 0, 0.213, 0, 0] },
-  works: { lo: [0.038, 0, 0.024, 0.082, 0.139], hi: [0.094, 0, 0.02, 0.111, 0.134], flatLo: [0.041, 0, 0.024, 0.001, 0.167], flatHi: [0.101, 0, 0.02, 0, 0.181] },
-  suburb: { lo: [0.046, 0, 0.041, 0.115, 0.141], hi: [0.041, 0, 0.038, 0.144, 0.152], flatLo: [0.034, 0, 0.043, 0, 0.208], flatHi: [0.033, 0, 0.038, 0, 0.239] },
-  rows: { lo: [0.027, 0, 0.016, 0.154, 0.132], hi: [0.049, 0, 0.012, 0.185, 0.138], flatLo: [0.019, 0, 0.016, 0, 0.208], flatHi: [0.037, 0, 0.012, 0, 0.239] },
-  old: { lo: [0.075, 0, 0.024, 0.262, 0.14], hi: [0.058, 0, 0.006, 0.208, 0.219], flatLo: [0.062, 0, 0.022, 0, 0.288], flatHi: [0.055, 0, 0.005, 0, 0.324] },
-  blocks: { lo: [0.086, 0, 0.016, 0.187, 0.119], hi: [0.045, 0, 0.002, 0.209, 0.106], flatLo: [0.082, 0, 0.015, 0, 0.229], flatHi: [0.044, 0, 0.002, 0, 0.216] },
-  towers: { lo: [0.114, 0, 0.035, 0, 0.118], hi: [0.11, 0, 0.001, 0, 0.121], flatLo: [0.114, 0, 0.035, 0, 0.118], flatHi: [0.11, 0, 0.001, 0, 0.121] },
+const MATERIALS: Record<number, Record<Label, Material>> = {
+// Measured by npm run calibrate at tilt 40°, 2026-11-17.
+  1000: {
+    water: { lo: [0, 0.106, 0, 0, 0.001], hi: [0, 0.106, 0, 0, 0.001] },
+    plaza: { lo: [0, 0, 0, 0, 0], hi: [0, 0, 0, 0, 0] },
+    sand: { lo: [0.028, 0, 0, 0.015, 0.049], hi: [0.028, 0, 0, 0.015, 0.049] },
+    meadow: { lo: [0, 0, 0.043, 0, 0.001], hi: [0, 0, 0.043, 0, 0.001] },
+    field: { lo: [0, 0, 0.157, 0, 0], hi: [0, 0, 0.157, 0, 0] },
+    park: { lo: [0.008, 0, 0.188, 0, 0.001], hi: [0.008, 0, 0.188, 0, 0.001] },
+    allot: { lo: [0.008, 0, 0.204, 0, 0.023], hi: [0.008, 0, 0.204, 0, 0.023] },
+    wood: { lo: [0.05, 0, 0.119, 0, 0], hi: [0.05, 0, 0.119, 0, 0] },
+    works: { lo: [0.04, 0, 0.011, 0.021, 0.05], hi: [0.04, 0, 0.003, 0.028, 0.042], flatLo: [0.042, 0, 0.011, 0, 0.061], flatHi: [0.041, 0, 0.003, 0, 0.047] },
+    suburb: { lo: [0.025, 0, 0.054, 0.031, 0.035], hi: [0.057, 0, 0.065, 0.124, 0.081], flatLo: [0.02, 0, 0.054, 0, 0.045], flatHi: [0.056, 0, 0.062, 0, 0.11] },
+    rows: { lo: [0.042, 0, 0.019, 0.14, 0.071], hi: [0.064, 0, 0.011, 0.201, 0.088], flatLo: [0.04, 0, 0.018, 0, 0.111], flatHi: [0.062, 0, 0.011, 0.001, 0.149] },
+    old: { lo: [0.067, 0, 0.013, 0.185, 0.087], hi: [0.066, 0, 0.006, 0.183, 0.106], flatLo: [0.064, 0, 0.013, 0, 0.134], flatHi: [0.063, 0, 0.005, 0, 0.184] },
+    blocks: { lo: [0.058, 0, 0.018, 0.08, 0.065], hi: [0.091, 0, 0.009, 0.164, 0.074], flatLo: [0.058, 0, 0.017, 0, 0.102], flatHi: [0.09, 0, 0.008, 0, 0.147] },
+    towers: { lo: [0.068, 0, 0.022, 0, 0.07], hi: [0.143, 0, 0.023, 0, 0.077], flatLo: [0.068, 0, 0.022, 0, 0.07], flatHi: [0.143, 0, 0.023, 0, 0.077] },
+  },
+  2500: {
+    water: { lo: [0, 0.103, 0, 0, 0.003], hi: [0, 0.103, 0, 0, 0.003] },
+    plaza: { lo: [0, 0, 0, 0, 0], hi: [0, 0, 0, 0, 0] },
+    sand: { lo: [0, 0, 0, 0, 0.013], hi: [0, 0, 0, 0, 0.013] },
+    meadow: { lo: [0, 0, 0.042, 0, 0], hi: [0, 0, 0.042, 0, 0] },
+    field: { lo: [0, 0, 0.171, 0, 0], hi: [0, 0, 0.171, 0, 0] },
+    park: { lo: [0.008, 0, 0.201, 0, 0.002], hi: [0.008, 0, 0.201, 0, 0.002] },
+    allot: { lo: [0, 0, 0.167, 0, 0.046], hi: [0, 0, 0.167, 0, 0.046] },
+    wood: { lo: [0.027, 0, 0.213, 0, 0], hi: [0.027, 0, 0.213, 0, 0] },
+    works: { lo: [0.028, 0, 0.013, 0.053, 0.083], hi: [0.037, 0, 0.018, 0.054, 0.09], flatLo: [0.028, 0, 0.013, 0, 0.07], flatHi: [0.038, 0, 0.018, 0, 0.076] },
+    suburb: { lo: [0.018, 0, 0.056, 0.044, 0.051], hi: [0.051, 0, 0.041, 0.142, 0.116], flatLo: [0.011, 0, 0.057, 0, 0.074], flatHi: [0.046, 0, 0.041, 0, 0.185] },
+    rows: { lo: [0.043, 0, 0.039, 0.167, 0.1], hi: [0.069, 0, 0.015, 0.245, 0.152], flatLo: [0.037, 0, 0.038, 0, 0.188], flatHi: [0.062, 0, 0.015, 0, 0.295] },
+    old: { lo: [0.071, 0, 0.024, 0.228, 0.139], hi: [0.071, 0, 0.022, 0.187, 0.166], flatLo: [0.065, 0, 0.024, 0, 0.254], flatHi: [0.066, 0, 0.02, 0, 0.276] },
+    blocks: { lo: [0.06, 0, 0.034, 0.089, 0.088], hi: [0.094, 0, 0.022, 0.138, 0.122], flatLo: [0.06, 0, 0.033, 0, 0.134], flatHi: [0.091, 0, 0.021, 0, 0.195] },
+    towers: { lo: [0.044, 0, 0.053, 0, 0.059], hi: [0.12, 0, 0.035, 0, 0.098], flatLo: [0.044, 0, 0.053, 0, 0.059], flatHi: [0.12, 0, 0.035, 0, 0.098] },
+  },
+  5000: {
+    water: { lo: [0, 0.101, 0, 0, 0.019], hi: [0, 0.101, 0, 0, 0.019] },
+    plaza: { lo: [0, 0, 0, 0, 0], hi: [0, 0, 0, 0, 0] },
+    sand: { lo: [0, 0, 0.013, 0, 0.02], hi: [0, 0, 0.013, 0, 0.02] },
+    meadow: { lo: [0, 0, 0.059, 0, 0.008], hi: [0, 0, 0.059, 0, 0.008] },
+    field: { lo: [0, 0, 0.165, 0, 0.008], hi: [0, 0, 0.165, 0, 0.008] },
+    park: { lo: [0, 0, 0.219, 0, 0.009], hi: [0, 0, 0.219, 0, 0.009] },
+    allot: { lo: [0, 0, 0.36, 0, 0.076], hi: [0, 0, 0.36, 0, 0.076] },
+    wood: { lo: [0, 0, 0.141, 0, 0.007], hi: [0, 0, 0.141, 0, 0.007] },
+    works: { lo: [0.025, 0, 0.022, 0.083, 0.086], hi: [0.041, 0, 0.031, 0.135, 0.113], flatLo: [0.026, 0, 0.022, 0, 0.1], flatHi: [0.042, 0, 0.031, 0.001, 0.13] },
+    suburb: { lo: [0.011, 0, 0.078, 0.059, 0.081], hi: [0.044, 0, 0.065, 0.177, 0.167], flatLo: [0, 0, 0.079, 0, 0.123], flatHi: [0.038, 0, 0.065, 0, 0.311] },
+    rows: { lo: [0.033, 0, 0.07, 0.177, 0.138], hi: [0.075, 0, 0.023, 0.326, 0.23], flatLo: [0.028, 0, 0.069, 0, 0.277], flatHi: [0.066, 0, 0.023, 0, 0.487] },
+    old: { lo: [0.074, 0, 0.032, 0.266, 0.209], hi: [0.069, 0, 0.033, 0.245, 0.258], flatLo: [0.065, 0, 0.032, 0, 0.407], flatHi: [0.064, 0, 0.031, 0, 0.403] },
+    blocks: { lo: [0.05, 0, 0.067, 0.108, 0.104], hi: [0.081, 0, 0.025, 0.195, 0.17], flatLo: [0.047, 0, 0.066, 0, 0.166], flatHi: [0.077, 0, 0.024, 0, 0.286] },
+    towers: { lo: [0.033, 0, 0.075, 0, 0.085], hi: [0.107, 0, 0.042, 0, 0.156], flatLo: [0.033, 0, 0.075, 0, 0.085], flatHi: [0.107, 0, 0.042, 0, 0.156] },
+  },
+  8000: {
+    water: { lo: [0, 0.107, 0, 0, 0], hi: [0, 0.107, 0, 0, 0] },
+    plaza: { lo: [0, 0, 0, 0, 0], hi: [0, 0, 0, 0, 0] },
+    sand: { lo: [0, 0, 0, 0, 0.012], hi: [0, 0, 0, 0, 0.012] },
+    meadow: { lo: [0, 0, 0.04, 0, 0], hi: [0, 0, 0.04, 0, 0] },
+    field: { lo: [0, 0, 0.173, 0, 0], hi: [0, 0, 0.173, 0, 0] },
+    park: { lo: [0, 0, 0.206, 0, 0.002], hi: [0, 0, 0.206, 0, 0.002] },
+    allot: { lo: [0, 0, 0.553, 0, 0.09], hi: [0, 0, 0.553, 0, 0.09] },
+    wood: { lo: [0, 0, 0.054, 0, 0], hi: [0, 0, 0.054, 0, 0] },
+    works: { lo: [0.022, 0, 0.008, 0.115, 0.139], hi: [0.03, 0, 0.013, 0.19, 0.159], flatLo: [0.022, 0, 0.008, 0, 0.148], flatHi: [0.03, 0, 0.013, 0.001, 0.172] },
+    suburb: { lo: [0, 0, 0.053, 0.084, 0.122], hi: [0.035, 0, 0.041, 0.272, 0.266], flatLo: [0, 0, 0.053, 0, 0.179], flatHi: [0.027, 0, 0.041, 0, 0.444] },
+    rows: { lo: [0.036, 0, 0.046, 0.25, 0.207], hi: [0.061, 0, 0.031, 0.264, 0.246], flatLo: [0.03, 0, 0.046, 0, 0.413], flatHi: [0.054, 0, 0.031, 0, 0.523] },
+    old: { lo: [0.074, 0, 0.023, 0.384, 0.292], hi: [0.078, 0, 0.027, 0.116, 0.338], flatLo: [0.063, 0, 0.024, 0, 0.598], flatHi: [0.072, 0, 0.027, 0, 0.509] },
+    blocks: { lo: [0.05, 0, 0.044, 0.154, 0.173], hi: [0.074, 0, 0.02, 0.288, 0.253], flatLo: [0.047, 0, 0.044, 0, 0.258], flatHi: [0.069, 0, 0.019, 0, 0.413] },
+    towers: { lo: [0.03, 0, 0.049, 0, 0.123], hi: [0.093, 0, 0.027, 0, 0.23], flatLo: [0.03, 0, 0.049, 0, 0.123], flatHi: [0.093, 0, 0.027, 0, 0.23] },
+  },
 };
+/** The scales measured, finest first. */
+const MEASURED = Object.keys(MATERIALS).map(Number).sort((a, b) => a - b);
 
-/** Pen coverage of a label at a level (0–1) and warmth (0 flat roofs, 1 pitched). */
-export function material(label: Label, level: number, warmth = 1): number[] {
-  const m = MATERIALS[label];
-  const at = (lo: number[], hi: number[]) => lo.map((v, i) => v + (hi[i] - v) * level);
-  const warm = at(m.lo, m.hi);
-  if (!m.flatLo || !m.flatHi) return warm;
-  const flat = at(m.flatLo, m.flatHi);
-  return warm.map((v, i) => flat[i] + (v - flat[i]) * warmth);
+/** Pen coverage of a label at a level (0–1) and warmth (0 flat roofs, 1 pitched), at a scale, between the scales measured in log(scale). */
+export function material(label: Label, level: number, warmth = 1, scale = 2500): number[] {
+  const at = (m: Material) => {
+    const lerp = (lo: number[], hi: number[]) => lo.map((v, i) => v + (hi[i] - v) * level);
+    const warm = lerp(m.lo, m.hi);
+    if (!m.flatLo || !m.flatHi) return warm;
+    const flat = lerp(m.flatLo, m.flatHi);
+    return warm.map((v, i) => flat[i] + (v - flat[i]) * warmth);
+  };
+  const s = Math.max(MEASURED[0], Math.min(MEASURED[MEASURED.length - 1], scale));
+  let k = 0;
+  while (k < MEASURED.length - 2 && MEASURED[k + 1] < s) k++;
+  const a = at(MATERIALS[MEASURED[k]][label]);
+  if (MEASURED.length === 1) return a;
+  const b = at(MATERIALS[MEASURED[k + 1]][label]);
+  const t = Math.max(0, Math.min(1, Math.log(s / MEASURED[k]) / Math.log(MEASURED[k + 1] / MEASURED[k])));
+  return a.map((v, i) => v + (b[i] - v) * t);
 }
 
 /** The OKLab colour of a label at a level and warmth through these pens and paper. */
-export function materialColour(label: Label, level: number, warmth: number, set: Pick<Settings, 'pens' | 'mono' | 'customBackground' | 'background'>): [number, number, number] {
+export function materialColour(label: Label, level: number, warmth: number, set: Pick<Settings, 'pens' | 'mono' | 'customBackground' | 'background' | 'scale'>): [number, number, number] {
   const rgb = [0, 0, 0];
-  const c = material(label, level, warmth);
+  const c = material(label, level, warmth, set.scale);
   if (set.mono) c[4] = Math.min(1, c.reduce((a, v) => a + v, 0));
   mix(hexToLinear(paperOf(set)), inksOf(set), set.mono ? [0, 0, 0, 0, c[4]] : c, rgb);
   const lab: [number, number, number] = [0, 0, 0];

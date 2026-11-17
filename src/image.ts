@@ -3,21 +3,23 @@
  * step away looks like the image. See docs/plans/image-mode.md.
  *
  * The image is read into a target (`image-read.ts`) and the ground zoned to match it
- * (`image-zones.ts`). Streets are still a plain grid (M2 replaces it): each block of it takes the
- * zone that covers most of it and is laid out simply for its kind, from fields and woods to
- * terraced rows, perimeter blocks and towers. Streets don't run through water, woods, fields or
- * parks, so those read as whole areas.
+ * (`image-zones.ts`). Water, parks, woods, fields and squares take the zones' own outlines
+ * (`image-water.ts`), the streets are laid out over the built zones (`image-streets.ts`), and
+ * buildings stand along the streets the way each zone's buildings do, in rows, round
+ * courtyards, in gardens or on open ground. Blocks and parcels (M3) replace that last step.
  */
 import { Camera } from './camera';
 import { Frame, type LngLat } from './geo';
 import { readImage, type Target } from './image-read';
-import { BUILT, LABELS, type Label } from './image-tone';
-import { colourCounts, labelAt, zone, type Zones } from './image-zones';
+import { streets, type Graph } from './image-streets';
+import { LABELS, type Label } from './image-tone';
+import { maskOf, shapesOf, waterOf } from './image-water';
+import { colourCounts, zone, type Zones } from './image-zones';
 import { reachHeight } from './render';
 import { hash } from './rng';
 import type { Settings } from './settings';
 import { IMAGE_STYLE, STYLES, type Region, type Style, type StyleId } from './styles';
-import { empty, ROAD_WIDTH, type Area, type Building, type Shape, type Tagged, type Town, type Way } from './tiles';
+import { empty, type Area, type Building, type Tagged, type Town, type Way } from './tiles';
 
 /** An image, normalised on the main thread: at most 1024 px on its long side, as straight RGBA. `id` names its content. */
 export type Picture = { id: string; name: string; w: number; h: number; rgba: Uint8ClampedArray };
@@ -59,7 +61,7 @@ export function imageRegion(set: Settings): Region {
 }
 
 /** Everything a drawing from an image needs: the drawn-as settings, the camera, the target, the land plan and the town. */
-export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; town: Town; region: Region; style: Style };
+export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; town: Town; region: Region; style: Style };
 
 /**
  * Settings the town's layout depends on, besides the pens when colour counts (see
@@ -73,7 +75,7 @@ const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'image
 const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[], more: unknown = null) => JSON.stringify([pic.id, ...keys.map((k) => set[k]), more]);
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
-let laid: { key: string; town: Town; zones: Zones } | null = null;
+let laid: { key: string; town: Town; zones: Zones; streets: Graph } | null = null;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture (or take the last one, if nothing it depends on changed), reporting each step. */
@@ -93,235 +95,255 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const townKey = keyOf(pic, drawn, STRUCTURE, colourCounts(drawn) ? [drawn.pens, drawn.customBackground, drawn.background] : null);
   if (laid?.key !== townKey) {
     note('Zoning the ground');
-    const grid = gridOf(box);
-    const zones = zone(target, drawn, cam, [grid.i0 * PITCH, grid.j0 * PITCH, grid.i1 * PITCH, grid.j1 * PITCH]);
+    const zones = zone(target, drawn, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
     note('Laying out streets');
-    laid = { key: townKey, zones, town: imageTown(zones, drawn, frame, box, style) };
+    laid = { key: townKey, zones, ...imageTown(zones, target, drawn, cam, frame, box, style) };
   }
-  return { set: drawn, cam, frame, box, target, zones: laid.zones, town: structuredClone(laid.town), region, style };
+  return { set: drawn, cam, frame, box, target, zones: laid.zones, streets: laid.streets, town: structuredClone(laid.town), region, style };
 }
 
-/** Street centre lines are this far apart, m. */
-const PITCH = 64;
-/** Every so many streets is a main road. */
-const MAIN_EVERY = 4;
-/** Pavement between the road and the front of a block, m. */
-const PAVEMENT = 2.5;
-/** Buildings are laid out this far beyond the ground that can show, m, so the ones at the edge have neighbours. */
+/** The land plan reaches this far beyond the ground that can show, m, so streets run off the sheet and buildings at its edge have neighbours. */
+const PLAN_MARGIN = 150;
+/** Buildings are laid out this far beyond the ground that can show, m; those beyond it are context only. */
 const MARGIN = 60;
-/** Zones no street runs through: a street between two of them is left out. */
-const NO_STREET = new Set<Label>(['water', 'wood', 'field', 'meadow', 'sand', 'park']);
+/** The most buildings a town gets (§17). */
+const MAX_BUILDINGS = 30000;
+/** Pavement between the road and the front of a plot, m. */
+const PAVEMENT = 2;
 /** Storeys of each built label at its lowest and highest level. */
-const STOREYS: Partial<Record<Label, [number, number]>> = { suburb: [1, 2], rows: [2, 3], old: [3, 5], blocks: [4, 7], towers: [10, 24] };
-
-/** The street grid's blocks that cover a box, with a margin for buildings beyond it. */
-function gridOf(box: readonly number[]) {
-  const [bx0, by0, bx1, by1] = box;
-  return { i0: Math.floor((bx0 - MARGIN) / PITCH) - 1, i1: Math.ceil((bx1 + MARGIN) / PITCH) + 1, j0: Math.floor((by0 - MARGIN) / PITCH) - 1, j1: Math.ceil((by1 + MARGIN) / PITCH) + 1 };
-}
-
-/** The square around a point, as a counter-clockwise ring. */
-const square = (x0: number, y0: number, x1: number, y1: number): Shape => [{ pts: [x0, y0, x1, y0, x1, y1, x0, y1], seam: new Uint8Array(4) }];
-
-type Block = { label: Label; level: number; warmth: number };
+const STOREYS: Partial<Record<Label, [number, number]>> = { suburb: [1, 2], rows: [2, 3], old: [3, 5], blocks: [4, 7], towers: [10, 24], works: [2, 4] };
 
 /**
- * The town for a land plan, on a street grid over the whole ground box: each block takes the
- * zone that covers most of it, and is filled the way that kind of place is.
+ * How each built zone stands along its streets, at its sparsest level and its densest: plot width
+ * along the street, building width (0 for the whole plot, so neighbours share their walls),
+ * depth and set-back, m, and the OSM building type it is said to be.
  */
-export function imageTown(zones: Zones, set: Settings, frame: Frame, box: [number, number, number, number], style: Style): Town {
+type Frontage = { lot: [number, number]; width: [number, number]; depth: [number, number]; back: [number, number]; building: string };
+const FRONTAGE: Partial<Record<Label, Frontage>> = {
+  suburb: { lot: [28, 18], width: [9, 12], depth: [8, 11], back: [7, 4], building: 'house' },
+  rows: { lot: [7.5, 6], width: [0, 0], depth: [9, 12], back: [2.5, 1], building: 'terrace' },
+  old: { lot: [9, 6], width: [0, 0], depth: [12, 16], back: [0.5, 0], building: 'terrace' },
+  blocks: { lot: [36, 24], width: [0, 0], depth: [13, 16], back: [2, 0], building: 'apartments' },
+  towers: { lot: [95, 70], width: [18, 24], depth: [18, 24], back: [20, 14], building: 'apartments' },
+  works: { lot: [75, 55], width: [40, 55], depth: [28, 45], back: [12, 8], building: 'industrial' },
+};
+
+/** The narrowest plot in a row on paper, mm: at coarse scales rows are drawn as fewer, longer buildings. */
+const ROW_LOT_MM = 1.4;
+
+/** Cells of the occupancy raster that keeps buildings off roads and each other, m, at the finest. */
+const OCCUPY = 0.75;
+
+/**
+ * The town for a land plan: the zones' outlines for water, parks, woods, fields and squares;
+ * streets over the built zones; and along every street, buildings the way the zone it passes
+ * through has them.
+ */
+export function imageTown(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style): { town: Town; streets: Graph } {
   const town = empty();
-  const [bx0, by0, bx1, by1] = box;
-  const { i0, i1, j0, j1 } = gridOf(box);
-  const NJ = j1 - j0;
   // Map-fixed keys, as `B.key` gives them, from the fictional frame.
   const key = (x: number, y: number): [number, number] => [Math.round(frame.mx0 + x / frame.k), Math.round(frame.my0 + y / frame.k)];
-  const main = (n: number) => ((n % MAIN_EVERY) + MAIN_EVERY) % MAIN_EVERY === 0;
-  const half = (n: number) => (main(n) ? ROAD_WIDTH.secondary : ROAD_WIDTH.minor) / 2;
 
-  // Each block is what most of it is zoned as, at that zone's mean level and warmth.
-  const blocks: Block[] = new Array((i1 - i0) * NJ);
-  const S = 4;
-  for (let i = i0; i < i1; i++) {
-    for (let j = j0; j < j1; j++) {
-      const votes = new Map<Label, [number, number, number]>();
-      for (let u = 0; u < S; u++)
-        for (let v = 0; v < S; v++) {
-          const x = (i + (u + 0.5) / S) * PITCH;
-          const y = (j + (v + 0.5) / S) * PITCH;
-          const l = labelAt(zones, x, y) ?? 'suburb';
-          const c = Math.floor((y - zones.y0) / zones.cell) * zones.W + Math.floor((x - zones.x0) / zones.cell);
-          const t = votes.get(l) ?? [0, 0, 0];
-          t[0]++;
-          t[1] += zones.level[c] ?? 0.5;
-          t[2] += zones.warmth[c] ?? 1;
-          votes.set(l, t);
-        }
-      let best: Label = 'suburb';
-      let n = -1;
-      for (const [l, t] of votes) if (t[0] > n || (t[0] === n && LABELS.indexOf(l) < LABELS.indexOf(best))) [best, n] = [l, t[0]];
-      const t = votes.get(best)!;
-      blocks[(i - i0) * NJ + (j - j0)] = { label: best, level: t[1] / t[0], warmth: t[2] / t[0] };
-    }
-  }
-  const at = (i: number, j: number): Block => (i < i0 || i >= i1 || j < j0 || j >= j1 ? { label: 'suburb', level: 0.5, warmth: 1 } : blocks[(i - i0) * NJ + (j - j0)]);
-  /** Whether the street on grid line x = i runs past block row j, and the one on y = j past column i. */
-  const alongX = (i: number, j: number) => !(NO_STREET.has(at(i - 1, j).label) && NO_STREET.has(at(i, j).label));
-  const alongY = (i: number, j: number) => !(NO_STREET.has(at(i, j - 1).label) && NO_STREET.has(at(i, j).label));
+  // Ground: each kind of open land from its zones' outline.
+  const water = waterOf(zones);
+  town.water = water.shapes;
+  town.waterCls = water.cls;
+  town.plazas = shapesOf(maskOf(zones, ['plaza']), zones, 4);
+  const parks = shapesOf(maskOf(zones, ['park']), zones, 4);
+  town.green = parks;
+  town.wood = shapesOf(maskOf(zones, ['wood']), zones, 4);
+  const cover: [Label, string][] = [['field', 'farmland'], ['meadow', 'meadow'], ['allot', 'allotments'], ['sand', 'beach']];
+  for (const [l, cls] of cover) for (const shape of shapesOf(maskOf(zones, [l]), zones, 4)) town.cover.push({ shape, cls });
 
-  const ways: Way[] = [];
-  const street = (pts: number[], n: number) => ways.push({ pts, kind: 'road', width: half(n) * 2, cls: main(n) ? 'secondary' : 'minor' });
-  for (let i = i0; i <= i1; i++) {
-    let run: number[] = [];
-    for (let j = j0; j < j1; j++) {
-      if (alongX(i, j)) {
-        if (!run.length) run.push(i * PITCH, j * PITCH);
-        run.push(i * PITCH, (j + 1) * PITCH);
-      } else if (run.length) {
-        street(run, i);
-        run = [];
-      }
-    }
-    if (run.length) street(run, i);
-  }
-  for (let j = j0; j <= j1; j++) {
-    let run: number[] = [];
-    for (let i = i0; i < i1; i++) {
-      if (alongY(i, j)) {
-        if (!run.length) run.push(i * PITCH, j * PITCH);
-        run.push((i + 1) * PITCH, j * PITCH);
-      } else if (run.length) {
-        street(run, j);
-        run = [];
-      }
-    }
-    if (run.length) street(run, j);
-  }
-  town.ways = ways;
+  // Streets, paths and streams.
+  const st = streets(zones, target, cam, { likeness: set.likeness, fabric: set.fabric, seed: set.seed, style: style.id }, parks);
+  town.ways = [...st.ways, ...st.paths];
+  town.plazas.push(...st.circles);
+  town.streams = st.streams;
 
-  const buildings: Building[] = [];
-  const tagged: Tagged[] = [];
-  const landuse: Area[] = [];
-  const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
-  /** A building on a footprint, with what it is (and a flat roof where the zone wants one) said the way OSM would. */
-  const raise = (x0: number, y0: number, x1: number, y1: number, h: number, building: string, roof?: string) => {
-    const cx = (x0 + x1) / 2;
-    const cy = (y0 + y1) / 2;
-    if (!inBox(cx, cy, MARGIN) || x1 - x0 < 2 || y1 - y0 < 2) return;
-    const b: Building = { shape: square(x0, y0, x1, y1), h, min: 0 };
-    if (!inBox(cx, cy, 0)) b.context = true;
-    buildings.push(b);
-    tagged.push({ x: cx, y: cy, building, roof, from: 'image' });
-    town.density.built.push(cx, cy, (x1 - x0) * (y1 - y0));
-  };
-  /** Pitched roofs where the zone is warm, flat ones where it isn't; pitched ones are left to the style. */
-  const roofOf = (warmth: number, k: [number, number], salt: number) => (hash(k[0], k[1], set.seed, salt) < warmth ? undefined : 'flat');
-  const storeys = (label: Label, level: number, k: [number, number], salt: number) => {
-    const [lo, hi] = STOREYS[label] ?? [1, 2];
-    return Math.max(lo, Math.min(hi, Math.round(lo + (hi - lo) * level + (hash(k[0], k[1], set.seed, salt) - 0.5) * 0.9)));
-  };
+  // Land use, so gardens, fences and works yards come with the buildings.
+  const landuse: Area[] = [
+    ...shapesOf(maskOf(zones, ['suburb', 'rows', 'old', 'blocks', 'towers']), zones, 4).map((shape) => ({ shape, cls: 'residential' })),
+    ...shapesOf(maskOf(zones, ['works']), zones, 4).map((shape) => ({ shape, cls: 'industrial' })),
+  ];
+  town.landuse = landuse;
 
-  for (let i = i0; i < i1; i++) {
-    for (let j = j0; j < j1; j++) {
-      const { label, level, warmth } = at(i, j);
-      const X0 = i * PITCH;
-      const Y0 = j * PITCH;
-      if (label === 'water') {
-        town.water.push(square(X0, Y0, X0 + PITCH, Y0 + PITCH));
-        town.waterCls.push('lake');
-        continue;
-      }
-      // Up to the pavement where a street runs past, to the street's line where none does.
-      const x0 = X0 + (alongX(i, j) ? half(i) + PAVEMENT : 0);
-      const x1 = X0 + PITCH - (alongX(i + 1, j) ? half(i + 1) + PAVEMENT : 0);
-      const y0 = Y0 + (alongY(i, j) ? half(j) + PAVEMENT : 0);
-      const y1 = Y0 + PITCH - (alongY(i, j + 1) ? half(j + 1) + PAVEMENT : 0);
-      const ground = square(x0, y0, x1, y1);
-      if (!BUILT.has(label)) {
-        if (label === 'plaza') town.plazas.push(ground);
-        else if (label === 'park') town.green.push(ground);
-        else if (label === 'wood') town.wood.push(ground);
-        else {
-          const wet = [at(i - 1, j), at(i + 1, j), at(i, j - 1), at(i, j + 1)].some((b) => b.label === 'water');
-          town.cover.push({ shape: ground, cls: label === 'sand' ? (wet ? 'beach' : 'sand') : label === 'field' ? 'farmland' : label === 'allot' ? 'allotments' : 'meadow' });
-        }
-        continue;
-      }
-      landuse.push({ shape: ground, cls: label === 'works' ? 'industrial' : 'residential' });
-      const k = key(X0, Y0);
-      const w = x1 - x0;
-      const d = y1 - y0;
-      if (label === 'works') {
-        // One hall, or two side by side, standing back from the street with a yard.
-        const h = 7 + 5 * level;
-        const roof = hash(k[0], k[1], set.seed, 14010) < warmth ? 'sawtooth' : 'flat';
-        if (level < 0.5) raise(x0 + 6, y0 + 6, x1 - 6, y1 - 6, h, 'industrial', roof);
-        else {
-          raise(x0 + 4, y0 + 5, x0 + w / 2 - 3, y1 - 5, h, 'industrial', roof);
-          raise(x0 + w / 2 + 3, y0 + 5, x1 - 4, y1 - 5, h, 'warehouse', roof);
-        }
-        continue;
-      }
-      if (label === 'towers') {
-        // One or two towers on open ground.
-        const n = level > 0.5 ? 2 : 1;
-        const side = 18 + 6 * hash(k[0], k[1], set.seed, 14011);
-        for (let t = 0; t < n; t++) {
-          const cx = n === 1 ? x0 + w / 2 : x0 + (t ? 0.72 : 0.28) * w;
-          const cy = n === 1 ? y0 + d / 2 : y0 + (t ? 0.3 : 0.7) * d;
-          const kt = key(cx, cy);
-          raise(cx - side / 2, cy - side / 2, cx + side / 2, cy + side / 2, storeys(label, level, kt, 14012) * style.floor, 'apartments', 'flat');
-        }
-        continue;
-      }
-      if (label === 'blocks' || label === 'old') {
-        // Perimeter rows on all four sides round a courtyard, cut into buildings that share their walls.
-        const deep = label === 'old' ? 12 + 4 * level : 13 + 3 * level;
-        const parts = label === 'old' ? 6 + Math.round(2 * level) : 2 + Math.round(level);
-        const kind = label === 'old' ? 'terrace' : 'apartments';
-        const row = (ax: number, ay: number, bx: number, by: number, along: 'x' | 'y') => {
-          const len = along === 'x' ? bx - ax : by - ay;
-          for (let p = 0; p < parts; p++) {
-            const a = p / parts;
-            const b = (p + 1) / parts;
-            const [px0, py0, px1, py1] = along === 'x' ? [ax + a * len, ay, ax + b * len, by] : [ax, ay + a * len, bx, ay + b * len];
-            const kp = key((px0 + px1) / 2, (py0 + py1) / 2);
-            const st = storeys(label, level, kp, 14013);
-            raise(px0, py0, px1, py1, st * style.floor, st > 3 ? 'apartments' : kind, roofOf(warmth, kp, 14014));
-          }
-        };
-        row(x0, y0, x1, y0 + deep, 'x');
-        row(x0, y1 - deep, x1, y1, 'x');
-        row(x0, y0 + deep, x0 + deep, y1 - deep, 'y');
-        row(x1 - deep, y0 + deep, x1, y1 - deep, 'y');
-        if ((w - 2 * deep) * (d - 2 * deep) > 300) town.green.push(square(x0 + deep + 1, y0 + deep + 1, x1 - deep - 1, y1 - deep - 1));
-        continue;
-      }
-      // Suburbs and terraced rows: houses along the two long sides, gardens behind.
-      const rows = label === 'rows';
-      const lots = rows ? 6 + Math.round(2 * level) : 4 + Math.round(level);
-      const lot = w / lots;
-      for (const s of [-1, 1]) {
-        const edge = s > 0 ? y1 : y0;
-        const ks = key(X0, edge);
-        // A terrace keeps one building line; detached houses each find their own.
-        const rowBack = 1 + 1.5 * hash(ks[0], ks[1], set.seed, 14015);
-        for (let n = 0; n < lots; n++) {
-          const cx = x0 + (n + 0.5) * lot;
-          const kl = key(cx, edge);
-          const depth = rows ? 9 + 3 * level : 8 + 3 * hash(kl[0], kl[1], set.seed, 14002);
-          const back = rows ? rowBack : 3 + 2.5 * hash(kl[0], kl[1], set.seed, 14003);
-          const width = rows ? lot : Math.min(lot - 3, lot * (0.5 + 0.25 * level) + 2 * hash(kl[0], kl[1], set.seed, 14001));
-          const ya = s > 0 ? edge - back - depth : edge + back;
-          const st = storeys(label, level, rows ? ks : kl, 14004);
-          raise(rows ? x0 + n * lot : cx - width / 2, ya, rows ? x0 + (n + 1) * lot : cx + width / 2, ya + depth, st * style.floor, rows ? 'terrace' : 'house', roofOf(warmth, rows ? ks : kl, 14016));
-        }
-      }
-    }
-  }
+  // Buildings along the streets.
+  const { buildings, tagged } = frontages(zones, st.ways, set, style, box, key);
   town.buildings = buildings;
   town.tagged = tagged;
-  town.landuse = landuse;
-  town.nearby = { landuse, pois: [], numbers: [], helipads: [], ways };
-  return town;
+  for (const b of buildings) {
+    const p = b.shape[0].pts;
+    let cx = 0;
+    let cy = 0;
+    for (let i = 0; i < p.length; i += 2) {
+      cx += p[i] / (p.length / 2);
+      cy += p[i + 1] / (p.length / 2);
+    }
+    const area = Math.abs((p[2] - p[0]) * (p[5] - p[3]) - (p[3] - p[1]) * (p[4] - p[2]));
+    town.density.built.push(cx, cy, area);
+  }
+  town.nearby = { landuse, pois: [], numbers: [], helipads: [], ways: town.ways };
+  return { town, streets: st.graph };
+}
+
+/**
+ * Buildings set along both sides of every street, the busiest first, each the way the zone it
+ * stands in has them. A raster of what is taken keeps them off roads and each other, so rows
+ * break at corners and bends; houses in a row share their walls exactly.
+ */
+function frontages(z: Zones, ways: Way[], set: Settings, style: Style, box: number[], key: (x: number, y: number) => [number, number]): { buildings: Building[]; tagged: Tagged[] } {
+  const mmPerMetre = 1000 / set.scale;
+  const [bx0, by0, bx1, by1] = box;
+  const ox = z.x0;
+  const oy = z.y0;
+  // Fine enough that a cell marked well inside one house never reaches past the wall it shares.
+  const cs = Math.max(OCCUPY, z.cell / 4);
+  const OW = Math.ceil((z.W * z.cell) / cs);
+  const OH = Math.ceil((z.H * z.cell) / cs);
+  const taken = new Uint8Array(OW * OH);
+  const cellOf = (x: number, y: number) => {
+    const i = Math.floor((x - ox) / cs);
+    const j = Math.floor((y - oy) / cs);
+    return i < 0 || j < 0 || i >= OW || j >= OH ? -1 : j * OW + i;
+  };
+  const zoneAt = (x: number, y: number) => {
+    const i = Math.floor((x - z.x0) / z.cell);
+    const j = Math.floor((y - z.y0) / z.cell);
+    return i < 0 || j < 0 || i >= z.W || j >= z.H ? -1 : j * z.W + i;
+  };
+  // Roads and their pavements are taken, a cell short so a front wall on the pavement's edge is free.
+  for (const w of ways) {
+    const r = w.width / 2 + PAVEMENT - cs;
+    const p = w.pts;
+    for (let i = 2; i < p.length; i += 2) {
+      const len = Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
+      const n = Math.max(1, Math.ceil(len / cs));
+      for (let k = 0; k <= n; k++) {
+        const x = p[i - 2] + ((p[i] - p[i - 2]) * k) / n;
+        const y = p[i - 1] + ((p[i + 1] - p[i - 1]) * k) / n;
+        for (let dy = -r; dy <= r; dy += cs * 0.7)
+          for (let dx = -r; dx <= r; dx += cs * 0.7) {
+            if (dx * dx + dy * dy > r * r) continue;
+            const c = cellOf(x + dx, y + dy);
+            if (c >= 0) taken[c] = 1;
+          }
+      }
+    }
+  }
+  /** Points over a rectangle (corners a, b, c, d), `inset` m inside its outline, about `step` m apart. */
+  const over = (q: number[], inset: number, step: number, fn: (x: number, y: number) => boolean) => {
+    const [ax, ay, bx, by, , , dx, dy] = q;
+    const along = Math.hypot(bx - ax, by - ay);
+    const across = Math.hypot(dx - ax, dy - ay);
+    const nu = Math.max(1, Math.ceil((along - 2 * inset) / step));
+    const nv = Math.max(1, Math.ceil((across - 2 * inset) / step));
+    for (let u = 0; u <= nu; u++)
+      for (let v = 0; v <= nv; v++) {
+        const s = (inset + ((along - 2 * inset) * u) / nu) / along;
+        const t = (inset + ((across - 2 * inset) * v) / nv) / across;
+        if (!fn(ax + (bx - ax) * s + (dx - ax) * t, ay + (by - ay) * s + (dy - ay) * t)) return false;
+      }
+    return true;
+  };
+  /** Whether a rectangle is free and all on land of `label`: tested just inside its outline, so neighbours in a row may share their walls. */
+  const free = (q: number[], label: number) =>
+    over(q, 0.4 * cs, Math.min(1.2, cs), (x, y) => {
+      const c = cellOf(x, y);
+      const zc = zoneAt(x, y);
+      return c >= 0 && zc >= 0 && !taken[c] && z.label[zc] === label;
+    });
+  /** Mark a rectangle taken, only well inside its outline, so the next house in the row can still share the wall. */
+  const take = (q: number[]) =>
+    over(q, 1.4 * cs, cs * 0.5, (x, y) => {
+      const c = cellOf(x, y);
+      if (c >= 0) taken[c] = 1;
+      return true;
+    });
+  const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
+  const RANKS: Record<string, number> = { primary: 4, secondary: 3, tertiary: 2, minor: 1 };
+  const order = ways.map((_, i) => i).sort((a, b) => (RANKS[ways[b].cls] ?? 0) - (RANKS[ways[a].cls] ?? 0) || a - b);
+  const buildings: Building[] = [];
+  const tagged: Tagged[] = [];
+  for (const wi of order) {
+    const w = ways[wi];
+    if (w.bridge) continue;
+    const p = w.pts;
+    // Distance along the street at each point, and the point at any distance.
+    const cum = [0];
+    for (let i = 2; i < p.length; i += 2) cum.push(cum[cum.length - 1] + Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]));
+    const total = cum[cum.length - 1];
+    let seg = 0;
+    const pointAt = (d: number): [number, number] => {
+      while (seg > 0 && cum[seg] > d) seg--;
+      while (seg < cum.length - 2 && cum[seg + 1] < d) seg++;
+      const t = (d - cum[seg]) / (cum[seg + 1] - cum[seg] || 1);
+      return [p[seg * 2] + (p[seg * 2 + 2] - p[seg * 2]) * t, p[seg * 2 + 1] + (p[seg * 2 + 3] - p[seg * 2 + 1]) * t];
+    };
+    for (const side of [1, -1]) {
+      // A row keeps one depth and building line along a street side.
+      const ks = key(p[0], p[1]);
+      const rowHash = hash(ks[0], ks[1], set.seed, side > 0 ? 14020 : 14021);
+      let s = 4;
+      while (s < total - 4 && buildings.length < MAX_BUILDINGS) {
+        // The street's way here: along the chord a few metres either side.
+        const [fx, fy] = pointAt(s);
+        const [gx, gy] = pointAt(Math.min(total, s + 6));
+        const len = Math.hypot(gx - fx, gy - fy) || 1;
+        const ux = (gx - fx) / len;
+        const uy = (gy - fy) / len;
+        const probe = zoneAt(fx - uy * side * (w.width / 2 + PAVEMENT + 6), fy + ux * side * (w.width / 2 + PAVEMENT + 6));
+        const label = probe < 0 ? undefined : LABELS[z.label[probe]];
+        const f = label && FRONTAGE[label];
+        if (!f || !label) {
+          s += 6;
+          continue;
+        }
+        const level = z.level[probe];
+        const at = (r: [number, number]) => r[0] + (r[1] - r[0]) * level;
+        const lot = f.width[1] === 0 ? Math.max(at(f.lot), ROW_LOT_MM / mmPerMetre) : at(f.lot);
+        if (s + lot > total - 4) break;
+        const row = f.width[1] === 0;
+        const [ax, ay] = pointAt(s);
+        const [bx, by] = pointAt(s + lot);
+        const chord = Math.hypot(bx - ax, by - ay);
+        // Where the street bends sharply under a plot, there is no room for one.
+        if (chord < lot * 0.9) {
+          s += lot;
+          continue;
+        }
+        const cx0 = (bx - ax) / chord;
+        const cy0 = (by - ay) / chord;
+        const nx = -cy0 * side;
+        const ny = cx0 * side;
+        const k = key((ax + bx) / 2, (ay + by) / 2);
+        const vary = (salt: number) => hash(k[0], k[1], set.seed, salt);
+        const width = row ? chord : Math.min(chord - 2, at(f.width) + 2 * (vary(14022) - 0.5));
+        const depth = at(f.depth) + (row ? 2 * rowHash : 2 * vary(14023));
+        const back = w.width / 2 + PAVEMENT + at(f.back) * (row ? 1 : 0.7 + 0.6 * vary(14024));
+        const s0 = (chord - width) / 2;
+        const fr = [ax + cx0 * s0 + nx * back, ay + cy0 * s0 + ny * back, ax + cx0 * (s0 + width) + nx * back, ay + cy0 * (s0 + width) + ny * back];
+        let q = [...fr, fr[2] + nx * depth, fr[3] + ny * depth, fr[0] + nx * depth, fr[1] + ny * depth];
+        // Corners counter-clockwise, still starting on the street side.
+        if ((q[2] - q[0]) * (q[7] - q[1]) - (q[3] - q[1]) * (q[6] - q[0]) < 0) q = [q[2], q[3], q[0], q[1], q[6], q[7], q[4], q[5]];
+        const cx = (q[0] + q[4]) / 2;
+        const cy = (q[1] + q[5]) / 2;
+        if (inBox(cx, cy, MARGIN) && free(q, z.label[probe])) {
+          take(q);
+          const [lo, hi] = STOREYS[label] ?? [1, 2];
+          const st = Math.max(lo, Math.min(hi, Math.round(lo + (hi - lo) * level + (vary(14025) - 0.5) * 0.9)));
+          const h = label === 'works' ? 6 + 2.5 * st : st * style.floor;
+          const b: Building = { shape: [{ pts: q, seam: new Uint8Array(4) }], h, min: 0 };
+          if (!inBox(cx, cy, 0)) b.context = true;
+          buildings.push(b);
+          const warm = z.warmth[probe];
+          const roof = label === 'works' ? (vary(14026) < warm ? 'sawtooth' : 'flat') : label === 'towers' || vary(14027) >= warm ? 'flat' : undefined;
+          const kind = label === 'old' && st > 3 ? 'apartments' : label === 'works' && vary(14028) < 0.4 ? 'warehouse' : f.building;
+          tagged.push({ x: cx, y: cy, building: kind, roof, from: 'image' });
+        }
+        s += lot;
+      }
+    }
+  }
+  return { buildings, tagged };
 }

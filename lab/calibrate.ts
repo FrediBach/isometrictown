@@ -8,11 +8,13 @@
 import { Camera } from '../src/camera';
 import { Frame } from '../src/geo';
 import { drawnAs, imageRegion, imageTown } from '../src/image';
+import { readImage } from '../src/image-read';
 import { coverage, LABELS, type Label } from '../src/image-tone';
 import type { Zones } from '../src/image-zones';
 import { reachHeight, render } from '../src/render';
 import { DEFAULT_SETTINGS, type Settings } from '../src/settings';
 import { STYLES } from '../src/styles';
+import { paint } from '../test/support/pictures';
 
 export { LABELS };
 
@@ -33,7 +35,9 @@ export function swatch(label: Label, level: number, warmth: number, scale = 2500
   const H = Math.ceil((box[3] - box[1] + 2 * pad) / cell);
   const zones: Zones = { x0: box[0] - pad, y0: box[1] - pad, cell, W, H, label: new Uint8Array(W * H).fill(LABELS.indexOf(label)), level: new Float32Array(W * H).fill(level), warmth: new Float32Array(W * H).fill(warmth), sp: new Int32Array(W * H) };
   const region = imageRegion(set);
-  const town = imageTown(zones, set, frame, box, STYLES[region.style]);
+  // A flat grey picture: no lines and no orientation for the streets to follow.
+  const target = readImage(paint('Flat', () => [128, 128, 128]), set, cam.rect);
+  const { town } = imageTown(zones, target, set, cam, frame, box, STYLES[region.style]);
   const drawing = render(town, set, frame, STYLES[region.style], undefined, region.left);
   // The middle of the drawing area, clear of anything odd at its edges.
   const [x0, y0, x1, y1] = cam.rect;

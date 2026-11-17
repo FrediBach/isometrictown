@@ -81,6 +81,20 @@ function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file
       <NumberSetting name="imageLight" label="Brightness" min={-1} max={1} step={0.05} />
       <NumberSetting name="imageContrast" label="Contrast" min={0.5} max={2} step={0.05} />
       <NumberSetting name="imageColour" label="Colour" min={0} max={1} step={0.01} hint="How much the image’s colours count against its light and dark." />
+      <NumberSetting name="likeness" label="Likeness" min={0} max={1} step={0.01} hint="Closer to the image, or more like an ordinary town." />
+      <Caption className="mt-4">Street pattern</Caption>
+      <Segmented
+        aria-label="Street pattern"
+        value={set.fabric}
+        onValueChange={(v) => change('fabric', v)}
+        className="mb-1 flex w-full"
+        items={[
+          { value: 'auto', label: 'Auto' },
+          { value: 'organic', label: 'Organic' },
+          { value: 'grid', label: 'Grid' },
+        ]}
+      />
+      <Hint>Organic streets follow the image and wander; a grid keeps to two directions. Auto is a grid for the North American and Australian styles.</Hint>
       <Hint className="mt-2 mb-0">The town is laid out so that, seen from a step away, it looks like the image. The image stays in this browser: links carry its settings, but not the image itself.</Hint>
     </>
   );
