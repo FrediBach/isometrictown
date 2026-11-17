@@ -43,12 +43,21 @@ const LOT = 3;
 const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
-export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[] };
+export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[]; pools: Shape[] };
 export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
 ];
+/** A seven-by-four metre garden pool parallel to the front wall, three metres beyond the rear wing. */
+function poolBehind(house: number[]): number[] {
+  const dx = house[2] - house[0], dy = house[3] - house[1], width = Math.hypot(dx, dy);
+  const u: [number, number] = [dx / width, dy / width], v: [number, number] = [-u[1], u[0]];
+  let depth = 0;
+  for (let i = 4; i < house.length; i += 2)
+    depth = Math.max(depth, (house[i] - house[0]) * v[0] + (house[i + 1] - house[1]) * v[1]);
+  return rect([house[0] + (width - 7) / 2 * u[0] + (depth + 3) * v[0], house[1] + (width - 7) / 2 * u[1] + (depth + 3) * v[1]], u, v, 7, 4);
+}
 /** Cut a street-facing rectangle back to form wings, a service court or a bevelled tower. */
 function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (salt: number) => number): number[] {
   const pick = r(14680);
@@ -132,7 +141,7 @@ function frontOf(l: Lot): { A: [number, number]; u: [number, number]; v: [number
 /** How much a pitched roof adds over the walls, as `classify()` reckons it, for a building this wide. */
 const allowance = (w: number, style: Style) => Math.min((w / 2) * Math.tan(((style.pitch[0] + style.pitch[1]) * Math.PI) / 360), 13) * 0.45;
 
-type Plan = { ring: number[]; h: number; building: string; roof?: string; across?: boolean; poi?: Poi };
+type Plan = { ring: number[]; pool?: number[]; h: number; building: string; roof?: string; across?: boolean; poi?: Poi };
 
 /** A building plot on a street the blocks don't reach. Its index follows the street walk, even where a plot is skipped. */
 export type FrontageLot = { ring: number[]; label: Label; level: number; warmth: number; way: number; side: number; index: number };
@@ -146,7 +155,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
   const { set, style, vary, occ, laid } = c;
   const [bx0, by0, bx1, by1] = c.box;
   const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
-  const out: Built = { buildings: [], tagged: [], pois: [], landuse: [] };
+  const out: Built = { buildings: [], tagged: [], pois: [], landuse: [], pools: [] };
   const plots: (DensityPlot | undefined)[] | undefined = c.density ? [] : undefined;
   const likeness = Math.max(0, Math.min(1, set.likeness));
   const worship = style.id === 'arid' ? 'mosque' : style.id === 'eastAsian' ? 'temple' : 'church';
@@ -166,6 +175,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
   });
   kept.sort((a, b) => a.block - b.block || a.side - b.side || a.index - b.index);
 
+  const gardenPools = new Map<Building, number[]>();
   const towers: [number, number, number][] = [];
   const add = (p: Plan): boolean => {
     if (out.buildings.length >= MAX_BUILDINGS || !simpleFootprint(p.ring) || !c.ground.clear(p.ring) || laid.clash(p.ring)) return false;
@@ -174,6 +184,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     const b: Building = { shape: [{ pts: p.ring, seam: new Uint8Array(p.ring.length / 2) }], h: p.h, min: 0 };
     if (!inBox(cx, cy, 0)) b.context = true;
     out.buildings.push(b);
+    if (p.pool) gardenPools.set(b, p.pool);
     out.tagged.push({ x: cx, y: cy, building: p.building, roof: p.roof, across: p.across, from: 'image' });
     if (p.poi) out.pois.push({ ...p.poi, x: cx, y: cy });
     return true;
@@ -324,6 +335,11 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       const roof = pitched(14056) ? undefined : 'flat';
       const s = Math.min(st, 2);
       plans.push({ ring: house.length === 8 ? shapedPlan(house, l.label, roof, r) : house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
+      if (r(14730) < 0.16) {
+        const pool = poolBehind(plans[0].ring);
+        const [cx, cy] = centre(pool);
+        if (pointInRing(cx, cy, ring) && toRing(cx, cy, ring) > Math.hypot(3.5, 2) + 1) plans[0].pool = pool;
+      }
       if (r(14057) < 0.25) {
         const back = sb + dd + (wing ? ex : 0) + 3;
         const off = right ? m - ww / 2 : m + ww / 2 - 3;
@@ -409,6 +425,15 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       out.tagged.push(tag);
     }
     c.laid = occupied;
+  }
+  // Density may vacate a plot or extend a house into the lawn. Check its final neighbours.
+  for (const b of out.buildings) {
+    const pts = gardenPools.get(b);
+    if (!pts) continue;
+    const [x, y] = centre(pts);
+    if (c.ground.front(x, y) <= Math.hypot(3.5, 2) + 1 || !c.ground.clear(pts) || c.laid.touches(pts)) continue;
+    out.pools.push([{ pts, seam: new Uint8Array(4) }]);
+    c.laid.add(pts);
   }
   return out;
 }
@@ -742,7 +767,8 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           const h = label === 'works' ? 6 + 2.5 * st : st * style.floor + (roof ? 0 : allowance(depth, style));
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
           if (!row) q = shapedPlan(q, label, roof, r);
-          if (add({ ring: q, h, building, roof })) {
+          const pool = label === 'suburb' && r(14730) < 0.16 ? poolBehind(q) : undefined;
+          if (add({ ring: q, h, building, roof, pool: pool && free(pool, z.label[probe]) ? pool : undefined })) {
             occ.take(q, SHARED);
             if ((label === 'rows' || label === 'suburb') && r(14711) < 0.08) {
               // A detached workshop across a back yard. Reserve all street fronts before trying it.

@@ -6,9 +6,9 @@
 import { pointInRing, ringArea } from './geo';
 import type { Block } from './image-blocks';
 import type { Footprints, Ground } from './image-check';
-import type { Label } from './image-tone';
+import { LABELS, type Label } from './image-tone';
 import { maskOf, shapesOf, waterOf } from './image-water';
-import type { Zones } from './image-zones';
+import { chamferDistance, type Zones } from './image-zones';
 import { bestRect } from './shape';
 import type { Area, Shape, Town, Way } from './tiles';
 
@@ -18,17 +18,36 @@ type Vary = (x: number, y: number, salt: number) => number;
 /** The open land of a land plan, each kind from its zones' outline. */
 export type Land = { water: Shape[]; waterCls: string[]; plazas: Shape[]; parks: Shape[]; wood: Shape[]; fields: Shape[]; allotments: Shape[]; cover: Area[]; landuse: Area[] };
 
-/** Cover drawn with its own texture, by label. Fields and allotments are cut into a patchwork separately. */
-const COVER: [Label, string][] = [
-  ['meadow', 'meadow'],
-  ['sand', 'beach'],
-];
+/** Meadow changes to marsh at a water margin and to scrub at the edge of a wood. */
+function meadowCover(z: Zones): Area[] {
+  const grass = maskOf(z, ['meadow']);
+  if (!grass.includes(1)) return [];
+  const cover: Area[] = [];
+  // The wetter ground takes precedence where a wood runs down to the shore.
+  for (const [edge, cls, width] of [['water', 'wetland', 30], ['wood', 'scrub', 24]] as const) {
+    const source = LABELS.indexOf(edge);
+    if (!z.label.includes(source)) continue;
+    const distance = Float32Array.from(z.label, l => l === source ? 0 : Infinity);
+    chamferDistance(distance, z.W, z.H, grass);
+    const fringe = new Uint8Array(grass.length);
+    for (let i = 0; i < fringe.length; i++) {
+      // Denser meadow gives the transition a wider strip, in metres at every scale.
+      if (grass[i] && distance[i] * z.cell <= width * (0.65 + 0.7 * z.level[i])) {
+        fringe[i] = 1;
+        grass[i] = 0;
+      }
+    }
+    if (fringe.includes(1)) for (const shape of shapesOf(fringe, z, 4)) cover.push({ shape, cls });
+  }
+  for (const shape of shapesOf(grass, z, 4)) cover.push({ shape, cls: 'meadow' });
+  return cover;
+}
 
 /** Every kind of ground a land plan has, as the renderer takes it from the map. */
 export function landOf(z: Zones): Land {
   const water = waterOf(z);
-  const cover: Area[] = [];
-  for (const [l, cls] of COVER) for (const shape of shapesOf(maskOf(z, [l]), z, 4)) cover.push({ shape, cls });
+  const cover = meadowCover(z);
+  for (const shape of shapesOf(maskOf(z, ['sand']), z, 4)) cover.push({ shape, cls: 'beach' });
   // Land use under the buildings, so gardens, fences and works yards come with them.
   const landuse: Area[] = [
     ...shapesOf(maskOf(z, ['suburb', 'rows', 'old', 'blocks', 'towers']), z, 4).map((shape) => ({ shape, cls: 'residential' })),

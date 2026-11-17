@@ -210,6 +210,7 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   town.buildings = built.buildings;
   town.tagged = built.tagged;
   town.pois = built.pois;
+  town.pools = built.pools;
   town.landuse.push(...built.landuse);
   amenitiesOf(town, ctx);
   note('Planting trees');

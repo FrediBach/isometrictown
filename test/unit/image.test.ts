@@ -5,14 +5,14 @@
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
 import { amenitiesOf, civicSites } from '@/image-amenities';
-import { Footprints, Ground } from '@/image-check';
+import { Footprints, Ground, inShape } from '@/image-check';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, remapTarget, toneAt } from '@/image-read';
 import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
 import { compat, slic } from '@/image-zones';
 import { clean, degrees, planar, streetRules, tramRoute, type Graph } from '@/image-streets';
-import { ALLOTMENTS, FIELDS, patchwork } from '@/image-ground';
+import { ALLOTMENTS, FIELDS, landOf, patchwork } from '@/image-ground';
 import { blocksOf, facesOf, lotRing, MIN_FILL, Occupancy, PARCEL, strip, type Lot } from '@/image-blocks';
 import type { Zones } from '@/image-zones';
 import { classify } from '@/classify';
@@ -523,6 +523,23 @@ describe('image neighbourhood amenities', () => {
     amenitiesOf(town, ctx);
     expect(town.landuse).toHaveLength(1);
   });
+});
+
+test('meadow changes along a shore and a wood, with a built strip cutting off the marsh', () => {
+  const W = 140, H = 90, cell = 2;
+  const z: Zones = { x0: 0, y0: 0, W, H, cell, label: new Uint8Array(W * H), level: new Float32Array(W * H).fill(0.5), warmth: new Float32Array(W * H), sp: new Int32Array(W * H) };
+  for (let i = 0; i < z.label.length; i++) {
+    const x = (i % W) * cell, y = Math.floor(i / W) * cell;
+    const label = x < 60 ? 'water' : x >= 210 ? 'wood' : x < 72 && y > 88 ? 'rows' : 'meadow';
+    z.label[i] = LABELS.indexOf(label);
+  }
+  const { cover } = landOf(z);
+  const at = (x: number, y: number) => cover.filter(a => inShape(a.shape, x, y)).map(a => a.cls);
+  expect(at(78, 42)).toEqual(['wetland']);
+  expect(at(78, 138)).toEqual(['meadow']);
+  expect(at(142, 42)).toEqual(['meadow']);
+  expect(at(198, 42)).toEqual(['scrub']);
+  expect(at(240, 42)).toEqual([]);
 });
 
 describe('fields and allotments', () => {

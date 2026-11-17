@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { ringArea } from '@/geo';
 import { imageScene, plausibility, type Scene } from '@/image';
+import { centre, Footprints, Ground } from '@/image-check';
 import { densityOf } from '@/image-density';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { PICTURES } from '../support/pictures';
@@ -66,4 +67,23 @@ test('street-front rows fill more ground in a dark disc while keeping their site
   const tall = imageScene(pic, { ...settings, image: pic.id, imageDensity: 1, imageRelief: 1 });
   expect(tall.town.buildings.some((b) => b.h > 65)).toBe(true);
   expect(plausibility(tall.town)).toEqual([]);
+});
+
+test('garden pools keep clear of the finished houses and paths as density changes', () => {
+  const pic = PICTURES.gradient();
+  for (const imageDensity of [0, 1, -1, 0]) {
+    const { town } = imageScene(pic, { ...settings, image: pic.id, sheet: 'a3', imageDensity });
+    const occupied = new Footprints();
+    const ground = new Ground(town);
+    for (const b of town.buildings) occupied.add(b.shape[0].pts);
+    if (!imageDensity) expect(town.pools.length).toBeGreaterThan(0);
+    for (const pool of town.pools) {
+      const p = pool[0].pts;
+      expect(ringArea(p)).toBeCloseTo(28);
+      expect(occupied.touches(p)).toBe(false);
+      expect(ground.clear(p)).toBe(true);
+      expect(ground.front(...centre(p))).toBeGreaterThan(5);
+      occupied.add(p);
+    }
+  }
 });

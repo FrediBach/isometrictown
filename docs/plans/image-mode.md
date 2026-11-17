@@ -458,7 +458,7 @@ The inner ring of a perimeter block is a courtyard. Tuning decides whether it ge
 ### 12.1 Footprints
 
 - **Rows and old town:** the lot's strip, to a depth tuning chooses, set on the street line. Neighbours share their side edges exactly, so `classify()` finds party walls (`PARTY_TOL` is 0.9 m), a terrace shares one seed, and rows read as rows.
-- **Suburbs:** a rectangle square to the front edge, set back 3–8 m, its area the lot's coverage. Some houses are L- or T-shaped (cross gables come for free), and some have a garage or shed at the back.
+- **Suburbs:** a rectangle square to the front edge, set back 3–8 m, its area the lot's coverage. Some houses are L- or T-shaped (cross gables come for free), and some have a garage or shed at the back. A roomy back garden can fit a 7 × 4 m pool parallel to the street. Pools are checked against the finished buildings after density changes.
 - **Works:** sawtooth halls have rectangular plans. Flat-roofed halls may have a rear wing, or two wings around a service court on a wide site.
 - **Towers:** a square or slab footprint, at least 20 m clear of the next, sometimes with all four corners bevelled. The bevel depth follows the shorter side so long slabs keep their proportions.
 - Rings run counter-clockwise and have no seams.
@@ -512,6 +512,7 @@ A town needs a few things it has only one or two of. They make the place believa
 - **`Town.landuse`** for every built block, as §12.3 lists. Suburbs and rows get `residential`, so `paintGardens()` draws lawns and garden trees wherever buildings cover under 30% of a residential area of 2,000 m² or more, and `plots()` fences each house the local way.
 - **`Town.green`** for parks, courtyard gardens and village greens. `pitch` land use rectangles in bright parts of parks get marked pitches. `cemetery` land use beside churches gets headstones.
 - **`Town.wood`** for woods.
+- Meadow adjoining water becomes marsh and meadow adjoining a wood becomes scrub. The planted strip widens with meadow density.
 - **`Town.cover`** for fields (`farmland`, which `ground.ts` furrows along each field's length, so fields follow the street field), `meadow`, `orchard`, `vineyard`, `allotments`, `scrub`, `sand` and `beach`. `rock` and `ice` appear only at the edges, in the Alpine style.
 
 ### 13.2 Fields

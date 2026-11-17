@@ -103,7 +103,8 @@ const distance = (x: number, y: number, ax: number, ay: number, bx: number, by: 
   return Math.hypot(x - ax - dx * t, y - ay - dy * t);
 };
 const toSeg = (s: Seg, x: number, y: number) => distance(x, y, s.ax, s.ay, s.bx, s.by);
-const inShape = (s: Shape, x: number, y: number) => pointInRing(x, y, s[0].pts) && !s.slice(1).some((r) => pointInRing(x, y, r.pts));
+/** Whether a point lies in the outer ring and outside all its holes. */
+export const inShape = (s: Shape, x: number, y: number) => pointInRing(x, y, s[0].pts) && !s.slice(1).some((r) => pointInRing(x, y, r.pts));
 
 /** The ground buildings may not stand on, and the streets and paths they front. */
 export class Ground {
@@ -252,6 +253,17 @@ export class Footprints {
   /** Whether a point is inside any footprint laid. */
   covers(x: number, y: number): boolean {
     return this.index.at(x, y).some((j) => pointInRing(x, y, this.rings[j]));
+  }
+  /** Whether any occupied outline touches, crosses or contains this ring, including narrow corner overlaps. */
+  touches(ring: number[]): boolean {
+    for (const j of this.index.around(ring)) {
+      const other = this.rings[j];
+      if (pointInRing(ring[0], ring[1], other) || pointInRing(other[0], other[1], ring)) return true;
+      for (let a = 0, b = ring.length - 2; a < ring.length; b = a, a += 2)
+        for (let c = 0, d = other.length - 2; c < other.length; d = c, c += 2)
+          if (meet(ring[a], ring[a + 1], ring[b], ring[b + 1], other[c], other[c + 1], other[d], other[d + 1])) return true;
+    }
+    return false;
   }
   /** Whether a footprint overlaps another, apart from the consecutive plots it replaces when joined. */
   clash(ring: number[], first = -1, last = -1): boolean {

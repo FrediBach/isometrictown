@@ -1,7 +1,7 @@
 /** Sites for the shared renderer in a fictional town, chosen after its buildings and paths are fixed. */
 import { pointInRing, ringArea } from './geo';
 import type { BuildContext, Built } from './image-buildings';
-import { Footprints } from './image-check';
+import { Footprints, inShape } from './image-check';
 import { labelAt } from './image-zones';
 import type { Town } from './tiles';
 
@@ -60,6 +60,7 @@ export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildCon
     if ((building === 'terrace' || building === 'apartments') && ground.front(x, y) < 14 && vary(x, y, 14702) < 0.10)
       town.pois.push({ x, y, cls: 'shop', sub: 'shop' });
   }
+  const rough = town.cover.filter(a => a.cls === 'wetland' || a.cls === 'scrub');
   const grounds = new Footprints();
   for (const a of town.landuse) if (a.cls === 'pitch') grounds.add(a.shape[0].pts);
   for (const w of town.ways) {
@@ -86,7 +87,7 @@ export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildCon
       if (w.kind !== 'path' || vary(mx, my, 14706) >= 0.20) continue;
       const [x, y] = at(0, 16);
       const label = labelAt(z, x, y);
-      if (label === 'meadow' && w.cls === 'track' && !ground.under(x, y) && !laid.covers(x, y) && spaced('campsite', x, y, 550)) {
+      if (label === 'meadow' && w.cls === 'track' && !ground.under(x, y) && !laid.covers(x, y) && !rough.some(a => inShape(a.shape, x, y)) && spaced('campsite', x, y, 550)) {
         town.pois.push({ x, y, cls: 'campsite', sub: 'camp_site' });
       }
       if (label !== 'park') continue;

@@ -453,7 +453,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       const inside = distanceIn(cellLabel, k, W, H);
       const core = new Float32Array(n);
       for (let c = 0; c < n; c++) core[c] = inside[c] >= r ? 0 : Infinity;
-      grow(core, W, H);
+      chamferDistance(core, W, H);
       for (let c = 0; c < n; c++) if (cellLabel[c] === k && core[c] <= r) keep[c] = 1;
     }
     const kept = new Float32Array(count);
@@ -660,16 +660,17 @@ function coresOf(label: Uint8Array, nbrs: [number, number, number][][], area: Fl
 function distanceIn(label: Uint8Array, k: number, W: number, H: number): Float32Array {
   const d = new Float32Array(W * H);
   for (let c = 0; c < d.length; c++) d[c] = label[c] === k ? Infinity : 0;
-  grow(d, W, H);
+  chamferDistance(d, W, H);
   return d;
 }
 
-/** Chamfer distance in place: each cell becomes its distance to the nearest cell holding 0, in cells. */
-function grow(d: Float32Array, W: number, H: number): void {
+/** Chamfer distance in place: each cell takes its distance to the nearest zero, in cells. A mask limits where distances may spread. */
+export function chamferDistance(d: Float32Array, W: number, H: number, mask?: Uint8Array): void {
   const D = Math.SQRT2;
   for (let j = 0; j < H; j++)
     for (let i = 0; i < W; i++) {
       const c = j * W + i;
+      if (mask && !mask[c]) continue;
       let v = d[c];
       if (i > 0) v = Math.min(v, d[c - 1] + 1);
       if (j > 0) {
@@ -682,6 +683,7 @@ function grow(d: Float32Array, W: number, H: number): void {
   for (let j = H - 1; j >= 0; j--)
     for (let i = W - 1; i >= 0; i--) {
       const c = j * W + i;
+      if (mask && !mask[c]) continue;
       let v = d[c];
       if (i < W - 1) v = Math.min(v, d[c + 1] + 1);
       if (j < H - 1) {
