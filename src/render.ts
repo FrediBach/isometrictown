@@ -14,6 +14,9 @@ import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type T
 import { marginalia } from './marginalia';
 import { Paper } from './raster';
 import { humanize } from './humanize';
+import { ImageHatching } from './image-hatching';
+import { ImageSpace } from './image-space';
+import type { Target } from './image-read';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
 import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
@@ -30,11 +33,12 @@ export type Counts = { buildings: number; houses: number; trees: number; cars: n
 /** How many buildings and trees in the drawing carry each catalogue facet (`house`, `gabled-roof`, `palm`). */
 export type Census = Record<string, number>;
 /** Which building shows at each pixel of the drawing area, for clicking in the preview. */
-export type Picks = { x0: number; y0: number; ppm: number; W: number; H: number; ids: Int32Array; keys: string[] };
+export type Picks = { x0: number; y0: number; ppm: number; W: number; H: number; ids: Int32Array; keys: string[]; space?: ImageSpace };
 export type Drawing = { pens: number[][][]; counts: Counts; census: Census; picks: Picks };
 
 /** The lock key of the building at a sheet position (mm), looking a little around it for a near miss. */
 export function pickAt(p: Picks, x: number, y: number): string | null {
+  if (p.space && !p.space.keeps(x, y)) return null;
   const px = Math.floor((x - p.x0) * p.ppm);
   const py = Math.floor((y - p.y0) * p.ppm);
   const reach = Math.ceil(p.ppm * 0.6);
@@ -46,7 +50,7 @@ export function pickAt(p: Picks, x: number, y: number): string | null {
         const qy = py + dy;
         if (qx < 0 || qy < 0 || qx >= p.W || qy >= p.H) continue;
         const id = p.ids[qy * p.W + qx];
-        if (id >= 0) return p.keys[id];
+        if (id >= 0 && (!p.space || p.space.keeps(p.x0 + (qx + 0.5) / p.ppm, p.y0 + (qy + 0.5) / p.ppm))) return p.keys[id];
       }
     }
   }
@@ -62,9 +66,10 @@ export function reachHeight(set: Settings): number {
 export type OnStage = (p: StageProgress) => void;
 
 /** `tally`, when given, collects every stroke by the feature that drew it (see `Paper.tally`). */
-export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null): Drawing {
+export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null, target?: Target): Drawing {
   const cam = new Camera(set);
   const paper = new Paper(cam);
+  const hatching = set.source === 'image' && set.imageHatching > 0 && target ? new ImageHatching(target, set.imageHatching, cam.nib) : undefined;
   paper.tally = tally;
   /** File solids under a layer, and optionally a facet the catalogue can single them out by. */
   const tag = <T extends Solid[]>(layer: LayerId, solids: T, facet?: string): T => {
@@ -101,6 +106,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const fromAbs = (X: number, Y: number): [number, number] => [frame.x(X), frame.y(Y)];
   const B: Build = {
     cam,
+    hatching,
     set,
     style,
     sun,
@@ -342,11 +348,11 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   });
   const paths = (set.parks || G || set.shadows) && set.paths ? at('paths', () => pathClearance(B, paper, town.ways)) : undefined;
   if (set.parks) withPen('parks', () => {
-    paper.facet('grass', () => parkGrass(paper, M, G, paths));
+    paper.facet('grass', () => parkGrass(paper, M, G, paths, hatching));
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
     paper.facet('wood-edges', () => outline(paper, GREENERY, town.wood, M.wood, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y)));
   });
-  if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths); });
+  if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths, hatching); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
   withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');
@@ -381,9 +387,11 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     }
   }
 
+  const space = set.source === 'image' && set.imagePreserveSpace && target ? new ImageSpace(target, set.imageHighlight, set.penWidth) : undefined;
+  space?.trim(paper.pens, tally);
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
-  const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys };
+  const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys, space };
   return { pens: paper.pens, counts, census, picks };
 }
 

@@ -93,7 +93,12 @@ export class Occupancy {
    */
   free(ring: number[], own = 0): boolean {
     if (!this.cells([ring], true, (c) => !this.taken[c])) return false;
-    return !own || this.cells([ring], false, (c) => !this.taken[c] || this.taken[c] === own);
+    return !own || this.allows(ring, own);
+  }
+
+  /** Whether a ring stays on vacant ground or ground reserved for its own kind of plot. */
+  allows(ring: number[], own: number): boolean {
+    return this.cells([ring], false, (c) => !this.taken[c] || this.taken[c] === own);
   }
 
   /** Mark a ring's cells taken, with `value` saying by what (1 for anything that may not be shared). */

@@ -1,4 +1,5 @@
 import type { Camera } from './camera';
+import type { ImageHatching } from './image-hatching';
 import { PEN_COUNT } from './settings';
 
 /** Visibility test for a point on the sheet (mm) at a given depth (m). */
@@ -7,6 +8,8 @@ export type Test = (x: number, y: number, d: number) => boolean;
 const STEP = 0.5;
 const EPS = 0.08;
 const MIN_RUN = 0.12;
+// Interleave whole hatch lines in eighths, so a light patch thins evenly across the sheet.
+const HATCH_RANK = [0.0625, 0.5625, 0.3125, 0.8125, 0.1875, 0.6875, 0.4375, 0.9375];
 
 /**
  * Scan-convert polygon rings (pixel coordinates, flat x,y) with the even-odd rule.
@@ -412,7 +415,7 @@ export class Paper {
    * Parallel hatch lines across the whole drawing area at a sheet angle, drawn on the ground.
    * keep(x, y) chooses where they show; hidden ground is skipped automatically.
    */
-  hatchGround(pen: number, angle: number, spacing: number, keep: (x: number, y: number) => boolean): void {
+  hatchGround(pen: number, angle: number, spacing: number, keep: (x: number, y: number) => boolean, hatching?: ImageHatching): void {
     const a = (angle * Math.PI) / 180;
     const ux = Math.cos(a);
     const uy = Math.sin(a);
@@ -432,13 +435,25 @@ export class Paper {
     const uMax = Math.max(...us) + 1;
     const cam = this.cam;
     const test: Test = (x, y, d) => keep(x, y) && this.seen(x, y, d);
-    for (let t = Math.ceil(nMin / spacing) * spacing; t <= nMax; t += spacing) {
+    const line = (t: number, visible: Test) => {
       const ax = nx * t + ux * uMin;
       const ay = ny * t + uy * uMin;
       const bx = nx * t + ux * uMax;
       const by = ny * t + uy * uMax;
-      this.seg(pen, ax, ay, cam.groundDepth(ay), bx, by, cam.groundDepth(by), test);
+      this.seg(pen, ax, ay, cam.groundDepth(ay), bx, by, cam.groundDepth(by), visible);
       this.end();
+    };
+    if (!hatching) {
+      for (let t = Math.ceil(nMin / spacing) * spacing; t <= nMax; t += spacing) line(t, test);
+      return;
+    }
+    // Keep the original lines at their usual positions, and place an extra one between
+    // them only where dark ink is wanted and the pen still leaves a clear gap.
+    const extra = spacing / 2 >= hatching.minGap;
+    for (let k = Math.floor(nMin / spacing); k <= Math.ceil(nMax / spacing); k++) {
+      const rank = HATCH_RANK[k & 7];
+      line(k * spacing, (x, y, d) => hatching.at(x, y) >= rank && test(x, y, d));
+      if (extra) line((k + 0.5) * spacing, (x, y, d) => hatching.at(x, y) >= 1 + rank && test(x, y, d));
     }
   }
 

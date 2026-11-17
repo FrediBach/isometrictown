@@ -3,6 +3,7 @@ import { REF_NIB } from './camera';
 import { pointInRing, ringArea } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
+import type { ImageHatching } from './image-hatching';
 import { hash, patch } from './rng';
 import { GREENERY, LINEWORK, SHADOWS, WATER } from './settings';
 import { bestRect, turn, type Rect } from './shape';
@@ -376,7 +377,7 @@ export function lightly(G: Ground, paper: Paper, x: number, y: number): boolean 
 }
 
 /** Hatch the shadow union, leaving out tiny disconnected patches of visible ground tone. */
-export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array): void {
+export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array, hatching?: ImageHatching): void {
   const { cam, W, H, ppm } = paper;
   const visible = paper.mask();
   let count = 0;
@@ -416,11 +417,11 @@ export function castShadows(paper: Paper, M: Masks, paths?: Uint8Array): void {
   }
   // Retained edges keep their original shape; only drawable paths interrupt the tone.
   paper.hatchGround(SHADOWS, 62, cam.tone(0.95), (x, y) => paper.on(M.shadow, x, y)
-    && !paper.on(M.water, x, y) && !(paths && paper.on(paths, x, y) && !paper.on(M.road, x, y)) && paper.at(visible, x, y) !== 3);
+    && !paper.on(M.water, x, y) && !(paths && paper.on(paths, x, y) && !paper.on(M.road, x, y)) && paper.at(visible, x, y) !== 3, hatching);
 }
 
 /** Quiet park tone, inset from boundaries and visible objects so their outlines stay separate. */
-export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array): void {
+export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths?: Uint8Array, hatching?: ImageHatching): void {
   const cam = paper.cam;
   const inset = cam.nib * 1.5;
   const clear = (x: number, y: number) => paper.on(M.green, x, y)
@@ -428,9 +429,9 @@ export function parkGrass(paper: Paper, M: Masks, G: Ground | null = null, paths
     && !paper.on(M.foot, x, y) && !paper.on(M.shadow, x, y) && paper.seen(x, y, cam.groundDepth(y));
   const grass = (x: number, y: number) => !(paths && paper.on(paths, x, y)) && clear(x, y)
     && clear(x - inset, y) && clear(x + inset, y) && clear(x, y - inset) && clear(x, y + inset);
-  paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)));
+  paper.hatchGround(GREENERY, -27, cam.gap(1.8), (x, y) => grass(x, y) && !(G && textured(G, paper, x, y)), hatching);
   // Every other line shares the same phase under headstones and pitch markings.
-  if (G) paper.hatchGround(GREENERY, -27, cam.gap(3.6), (x, y) => grass(x, y) && lightly(G, paper, x, y));
+  if (G) paper.hatchGround(GREENERY, -27, cam.gap(3.6), (x, y) => grass(x, y) && lightly(G, paper, x, y), hatching);
 }
 
 /** Park trees stay off marked pitches and thin out to a few over meadows and marsh. */
@@ -538,8 +539,15 @@ function field(B: Build, paper: Paper, c: Cover, test: Test): void {
   const { ux, uy } = c.rect;
   const [k0, k1] = B.key(c.rect.cx, c.rect.cy);
   const r = (salt: number) => hash(k0, k1, B.set.seed, 50 + salt);
-  const spacing = B.cam.gap(FURROW_MM[0] + (FURROW_MM[1] - FURROW_MM[0]) * r(1)) / mmPer(B, -uy, ux);
+  const gap = B.cam.gap(FURROW_MM[0] + (FURROW_MM[1] - FURROW_MM[0]) * r(1));
+  let spacing = gap / mmPer(B, -uy, ux);
   const along = mmPer(B, ux, uy);
+  if (B.hatching) {
+    // Projected area of a square metre divided by its row length gives the true
+    // perpendicular separation on paper, including furrows viewed at a shallow angle.
+    const across = B.cam.s * B.cam.s * B.cam.sa / along;
+    spacing = B.hatching.gap(spacing * across, B.cam.sx(c.rect.cx, c.rect.cy), B.cam.sy(c.rect.cx, c.rect.cy, 0)) / across;
+  }
   const stubble = r(2) < 0.3 && along > 0;
   rows(c.shape, c.rect, spacing, (ax, ay, bx, by, row) => {
     if (!stubble) {

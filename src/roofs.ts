@@ -59,8 +59,8 @@ function face(out: Solid, pts: number[][]): number[][] | undefined {
 
 /**
  * How many hatch strokes fit along an eave from a to b (at height z) on paper. The strokes run
- * like p to q (local 3D points), and the gap is kept square to them and never under the set
- * spacing, so no roof face is hatched darker than another.
+ * like p to q (local 3D points). Measure spacing square to the strokes on the sheet
+ * so it follows the chosen tone even on a foreshortened face.
  */
 function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: number, p: number[], q: number[], endZ = z): number {
   const c = B.cam;
@@ -71,7 +71,9 @@ function strokes(B: Build, ax: number, ay: number, bx: number, by: number, z: nu
   const hl = Math.hypot(hx, hy);
   const across = hl > 1e-9 ? Math.abs(ex * hy - ey * hx) / hl : Math.hypot(ex, ey);
   // Rounded down: a short slope rounded up would be hatched closer than the rest and read darker.
-  return Math.max(1, Math.floor(across / c.within('roofHatch', () => c.gap(ROOF_HATCH_MM))));
+  let gap = c.within('roofHatch', () => c.gap(ROOF_HATCH_MM));
+  if (B.hatching) gap = B.hatching.gap(gap, c.sx(ax, ay) + (ex + hx) / 2, c.sy(ax, ay, z) + (ey + hy) / 2);
+  return Math.max(1, Math.floor(across / gap));
 }
 
 /** Whether hatch strokes running from a to b (local 3D points) are long enough on paper to read as strokes. */
@@ -394,7 +396,13 @@ function hatchTop(B: Build, outer: { pts: number[]; seam: Uint8Array }, rings: n
   // Paper distance between strokes one metre apart along e, measured square to the strokes.
   const across = hl > 1e-9 ? Math.abs(kx * hy - ky * hx) / hl : Math.hypot(kx, ky);
   if (across < 1e-9) return;
-  const step = c.within('roofHatch', () => c.gap(ROOF_HATCH_MM)) / across;
+  let gap = c.within('roofHatch', () => c.gap(ROOF_HATCH_MM));
+  if (B.hatching) {
+    let cx = 0, cy = 0;
+    for (let k = 0; k < p.length; k += 2) { cx += p[k]; cy += p[k + 1]; }
+    gap = B.hatching.gap(gap, c.sx(cx / n, cy / n), c.sy(cx / n, cy / n, z));
+  }
+  const step = gap / across;
   const ox = p[best * 2];
   const oy = p[best * 2 + 1];
   let lo = Infinity;

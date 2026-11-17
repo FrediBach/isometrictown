@@ -23,6 +23,16 @@ export type Settings = {
   imageColour: number;
   /** How much image tone sets building heights, from the usual town (0) to towers in its darkest areas (1). */
   imageRelief: number;
+  /** How much tone sets the ground occupied by buildings. */
+  imageDensity: number;
+  /** How much tone changes the spacing of roof, wall and ground hatching. */
+  imageHatching: number;
+  /** How strongly sustained image lines steer streets and paths. */
+  imageContours: number;
+  /** Keep transparent areas and any selected highlights free of scene ink. */
+  imagePreserveSpace: boolean;
+  /** Adjusted tone at which paper is reserved. One selects transparency alone. */
+  imageHighlight: number;
   /** How far the image may bend the rules that keep the town ordinary, 0 to 1. */
   likeness: number;
   /** Street pattern in image mode; auto picks grid for the North American and Australian styles. */
@@ -171,6 +181,11 @@ export const DEFAULT_SETTINGS: Settings = {
   imageContrast: 1,
   imageColour: 0.7,
   imageRelief: 0,
+  imageDensity: 0,
+  imageHatching: 0,
+  imageContours: 0,
+  imagePreserveSpace: false,
+  imageHighlight: 1,
   likeness: 0.6,
   fabric: 'auto',
   bearing: 35,

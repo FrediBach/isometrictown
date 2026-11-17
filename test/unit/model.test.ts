@@ -148,7 +148,7 @@ describe('share links', () => {
 });
 
 describe('image mode', () => {
-  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, likeness: 0.9, fabric: 'grid' });
+  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, imageDensity: 0.4, imageHatching: 0.25, imageContours: 0.8, imagePreserveSpace: true, imageHighlight: 0.87, likeness: 0.9, fabric: 'grid' });
 
   test('every image setting survives a share link, and the map place stays', () => {
     const set = { ...image(), center: [4.89, 52.37] as [number, number], place: 'Amsterdam' };
@@ -164,15 +164,15 @@ describe('image mode', () => {
   });
 
   test('bad image settings in a link are dropped or mended', () => {
-    loc.hash = '#47/9/35/1000/1/Mollis/source=photo&image=../../etc&imageFit=stretch&fabric=maze&imageFocus=2,-1&imageLight=9&imageContrast=0&imageColour=x&imageRelief=1.8&likeness=-3';
+    loc.hash = '#47/9/35/1000/1/Mollis/source=photo&image=../../etc&imageFit=stretch&fabric=maze&imageFocus=2,-1&imageLight=9&imageContrast=0&imageColour=x&imageRelief=1.8&imageDensity=-1&imageHatching=none&imageContours=2&imageHighlight=-3&likeness=-3';
     const s = loadSettings();
-    expect(s).toMatchObject({ source: 'map', image: '', imageFit: 'fill', fabric: 'auto', imageFocus: [1, 0], imageLight: 1, imageContrast: 0.5, imageColour: 0.7, imageRelief: 1, likeness: 0 });
+    expect(s).toMatchObject({ source: 'map', image: '', imageFit: 'fill', fabric: 'auto', imageFocus: [1, 0], imageLight: 1, imageContrast: 0.5, imageColour: 0.7, imageRelief: 1, imageDensity: 0, imageHatching: 0, imageContours: 1, imageHighlight: 0, likeness: 0 });
   });
 
-  test('opening an older image link restores the original skyline', () => {
+  test('opening an older image link restores the original image controls', () => {
     persist(image());
     loc.hash = '#47/9/35/2500/1/Mollis/source=image&image=0123456789abcdef';
-    expect(loadSettings().imageRelief).toBe(0);
+    expect(loadSettings()).toMatchObject({ imageRelief: 0, imageDensity: 0, imageHatching: 0, imageContours: 0, imagePreserveSpace: false, imageHighlight: 1 });
   });
 
   test('switching to image mode sets its defaults only where nothing was changed', () => {

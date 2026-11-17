@@ -13,6 +13,7 @@ import { Frame, ringArea, type LngLat } from './geo';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { buildingsOf, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
+import { densityOf } from './image-density';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { imageHeights } from './image-heights';
 import { tune, type Prediction, type Seen } from './image-tune';
@@ -74,7 +75,7 @@ export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, nu
  * Detail, pen width, pen colours, sun, shadows and the layer switches only change how it
  * is drawn, so they never move a street.
  */
-const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
+const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'imageContours', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
 /** And the target, on what decides how the drawing should look. */
 const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia'];
 
@@ -82,7 +83,7 @@ const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[]) => JSON.st
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
 let laid: { key: string; zones: Zones; layout: Layout } | null = null;
-let built: { key: string; town: Town } | null = null;
+let built: { key: string; density: number; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture, reusing the last layout. The lab can request a tuned build of its own. */
@@ -112,7 +113,9 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true);
     return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
   }
-  if (built?.key !== townKey) built = { key: townKey, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note).town };
+  if (built?.key !== townKey || built.density !== drawn.imageDensity) {
+    built = { key: townKey, density: drawn.imageDensity, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note).town };
+  }
   const town = structuredClone(built.town);
   imageHeights(town, target, cam, drawn, laid.layout.context);
   return { ...scene, blocks: laid.layout.blocks, town };
@@ -154,7 +157,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
-  const st = streets(zones, target, cam, { likeness: set.likeness, fabric: set.fabric, seed: set.seed, style: style.id }, parks);
+  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id }, parks);
   town.ways = [...st.ways, ...st.paths, ...fields.tracks, ...allots.tracks];
   town.plazas.push(...st.circles);
   town.streams = st.streams;
@@ -185,7 +188,8 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   // Buildings add land use, and rendering can put roundabout islands in the parks.
   const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
-  const buildingGround = (): BuildContext => ({ ...layout.context, set, occ: layout.context.occ.clone(), laid: new Footprints() });
+  const density = set.imageDensity > 0 ? densityOf(target, cam) : undefined;
+  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
   let tunedFronts: Map<number, FrontageLot> | undefined;
   if (tuned) {

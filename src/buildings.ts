@@ -1,5 +1,6 @@
 import { helicopter } from './aircraft';
 import type { Camera } from './camera';
+import type { ImageHatching } from './image-hatching';
 import type { Info } from './classify';
 import { facadeLines, PLAIN, type Facade, type Wall } from './facades';
 import { pointInRing, ringArea } from './geo';
@@ -31,6 +32,8 @@ export type Solid = {
 
 export type Build = {
   cam: Camera;
+  /** Image tone for hatching, sampled where a visible surface projects onto the sheet. */
+  hatching?: ImageHatching;
   set: Settings;
   /** The regional building style in use. */
   style: Style;
@@ -204,7 +207,12 @@ export function shadeWall(B: Build, ax: number, ay: number, bx: number, by: numb
   }
   const across = Math.abs(dx * cam.cb - dy * cam.sb);
   const strength = Math.min(1, (away - 0.2) / 0.5);
-  const m = Math.floor(across * cam.s * strength / cam.tone(SHADE_MM));
+  let gap = cam.tone(SHADE_MM);
+  if (B.hatching) {
+    const x = (ax + bx) / 2, y = (ay + by) / 2;
+    gap = B.hatching.gap(gap, cam.sx(x, y), cam.sy(x, y, (z0 + top(0.5)) / 2));
+  }
+  const m = Math.floor(across * cam.s * strength / gap);
   for (let k = 1; k < m; k++) {
     const t = k / m, x = ax + dx * t, y = ay + dy * t;
     out.lines.push({ pen: SHADOWS, layer: 'shadeWalls', pts: [x, y, z0, x, y, top(t)] });

@@ -12,6 +12,8 @@
  *   npm run likeness -- --tuned                     experimental tuning before drawing
  *   npm run likeness -- --likeness 0.2                 another Likeness
  *   npm run likeness -- --relief 1                     full Height from image
+ *   npm run likeness -- --density 0.7 --hatching 1 --contours 0.5
+ *   npm run likeness -- --preserve-space --highlight 0.9
  *   npm run likeness -- --pens archive                 another palette
  *   npm run likeness -- --sheet a4                     another sheet (A3 by default)
  *   npm run likeness -- --no-png                       numbers only, faster
@@ -37,14 +39,20 @@ const name = opt('name', 'likeness');
 const outDir = path.join(here, 'out', name);
 const png = !flag('no-png');
 const compare = opt('compare', null);
+const numberOption = (name) => opt(name, null) === null ? undefined : Number(opt(name));
 const options = {
   tuned: flag('tuned'),
-  likeness: opt('likeness', null) === null ? undefined : Number(opt('likeness')),
-  relief: opt('relief', null) === null ? undefined : Number(opt('relief')),
+  likeness: numberOption('likeness'),
+  relief: numberOption('relief'),
+  density: numberOption('density'),
+  hatching: numberOption('hatching'),
+  contours: numberOption('contours'),
+  preserveSpace: flag('preserve-space'),
+  highlight: numberOption('highlight'),
   pens: opt('pens', undefined),
   sheet: opt('sheet', undefined),
-  detail: opt('detail', null) === null ? undefined : Number(opt('detail')),
-  penWidth: opt('pen', null) === null ? undefined : Number(opt('pen')),
+  detail: numberOption('detail'),
+  penWidth: numberOption('pen'),
 };
 
 // Image mode must never touch the network.
@@ -110,7 +118,7 @@ for (const picture of pictures) {
       const ms = Object.fromEntries(Object.entries(r.ms).map(([k, v]) => [k, Math.round(v)]));
       console.log(`${label} likeness ${fmt(l.score * 100, 1).padStart(6)}  ΔE ${fmt(l.dE[0], 3)} / ${fmt(l.dE[1], 3)}  SSIM ${fmt(l.ssim, 3)}  tone ${pct(r.stats.tone).padStart(6)}  waste ${pct(r.stats.total.waste).padStart(6)}  ${fmt(r.counts.buildings)} buildings  ${ms.total} ms (read ${ms.read}, zone ${ms.zone}, layout ${ms.layout}, render ${ms.render}, score ${ms.score})`);
       console.log(`${''.padEnd(22)} ${r.streets} streets, ${r.violations.length ? `rules broken: ${r.violations.slice(0, 3).join('; ')}` : 'rules kept'}; ${r.blocks} blocks, ${r.lots} lots, ${r.implausible.length ? `implausible: ${r.implausible.join('; ')}` : 'plausible'}`);
-      const prediction = options.relief > 0 ? 'predicted at ordinary heights' : 'predicted';
+      const prediction = options.relief > 0 || options.hatching > 0 || options.preserveSpace ? 'predicted with ordinary heights and hatching, before clipping' : 'predicted';
       console.log(`${''.padEnd(22)} follows the image ${r.corr.toFixed(3)}; ink per pen ${prediction} ${r.guard.predicted.map((v) => (v * 100).toFixed(1)).join('/')} %, drawn ${r.guard.drawn.map((v) => (v * 100).toFixed(1)).join('/')} %`);
       console.log(`${''.padEnd(22)} zones ${Object.entries(r.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.01).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', ')}`);
       const features = Object.entries(r.features).map(([label, v]) => `${label} ${pct(v)}`);

@@ -7,7 +7,8 @@
  */
 import { pointInRing, ringArea } from './geo';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
-import { centre, simpleFootprint, type Footprints, type Ground } from './image-check';
+import { centre, Footprints, simpleFootprint, type Ground } from './image-check';
+import { footprintAtDensity, vacant, type Density } from './image-density';
 import { LABELS, type Label } from './image-tone';
 import type { Zones } from './image-zones';
 import { hash } from './rng';
@@ -42,7 +43,7 @@ const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
 export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[] };
-export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number };
+export type BuildContext = { z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
@@ -103,12 +104,15 @@ export type FrontageLot = { ring: number[]; label: Label; level: number; warmth:
 
 type FrontageOptions = { record?: FrontageLot[]; tuned?: ReadonlyMap<number, FrontageLot> };
 
+type DensityPlot = { empty: boolean; row: boolean; fits: (ring: number[]) => boolean; record?: FrontageLot };
+
 /** Lay out the buildings on the blocks' lots, then along the streets the blocks don't reach. */
 export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: FrontageOptions): Built {
   const { set, style, vary, occ, laid } = c;
   const [bx0, by0, bx1, by1] = c.box;
   const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
   const out: Built = { buildings: [], tagged: [], pois: [], landuse: [] };
+  const plots: (DensityPlot | undefined)[] | undefined = c.density ? [] : undefined;
   const likeness = Math.max(0, Math.min(1, set.likeness));
   const worship = style.id === 'arid' ? 'mosque' : style.id === 'eastAsian' ? 'temple' : 'church';
 
@@ -152,7 +156,13 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     if (next && !l.use && !prev!.use) st = Math.max(prevSt - step, Math.min(prevSt + step, st));
     prev = l;
     prevSt = st;
-    for (const p of footprints(l, st)) add(p);
+    const plans = footprints(l, st);
+    if (c.density && plots && plans.length && !l.use) {
+      const lot = lotRing(l);
+      const [x, y] = centre(lot);
+      const densityPlot = { empty: vacant(set.imageDensity * c.density(x, y), x, y, vary), row: ROWS.has(l.label), fits: (ring: number[]) => within(ring, lot) };
+      for (const p of plans) if (add(p)) plots[out.buildings.length - 1] = densityPlot;
+    } else for (const p of plans) add(p);
   }
 
   /** The footprints on one lot. */
@@ -310,7 +320,50 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     return [];
   }
 
-  frontages(c, out, add, frontageOptions);
+  frontages(c, out, add, frontageOptions, plots);
+  if (c.density && plots) {
+    // Reserve all accepted sites before extending any of them. A deep house may take up
+    // its own back garden, but it should never knock a neighbour out of the street front.
+    const occupied = new Footprints();
+    const extensions = new Footprints();
+    const { buildings, tagged } = out;
+    out.buildings = [];
+    out.tagged = [];
+    for (let i = 0; i < buildings.length; i++) {
+      const plot = plots[i];
+      if (plot?.empty) continue;
+      const b = buildings[i], tag = tagged[i];
+      let ring = b.shape[0].pts;
+      if (plot && tag.building !== 'shed') {
+        const fits = (p: number[]) => simpleFootprint(p) && plot.fits(p) && c.ground.clear(p) && !laid.clash(p, i, i) && !extensions.clash(p);
+        const full = footprintAtDensity(ring, plot.row, c.density, fits);
+        if (full !== ring) {
+          // Find the room each plot has at full strength first. A house with little room
+          // behind it then deepens gradually over the same slider range as its neighbours.
+          if (set.imageDensity === 1) ring = full;
+          else {
+            const blended = ring.map((v, k) => v + (full[k] - v) * set.imageDensity);
+            if (fits(blended)) {
+              ring = blended;
+              extensions.add(ring);
+            }
+          }
+          extensions.add(full);
+        }
+        if (ring !== b.shape[0].pts) {
+          b.shape[0].pts = ring;
+          [tag.x, tag.y] = centre(ring);
+          if (!inBox(tag.x, tag.y, 0)) b.context = true;
+          else delete b.context;
+        }
+      }
+      if (plot?.record) frontageOptions?.record?.push({ ...plot.record, ring });
+      occupied.add(ring);
+      out.buildings.push(b);
+      out.tagged.push(tag);
+    }
+    c.laid = occupied;
+  }
   return out;
 }
 
@@ -528,7 +581,7 @@ const FRONTAGE: Partial<Record<Label, Frontage>> = {
  * ground free: up dead ends, along the town's outer edge, and in blocks too awkward to inset.
  * The occupancy raster keeps them off roads, lots and each other; houses in a row share walls.
  */
-function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, options?: FrontageOptions): void {
+function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, options?: FrontageOptions, plots?: (DensityPlot | undefined)[]): void {
   const { z, style, occ, vary } = c;
   const zoneAt = (x: number, y: number) => {
     const i = Math.floor((x - z.x0) / z.cell);
@@ -536,14 +589,15 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
     return i < 0 || j < 0 || i >= z.W || j >= z.H ? -1 : j * z.W + i;
   };
   /** Whether a plot is free, and on land of `label` at its middle and near each corner. */
-  const free = (q: number[], label: number) => {
+  const free = (q: number[], label: number, resizing = false) => {
     const [cx, cy] = centre(q);
     for (let k = -2; k < q.length; k += 2) {
       const [x, y] = k < 0 ? [cx, cy] : [q[k] + (cx - q[k]) * 0.15, q[k + 1] + (cy - q[k + 1]) * 0.15];
       const zc = zoneAt(x, y);
       if (zc < 0 || z.label[zc] !== label) return false;
     }
-    return occ.free(q, SHARED);
+    // Once the original sites are reserved, their exact rings guard against neighbours.
+    return resizing ? occ.allows(q, SHARED) : occ.free(q, SHARED);
   };
   const [bx0, by0, bx1, by1] = c.box;
   const inBox = (x: number, y: number, pad: number) => x >= bx0 - pad && x <= bx1 + pad && y >= by0 - pad && y <= by1 + pad;
@@ -642,7 +696,10 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
           if (add({ ring: q, h, building, roof })) {
             occ.take(q, SHARED);
-            options?.record?.push({ ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot });
+            const record = options?.record && { ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot };
+            if (c.density && plots) {
+              plots[out.buildings.length - 1] = { empty: vacant(c.set.imageDensity * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
+            } else if (record) options?.record?.push(record);
           }
         }
         s += lot;

@@ -144,12 +144,12 @@ Take a landscape photo: blue sky across the top third, a green hillside, a red-r
 Each rule is checked by a test (§18).
 
 1. **Map mode is unchanged.** With `source: 'map'`, every existing golden stays byte-identical. Image code runs, consumes hashes and fills masks only in image mode.
-2. **One renderer.** Image mode only makes a `Town`. It steers `classify()` through the evidence `classify()` already reads (§12.3), not through special cases in drawing code. It adds three small hooks, all inert in map mode: explicit trees (§13.4), image-made tags that don't count as OSM tags (§12.3), and the margin text (§16.4).
+2. **One renderer.** Image mode builds a `Town` and steers `classify()` through its usual evidence (§12.3). The shared renderer accepts the image target for hatch spacing and clipping reserved paper. It also handles planted trees (§13.4), image-made tags (§12.3) and the margin text (§16.4).
 3. **No network.** Nothing in image mode fetches. The test fetch stub throws on any call.
 4. **Deterministic.** The same image (by content), settings and seed give the same SVG. There is no `Math.random()`. Hashes use a fixed fictional `Frame` (§5.2) and salts from a reserved range, 14000–14999. LOD fades keep 9100 and up, and grep before taking any salt.
-5. **Structure is stable.** Planning has two stages (§4). The *structure* (zones, water, streets, blocks, parcels) depends only on the image and its adjustments, the geometry (sheet, margin, scale, rotation, tilt), the style, Likeness, the street pattern and the seed. The *tuning* (heights, roofs, coverage, trees, ground materials) also depends on what changes tone: Detail, pen width, pens, sun, Shadows, Shade walls, Trees, Cars and the layer switches. Changing Detail or a pen re-tunes the town but never moves a street.
+5. **Structure is stable.** The zones, water, streets, blocks and parcels depend on the picture, its adjustments, the view geometry, style, Likeness, street pattern, Streets follow image lines and the seed. Building density can reuse those blocks. Height, hatch spacing and blank areas can reuse the building layout.
 6. **Believable beats like.** The rules in §10.5 and §11.4 are hard constraints. Likeness only weighs the soft costs.
-7. **Pass order holds.** Image mode adds no pass to `render()`. Pen colours are the one exception to AGENTS.md rule 6, and only in image mode (§15.1).
+7. **Pass order holds.** Hatching uses the existing drawing passes. Preserve empty space clips the visible strokes after Humanize and before the frame, margin and pen planning. A pen colour change recolours the SVG and updates its likeness score.
 
 ---
 
@@ -170,12 +170,12 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
                                                  tune()       → lots: kind, storeys, roof, cover, trees      ] cached by the tuning key
                                                  toTown()     → Town
                                                       │
-                                                 classify() → render() → plan() → toSvg()   (unchanged)
+                                                 render(Town, …, Target) → plan() → toSvg()
 ```
 
 - **Where it runs.** `worker.ts` branches on `set.source`. In image mode it skips `detectRegion()`, `loadTown()` and `loadTags()`, works out the drawn-as settings (§5.2), and calls `imageTown(picture, drawn, cam, box)` with the same `box = cam.region(reachHeight(set))`.
 - **Progress.** In image mode the `map` stage reads *Laying out the town*, with a note per step (*Reading the image*, *Laying out streets*, *Dividing blocks*, *Matching tone*). A stage of its own, with an icon, can come later.
-- **Caching.** As `assembled` does in `tiles.ts`, the worker keeps the last structure and the last tuned `Town` by key, and hands `render()` a `structuredClone`, because `classify()` writes into buildings. A pen change re-tunes (§15.1) but never re-zones. A Humanize change reuses the tuned town and only redraws.
+- **Caching.** The worker keeps the last target, block layout and built town. It clones the built town before applying Height from image because height and classification both write into buildings. A Humanize, hatching or empty-space change reuses the built town. Changing pen colours updates the score using the cached target and pen coverage.
 - **Beyond the drawing area.** The town fills the whole `box`, plus a 60 m margin of buildings marked `context` (as `BUILDING_PAD` does for tiles). Density, terraces and `Town.nearby` then look the same at the sheet's edge as in its middle. Streets run off the sheet, as in a real town. Where there is no image (Fit's margins, transparent pixels), the target has no weight. There the planner follows its priors alone and grows ordinary town or countryside on from the neighbouring zones.
 - **Budgets**, for A3 at 1:2500 on a mid-range laptop: reading the image ≤ 150 ms, zoning ≤ 200 ms, structure ≤ 400 ms and tuning ≤ 600 ms. That adds about 1.3 s to the 0.5–1.5 s the render takes. The likeness lab reports the time of each step (§18.3).
 
@@ -196,11 +196,16 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
 | `imageContrast` | `number`, 0.5…2 | `1` | Contrast round the middle tone. |
 | `imageColour` | `number`, 0…1 | `0.7` | How much colour counts against tone. At 0 only lightness is matched, as in one-pen output. |
 | `imageRelief` | `number`, 0…1 | `0` | Height from image. Blends the town's usual heights with a skyline that rises in dark areas (§12.2). |
+| `imageDensity` | `number`, 0…1 | `0` | Building density from image. Dark plots gain larger footprints and pale plots shrink or open into gardens. |
+| `imageHatching` | `number`, 0…1 | `0` | Hatching from image. Changes the spacing of existing roof, wall, field, park and shadow marks according to the projected tone. |
+| `imageContours` | `number`, 0…1 | `0` | Streets follow image lines. Routes more of the network along long, connected image edges as the strength rises. |
+| `imagePreserveSpace` | `boolean` | `false` | Preserve empty space. Clips projected town linework where the target is transparent, including holes and Fit margins. |
+| `imageHighlight` | `number`, 0…1 | `1` | Highlight cutoff, used when preserving empty space. At 1 only transparency is cleared. Lower values also clear adjusted lightness at or above the cutoff. |
 | `likeness` | `number`, 0…1 | `0.6` | Likeness against realism (§14.4). |
 | `fabric` | `'auto' \| 'organic' \| 'grid'` | `'auto'` | Street pattern. Auto picks grid for the North American and Australian styles and organic elsewhere. |
 
 - Add the numbers to `NumberKey`, with `FORMAT` entries. Handle `source`, `fabric` and `imageFit` in `shared()`/`fromQuery()` the way `style` is handled, and encode `imageFocus` the way `center` is. Validate all of them in `loadSettings()`.
-- None of them goes in `VIEW_KEYS`, because image mode has no locator map. Height from image can reuse the ground plan and its building footprints.
+- None of them goes in `VIEW_KEYS`, because image mode has no locator map. Street guidance changes the network and its blocks. Density relays the buildings on those blocks. Height, hatching and empty-space changes can reuse the building layout.
 - **Defaults on first switching to Image:** scale 1:2500, tilt 40° (a higher view shifts less of the image up the sheet), power lines off and the title off. They are applied the way a preset's `extra` is applied in `goTo()`, and only to settings the user hasn't changed. Switching back to Map finds the map place untouched.
 
 ### 5.2 Drawn-as settings and the fictional place

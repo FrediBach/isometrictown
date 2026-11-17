@@ -100,3 +100,7 @@ When enabled, `layerPens` routes feature linework into the five existing pens be
 ## Humanize
 
 `humanize.ts` perturbs visible strokes after hidden-line removal and before joining and ordering. Errors scale with stroke length up to fixed millimetre limits; short marks stay restrained. Each stroke keeps its array identity so catalogue highlights and LOD measurements see the same linework. The map keys of the ground-projected endpoints and the drawing seed determine its variation. Unclipped strokes retain their errors when panned; clipping may change a stroke’s endpoints and therefore its variation. Small overshoots at occlusion boundaries are intentional. Coordinates stay within the drawing rectangle. Frame and margin lettering remain precise. Zero bypasses the pass entirely.
+
+## Preserving empty space
+
+In image mode, `image-space.ts` uses the target's alpha and optional highlight cutoff to reserve bare paper. After Humanize, it splits visible strokes wherever the pen would enter reserved paper, allowing for the pen width and plot coordinates. The feature catalogue receives the same clipped paths as the SVG and plotter. The frame and margin lettering are added afterwards.

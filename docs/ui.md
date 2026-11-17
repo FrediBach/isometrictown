@@ -78,7 +78,15 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 `components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
 
-Section 1 starts with the **Map | Image** switch. In Image, drop or choose a picture in the image well (`components/image-well.tsx`). With Fill selected, dragging or using the arrow keys moves the crop. The panel also holds Fit, Brightness, Contrast, Colour, Likeness, **Height from image** and Street pattern (Auto | Organic | Grid). Height from image starts at 0%, which uses the town’s usual building heights. Moving it towards 100% raises towers in the darkest parts of the picture and tapers buildings down in lighter areas. Saved drawings and share links carry the percentage.
+Section 1 starts with the **Map | Image** switch. In Image, drop or choose a picture in the image well (`components/image-well.tsx`). With Fill selected, dragging or using the arrow keys moves the crop. Brightness and Contrast adjust the tones the controls below read. Colour, Likeness and Street pattern (Auto | Organic | Grid) set the overall character of the town.
+
+- **Height from image** raises towers in the darkest parts of the picture and tapers buildings down in lighter areas.
+- **Building density from image** gives buildings more ground in dark blocks and opens space for gardens in pale blocks.
+- **Hatching from image** changes how closely roofs, walls, fields, parks and cast shadows are hatched. It follows the tone where the strokes land on the sheet.
+- **Streets follow image lines** guides roads and paths along connected edges, including curves. The selected street pattern fills the surrounding neighbourhoods.
+- **Preserve empty space** clears town linework from transparent areas, holes and Fit margins. With the switch on, **Highlight cutoff** initially reads *Transparency only*. Set it to 90% to clear areas with adjusted lightness of 90% or higher. The frame and margin lettering can still be plotted.
+
+The four sliders start at 0% and Preserve empty space starts off. Saved drawings and share links carry these choices.
 
 The place search and locator mount only in Map mode. Returning to Map restores the centre and bearing from settings. `app/use-picture.ts` loads the stored picture when `set.image` changes and hands the renderer the one on hand. In image mode the toolbar adds two view keys, **Image** (the picture over the drawing area at half strength, placed with `fitImage()`) and **Squint** (the preview blurred by 1.5 mm, to show its tone), and the stats footer a **Likeness** readout.
 

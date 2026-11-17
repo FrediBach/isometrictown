@@ -176,7 +176,7 @@ function drawImage(id: number, set: Settings, report: (p: StageProgress) => void
     report({ stage: 'map', note: 'Laying out the town' });
     const scene = imageScene(pic, set, (note) => report({ stage: 'map', note }));
     const filed = new Map<string, number[][]>();
-    const drawing = render(scene.town, scene.set, scene.frame, scene.style, report, scene.region.left, filed);
+    const drawing = render(scene.town, scene.set, scene.frame, scene.style, report, scene.region.left, filed, scene.target);
     report({ stage: 'plan', note: 'Joining strokes, ordering pens' });
     const planned = plan(drawing.pens, scene.set);
     const svg = toSvg(planned.pens, scene.set, scene.cam.sheet);

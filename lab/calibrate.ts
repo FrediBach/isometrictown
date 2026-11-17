@@ -39,7 +39,7 @@ export function swatch(label: Label, level: number, warmth: number, scale = 2500
   // A flat grey picture: no lines and no orientation for the streets to follow.
   const target = readImage(paint('Flat', () => [128, 128, 128]), set, cam.rect);
   const { town } = imageTown(zones, target, set, cam, frame, box, STYLES[region.style]);
-  const drawing = render(town, set, frame, STYLES[region.style], undefined, region.left);
+  const drawing = render(town, set, frame, STYLES[region.style], undefined, region.left, null, target);
   // The middle of the drawing area, clear of anything odd at its edges.
   const [x0, y0, x1, y1] = cam.rect;
   const g = { x0: x0 + (x1 - x0) * 0.2, y0: y0 + (y1 - y0) * 0.2, cell: 0.5, W: Math.floor(((x1 - x0) * 0.6) / 0.5), H: Math.floor(((y1 - y0) * 0.6) / 0.5) };
@@ -72,7 +72,7 @@ export function fit(scale: number, names: string[], alpha = 0.02, blurMm = 2): R
     // As the likeness lab draws it: image mode as it starts, on A3.
     const scene = imageScene(pic, { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, imageName: pic.name, scale, tilt: 40, power: false, sheet: 'a3' });
     const p = predict(structuredClone(scene.blocks), scene.zones, scene.target, scene.cam, scene.set, scene.box);
-    const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left);
+    const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, null, scene.target);
     const t = scene.target;
     const real = coverage(drawing.pens, { x0: t.x0, y0: t.y0, cell: t.cell, W: t.W, H: t.H }, scene.set.penWidth);
     for (const plane of real) blur(plane, t.W, t.H, blurMm / t.cell);

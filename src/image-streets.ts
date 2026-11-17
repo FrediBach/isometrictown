@@ -52,7 +52,7 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'fabric' | 'seed'> & { style: string };
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string };
 
 const L = (l: Label) => LABELS.indexOf(l);
 const WATER = L('water');
@@ -157,6 +157,59 @@ const lengthOf = (p: number[]) => {
   for (let i = 2; i < p.length; i += 2) s += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
   return s;
 };
+
+/** Long strokes and single contrast boundaries on the sheet. Leave the two banks of a bright
+ * stroke to its centreline, so one white curve does not become three parallel streets. */
+function contourGuides(t: Target, strength: number): number[][] {
+  const { W, H, cell, edge, dir, ridge, tone } = t;
+  const outline = new Uint8Array(W * H);
+  const sample = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H ? y * W + x : -1;
+  const threshold = 0.55 - 0.32 * strength;
+  for (let i = 0; i < outline.length; i++) {
+    if (edge[i] < threshold || t.coherence[i] < 0.55 || t.weight[i] < 0.5) continue;
+    const x = i % W, y = Math.floor(i / W);
+    let nx = -Math.sin(dir[i]), ny = Math.cos(dir[i]);
+    const up = sample(x + Math.round(2 * nx), y + Math.round(2 * ny));
+    const down = sample(x - Math.round(2 * nx), y - Math.round(2 * ny));
+    if (up < 0 || down < 0) continue;
+    if (tone[up] < tone[down]) { nx = -nx; ny = -ny; }
+    outline[i] = 1;
+    // The reader recognises bright strokes up to 36 mm wide. Search their bright side
+    // for the middle, stopping at an intervening edge or transparent paper.
+    for (let d = 1; d <= Math.ceil(18 / cell) + 1; d++) {
+      const k = sample(x + Math.round(d * nx), y + Math.round(d * ny));
+      if (k < 0 || t.weight[k] < 0.5 || (d > 2 && edge[k])) break;
+      if (ridge[k] > 0) { outline[i] = 0; break; }
+    }
+  }
+  const min = 12 + 24 * (1 - strength);
+  const lines = [...traceLines((i) => ridge[i] > 0, t, min), ...traceLines((i) => !!outline[i], t, min)];
+  const ranked = lines.map((pts) => ({ pts, length: lengthOf(pts) })).sort((a, b) => b.length - a.length);
+  // Give the strongest shapes a route first. As the dial rises, follow more of each shape
+  // out from its middle. The sheet-sized budget keeps photographic texture from filling the town.
+  let budget = (W + H) * cell * 2 * strength;
+  const routes: number[][] = [];
+  for (const { pts, length } of ranked) {
+    const take = Math.min(length * strength, budget);
+    if (take < min) break;
+    const start = (length - take) / 2, stop = start + take;
+    const run: number[] = [];
+    let travelled = 0;
+    for (let k = 2; k < pts.length && travelled < stop; k += 2) {
+      const x = pts[k - 2], y = pts[k - 1], dx = pts[k] - x, dy = pts[k + 1] - y;
+      const len = Math.hypot(dx, dy);
+      if (len && travelled + len > start) {
+        const a = Math.max(0, (start - travelled) / len), b = Math.min(1, (stop - travelled) / len);
+        if (!run.length) run.push(x + a * dx, y + a * dy);
+        run.push(x + b * dx, y + b * dy);
+      }
+      travelled += len;
+    }
+    routes.push(run);
+    budget -= take;
+  }
+  return routes;
+}
 
 /** What the streets come to: roads and paths as ways, the graph the roads form, turning circles, streams, and the town's cores, largest first. */
 export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[]; cores: [number, number][] };
@@ -310,7 +363,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     if (l === 'field' || l === 'meadow' || l === 'allot') return 'track';
     return null;
   };
-  for (const sheet of traceLines((i) => target.ridge[i] === 2, target, minLine * cam.s * cam.sa)) {
+  const layRoute = (sheet: number[], existing?: Near) => {
     let run: number[] = [];
     let route: ReturnType<typeof routeAt> = null;
     const finish = () => {
@@ -318,6 +371,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
         const pts = simplify(run, z.cell / 2);
         if (route === 'road') keep(pts, 'minor');
         else paths.push({ pts, kind: 'path', width: 0, cls: route, unpaved: route === 'track' });
+        existing?.add(pts, 0);
       }
     };
     let [ax, ay] = cam.ground(sheet[0], sheet[1]);
@@ -329,7 +383,18 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
         const y = ay + ((by - ay) * j) / steps;
         const dx = (bx - ax) / steps;
         const dy = (by - ay) / steps;
-        const next = routeAt(x + dx / 2, y + dy / 2);
+        const mx = x + dx / 2, my = y + dy / 2;
+        let next: ReturnType<typeof routeAt> = routeAt(mx, my);
+        if (existing && next) {
+          const len = Math.hypot(dx, dy);
+          // An outline can lie along the seam of two land labels. A street can front the
+          // town on either side; this keeps a field-edge lane continuous along the seam.
+          const px = -dy / len * z.cell, py = dx / len * z.cell;
+          if (routeAt(mx + px, my + py) === 'road' || routeAt(mx - px, my - py) === 'road') next = 'road';
+          existing.each(mx, my, Math.max(SNAP, 2 / cam.s), (_x, _y, ux, uy) => {
+            if (Math.abs(dx * ux + dy * uy) > len * 0.85) next = null;
+          });
+        }
         if (next !== route) {
           finish();
           run = next ? [x, y] : [];
@@ -341,6 +406,15 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
       ay = by;
     }
     finish();
+  };
+  for (const sheet of traceLines((i) => target.ridge[i] === 2, target, minLine * cam.s * cam.sa)) layRoute(sheet);
+  if (set.imageContours > 0) {
+    const guides = contourGuides(target, Math.min(1, set.imageContours));
+    if (guides.length) {
+      const existing = new Near();
+      for (const { pts } of [...lines, ...paths]) existing.add(pts, 0);
+      for (const sheet of guides) layRoute(sheet, existing);
+    }
   }
 
   // Local streets, traced along the field from the streets already laid.
