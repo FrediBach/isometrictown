@@ -2,7 +2,7 @@
  * The likeness lab: draws towns from pictures at a run of scales, headless, and scores how like
  * each picture the drawing is. `npm run likeness` drives it through `lab/likeness.mjs`.
  */
-import { imageScene, type Picture } from '../src/image';
+import { imageScene, plausibility, type Picture } from '../src/image';
 import { TARGET_CELL } from '../src/image-read';
 import { coverage, LABELS, likeness, toGamma, type Label, type Likeness } from '../src/image-tone';
 import { labelAt } from '../src/image-zones';
@@ -44,6 +44,10 @@ export type LikenessResult = {
   /** Streets in the network, and breaches of the street rules (§10.5). */
   streets: number;
   violations: string[];
+  /** Blocks and lots laid out, and what makes the town implausible (§11.4). */
+  blocks: number;
+  lots: number;
+  implausible: string[];
 };
 
 /** A colour per label for the zone view: water blue, green things green, built things warm to dark. */
@@ -131,5 +135,8 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
     shares,
     streets: scene.streets.edges.length,
     violations: streetRules(scene.streets),
+    blocks: scene.blocks.length,
+    lots: scene.blocks.reduce((n, b) => n + b.lots.length, 0),
+    implausible: plausibility(scene.town),
   };
 }

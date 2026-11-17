@@ -9,7 +9,13 @@ import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, toneAt } from '@/image-read';
 import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
 import { compat, slic } from '@/image-zones';
-import { clean, degrees, planar, streetRules } from '@/image-streets';
+import { clean, degrees, planar, streetRules, type Graph } from '@/image-streets';
+import { blocksOf, facesOf, lotRing, MIN_FILL, Occupancy, PARCEL, strip, type Lot } from '@/image-blocks';
+import type { Zones } from '@/image-zones';
+import { classify } from '@/classify';
+import { bestRect } from '@/shape';
+import { STYLES } from '@/styles';
+import { empty, type Tagged } from '@/tiles';
 import { chaikin, contours, simplify, waterOf } from '@/image-water';
 import { ringArea } from '@/geo';
 import { toSvg } from '@/plot';
@@ -310,3 +316,130 @@ describe('the street graph', () => {
   });
 
 });
+
+describe('blocks and lots', () => {
+  // Streets on a 120 m grid, four by four, so nine blocks, and a dead end into one of them.
+  const lines = [];
+  for (let k = 0; k <= 3; k++) lines.push({ pts: [0, k * 120, 360, k * 120], cls: 'minor', main: false }, { pts: [k * 120, 0, k * 120, 360], cls: 'minor', main: false });
+  lines.push({ pts: [180, 120, 180, 170], cls: 'minor', main: false });
+  const grid: Graph = planar(lines);
+  /** A land plan of one label everywhere, at a middling level. */
+  const plan = (label: (typeof LABELS)[number]): Zones => {
+    const cell = 4;
+    const W = 120;
+    const H = 120;
+    return { x0: -60, y0: -60, cell, W, H, label: new Uint8Array(W * H).fill(LABELS.indexOf(label)), level: new Float32Array(W * H).fill(0.5), warmth: new Float32Array(W * H).fill(0.5), sp: new Int32Array(W * H) };
+  };
+  const vary = (x: number, y: number, salt: number) => (Math.abs(Math.sin(x * 12.9898 + y * 78.233 + salt)) * 43758.5453) % 1;
+
+  test('the faces of a street grid are its blocks, counter-clockwise, without the outside or the dead end', () => {
+    const faces = facesOf(grid);
+    expect(faces.length).toBe(9);
+    for (const f of faces) {
+      expect(ringArea(f.pts)).toBeGreaterThan(100 * 100);
+      expect(ringArea(f.pts)).toBeLessThan(121 * 121);
+    }
+  });
+
+  test('lots front the street, are no slivers, and neighbours share their cut lines exactly', () => {
+    for (const label of ['old', 'rows', 'suburb', 'works'] as const) {
+      const blocks = blocksOf(grid, plan(label), vary, 4);
+      expect(blocks.length).toBe(9);
+      for (const b of blocks) {
+        expect(b.lots.length).toBeGreaterThan(label === 'works' ? 2 : 6);
+        for (const l of b.lots) {
+          expect(bestRect(lotRing(l)).fill).toBeGreaterThanOrEqual(MIN_FILL);
+          expect(ringArea(lotRing(l))).toBeGreaterThan(0);
+          // The front is on the rim: half the street and a pavement in from the nearest street line.
+          for (let k = 0; k < l.o.length; k += 2) {
+            const d = Math.min(...[0, 120, 240, 360].flatMap((g) => [Math.abs(l.o[k] - g), Math.abs(l.o[k + 1] - g)]));
+            expect(d).toBeCloseTo(6.5, 3);
+          }
+        }
+        const sides = new Map<number, Lot[]>();
+        for (const l of b.lots) (sides.get(l.side) ?? sides.set(l.side, []).get(l.side)!).push(l);
+        for (const list of sides.values())
+          for (let k = 1; k < list.length; k++) {
+            if (list[k].index !== list[k - 1].index + 1) continue;
+            const [a, c] = [list[k - 1], list[k]];
+            expect(c.o.slice(0, 2)).toEqual(a.o.slice(-2));
+            expect(c.i.slice(0, 2)).toEqual(a.i.slice(-2));
+            // Buildings cut at one depth share their corners too.
+            const pa = strip(a, 0.1, 0.8);
+            const pc = strip(c, 0.1, 0.8);
+            expect(pc.slice(0, 2)).toEqual(pa.slice(a.o.length - 2, a.o.length));
+          }
+      }
+    }
+  });
+
+  test('lots take their depth from the zone, and the corner lots span the corner', () => {
+    const blocks = blocksOf(grid, plan('suburb'), vary, 4);
+    for (const b of blocks) {
+      expect(b.depth).toBeGreaterThanOrEqual(PARCEL.suburb!.depth[0] * 0.75 ** 2);
+      expect(b.depth).toBeLessThanOrEqual(PARCEL.suburb!.depth[1]);
+      // Four corners, each inside one lot's front.
+      const corners = b.lots.filter((l) => {
+        for (let k = 2; k < l.o.length - 2; k += 2) {
+          const a = Math.atan2(l.o[k + 1] - l.o[k - 1], l.o[k] - l.o[k - 2]);
+          const c = Math.atan2(l.o[k + 3] - l.o[k + 1], l.o[k + 2] - l.o[k]);
+          if (Math.abs(Math.abs(c - a) - Math.PI / 2) < 0.1 || Math.abs(Math.abs(c - a) - (3 * Math.PI) / 2) < 0.1) return true;
+        }
+        return false;
+      });
+      expect(corners.length).toBe(4);
+    }
+  });
+
+  test('the occupancy raster lets neighbours share a line, never overlap', () => {
+    const occ = new Occupancy(0, 0, 0.75, 100, 100);
+    const a = [10, 10, 30, 10, 30, 30, 10, 30];
+    const b = [30, 10, 50, 10, 50, 30, 30, 30];
+    const c = [28, 12, 48, 12, 48, 28, 28, 28];
+    expect(occ.free(a, 3)).toBe(true);
+    occ.take(a, 3);
+    expect(occ.free(b, 3)).toBe(true);
+    expect(occ.free(c, 3)).toBe(false);
+    // Ground that may not be shared blocks even the outline.
+    occ.fill([[50.2, 0, 60, 0, 60, 60, 50.2, 60]]);
+    expect(occ.free(b, 3)).toBe(false);
+  });
+});
+
+describe('evidence for classify', () => {
+  const style = STYLES.central;
+  const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', osmTags: false };
+  /** One building of a size, tagged as image mode tags it, classified alone. */
+  const one = (w: number, d: number, h: number, tag: Omit<Tagged, 'x' | 'y'>, poi?: { cls: string; sub: string }) => {
+    const town = empty();
+    town.buildings = [{ shape: [{ pts: [0, 0, w, 0, w, d, 0, d], seam: new Uint8Array(4) }], h, min: 0 }];
+    town.tagged = [{ x: w / 2, y: d / 2, from: 'image', ...tag }];
+    town.landuse = [{ shape: [{ pts: [-50, -50, 150, -50, 150, 150, -50, 150], seam: new Uint8Array(4) }], cls: tag.building === 'industrial' || tag.building === 'warehouse' ? 'industrial' : 'residential' }];
+    if (poi) town.pois = [{ x: w / 2, y: d / 2, ...poi }];
+    town.nearby = { landuse: town.landuse, pois: town.pois, numbers: [], helipads: [], ways: [] };
+    classify(town, style, set, (x, y) => [Math.round(x), Math.round(y)]);
+    return town.buildings[0].info!;
+  };
+
+  test('each building type image mode gives becomes the kind it means', () => {
+    expect(one(10, 9, 6, { building: 'house' }).kind).toBe('house');
+    expect(one(6, 11, 9, { building: 'terrace' }).kind).toBe('terrace');
+    expect(one(30, 14, 18, { building: 'apartments' }).kind).toBe('apartment');
+    expect(one(20, 20, 70, { building: 'apartments', roof: 'flat' }).kind).toBe('apartment');
+    expect(one(50, 35, 14, { building: 'industrial', roof: 'sawtooth' }).kind).toBe('industrial');
+    expect(one(50, 35, 14, { building: 'warehouse', roof: 'flat' }).kind).toBe('industrial');
+    expect(one(40, 13, 9, { building: 'school', roof: 'flat' }).kind).toBe('civic');
+    expect(one(14, 30, 15, { building: 'church' }).kind).toBe('worship');
+    expect(one(3, 3.5, 2.6, { building: 'shed' }).kind).toBe('shed');
+  });
+
+  test('roof tags are kept, a town hall flies its flag, and none of it counts as OSM tags', () => {
+    expect(one(50, 35, 14, { building: 'industrial', roof: 'sawtooth' }).roof).toBe('sawtooth');
+    expect(one(30, 14, 18, { building: 'apartments', roof: 'flat' }).roof).toBe('flat');
+    const hall = one(24, 14, 12, { building: 'civic' }, { cls: 'town_hall', sub: 'townhall' });
+    expect(hall.kind).toBe('civic');
+    expect(hall.townHall).toBe(true);
+    expect(one(10, 9, 6, { building: 'house', roof: 'gabled' }).tagged).toBe(false);
+  });
+});
+

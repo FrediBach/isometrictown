@@ -1,0 +1,240 @@
+/**
+ * What keeps an image-mode town plausible (§11.4 and §12 of docs/plans/image-mode.md): no
+ * building on a road, on water, in a park, a wood or a square, or over another building, and each
+ * one near enough a street or path to front it. Laying out uses `Ground` to refuse a footprint
+ * that would break a rule; `plausibility()` checks a finished town against the same tests.
+ */
+import { pointInRing, ringArea } from './geo';
+import type { Shape, Town, Way } from './tiles';
+
+/** A building stands at most this far from a street or path, m, to front it. */
+export const FRONTS = 90;
+/** How far inside its outline a footprint is tested, m, so walls shared with a neighbour don't count. */
+const INSET = 0.6;
+const SIZE = 50;
+const EDGE = 255;
+
+/** The middle of a ring's points. */
+export const centre = (p: number[]): [number, number] => {
+  let x = 0;
+  let y = 0;
+  for (let k = 0; k < p.length; k += 2) {
+    x += p[k];
+    y += p[k + 1];
+  }
+  return [x / (p.length / 2), y / (p.length / 2)];
+};
+
+/** Points a little inside a footprint's outline: its middle and each corner pulled in, where they fall inside. */
+export function inside(p: number[]): [number, number][] {
+  const [cx, cy] = centre(p);
+  const pts: [number, number][] = pointInRing(cx, cy, p) ? [[cx, cy]] : [];
+  for (let k = 0; k < p.length; k += 2) {
+    const d = Math.hypot(cx - p[k], cy - p[k + 1]) || 1;
+    const x = p[k] + ((cx - p[k]) / d) * INSET;
+    const y = p[k + 1] + ((cy - p[k + 1]) / d) * INSET;
+    if (pointInRing(x, y, p)) pts.push([x, y]);
+  }
+  return pts;
+}
+
+const cellId = (i: number, j: number) => (i + 32768) * 65536 + j + 32768;
+
+/** A lookup of things by 50 m cell, each filed in every cell its bounds (padded) touch. */
+class Index {
+  private grid = new Map<number, number[]>();
+  add(k: number, p: ArrayLike<number>, pad = 0): void {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let q = 0; q < p.length; q += 2) [x0, y0, x1, y1] = [Math.min(x0, p[q]), Math.min(y0, p[q + 1]), Math.max(x1, p[q]), Math.max(y1, p[q + 1])];
+    for (let i = Math.floor((x0 - pad) / SIZE); i <= Math.floor((x1 + pad) / SIZE); i++)
+      for (let j = Math.floor((y0 - pad) / SIZE); j <= Math.floor((y1 + pad) / SIZE); j++) {
+        const id = cellId(i, j);
+        const list = this.grid.get(id);
+        if (list) list.push(k);
+        else this.grid.set(id, [k]);
+      }
+  }
+  /** Everything filed in the cells a ring's bounds touch. */
+  around(p: ArrayLike<number>): Set<number> {
+    const out = new Set<number>();
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let q = 0; q < p.length; q += 2) [x0, y0, x1, y1] = [Math.min(x0, p[q]), Math.min(y0, p[q + 1]), Math.max(x1, p[q]), Math.max(y1, p[q + 1])];
+    for (let i = Math.floor(x0 / SIZE); i <= Math.floor(x1 / SIZE); i++) for (let j = Math.floor(y0 / SIZE); j <= Math.floor(y1 / SIZE); j++) for (const k of this.grid.get(cellId(i, j)) ?? []) out.add(k);
+    return out;
+  }
+  at(x: number, y: number): number[] {
+    return this.grid.get(cellId(Math.floor(x / SIZE), Math.floor(y / SIZE))) ?? [];
+  }
+}
+
+type Seg = { ax: number; ay: number; bx: number; by: number; r: number };
+const toSeg = (s: Seg, x: number, y: number) => {
+  const dx = s.bx - s.ax;
+  const dy = s.by - s.ay;
+  const t = Math.max(0, Math.min(1, ((x - s.ax) * dx + (y - s.ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(x - s.ax - dx * t, y - s.ay - dy * t);
+};
+const inShape = (s: Shape, x: number, y: number) => pointInRing(x, y, s[0].pts) && !s.slice(1).some((r) => pointInRing(x, y, r.pts));
+
+/** The ground buildings may not stand on, and the streets and paths they front. */
+export class Ground {
+  private segs: Seg[] = [];
+  private roads = new Index();
+  private fronts = new Index();
+  private open: { what: string; shapes: Shape[]; index: Index }[];
+  /**
+   * Open land on a coarse raster, so most points need no test against long outlines: per cell,
+   * 0 for none, the kind plus one where a cell lies wholly inside, and EDGE where an outline
+   * comes near, to be tested exactly.
+   */
+  private cells = new Uint8Array(0);
+  private gx = 0;
+  private gy = 0;
+  private gc = 1;
+  private gw = 0;
+  private gh = 0;
+
+  constructor(t: { ways: Way[]; water: Shape[]; green: Shape[]; wood: Shape[]; plazas: Shape[] }) {
+    for (const w of t.ways)
+      for (let k = 2; k < w.pts.length; k += 2) {
+        const s = { ax: w.pts[k - 2], ay: w.pts[k - 1], bx: w.pts[k], by: w.pts[k + 1], r: w.kind === 'road' ? w.width / 2 : 0 };
+        const n = this.segs.push(s) - 1;
+        const p = [s.ax, s.ay, s.bx, s.by];
+        if (s.r > 0) this.roads.add(n, p, s.r);
+        this.fronts.add(n, p, FRONTS);
+      }
+    const open: [string, Shape[]][] = [['water', t.water], ['a park', t.green], ['a wood', t.wood], ['a square', t.plazas]];
+    this.open = open.map(([what, shapes]) => {
+      const index = new Index();
+      shapes.forEach((s, k) => index.add(k, s[0].pts));
+      return { what, shapes, index };
+    });
+    this.raster();
+  }
+
+  private raster(): void {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const o of this.open)
+      for (const s of o.shapes) {
+        const p = s[0].pts;
+        for (let k = 0; k < p.length; k += 2) [x0, y0, x1, y1] = [Math.min(x0, p[k]), Math.min(y0, p[k + 1]), Math.max(x1, p[k]), Math.max(y1, p[k + 1])];
+      }
+    if (!(x1 > x0 && y1 > y0)) return;
+    const c = Math.max(2, Math.sqrt(((x1 - x0) * (y1 - y0)) / 4e6));
+    const W = Math.ceil((x1 - x0) / c) + 2;
+    const H = Math.ceil((y1 - y0) / c) + 2;
+    [this.gx, this.gy, this.gc, this.gw, this.gh] = [x0 - c, y0 - c, c, W, H];
+    const cells = new Uint8Array(W * H);
+    const xs: number[] = [];
+    this.open.forEach((o, kind) => {
+      for (const s of o.shapes) {
+        // Cells whose middle is inside, even-odd over the shape's rings.
+        let [sy0, sy1] = [Infinity, -Infinity];
+        for (let k = 1; k < s[0].pts.length; k += 2) [sy0, sy1] = [Math.min(sy0, s[0].pts[k]), Math.max(sy1, s[0].pts[k])];
+        for (let j = Math.max(0, Math.floor((sy0 - this.gy) / c)); j <= Math.min(H - 1, Math.ceil((sy1 - this.gy) / c)); j++) {
+          const y = this.gy + (j + 0.5) * c;
+          xs.length = 0;
+          for (const r of s)
+            for (let a = 0, b = r.pts.length - 2; a < r.pts.length; b = a, a += 2) {
+              const ay = r.pts[a + 1];
+              const by = r.pts[b + 1];
+              if (ay > y !== by > y) xs.push(r.pts[a] + ((r.pts[b] - r.pts[a]) * (y - ay)) / (by - ay));
+            }
+          xs.sort((p, q) => p - q);
+          for (let k = 0; k + 1 < xs.length; k += 2)
+            for (let i = Math.max(0, Math.ceil((xs[k] - this.gx) / c - 0.5)); i <= Math.min(W - 1, Math.floor((xs[k + 1] - this.gx) / c - 0.5)); i++) if (!cells[j * W + i]) cells[j * W + i] = kind + 1;
+        }
+      }
+    });
+    // Every cell an outline passes through or beside is tested exactly.
+    for (const o of this.open)
+      for (const s of o.shapes)
+        for (const r of s)
+          for (let a = 0, b = r.pts.length - 2; a < r.pts.length; b = a, a += 2) {
+            const n = Math.max(1, Math.ceil(Math.hypot(r.pts[a] - r.pts[b], r.pts[a + 1] - r.pts[b + 1]) / (c / 2)));
+            for (let k = 0; k <= n; k++) {
+              const i = Math.floor((r.pts[b] + ((r.pts[a] - r.pts[b]) * k) / n - this.gx) / c);
+              const j = Math.floor((r.pts[b + 1] + ((r.pts[a + 1] - r.pts[b + 1]) * k) / n - this.gy) / c);
+              for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (i + di >= 0 && j + dj >= 0 && i + di < W && j + dj < H) cells[(j + dj) * W + i + di] = EDGE;
+            }
+          }
+    this.cells = cells;
+  }
+
+  /** What a point stands on that no building may: 'a road', 'water', 'a park', 'a wood', 'a square', or null. */
+  under(x: number, y: number): string | null {
+    for (const k of this.roads.at(x, y)) if (toSeg(this.segs[k], x, y) < this.segs[k].r) return 'a road';
+    const i = Math.floor((x - this.gx) / this.gc);
+    const j = Math.floor((y - this.gy) / this.gc);
+    if (i < 0 || j < 0 || i >= this.gw || j >= this.gh) return null;
+    const v = this.cells[j * this.gw + i];
+    if (v !== EDGE) return v ? this.open[v - 1].what : null;
+    for (const o of this.open) for (const k of o.index.at(x, y)) if (inShape(o.shapes[k], x, y)) return o.what;
+    return null;
+  }
+
+  /** Whether a footprint keeps off everything it may not stand on. */
+  clear(ring: number[]): boolean {
+    return inside(ring).every(([x, y]) => !this.under(x, y));
+  }
+
+  /** How far a point is from the edge of the nearest street or path within `FRONTS`, m; Infinity if none. */
+  front(x: number, y: number): number {
+    let d = Infinity;
+    for (const k of this.fronts.at(x, y)) d = Math.min(d, toSeg(this.segs[k], x, y) - this.segs[k].r);
+    return d;
+  }
+}
+
+/** Footprints laid so far, to refuse one that would overlap another beyond a shared wall. */
+export class Footprints {
+  private rings: number[][] = [];
+  private index = new Index();
+  add(ring: number[]): void {
+    this.index.add(this.rings.push(ring) - 1, ring);
+  }
+  /** Whether a footprint overlaps one already laid, tested a little inside both outlines. */
+  clash(ring: number[]): boolean {
+    const near = this.index.around(ring);
+    const mine = inside(ring);
+    for (const j of near) {
+      const o = this.rings[j];
+      if (mine.some(([x, y]) => pointInRing(x, y, o)) || inside(o).some(([x, y]) => pointInRing(x, y, ring))) return true;
+    }
+    return false;
+  }
+}
+
+/**
+ * What would make a laid-out town implausible: footprints that aren't proper counter-clockwise
+ * rings with a height, that overlap each other, a road, water, a park, a wood or a square, or that
+ * stand too far from any street or path to front it. One line per kind of breach, with how many
+ * and where the first is.
+ */
+export function plausibility(town: Town): string[] {
+  const found = new Map<string, { n: number; x: number; y: number }>();
+  const note = (what: string, x: number, y: number) => {
+    const f = found.get(what);
+    if (f) f.n++;
+    else found.set(what, { n: 1, x, y });
+  };
+  const ground = new Ground(town);
+  const bs = town.buildings;
+  const near = new Index();
+  bs.forEach((b, i) => near.add(i, b.shape[0].pts));
+  bs.forEach((b, i) => {
+    const p = b.shape[0].pts;
+    const [cx, cy] = centre(p);
+    if (p.length < 6 || !p.every(Number.isFinite)) return note('a footprint is not a ring', cx, cy);
+    if (ringArea(p) <= 0) note('a footprint runs clockwise', cx, cy);
+    if (b.shape.some((r) => r.seam.some((s) => s))) note('a footprint has seams', cx, cy);
+    if (!(b.h > 0 && Number.isFinite(b.h))) note('a building has no height', cx, cy);
+    for (const [x, y] of inside(p)) {
+      for (const j of near.at(x, y)) if (j !== i && pointInRing(x, y, bs[j].shape[0].pts)) note('buildings overlap', x, y);
+      const on = ground.under(x, y);
+      if (on) note(`a building stands on ${on}`, x, y);
+    }
+    if (ground.front(cx, cy) > FRONTS) note('a building fronts no street', cx, cy);
+  });
+  return [...found].map(([what, f]) => `${what}: ${f.n} (first at ${f.x.toFixed(0)}, ${f.y.toFixed(0)})`);
+}

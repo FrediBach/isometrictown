@@ -4,12 +4,14 @@
  */
 import { describe, expect, test } from 'vitest';
 import { Camera } from '@/camera';
-import { drawnAs, imageScene } from '@/image';
+import { classify } from '@/classify';
+import { drawnAs, imageRegion, imageScene, plausibility } from '@/image';
 import { readImage } from '@/image-read';
 import { streetRules } from '@/image-streets';
 import { BUILT, LABELS } from '@/image-tone';
 import { labelAt, zone } from '@/image-zones';
 import { reachHeight } from '@/render';
+import { STYLES } from '@/styles';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { paint, PICTURES } from '../support/pictures';
 
@@ -49,6 +51,17 @@ describe('the town', () => {
     const b = imageScene({ ...pic, id: `copy-${n++}` }, { ...base, seed: 2 });
     expect(b.zones.label).toEqual(a.zones.label);
     expect(b.town.buildings).not.toEqual(a.town.buildings);
+  });
+
+  test('rows share their walls, and the town has a church and a town hall', () => {
+    const sc = imageScene({ ...pic, id: `copy-${n++}` }, base);
+    const town = structuredClone(sc.town);
+    classify(town, STYLES[imageRegion(sc.set).style], sc.set, (x, y) => [Math.round(x), Math.round(y)]);
+    const terraces = town.buildings.filter((b, i) => !b.context && town.tagged[i].building === 'terrace');
+    expect(terraces.length).toBeGreaterThan(100);
+    expect(terraces.filter((b) => b.info!.party.some((h) => h > 0)).length / terraces.length).toBeGreaterThan(0.85);
+    expect(town.buildings.some((b) => b.info!.kind === 'worship')).toBe(true);
+    expect(town.buildings.some((b) => b.info!.townHall)).toBe(true);
   });
 
   test('every house has an explicit height and a counter-clockwise footprint', () => {
@@ -105,25 +118,11 @@ describe('the street graph', () => {
   // Each picture with one street pattern, the two taking turns.
   for (const [k, name] of pics.entries())
     for (const fabric of [k % 2 ? 'grid' : 'organic'] as const)
-      test(`${name}, ${fabric}: the streets keep every rule, and buildings keep off the roads`, () => {
+      test(`${name}, ${fabric}: the streets keep every rule, and the town is plausible`, () => {
         const pic = PICTURES[name]();
         const sc = imageScene(pic, { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, scale: 2500, tilt: 40, sheet: 'a4', fabric });
         expect(streetRules(sc.streets)).toEqual([]);
         expect(sc.streets.edges.length).toBeGreaterThan(10);
-        const roads = sc.town.ways.filter((w) => w.kind === 'road');
-        let onRoad = 0;
-        for (const b of sc.town.buildings) {
-          const p = b.shape[0].pts;
-          const cx = (p[0] + p[4]) / 2;
-          const cy = (p[1] + p[5]) / 2;
-          for (const w of roads)
-            for (let i = 2; i < w.pts.length; i += 2) {
-              const [ax, ay, bx, by] = w.pts.slice(i - 2, i + 2);
-              const l2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
-              const t = Math.max(0, Math.min(1, ((cx - ax) * (bx - ax) + (cy - ay) * (by - ay)) / l2));
-              if (Math.hypot(ax + (bx - ax) * t - cx, ay + (by - ay) * t - cy) < w.width / 2) onRoad++;
-            }
-        }
-        expect(onRoad).toBe(0);
+        expect(plausibility(sc.town)).toEqual([]);
       });
 });

@@ -157,8 +157,8 @@ const lengthOf = (p: number[]) => {
   return s;
 };
 
-/** What the streets come to: roads and paths as ways, the graph the roads form, turning circles, and streams. */
-export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[] };
+/** What the streets come to: roads and paths as ways, the graph the roads form, turning circles, streams, and the town's cores, largest first. */
+export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[]; cores: [number, number][] };
 
 /** Lay out the streets over a land plan, following the target as `cam` sees it. */
 export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettings, parks: Shape[]): Streets {
@@ -451,7 +451,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   // Thin dark bluish lines are streams and ditches.
   const streams = streamsOf((c) => ridge[c] < 0 && blue[c] === 1, z, 25);
-  return { ways: waysOf(g, water), paths, graph: g, circles, streams };
+  return { ways: waysOf(g, water), paths, graph: g, circles, streams, cores };
 }
 
 const reverse = (p: number[]) => {
@@ -1034,7 +1034,12 @@ function waysOf(g: Graph, water: (x: number, y: number) => boolean): Way[] {
         v = e.a === v ? e.b : e.a;
       }
     }
-    chains.push({ pts, cls: e0.cls });
+    // A closed chain would read as a roundabout to the renderer, which plants its middle; a
+    // loop here is a street round a block, so it goes in as two halves.
+    if (pts.length >= 8 && Math.hypot(pts[0] - pts[pts.length - 2], pts[1] - pts[pts.length - 1]) < 0.5) {
+      const m = (pts.length >> 2) * 2;
+      chains.push({ pts: pts.slice(0, m + 2), cls: e0.cls }, { pts: pts.slice(m), cls: e0.cls });
+    } else chains.push({ pts, cls: e0.cls });
   });
   const ways: Way[] = [];
   for (const c of chains) {
