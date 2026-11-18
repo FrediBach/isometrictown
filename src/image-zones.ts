@@ -72,11 +72,12 @@ const SMOOTH = 0.006;
 const MIN_AREA: Record<Label, number> = { water: 0.5, plaza: 0.15, sand: 0.2, meadow: 1, field: 2, park: 1.5, allot: 0.5, wood: 3, works: 1, suburb: 1, rows: 0.6, old: 0.6, blocks: 0.6, towers: 0.8 };
 const MIN_LIKE = 0.1;
 /**
- * Largest patch of a label at full realism, ha, three times that at full likeness: no town has a
+ * Largest patch of a label at full realism, ha. Only allotments expand at higher likeness: no town has a
  * hundred hectares of allotments or a paved square the size of a district, however well their
  * texture matches the image. What lies beyond is relabelled.
  */
-const MAX_AREA: Partial<Record<Label, number>> = { allot: 5, plaza: 2 };
+const SQUARE_AREA = 2500; // m², about a 50 m square
+const MAX_AREA: Partial<Record<Label, number>> = { allot: 5, plaza: SQUARE_AREA / 10000 };
 /**
  * The narrowest a patch of each built label can be and still be built on, m: a tower needs its
  * plot and the open ground round it, a terrace a street front and a yard. Narrower parts would
@@ -435,7 +436,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
             seen[t] = 1;
             list.push(t);
           }
-      const max = real * (1 + 2 * likeness) * 10000;
+      const max = real * (LABELS[k] === 'allot' ? 1 + 2 * likeness : 1) * 10000;
       if (list.reduce((a, s) => a + area[s], 0) * cell * cell <= max) continue;
       let seed = list[0];
       for (const s of list) if (data[s * K + k] < data[seed * K + k]) seed = s;
@@ -530,6 +531,18 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   for (let s = 0; s < count; s++)
     if (BEACHY.has(label[s]) && nbrs[s].some(([t]) => lake[t]) && data[s * K + SAND] < data[s * K + label[s]]) label[s] = SAND;
 
+  // The clean-up passes can merge paved areas or remove the housing that enclosed them.
+  // Read the finished plan before assigning materials to its squares.
+  const plaza = L('plaza');
+  if (label.includes(plaza)) {
+    const ground = Uint8Array.from(sp, s => label[s]);
+    const open = [L('meadow'), L('park'), L('field')];
+    rejectSquares(ground, W, H, cell, c => {
+      const s = sp[c];
+      if (label[s] === plaza) label[s] = open.reduce((a, b) => data[s * K + a] <= data[s * K + b] ? a : b);
+    });
+  }
+
   // Levels and warmth from each superpixel's label, calmed within each zone.
   const lv = new Float32Array(count);
   const wm = new Float32Array(count);
@@ -554,6 +567,37 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     out.warmth[c] = wm[sp[c]];
   }
   return out;
+}
+
+/** Visit the cells of paved patches too large for a square or outside the built-up interior. */
+export function rejectSquares(ground: Uint8Array, W: number, H: number, cell: number, reject: (c: number) => void): void {
+  const plaza = L('plaza');
+  // Leave at least a shallow block of built land between a square and the countryside.
+  // Unknown ground outside the plan counts as open, including when every cell is paved.
+  const open = Float32Array.from(ground, (k, c) =>
+    c < W || c >= ground.length - W || c % W === 0 || c % W === W - 1 || (k !== plaza && !BUILT.has(LABELS[k])) ? 0 : Infinity);
+  chamferDistance(open, W, H);
+  const seen = new Uint8Array(ground.length);
+  for (let start = 0; start < ground.length; start++) {
+    if (ground[start] !== plaza || seen[start]) continue;
+    const patch = [start];
+    seen[start] = 1;
+    let interior = true, left = W, right = 0, bottom = H, top = 0;
+    for (let q = 0; q < patch.length; q++) {
+      const c = patch[q], x = c % W, y = Math.floor(c / W);
+      if ((open[c] - 1) * cell < 24) interior = false;
+      left = Math.min(left, x); right = Math.max(right, x);
+      bottom = Math.min(bottom, y); top = Math.max(top, y);
+      for (const t of [x > 0 ? c - 1 : -1, x < W - 1 ? c + 1 : -1, c - W, c + W]) {
+        if (ground[t] !== plaza || seen[t]) continue;
+        seen[t] = 1;
+        patch.push(t);
+      }
+    }
+    // The span also rules out long ribbons of paving that fit under the area limit.
+    if (!interior || patch.length * cell * cell > SQUARE_AREA || (1 + Math.max(right - left, top - bottom)) * cell > 75)
+      for (const c of patch) reject(c);
+  }
 }
 
 /**

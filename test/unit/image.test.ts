@@ -13,7 +13,7 @@ import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, remapTarget, toneAt } from '@/image-read';
 import { coverage, fromOklab, hexToLinear, LABELS, likeness, material, mix, oklab } from '@/image-tone';
-import { compat, slic } from '@/image-zones';
+import { compat, rejectSquares, slic } from '@/image-zones';
 import { clean, degrees, planar, streetRules, tramRoute, type Graph } from '@/image-streets';
 import { ALLOTMENTS, FIELDS, landOf, patchwork } from '@/image-ground';
 import { blocksOf, facesOf, lotRing, MIN_FILL, Occupancy, PARCEL, strip, type Lot } from '@/image-blocks';
@@ -233,6 +233,29 @@ describe('reading structure', () => {
 });
 
 describe('zoning', () => {
+  test('squares fit inside a built neighbourhood at each zoning resolution', () => {
+    for (const cell of [2, 4, 8]) {
+      const W = 256 / cell;
+      const rejected = (width: number, height: number, x0: number, fringe: typeof LABELS[number] = 'rows') => {
+        const grid = new Uint8Array(W * W).fill(LABELS.indexOf('rows'));
+        for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
+          if (x * cell < 64) grid[y * W + x] = LABELS.indexOf(fringe);
+          if (x * cell >= x0 && x * cell < x0 + width && y * cell >= 96 && y * cell < 96 + height)
+            grid[y * W + x] = LABELS.indexOf('plaza');
+        }
+        const cells: number[] = [];
+        rejectSquares(grid, W, W, cell, c => cells.push(c));
+        return cells.length * cell * cell;
+      };
+      expect(rejected(48, 48, 96, 'meadow')).toBe(0);
+      expect(rejected(48, 48, 64, 'meadow')).toBe(48 * 48);
+      expect(rejected(48, 48, 72, 'water')).toBe(48 * 48);
+      expect(rejected(48, 48, 0)).toBe(48 * 48);
+      expect(rejected(56, 48, 96)).toBe(56 * 48);
+      expect(rejected(80, 16, 96)).toBe(80 * 16);
+    }
+  });
+
   test('compat is symmetric and free between like labels', () => {
     for (const a of LABELS) for (const b of LABELS) expect(compat(a, b)).toBe(compat(b, a));
     for (const a of LABELS) expect(compat(a, a)).toBe(0);
