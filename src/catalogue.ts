@@ -1088,7 +1088,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Sports pitches',
     source: ['map', 'inferred'],
     what: 'Markings for football, tennis, basketball or a running track, with goals, nets and hoops.',
-    how: 'Pitches from the land use. The sport tag picks the markings; without one the size does: at least 70 × 40 m is football, a long narrow court tennis, a 24–34 m court basketball, anything else a multi-use court.',
+    how: 'Image towns fit courts and running tracks beside park paths and streets. On mapped pitches the sport tag picks the markings; without one the size does: at least 70 × 40 m is football, a long narrow court tennis, a 24–34 m court basketball, anything else a multi-use court.',
     needs: ['ground'],
     lod: ['pitch'],
     strokes: ['ground/pitches'],

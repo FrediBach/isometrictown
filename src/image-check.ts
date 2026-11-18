@@ -106,6 +106,20 @@ const toSeg = (s: Seg, x: number, y: number) => distance(x, y, s.ax, s.ay, s.bx,
 /** Whether a point lies in the outer ring and outside all its holes. */
 export const inShape = (s: Shape, x: number, y: number) => pointInRing(x, y, s[0].pts) && !s.slice(1).some((r) => pointInRing(x, y, r.pts));
 
+/** Whether any two outline edges touch, including a shared corner. */
+function outlinesMeet(p: number[], q: number[]): boolean {
+  for (let a = 0, b = p.length - 2; a < p.length; b = a, a += 2)
+    for (let c = 0, d = q.length - 2; c < q.length; d = c, c += 2)
+      if (meet(p[a], p[a + 1], p[b], p[b + 1], q[c], q[c + 1], q[d], q[d + 1])) return true;
+  return false;
+}
+
+/** Whether the whole site lies inside one area, clear of its boundary and any holes. */
+export function containsSite(shape: Shape, site: number[]): boolean {
+  return inShape(shape, site[0], site[1]) && shape.every(r =>
+    !pointInRing(r.pts[0], r.pts[1], site) && !outlinesMeet(site, r.pts));
+}
+
 /** The ground buildings may not stand on, and the streets and paths they front. */
 export class Ground {
   private segs: Seg[] = [];
@@ -261,9 +275,7 @@ export class Footprints {
     for (const j of this.index.around(ring)) {
       const other = this.rings[j];
       if (pointInRing(ring[0], ring[1], other) || pointInRing(other[0], other[1], ring)) return true;
-      for (let a = 0, b = ring.length - 2; a < ring.length; b = a, a += 2)
-        for (let c = 0, d = other.length - 2; c < other.length; d = c, c += 2)
-          if (meet(ring[a], ring[a + 1], ring[b], ring[b + 1], other[c], other[c + 1], other[d], other[d + 1])) return true;
+      if (outlinesMeet(ring, other)) return true;
     }
     return false;
   }

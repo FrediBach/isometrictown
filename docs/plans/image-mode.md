@@ -512,7 +512,7 @@ A town needs a few things it has only one or two of. They make the place believa
 ### 13.1 Land use and cover
 
 - **`Town.landuse`** for every built block, as §12.3 lists. Suburbs and rows get `residential`, so `paintGardens()` draws lawns and garden trees wherever buildings cover under 30% of a residential area of 2,000 m² or more, and `plots()` fences each house the local way.
-- **`Town.green`** for parks, courtyard gardens and village greens. `pitch` land use rectangles in bright parts of parks get marked pitches. `cemetery` land use beside churches gets headstones.
+- **`Town.green`** for parks, courtyard gardens and village greens. Paths and streets beside parks provide access to tennis and basketball courts, playgrounds and, on a clear 90 × 44 m site, a running track. School pitches keep their reserved ground. `cemetery` land use beside churches gets headstones.
 - **`Town.wood`** for woods.
 - Meadow adjoining water becomes marsh and meadow adjoining a wood becomes scrub. The planted strip widens with meadow density.
 - **`Town.cover`** for fields (`farmland`, which `ground.ts` furrows along each field's length, so fields follow the street field), `meadow`, `orchard`, `vineyard`, `allotments`, `scrub`, `sand` and `beach`. `rock` and `ice` appear only at the edges, in the Alpine style.

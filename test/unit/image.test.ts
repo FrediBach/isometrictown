@@ -576,6 +576,23 @@ describe('image neighbourhood amenities', () => {
     expect([0, 2, 4, 6].every(i => inShape(field, yard.shape[0].pts[i], yard.shape[0].pts[i + 1]))).toBe(true);
   });
 
+  test.each([[0.45, 'pitch', 30, 17], [0.62, 'track', 90, 44]] as const)('a park fits the whole site for sport roll %s and keeps interior holes clear', (roll, cls, length, width) => {
+    const town = empty();
+    const park = [{ pts: [0, 0, 200, 0, 200, 100, 0, 100], seam: new Uint8Array(4) }];
+    town.green.push(park);
+    town.ways.push({ pts: [30, 0, 170, 0], kind: 'road', cls: 'minor', width: 6 });
+    const z: Zones = { x0: 0, y0: 0, W: 1, H: 1, cell: 200, label: Uint8Array.of(LABELS.indexOf('park')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
+    const place = () => amenitiesOf(town, { z, ground: new Ground(town), laid: new Footprints(), vary: (_x, _y, salt) => salt === 14707 ? roll : 0 });
+    park.push({ pts: [97, 19, 97, 23, 99, 23, 99, 19], seam: new Uint8Array(4) });
+    place();
+    expect(town.landuse).toHaveLength(0);
+    park.pop();
+    place();
+    expect(town.landuse.map(a => a.cls)).toEqual([cls]);
+    expect(bestRect(town.landuse[0].shape[0].pts).rect).toMatchObject({ L: length, w: width });
+    expect(town.pois.map(p => p.sub)).toEqual(cls === 'pitch' ? ['basketball'] : []);
+  });
+
   test('a park court follows its path and a school pitch keeps its ground', () => {
     const town = empty();
     town.green.push([{ pts: [0, 0, 200, 0, 200, 200, 0, 200], seam: new Uint8Array(4) }]);

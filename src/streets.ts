@@ -372,7 +372,8 @@ function stairPitch(B: Build, p: number[]): number {
   return Math.max(0.55, Math.max(c.gap(0.8), c.nib * 2) / separation);
 }
 
-function pathLength(p: number[]): number {
+/** Length along a way in ground metres. */
+export function pathLength(p: number[]): number {
   let l = 0;
   for (let i = 2; i < p.length; i += 2) l += Math.hypot(p[i] - p[i - 2], p[i + 1] - p[i - 1]);
   return l;

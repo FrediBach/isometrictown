@@ -532,7 +532,7 @@ export function drawGround(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (
   paper.facet('cemeteries', () => {
     for (const c of G.cemeteries) cemetery(B, paper, M, G, c.shape, c.rect, standing);
   });
-  for (const p of G.pitches) paper.facet(`pitches/${p.sport}`, () => pitch(paper, p, open));
+  for (const p of G.pitches) paper.facet(`pitches/${p.sport}`, () => pitch(B, paper, p, open));
 }
 
 /** Catalogue facets for the ground symbols, by land code. */
@@ -808,7 +808,7 @@ export function tennisCourts(r: Rect): Court[] {
 }
 
 /** Markings on a sports pitch, with goals, nets or hoops, fitted to the pitch. */
-function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean): void {
+function pitch(B: Build, paper: Paper, p: Pitch, open: (x: number, y: number) => boolean): void {
   const { cx, cy, ux, uy, L, w } = p.rect;
   const vx = -uy;
   const vy = ux;
@@ -966,7 +966,10 @@ function pitch(paper: Paper, p: Pitch, open: (x: number, y: number) => boolean):
         break;
       }
       const { R, S, lanes } = t;
-      for (let i = 0; i < lanes; i++) {
+      // At the tightest point of a projected bend, keep visible lanes two pen widths apart.
+      const spacing = Math.max(B.cam.gap(0.7), 2 * B.cam.nib);
+      const stride = B.set.source === 'image' ? Math.max(1, Math.ceil(spacing / (LANE * B.cam.s * B.cam.sa))) : 1;
+      for (let i = 0; i < lanes; i += stride) {
         const r = R - i * LANE;
         const pts: [number, number][] = [];
         for (let k = 0; k <= 16; k++) {

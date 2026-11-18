@@ -3,9 +3,9 @@ import { pointInRing, ringArea } from './geo';
 import type { BuildContext, Built } from './image-buildings';
 import type { Occupancy } from './image-blocks';
 import { toneAt, type Target } from './image-read';
-import { Footprints, inShape } from './image-check';
+import { centre, containsSite, Footprints, inShape } from './image-check';
 import { labelAt, type Zones } from './image-zones';
-import { walk } from './streets';
+import { pathLength, walk } from './streets';
 import { bestRect, corners } from './shape';
 import type { Building, Town, Way } from './tiles';
 
@@ -168,8 +168,61 @@ export function parkingSites(town: Town, z: Zones, occ: Occupancy, vary: BuildCo
   town.ways.push(...drives);
 }
 
+// Half the site's length and breadth in metres, including room beyond the markings.
+const PARK_SITES = {
+  tennis: [13, 7], basketball: [15, 8.5], track: [45, 22], playground: [7, 4],
+} as const;
+
+/** Put a recreation site beside a path or park entrance, reserving room for the whole site. */
+function parkSites(town: Town, { vary, ground, laid, z }: Pick<BuildContext, 'vary' | 'ground' | 'laid' | 'z'>): void {
+  if (!town.green.length) return;
+  const spaced = catchments(), grounds = new Footprints();
+  for (const a of town.landuse) {
+    if (a.cls !== 'pitch' && a.cls !== 'track' && a.cls !== 'playground') continue;
+    const p = a.shape[0].pts;
+    grounds.add(p);
+    spaced('recreation', ...centre(p), 0);
+  }
+  const place = (mx: number, my: number, ux: number, uy: number, verge: number) => {
+    if (vary(mx, my, 14760) >= 0.55) return;
+    const roll = vary(mx, my, 14707);
+    const sport = roll < 0.28 ? 'tennis' : roll < 0.56 ? 'basketball' : roll < 0.66 ? 'track' : 'playground';
+    const [half, deep] = PARK_SITES[sport];
+    const first = vary(mx, my, 14703) < 0.5 ? -1 : 1;
+    for (const side of [first, -first]) {
+      const back = (Math.max(16, deep + 7) + verge) * side;
+      const cx = mx - uy * back, cy = my + ux * back;
+      if (labelAt(z, cx, cy) !== 'park') continue;
+      const q = corners({ cx, cy, ux, uy, L: half * 2, w: deep * 2 });
+      if (!town.green.some(park => containsSite(park, q)) || ground.crossesStream(q) || grounds.touches(q) || laid.touches(q)) continue;
+      // Overlapping discs cover the site without rejecting its own approach path.
+      const strips = Math.ceil(half / deep), step = half / strips;
+      const clearance = Math.hypot(step, deep);
+      let clear = true;
+      for (let i = 0; i < strips; i++) {
+        const d = -half + (2 * i + 1) * step;
+        if (ground.front(cx + ux * d, cy + uy * d) < clearance || ground.under(cx + ux * d, cy + uy * d) !== 'a park') clear = false;
+      }
+      if (!clear || !spaced('recreation', cx, cy, 140)) continue;
+      const cls = sport === 'tennis' || sport === 'basketball' ? 'pitch' : sport;
+      grounds.add(q);
+      town.landuse.push({ cls, shape: [{ pts: q, seam: new Uint8Array(4) }] });
+      if (cls === 'pitch') town.pois.push({ x: cx, y: cy, cls, sub: sport });
+      return;
+    }
+  };
+  for (const w of town.ways) {
+    if (w.bridge || (w.kind !== 'path' && w.kind !== 'road') || w.cls === 'service') continue;
+    const length = pathLength(w.pts);
+    if (length < 9) continue;
+    const step = length / Math.max(1, Math.round(length / 100));
+    walk(w.pts, step / 2, step, 0, (x, y, ux, uy) => place(x, y, ux, uy, w.width / 2));
+  }
+}
+
 /** Give finished streets shops and stops, and lay out recreation grounds beside paths. */
 export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildContext, 'vary' | 'ground' | 'laid' | 'z'>): void {
+  parkSites(town, { vary, ground, laid, z });
   const spaced = catchments();
   for (const tag of town.tagged) {
     const { x, y, building } = tag;
@@ -177,8 +230,6 @@ export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildCon
       town.pois.push({ x, y, cls: 'shop', sub: 'shop' });
   }
   const rough = town.cover.filter(a => a.cls === 'wetland' || a.cls === 'scrub');
-  const grounds = new Footprints();
-  for (const a of town.landuse) if (a.cls === 'pitch') grounds.add(a.shape[0].pts);
   for (const w of town.ways) {
     if (w.bridge || (w.kind === 'road' && (w.cls === 'minor' || w.cls === 'service'))) continue;
     const p = w.pts;
@@ -206,18 +257,6 @@ export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildCon
       if (label === 'meadow' && w.cls === 'track' && !ground.under(x, y) && !laid.covers(x, y) && !rough.some(a => inShape(a.shape, x, y)) && spaced('campsite', x, y, 550)) {
         town.pois.push({ x, y, cls: 'campsite', sub: 'camp_site' });
       }
-      if (label !== 'park') continue;
-      const court = vary(mx, my, 14707) < 0.4;
-      const half = court ? 13 : 7, deep = court ? 7 : 4;
-      const a = half * side;
-      const q = [...at(-a, 16 - deep), ...at(a, 16 - deep), ...at(a, 16 + deep), ...at(-a, 16 + deep)];
-      // Keep the whole court inside the park and off neighbouring paths and school pitches.
-      if (ground.under(x, y) !== 'a park' || ground.front(x, y) < Math.hypot(half, deep) || ground.crossesStream(q) || grounds.clash(q)) continue;
-      if (![0, 2, 4, 6].every(j => ground.under(q[j], q[j + 1]) === 'a park') || !spaced('recreation', x, y, 140)) continue;
-      const cls = court ? 'pitch' : 'playground';
-      grounds.add(q);
-      town.landuse.push({ cls, shape: [{ pts: q, seam: new Uint8Array(4) }] });
-      if (court) town.pois.push({ x, y, cls, sub: 'tennis' });
     }
   }
 }
