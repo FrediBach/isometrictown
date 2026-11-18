@@ -145,8 +145,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const H = Math.max(1, Math.ceil((by1 - by0) / cell));
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
-  const neighbours = Math.max(0, Math.min(1, set.imageNeighbours));
-  const pairCost = compatTable(neighbours);
+  const pairCost = compatTable(set.imageNeighbours);
   const across = Math.max(SUPERPIXEL, SUPERPIXEL_MM / cam.s, 2 * cell);
   const colour = colourCounts(set);
   const chroma = colour ? chromaWeight(set) : 0;
@@ -386,7 +385,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
     settle();
   }
-  // Patches too small for their kind join whichever neighbour suits them best: the image, and with real-town neighbours on, the land round them.
+  // Patches too small for their kind join whichever neighbour suits them best.
   const mergeSmall = () => {
     for (let pass = 0; pass < 6; pass++) {
       const comp = new Int32Array(count).fill(-1);
@@ -417,9 +416,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
         let best = -1;
         let bc = Infinity;
         for (const o of around) {
-          let c = list.reduce((a, s) => a + data[s * K + o], 0);
-          // With real-town neighbours on, how the patch would sit among what surrounds it counts too.
-          if (neighbours > 0) for (const s of list) for (const [t, w] of nbrs[s]) if (comp[t] !== ci) c += neighbours * w * pairCost[o * K + label[t]];
+          const c = list.reduce((a, s) => a + data[s * K + o], 0);
           if (c < bc) {
             bc = c;
             best = o;
