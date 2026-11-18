@@ -80,6 +80,7 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 Section 1 starts with the **Map | Image** switch. In Image, drop or choose a picture in the image well (`components/image-well.tsx`). With Fill selected, dragging or using the arrow keys moves the crop. Brightness and Contrast adjust the tones the controls below read. Colour, Likeness and Street pattern (Auto | Organic | Grid) set the overall character of the town.
 
+- **Neighbourhoods as in real towns** places districts beside each other as they lie in 60 real places: works on the water, suburbs out by the fields, towers among blocks and squares, old towns away from meadows. At 0% zoning keeps its hand-made rules.
 - **Height from image** raises towers in the darkest parts of the picture and tapers buildings down in lighter areas.
 - **Building density from image** below zero opens plots across the picture, especially in pale areas. Above zero it gives buildings more ground in dark blocks and opens space for gardens in pale blocks.
 - **Hatching from image** changes how closely roofs, walls, fields, parks and cast shadows are hatched. It follows the tone where the strokes land on the sheet.

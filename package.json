@@ -13,6 +13,7 @@
     "lod": "node lab/run.mjs",
     "likeness": "node lab/likeness.mjs",
     "calibrate": "node lab/calibrate.mjs",
+    "adjacency": "node lab/adjacency.mjs",
     "test": "tsc -p test && vitest run",
     "test:unit": "vitest run --project unit",
     "test:watch": "vitest --project unit",

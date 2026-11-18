@@ -10,7 +10,8 @@ import { imageScene, plausibility, type Picture } from '../src/image';
 import { TARGET_CELL } from '../src/image-read';
 import { blur, coverage, LABELS, likeness, oklab, toGamma, type Label, type Likeness } from '../src/image-tone';
 import { predict } from '../src/image-tune';
-import { labelAt } from '../src/image-zones';
+import { labelAt, type Zones } from '../src/image-zones';
+import { PAIRS } from '../src/image-adjacency-data';
 import { streetRules } from '../src/image-streets';
 import { PALETTES } from '../src/palettes';
 import { plan, toSvg } from '../src/plot';
@@ -29,7 +30,7 @@ function fixture(name: string): Picture {
 export const PICTURES: Record<string, () => Picture> = { ...synthetic, astronaut: () => fixture('astronaut'), logo: () => fixture('logo') };
 export const SCALES = [1000, 2500, 5000, 8000];
 
-export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; density?: number; hatching?: number; contours?: number; floorplans?: number; preserveSpace?: boolean; highlight?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
+export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; density?: number; hatching?: number; contours?: number; floorplans?: number; neighbours?: number; preserveSpace?: boolean; highlight?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
 /** An RGB image, 8 bits a channel, for writing out. */
 export type Rgb = { w: number; h: number; data: Uint8Array };
 export type LikenessResult = {
@@ -53,6 +54,8 @@ export type LikenessResult = {
   zones: Rgb;
   /** Share of the ground in each label. */
   shares: Partial<Record<Label, number>>;
+  /** How typical the land plan's borders are of real towns, nats per border (higher is more typical). */
+  realism: number;
   /** Streets in the network, and breaches of the street rules (§10.5). */
   streets: number;
   features: Record<string, number>;
@@ -94,6 +97,7 @@ export function caseSettings(pic: Picture, scale: number, o: LikenessOptions = {
     imageDensity: o.density ?? DEFAULT_SETTINGS.imageDensity,
     imageHatching: o.hatching ?? DEFAULT_SETTINGS.imageHatching,
     imageFloorplans: o.floorplans ?? DEFAULT_SETTINGS.imageFloorplans,
+    imageNeighbours: o.neighbours ?? DEFAULT_SETTINGS.imageNeighbours,
     imageContours: o.contours ?? DEFAULT_SETTINGS.imageContours,
     imagePreserveSpace: o.preserveSpace ?? DEFAULT_SETTINGS.imagePreserveSpace,
     imageHighlight: o.highlight ?? DEFAULT_SETTINGS.imageHighlight,
@@ -164,6 +168,7 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
     edges,
     zones,
     shares,
+    realism: realism(scene.zones),
     features: imageFeatures(name, scene, pic, scored.views),
     streets: scene.streets.edges.length,
     violations: streetRules(scene.streets),
@@ -185,6 +190,32 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
       }),
     },
   };
+}
+
+/**
+ * How typical a land plan's borders are of real towns: the mean log-chance, nats, of the label
+ * across each border given the label on this side, as the real places in the adjacency lab have it.
+ */
+function realism(z: Zones): number {
+  const K = LABELS.length;
+  const P = PAIRS.map((row, a) => {
+    const sum = row.reduce((s, v, b) => s + (b === a ? 0 : v + 4), 0);
+    return row.map((v) => Math.log((v + 4) / sum));
+  });
+  let ll = 0;
+  let n = 0;
+  const side = (a: number, b: number) => {
+    if (a === b || a >= K || b >= K) return;
+    ll += P[a][b] + P[b][a];
+    n += 2;
+  };
+  for (let j = 0; j < z.H; j++)
+    for (let i = 0; i < z.W; i++) {
+      const c = j * z.W + i;
+      if (i + 1 < z.W) side(z.label[c], z.label[c + 1]);
+      if (j + 1 < z.H) side(z.label[c], z.label[c + z.W]);
+    }
+  return ll / Math.max(1, n);
 }
 
 /** Pearson correlation of two views' lightness, blurred a further 3 mm (across the room), where the target has weight. */

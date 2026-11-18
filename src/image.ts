@@ -80,7 +80,7 @@ export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, nu
  * Detail, pen width, pen colours, sun, shadows and the layer switches only change how it
  * is drawn, so they never move a street.
  */
-const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'imageContours', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
+const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'imageNeighbours', 'imageContours', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
 /** And the target, on what decides how the drawing should look. */
 const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia'];
 

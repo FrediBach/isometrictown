@@ -13,6 +13,7 @@
  *   npm run likeness -- --likeness 0.2                 another Likeness
  *   npm run likeness -- --relief 1                     full Height from image
  *   npm run likeness -- --density 0.7 --hatching 1 --contours 0.5 --floorplans 1
+ *   npm run likeness -- --neighbours 1                 zone borders as in real towns
  *   npm run likeness -- --preserve-space --highlight 0.9
  *   npm run likeness -- --pens archive                 another palette
  *   npm run likeness -- --sheet a4                     another sheet (A3 by default)
@@ -48,6 +49,7 @@ const options = {
   hatching: numberOption('hatching'),
   contours: numberOption('contours'),
   floorplans: numberOption('floorplans'),
+  neighbours: numberOption('neighbours'),
   preserveSpace: flag('preserve-space'),
   highlight: numberOption('highlight'),
   pens: opt('pens', undefined),
@@ -121,11 +123,11 @@ for (const picture of pictures) {
       console.log(`${''.padEnd(22)} ${r.streets} streets, ${r.violations.length ? `rules broken: ${r.violations.slice(0, 3).join('; ')}` : 'rules kept'}; ${r.blocks} blocks, ${r.lots} lots, ${r.implausible.length ? `implausible: ${r.implausible.join('; ')}` : 'plausible'}`);
       const prediction = options.relief > 0 || options.hatching > 0 || options.preserveSpace ? 'predicted with ordinary heights and hatching, before clipping' : 'predicted';
       console.log(`${''.padEnd(22)} follows the image ${r.corr.toFixed(3)}; ink per pen ${prediction} ${r.guard.predicted.map((v) => (v * 100).toFixed(1)).join('/')} %, drawn ${r.guard.drawn.map((v) => (v * 100).toFixed(1)).join('/')} %`);
-      console.log(`${''.padEnd(22)} zones ${Object.entries(r.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.01).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', ')}`);
+      console.log(`${''.padEnd(22)} borders as real towns ${r.realism.toFixed(3)}; zones ${Object.entries(r.shares).sort((a, b) => b[1] - a[1]).filter(([, v]) => v >= 0.01).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(', ')}`);
       const features = Object.entries(r.features).map(([label, v]) => `${label} ${pct(v)}`);
       if (features.length) console.log(`${''.padEnd(22)} ${features.join(', ')}`);
       const { marks, ...stats } = r.stats;
-      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, features: r.features, shares: r.shares, streets: r.streets, violations: r.violations, blocks: r.blocks, lots: r.lots, implausible: r.implausible, corr: r.corr, guard: r.guard, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
+      report.cases.push({ picture, scale, file, rect: r.rect, likeness: l, ms, features: r.features, shares: r.shares, realism: r.realism, streets: r.streets, violations: r.violations, blocks: r.blocks, lots: r.lots, implausible: r.implausible, corr: r.corr, guard: r.guard, counts: r.counts, tone: stats.tone, solid: stats.solid, waste: stats.total.waste, minutes: stats.total.seconds / 60 });
     } catch (e) {
       console.log(`${label} failed: ${e instanceof Error ? e.stack : e}`);
       report.cases.push({ picture, scale, error: String(e) });
@@ -176,12 +178,12 @@ if (compare) {
     const b = base.cases.find((x) => x.picture === c.picture && x.scale === c.scale);
     if (!b?.likeness || !c.likeness) continue;
     const d = (c.likeness.score - b.likeness.score) * 100;
-    console.log(`${`${c.picture} 1:${c.scale}`.padEnd(22)} likeness ${fmt(b.likeness.score * 100, 1)} → ${fmt(c.likeness.score * 100, 1)} (${d >= 0 ? '+' : ''}${fmt(d, 1)})  SSIM ${fmt(b.likeness.ssim, 3)} → ${fmt(c.likeness.ssim, 3)}${b.corr !== undefined ? `  follows ${fmt(b.corr, 3)} → ${fmt(c.corr, 3)}` : ''}  time ${b.ms.total} → ${c.ms.total} ms`);
+    console.log(`${`${c.picture} 1:${c.scale}`.padEnd(22)} likeness ${fmt(b.likeness.score * 100, 1)} → ${fmt(c.likeness.score * 100, 1)} (${d >= 0 ? '+' : ''}${fmt(d, 1)})  SSIM ${fmt(b.likeness.ssim, 3)} → ${fmt(c.likeness.ssim, 3)}${b.corr !== undefined ? `  follows ${fmt(b.corr, 3)} → ${fmt(c.corr, 3)}` : ''}${b.realism !== undefined ? `  real borders ${fmt(b.realism, 3)} → ${fmt(c.realism, 3)}` : ''}  time ${b.ms.total} → ${c.ms.total} ms`);
   }
   const mean = (cs, f) => cs.reduce((a, c) => a + f(c), 0) / cs.length;
   const both = report.cases.filter((c) => c.likeness && base.cases.some((x) => x.picture === c.picture && x.scale === c.scale && x.likeness));
   const was = both.map((c) => base.cases.find((x) => x.picture === c.picture && x.scale === c.scale));
-  console.log(`${'mean'.padEnd(22)} likeness ${fmt(mean(was, (c) => c.likeness.score) * 100, 1)} → ${fmt(mean(both, (c) => c.likeness.score) * 100, 1)}${was.every((c) => c.corr !== undefined) ? `  follows ${fmt(mean(was, (c) => c.corr), 3)} → ${fmt(mean(both, (c) => c.corr), 3)}` : ''}`);
+  console.log(`${'mean'.padEnd(22)} likeness ${fmt(mean(was, (c) => c.likeness.score) * 100, 1)} → ${fmt(mean(both, (c) => c.likeness.score) * 100, 1)}${was.every((c) => c.corr !== undefined) ? `  follows ${fmt(mean(was, (c) => c.corr), 3)} → ${fmt(mean(both, (c) => c.corr), 3)}` : ''}${was.every((c) => c.realism !== undefined) ? `  real borders ${fmt(mean(was, (c) => c.realism), 3)} → ${fmt(mean(both, (c) => c.realism), 3)}` : ''}`);
 }
 
 /** The report page: per picture, each scale's numbers and the picture, the look, the squint and the drawing side by side. */

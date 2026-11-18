@@ -206,6 +206,19 @@ describe('zoning', () => {
     expect(built / zones.label.length).toBeLessThan(0.01);
   });
 
+  test('neighbourhoods as in real towns rearrange the plan, and the town still keeps every rule', () => {
+    const pic = PICTURES.landscape();
+    const set: Settings = { ...base, image: pic.id };
+    const before = plan(pic, set).zones.label;
+    const after = plan(pic, { ...set, imageNeighbours: 1 }).zones.label;
+    let moved = 0;
+    for (let c = 0; c < before.length; c++) if (before[c] !== after[c]) moved++;
+    expect(moved).toBeGreaterThan(0);
+    const sc = imageScene({ ...pic, id: 'neighbours' }, { ...set, imageNeighbours: 1 });
+    expect(streetRules(sc.streets)).toEqual([]);
+    expect(plausibility(sc.town)).toEqual([]);
+  });
+
   test('more likeness keeps smaller patches', () => {
     const pic = paint('Blots', (u, v) => (Math.hypot(u - 0.3, v - 0.5) < 0.04 || Math.hypot(u - 0.7, v - 0.5) < 0.04 ? [30, 30, 30] : [230, 230, 230]));
     const built = (likeness: number) => [...plan(pic, { ...base, likeness }).zones.label].filter((k) => BUILT.has(LABELS[k])).length;

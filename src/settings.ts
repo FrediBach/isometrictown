@@ -31,6 +31,8 @@ export type Settings = {
   imageContours: number;
   /** How strongly sustained image lines turn houses and shape the backs of rows. */
   imageFloorplans: number;
+  /** How far zoning follows which districts border which in real towns, rather than the hand-made rules. */
+  imageNeighbours: number;
   /** Keep transparent areas and any selected highlights free of scene ink. */
   imagePreserveSpace: boolean;
   /** Adjusted tone at which paper is reserved. One selects transparency alone. */
@@ -187,6 +189,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageHatching: 0,
   imageContours: 0,
   imageFloorplans: 0,
+  imageNeighbours: 0,
   imagePreserveSpace: false,
   imageHighlight: 1,
   likeness: 0.6,

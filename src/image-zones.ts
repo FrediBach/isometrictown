@@ -11,6 +11,8 @@
  * kind are merged away. Likeness weighs the image against the priors that keep the town ordinary.
  */
 import type { Camera } from './camera';
+import { learnCompat } from './image-adjacency';
+import { PAIRS } from './image-adjacency-data';
 import { DARKEST, type Target } from './image-read';
 import { blur, BUILT, chromaWeight, LABELS, lightnessAt, materialColour, type Label } from './image-tone';
 import type { Settings } from './settings';
@@ -69,7 +71,7 @@ const BEACH_WATER = 5000;
 /** Smoothness between differing neighbours, at full realism, in ΔE per superpixel side. */
 const SMOOTH = 0.006;
 /** Smallest patch of each label at full realism, ha; at full likeness, `MIN_LIKE` for all. */
-const MIN_AREA: Record<Label, number> = { water: 0.5, plaza: 0.15, sand: 0.2, meadow: 1, field: 2, park: 1.5, allot: 0.5, wood: 3, works: 1, suburb: 1, rows: 0.6, old: 0.6, blocks: 0.6, towers: 0.8 };
+export const MIN_AREA: Record<Label, number> = { water: 0.5, plaza: 0.15, sand: 0.2, meadow: 1, field: 2, park: 1.5, allot: 0.5, wood: 3, works: 1, suburb: 1, rows: 0.6, old: 0.6, blocks: 0.6, towers: 0.8 };
 const MIN_LIKE = 0.1;
 /**
  * Largest patch of a label at full realism, ha. Only allotments expand at higher likeness: no town has a
@@ -120,9 +122,17 @@ export const REFERENCE = { pens: ['#000000', '#000000', '#000000', '#000000', '#
 
 /** `compat()` for every pair of label indices, looked up in the hot loops. */
 const COMPAT = Float32Array.from({ length: LABELS.length ** 2 }, (_, i) => compat(LABELS[Math.floor(i / LABELS.length)], LABELS[i % LABELS.length]));
+/** The same, learnt from which zones border which in real towns (see `image-adjacency.ts`). */
+const LEARNT = Float32Array.from(learnCompat(PAIRS, compat).flat());
+
+/** The costs between neighbours, from the hand-made table at 0 to the one learnt from real towns at 1. */
+export function compatTable(neighbours: number): Float32Array {
+  const t = Math.max(0, Math.min(1, neighbours));
+  return t > 0 ? COMPAT.map((h, i) => h + t * (LEARNT[i] - h)) : COMPAT;
+}
 
 /** What zoning needs from the settings. */
-export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
+export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'imageNeighbours' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
 
 /**
  * Zone the ground in `box` (local metres) to look like the target through `cam`. The pens shape
@@ -135,6 +145,8 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const H = Math.max(1, Math.ceil((by1 - by0) / cell));
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
+  const neighbours = Math.max(0, Math.min(1, set.imageNeighbours));
+  const pairCost = compatTable(neighbours);
   const across = Math.max(SUPERPIXEL, SUPERPIXEL_MM / cam.s, 2 * cell);
   const colour = colourCounts(set);
   const chroma = colour ? chromaWeight(set) : 0;
@@ -286,7 +298,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const cost = (s: number, k: number) => {
     if (k === SAND) return Infinity;
     let c = data[s * K + k];
-    for (const [t, w] of nbrs[s]) c += w * COMPAT[k * K + label[t]];
+    for (const [t, w] of nbrs[s]) c += w * pairCost[k * K + label[t]];
     return c;
   };
   const settle = () => {
@@ -374,7 +386,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
     settle();
   }
-  // Patches too small for their kind join whichever neighbour suits them best.
+  // Patches too small for their kind join whichever neighbour suits them best: the image, and with real-town neighbours on, the land round them.
   const mergeSmall = () => {
     for (let pass = 0; pass < 6; pass++) {
       const comp = new Int32Array(count).fill(-1);
@@ -405,7 +417,9 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
         let best = -1;
         let bc = Infinity;
         for (const o of around) {
-          const c = list.reduce((a, s) => a + data[s * K + o], 0);
+          let c = list.reduce((a, s) => a + data[s * K + o], 0);
+          // With real-town neighbours on, how the patch would sit among what surrounds it counts too.
+          if (neighbours > 0) for (const s of list) for (const [t, w] of nbrs[s]) if (comp[t] !== ci) c += neighbours * w * pairCost[o * K + label[t]];
           if (c < bc) {
             bc = c;
             best = o;

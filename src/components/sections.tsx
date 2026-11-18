@@ -97,6 +97,7 @@ function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file
       <NumberSetting name="imageContrast" label="Contrast" min={0.5} max={2} step={0.05} />
       <NumberSetting name="imageColour" label="Colour" min={0} max={1} step={0.01} hint="How much the image’s colours count against its light and dark." />
       <NumberSetting name="likeness" label="Likeness" min={0} max={1} step={0.01} hint="Closer to the image, or more like an ordinary town." />
+      <NumberSetting name="imageNeighbours" label="Neighbourhoods as in real towns" min={0} max={1} step={0.01} hint="Place districts beside each other as they lie in real towns: works on the water, suburbs out by the fields, towers among blocks and squares." />
       <NumberSetting name="imageRelief" label="Height from image" min={0} max={1} step={0.01} hint="At 0%, buildings keep their usual heights. At 100%, the darkest areas rise into towers and light areas stay low." />
       <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
       <NumberSetting name="imageHatching" label="Hatching from image" min={0} max={1} step={0.01} hint="Use closer hatch lines in dark areas and wider spacing in light areas." />
