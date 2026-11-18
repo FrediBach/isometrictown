@@ -333,6 +333,30 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       if (!changed) break;
     }
   };
+  // Read the first land plan over a few blocks. Only break close material matches within
+  // open green land or built land, and fade this preference out at full likeness.
+  if (likeness < 1) {
+    const works = L('works'), park = L('park');
+    const homes = Float32Array.from(sp, s => Number(label[s] !== works && BUILT.has(LABELS[label[s]])));
+    const yards = Float32Array.from(sp, s => Number(label[s] === works));
+    blur(homes, W, H, 80 / cell);
+    blur(yards, W, H, 80 / cell);
+    const residential = new Float32Array(count), industrial = new Float32Array(count);
+    for (let c = 0; c < n; c++) {
+      residential[sp[c]] += homes[c];
+      industrial[sp[c]] += yards[c];
+    }
+    for (let s = 0; s < count; s++) {
+      const housing = residential[s] / area[s], industry = industrial[s] / area[s];
+      const strength = 0.018 * (1 - likeness) * spWeight[s];
+      const land = LABELS[label[s]];
+      if (land === 'meadow' || land === 'field' || land === 'park')
+        data[s * K + park] -= strength * housing;
+      if (BUILT.has(land))
+        data[s * K + works] += strength * (housing - industry);
+    }
+    settle();
+  }
   // The urban gradient: find the cores, then make density fall away from them, and settle again.
   const cores = coresOf(label, nbrs, area, sp, W, (CORE_MIN * 10000) / (cell * cell));
   if (cores.length) {

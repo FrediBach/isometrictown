@@ -1,7 +1,7 @@
 {
-  "likeness": {"score":0.45,"dE":[0.027,0.024],"ssim":0.528},
+  "likeness": {"score":0.449,"dE":[0.027,0.024],"ssim":0.528},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":252,"houses":219,"trees":850,"cars":85,"lamps":85},
+  "counts": {"buildings":252,"houses":219,"trees":850,"cars":81,"lamps":85},
   "census": {
     "blank-windows": 8,
     "broadleaf": 487,
@@ -38,16 +38,16 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 4976,
-    "rawLifts": 6129,
-    "inkMm": 19183.7,
-    "travelMm": 14359,
-    "minutes": 35.9,
-    "pens": [["Shadows",566,2016.9],["Water",0,0],["Greenery",2317,6100.9],["Roofs",928,4466.4],["Linework",1165,6599.5]]
+    "lifts": 4969,
+    "rawLifts": 6122,
+    "inkMm": 19166.6,
+    "travelMm": 14368.4,
+    "minutes": 35.8,
+    "pens": [["Shadows",565,2017.6],["Water",0,0],["Greenery",2317,6100.9],["Roofs",928,4466.4],["Linework",1159,6581.7]]
   },
   "features": {
     "buildings": [543,1489.1],
-    "cars": [104,309.6],
+    "cars": [99,291.9],
     "details": [202,234.9],
     "ground": [1723,3667.1],
     "lamps": [73,146.6],
@@ -59,8 +59,8 @@
     "roofHatch": [535,1298.4],
     "roofs": [1292,3128.1],
     "shadeWalls": [21,63],
-    "shadows": [539,1948.3],
-    "streets:kerbs": [164,1279.5],
+    "shadows": [538,1949],
+    "streets:kerbs": [163,1279.5],
     "streets:platforms": [9,48.3],
     "trees": [395,1353.9],
     "windows": [26,91.9]
@@ -85,7 +85,7 @@
     "buildings/party-walls": [488,1372.7],
     "buildings/shed": [29,32.3],
     "buildings/shed-roof": [29,32.3],
-    "buildings/shop-front": [45,146.8],
+    "buildings/shop-front": [45,137.2],
     "buildings/shutters": [129,389],
     "buildings/sparse-windows": [11,36.6],
     "buildings/tall-windows": [14,36.9],
@@ -107,7 +107,7 @@
     "details/paired-windows": [59,73.3],
     "details/parapet": [5,12.7],
     "details/party-walls": [202,234.9],
-    "details/shop-front": [18,20.9],
+    "details/shop-front": [13,15.5],
     "details/shutters": [53,60.5],
     "details/terrace": [202,234.9],
     "ground/lawns": [57,109.5],
@@ -132,7 +132,7 @@
     "roofHatch/mapped-height": [535,1298.4],
     "roofHatch/paired-windows": [181,462.8],
     "roofHatch/party-walls": [482,1213.8],
-    "roofHatch/shop-front": [35,87.1],
+    "roofHatch/shop-front": [43,93.7],
     "roofHatch/shutters": [112,301.6],
     "roofHatch/sparse-windows": [35,57.8],
     "roofHatch/tall-windows": [12,16.2],
@@ -155,7 +155,7 @@
     "roofs/party-walls": [1242,2909.5],
     "roofs/shed": [11,52.6],
     "roofs/shed-roof": [11,52.6],
-    "roofs/shop-front": [111,236.1],
+    "roofs/shop-front": [120,260.7],
     "roofs/shutters": [303,721.4],
     "roofs/sparse-windows": [12,71.5],
     "roofs/tall-windows": [15,47.8],
@@ -174,7 +174,7 @@
     "shadeWalls/mapped-height": [21,63],
     "shadeWalls/paired-windows": [11,32],
     "shadeWalls/party-walls": [18,59.5],
-    "shadeWalls/shop-front": [1,4.7],
+    "shadeWalls/shop-front": [2,1.8],
     "shadeWalls/shutters": [4,15],
     "shadeWalls/tall-windows": [2,2.2],
     "shadeWalls/terrace": [19,60.8],
@@ -200,5 +200,5 @@
     "windows/shutters": [2,4.4],
     "windows/terrace": [26,91.9]
   },
-  "svg": {"bytes":285246,"sha1":"5c16a52dbe89ea3c"}
+  "svg": {"bytes":284914,"sha1":"77083eac1fcb2b4f"}
 }

@@ -273,7 +273,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     }
 
   // Cores: the middles of the largest dense built areas, or of all built land.
-  const cores = coresOf(z);
+  const settlements = coresOf(z);
+  const cores = settlements.map(s => s.middle);
 
   // The street field, as a blend of orientations doubled (so opposite directions agree), then smoothed.
   const fc = new Float32Array(n);
@@ -572,7 +573,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   // Thin dark bluish lines are streams and ditches.
   const streams = streamsOf((c) => ridge[c] < 0 && blue[c] === 1, z, 25);
-  return { ways: waysOf(g, water), paths, graph: g, circles, streams, cores };
+  return { ways: waysOf(g, water), paths, graph: g, circles, streams, cores: settlements.map(s => s.centre) };
 }
 
 const reverse = (p: number[]) => {
@@ -582,11 +583,11 @@ const reverse = (p: number[]) => {
 };
 
 /** The middles of the largest dense built areas (old town, blocks, towers), or of all built land, in metres. */
-function coresOf(z: Zones): [number, number][] {
+function coresOf(z: Zones) {
   const dense = new Set([L('old'), L('blocks'), L('towers')]);
   const pick = (want: (k: number) => boolean) => {
     const seen = new Uint8Array(z.W * z.H);
-    const found: { size: number; x: number; y: number }[] = [];
+    const found: { size: number; middle: [number, number]; centre: [number, number] }[] = [];
     for (let c0 = 0; c0 < seen.length; c0++) {
       if (seen[c0] || !want(z.label[c0])) continue;
       const list = [c0];
@@ -604,9 +605,23 @@ function coresOf(z: Zones): [number, number][] {
             list.push(d);
           }
       }
-      found.push({ size: list.length, x: z.x0 + (sx / list.length + 0.5) * z.cell, y: z.y0 + (sy / list.length + 0.5) * z.cell });
+      if (list.length * z.cell * z.cell <= 20000) continue;
+      // A crescent-shaped neighbourhood can wrap round a lake. Anchor its services on
+      // an actual cell of this settlement, as close to its middle as the ground allows.
+      const mx = sx / list.length, my = sy / list.length;
+      let x = mx, y = my;
+      if (!list.includes(Math.round(my) * z.W + Math.round(mx))) {
+        let best = Infinity;
+        for (const c of list) {
+          const i = c % z.W, j = Math.floor(c / z.W);
+          const d = (i - mx) ** 2 + (j - my) ** 2;
+          if (d < best) { x = i; y = j; best = d; }
+        }
+      }
+      found.push({ size: list.length, middle: [z.x0 + (mx + 0.5) * z.cell, z.y0 + (my + 0.5) * z.cell],
+        centre: [z.x0 + (x + 0.5) * z.cell, z.y0 + (y + 0.5) * z.cell] });
     }
-    return found.sort((a, b) => b.size - a.size).slice(0, 3).filter((f) => f.size * z.cell * z.cell > 20000).map((f): [number, number] => [f.x, f.y]);
+    return found.sort((a, b) => b.size - a.size).slice(0, 3);
   };
   const dense3 = pick((k) => dense.has(k));
   return dense3.length ? dense3 : pick((k) => BUILT.has(LABELS[k]));

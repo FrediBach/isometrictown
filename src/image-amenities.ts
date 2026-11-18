@@ -220,15 +220,46 @@ function parkSites(town: Town, { vary, ground, laid, z }: Pick<BuildContext, 'va
   }
 }
 
-/** Give finished streets shops and stops, and lay out recreation grounds beside paths. */
-export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildContext, 'vary' | 'ground' | 'laid' | 'z'>): void {
-  parkSites(town, { vary, ground, laid, z });
-  const spaced = catchments();
-  for (const tag of town.tagged) {
-    const { x, y, building } = tag;
-    if ((building === 'terrace' || building === 'apartments') && ground.front(x, y) < 14 && vary(x, y, 14702) < 0.10)
-      town.pois.push({ x, y, cls: 'shop', sub: 'shop' });
+/** Concentrate the available shops on a well-fronted street within walking distance of each centre. */
+function shoppingStreets(town: Town, ground: BuildContext['ground'], vary: BuildContext['vary'], cores: BuildContext['cores'], likeness: number): void {
+  const streets = cores.map(() => new Map<Way, number>());
+  const plots = [];
+  let budget = 0;
+  for (const { building, x, y } of town.tagged) {
+    if (building !== 'terrace' && building !== 'apartments') continue;
+    const way = ground.frontage(x, y, 14);
+    if (!way) continue;
+    const roll = vary(x, y, 14702);
+    if (roll < 0.10) budget++;
+    let core = -1, distance = 240;
+    for (let k = 0; k < cores.length; k++) {
+      const d = Math.hypot(x - cores[k][0], y - cores[k][1]);
+      if (d < distance) { core = k; distance = d; }
+    }
+    const access = 1 - distance / 240;
+    if (core >= 0 && way.kind === 'road' && !way.bridge && way.cls !== 'service') {
+      const rank = way.cls === 'minor' ? 1 : 1.5;
+      streets[core].set(way, (streets[core].get(way) ?? 0) + access * rank);
+    }
+    plots.push({ x, y, way, core, access, priority: roll });
   }
+  const highStreets = streets.map(fronts => {
+    let best: Way | undefined, score = 3;
+    for (const [way, support] of fronts) if (support > score) { best = way; score = support; }
+    return best;
+  });
+  for (const p of plots) {
+    if (p.way === highStreets[p.core]) p.priority /= 1 + 16 * (1 - likeness) * p.access;
+  }
+  plots.sort((a, b) => a.priority - b.priority);
+  for (const { x, y } of plots.slice(0, budget)) town.pois.push({ x, y, cls: 'shop', sub: 'shop' });
+}
+
+/** Give finished streets shops and stops, and lay out recreation grounds beside paths. */
+export function amenitiesOf(town: Town, { vary, ground, laid, z, cores, set }: Pick<BuildContext, 'vary' | 'ground' | 'laid' | 'z' | 'cores'> & { set: Pick<BuildContext['set'], 'likeness'> }): void {
+  parkSites(town, { vary, ground, laid, z });
+  shoppingStreets(town, ground, vary, cores, set.likeness);
+  const spaced = catchments();
   const rough = town.cover.filter(a => a.cls === 'wetland' || a.cls === 'scrub' || a.cls === 'rock');
   rough.push(...town.landuse.filter(a => a.cls === 'quarry'));
   for (const w of town.ways) {

@@ -637,7 +637,7 @@ describe('image neighbourhood amenities', () => {
     town.green.push(park);
     town.ways.push({ pts: [30, 0, 170, 0], kind: 'road', cls: 'minor', width: 6 });
     const z: Zones = { x0: 0, y0: 0, W: 1, H: 1, cell: 200, label: Uint8Array.of(LABELS.indexOf('park')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
-    const place = () => amenitiesOf(town, { z, ground: new Ground(town), laid: new Footprints(), vary: (_x, _y, salt) => salt === 14707 ? roll : 0 });
+    const place = () => amenitiesOf(town, { z, cores: [], set: { likeness: 0.6 }, ground: new Ground(town), laid: new Footprints(), vary: (_x, _y, salt) => salt === 14707 ? roll : 0 });
     park.push({ pts: [97, 19, 97, 23, 99, 23, 99, 19], seam: new Uint8Array(4) });
     place();
     expect(town.landuse).toHaveLength(0);
@@ -648,12 +648,29 @@ describe('image neighbourhood amenities', () => {
     expect(town.pois.map(p => p.sub)).toEqual(cls === 'pitch' ? ['basketball'] : []);
   });
 
+  test('a central shopping street draws shops from scattered frontages within the same budget', () => {
+    const town = empty();
+    for (const y of [0, 100]) {
+      town.ways.push({ pts: [-70, y, 70, y], kind: 'road', cls: y ? 'minor' : 'secondary', width: 6 });
+      for (let x = -50; x <= 50; x += 10) town.tagged.push({ x, y: y + 8, building: 'terrace' });
+    }
+    const z: Zones = { x0: -200, y0: -200, W: 1, H: 1, cell: 400, label: Uint8Array.of(LABELS.indexOf('rows')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
+    const shops = (likeness: number) => {
+      town.pois = [];
+      amenitiesOf(town, { z, cores: [[0, 0]], set: { likeness }, ground: new Ground(town), laid: new Footprints(),
+        vary: (_x, y, salt) => salt === 14702 ? (y < 50 ? 0.3 : 0.08) : 1 });
+      return town.pois.filter(p => p.cls === 'shop').map(p => p.y);
+    };
+    expect(shops(1)).toEqual(Array(11).fill(108));
+    expect(shops(0)).toEqual(Array(11).fill(8));
+  });
+
   test('a park court follows its path and a school pitch keeps its ground', () => {
     const town = empty();
     town.green.push([{ pts: [0, 0, 200, 0, 200, 200, 0, 200], seam: new Uint8Array(4) }]);
     town.ways.push({ pts: [20, 70, 160, 70], kind: 'path', cls: 'footway', width: 0 });
     const z: Zones = { x0: 0, y0: 0, W: 1, H: 1, cell: 200, label: Uint8Array.of(LABELS.indexOf('park')), level: new Float32Array(1), warmth: new Float32Array(1), sp: new Int32Array(1) };
-    const ctx = { z, ground: new Ground(town), laid: new Footprints(), vary: () => 0 };
+    const ctx = { z, cores: [], set: { likeness: 0.6 }, ground: new Ground(town), laid: new Footprints(), vary: () => 0 };
     amenitiesOf(town, ctx);
     expect(town.pois).toEqual([{ x: 90, y: 54, cls: 'pitch', sub: 'tennis' }]);
     expect(ringArea(town.landuse[0].shape[0].pts)).toBeCloseTo(26 * 14);

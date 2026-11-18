@@ -5,7 +5,7 @@
  * that would break a rule; `plausibility()` checks a finished town against the same tests.
  */
 import { pointInRing, ringArea } from './geo';
-import type { Shape, Town } from './tiles';
+import type { Shape, Town, Way } from './tiles';
 
 /** A building stands at most this far from a street or path, m, to front it. */
 export const FRONTS = 90;
@@ -127,7 +127,7 @@ export function containsSite(shape: Shape, site: number[]): boolean {
 
 /** The ground buildings may not stand on, and the streets and paths they front. */
 export class Ground {
-  private segs: Seg[] = [];
+  private segs: (Seg & { way: Way })[] = [];
   private roads = new Index();
   private fronts = new Index();
   private streams: Seg[] = [];
@@ -148,7 +148,7 @@ export class Ground {
   constructor(t: Pick<Town, 'ways' | 'water' | 'streams' | 'green' | 'wood' | 'plazas' | 'landuse'>) {
     for (const w of t.ways.filter(w => w.kind !== 'rail' || w.streetTram))
       for (let k = 2; k < w.pts.length; k += 2) {
-        const s = { ax: w.pts[k - 2], ay: w.pts[k - 1], bx: w.pts[k], by: w.pts[k + 1], r: w.kind === 'road' ? w.width / 2 : 0 };
+        const s = { way: w, ax: w.pts[k - 2], ay: w.pts[k - 1], bx: w.pts[k], by: w.pts[k + 1], r: w.kind === 'road' ? w.width / 2 : 0 };
         const n = this.segs.push(s) - 1;
         const p = [s.ax, s.ay, s.bx, s.by];
         if (s.r > 0) this.roads.add(n, p, s.r);
@@ -256,6 +256,16 @@ export class Ground {
   /** Whether a footprint keeps off everything it may not stand on. */
   clear(ring: number[]): boolean {
     return !this.crossesStream(ring) && inside(ring).every(([x, y]) => !this.under(x, y));
+  }
+
+  /** The street or path with the nearest verge within the given frontage distance, in metres. */
+  frontage(x: number, y: number, limit: number): Way | undefined {
+    let way: Way | undefined;
+    for (const k of this.fronts.at(x, y)) {
+      const s = this.segs[k], d = toSeg(s, x, y) - s.r;
+      if (d < limit) { limit = d; way = s.way; }
+    }
+    return way;
   }
 
   /** How far a point is from the edge of the nearest street or path within `FRONTS`, m; Infinity if none. */
