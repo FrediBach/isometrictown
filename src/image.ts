@@ -8,6 +8,7 @@
  * the blocks between them are cut into lots (`image-blocks.ts`), each with buildings the way its
  * zone builds, and a few landmarks (`image-buildings.ts`).
  */
+import { villageRailway } from './image-rail';
 import { rockSites } from './image-rock';
 import { ferryLandings } from './image-ferries';
 import { Camera } from './camera';
@@ -172,7 +173,8 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   const occ = new Occupancy(zones.x0, zones.y0, Math.max(OCCUPY, zones.cell / 4), zones.W * zones.cell, zones.H * zones.cell);
   for (const w of st.ways) occ.way(w);
   for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
-  for (const s of [...town.water, ...streamShapes(town.streams), ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
+  const streams = streamShapes(town.streams);
+  for (const s of [...town.water, ...streams, ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
   const landings = ferryLandings(town, cam, occ, vary);
   town.ways.push(...landings);
   parkingSites(town, zones, occ, vary);
@@ -181,8 +183,13 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
   const ground = new Ground(town);
-  rockSites(town, land.cover.filter(a => a.cls === 'meadow'), cam, target, ground, occ, vary);
   const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: [...st.paths, ...landings], ways: st.ways, cores: st.cores, mmPerMetre };
+  // Compare rail alignments against the homes that would stand here without a railway.
+  // Only draw up those footprints if the station search has a usable street frontage.
+  villageRailway(town, st.cores, zones, cam, target, occ, streams, vary,
+    () => buildingsOf(blocks, { ...context, occ: occ.clone(), laid: new Footprints() }).buildings);
+  if (town.buildings.length) context.ground = new Ground(town);
+  rockSites(town, land.cover.filter(a => a.cls === 'meadow'), cam, target, context.ground, occ, vary);
   landmarks(blocks, context);
   return { town, streets: st.graph, blocks, context };
 }
@@ -213,9 +220,11 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   note('Putting up buildings');
   const ctx = buildingGround();
   const built = buildingsOf(blocks, ctx, tunedFronts ? { tuned: tunedFronts } : undefined);
-  town.buildings = built.buildings;
-  town.tagged = built.tagged;
-  town.pois = built.pois;
+  town.buildings = [...built.buildings, ...layout.town.buildings];
+  town.tagged = [...built.tagged, ...layout.town.tagged];
+  town.pois = [...built.pois, ...layout.town.pois];
+  for (const b of layout.town.buildings) ctx.laid.add(b.shape[0].pts);
+  for (const a of town.landuse) if (a.cls === 'railway') ctx.laid.add(a.shape[0].pts);
   town.pools = built.pools;
   town.landuse.push(...built.landuse);
   fieldBarns(town, ctx);

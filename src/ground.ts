@@ -119,7 +119,7 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
     const { rect, fill } = bestRect(a.shape[0].pts);
     if (!rect) continue;
     const rings = a.shape.map((r) => r.pts);
-    if (a.cls === 'parking' || a.cls === 'farmyard') {
+    if (a.cls === 'parking' || a.cls === 'farmyard' || (B.set.source === 'image' && a.cls === 'railway')) {
       // Keep the working yard clear of the surrounding garden or field texture.
       paper.fillMask(G.land, rings, 0);
       paper.fillMask(G.farms, rings, 0);

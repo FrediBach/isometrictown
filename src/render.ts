@@ -238,6 +238,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Trees image mode planted where it wants them.
     if (set.trees > 0) list.push(...from('image-trees', town.trees.map((t) => ({ ...t }))));
+    if (set.source === 'image') {
+      const trackbed = town.landuse.filter(a => a.cls === 'railway');
+      if (trackbed.length) list = list.filter(t => !trackbed.some(a => pointInRing(t.x, t.y, a.shape[0].pts)));
+    }
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
       const sx = cam.sx(t.x, t.y);

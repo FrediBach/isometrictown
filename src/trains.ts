@@ -423,7 +423,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   };
 
   /** Put a train on track i with its middle at d (or anywhere it fits); returns whether it went in. */
-  const run = (i: number, mid: number | null, atPlatform: boolean): boolean => {
+  const run = (i: number, mid: number | null, atPlatform: boolean, platformLength = Infinity): boolean => {
     const t = all[i];
     const [k0, k1] = stable(t);
     const r = (salt: number) => hash(k0, k1, set.seed, 700 + salt);
@@ -431,7 +431,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
     const GAP = 0.9;
     const length = (cars: Car[]) => cars.reduce((a, c) => a + c.len + GAP, -GAP);
     // Shorten the train to the longest visible stretch if it doesn't fit.
-    const room = Math.max(0, ...stretches[i].map(([f, to]) => to - f)) - 4;
+    const room = Math.min(platformLength, Math.max(0, ...stretches[i].map(([f, to]) => to - f)) - 4);
     const minCars = train.cars[0].kind === 'cab' ? 2 : 1;
     while (train.cars.length > minCars && length(train.cars) > room) {
       // Take a car out of the middle, keeping the cab or locomotive ends.
@@ -482,7 +482,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   // A passenger train standing at a platform, if there's one in view.
   const used = new Set<number>();
   const platforms = town.ways.filter((w) => w.kind === 'path' && w.sub === 'platform');
-  const stops: { i: number; d: number; score: number }[] = [];
+  const stops: { i: number; d: number; score: number; length: number }[] = [];
   for (const p of platforms) {
     const pc = measure(p.pts);
     const pl = pc[pc.length - 1];
@@ -504,7 +504,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
       }
       if (best < 6) {
         const [k0, k1] = B.key(px, py);
-        stops.push({ i, d: bestD, score: hash(k0, k1, set.seed, 720 + i) });
+        stops.push({ i, d: bestD, length: set.source === 'image' ? pl : Infinity, score: hash(k0, k1, set.seed, 720 + i) });
       }
     });
   }
@@ -512,7 +512,7 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   for (const s of stops) {
     const fam = all[s.i].family;
     if (budget[fam] <= 0 || used.has(s.i)) continue;
-    if (run(s.i, s.d, true)) {
+    if (run(s.i, s.d, true, s.length)) {
       used.add(s.i);
       budget[fam]--;
       break;

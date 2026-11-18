@@ -54,6 +54,8 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | `image-hatching.ts` | Samples tone in sheet millimetres to space hatch lines on projected buildings, ground and cast shadows. |
 | `image-space.ts` | Clips the visible town strokes to preserve transparency and optional highlights. Picking and the feature catalogue use the same reserved areas as the plotted sheet. |
 | `image-rock.ts` | Fits bare rock and roadside quarries into image-mode meadow before lots are occupied. |
+| `image-rail.ts` | Fits a terminus or street-parallel through station, comparing complete routes against proposed housing and the source image. |
+| `image-rail-route.ts` | Searches alternative tangents and circular arcs between the platform and the sheet boundary. Reserves the curved track bed and checks crossing angles and spacing along the route. |
 | `image-ferries.ts` | Image-mode waterfront access. Reserves footpaths and landing piers before buildings and joins facing piers where the ferry fits across continuous open water. |
 | `image-amenities.ts` | Image-mode civic uses on existing plots, protected when density changes. Street-front shops, stops and fuel points, meadow campsites and park recreation sites supply the same renderer inputs as their mapped counterparts. |
 | `image-ground.ts` | Image mode's open land from the zones: water, squares, parks, woods, meadow, sand, land use; fields and allotments cut into a staggered patchwork with tracks and footpaths between; the trees it plants itself in courtyards and churchyards (`Town.trees`, always empty from map tiles) |

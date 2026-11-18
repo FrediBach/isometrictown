@@ -114,6 +114,11 @@ function outlinesMeet(p: number[], q: number[]): boolean {
   return false;
 }
 
+/** Whether filled rings meet, including a shared edge or one contained inside the other. */
+export function ringsMeet(a: number[], b: number[]): boolean {
+  return pointInRing(a[0], a[1], b) || pointInRing(b[0], b[1], a) || outlinesMeet(a, b);
+}
+
 /** Whether the whole site lies inside one area, clear of its boundary and any holes. */
 export function containsSite(shape: Shape, site: number[]): boolean {
   return inShape(shape, site[0], site[1]) && shape.every(r =>
@@ -141,7 +146,7 @@ export class Ground {
   private gh = 0;
 
   constructor(t: Pick<Town, 'ways' | 'water' | 'streams' | 'green' | 'wood' | 'plazas' | 'landuse'>) {
-    for (const w of t.ways)
+    for (const w of t.ways.filter(w => w.kind !== 'rail' || w.streetTram))
       for (let k = 2; k < w.pts.length; k += 2) {
         const s = { ax: w.pts[k - 2], ay: w.pts[k - 1], bx: w.pts[k], by: w.pts[k + 1], r: w.kind === 'road' ? w.width / 2 : 0 };
         const n = this.segs.push(s) - 1;
@@ -158,6 +163,8 @@ export class Ground {
     const open: [string, Shape[]][] = [['water', t.water], ['a park', t.green], ['a wood', t.wood], ['a square', t.plazas]];
     const parking = t.landuse.filter(a => a.cls === 'parking').map(a => a.shape);
     if (parking.length) open.push(['a car park', parking]);
+    const rail = t.landuse.filter(a => a.cls === 'railway').map(a => a.shape);
+    if (rail.length) open.push(['a railway', rail]);
     this.open = open.map(([what, shapes]) => {
       const index = new Index();
       shapes.forEach((s, k) => index.add(k, s[0].pts));
@@ -274,8 +281,7 @@ export class Footprints {
   touches(ring: number[]): boolean {
     for (const j of this.index.around(ring)) {
       const other = this.rings[j];
-      if (pointInRing(ring[0], ring[1], other) || pointInRing(other[0], other[1], ring)) return true;
-      if (outlinesMeet(ring, other)) return true;
+      if (ringsMeet(ring, other)) return true;
     }
     return false;
   }

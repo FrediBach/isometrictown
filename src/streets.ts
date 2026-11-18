@@ -241,8 +241,10 @@ export function railways(B: Build, paper: Paper, ways: Way[], M?: Masks): void {
       paper.facet('catenary', () => {
         if (clearContactWire(B, p, twin ? g : 0)) paper.line3(LINEWORK, shifted(p, 0, 5.6));
         walk(p, 20, 55, 10, (x, y, ux, uy) => {
-          const px = x - uy * 3;
-          const py = y + ux * 3;
+          // Image branch platforms stand to the left of the track.
+          const side = B.set.source === 'image' ? -3 : 3;
+          const px = x - uy * side, py = y + ux * side;
+          if (B.set.source === 'image' && M && onMask(paper, M.road, px, py)) return;
           paper.line3(LINEWORK, [px, py, 0, px, py, 7.4]);
           paper.line3(LINEWORK, [px, py, 6.9, x, y, 6.9, x, y, 5.6]);
         });
