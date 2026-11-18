@@ -229,7 +229,8 @@ export function amenitiesOf(town: Town, { vary, ground, laid, z }: Pick<BuildCon
     if ((building === 'terrace' || building === 'apartments') && ground.front(x, y) < 14 && vary(x, y, 14702) < 0.10)
       town.pois.push({ x, y, cls: 'shop', sub: 'shop' });
   }
-  const rough = town.cover.filter(a => a.cls === 'wetland' || a.cls === 'scrub');
+  const rough = town.cover.filter(a => a.cls === 'wetland' || a.cls === 'scrub' || a.cls === 'rock');
+  rough.push(...town.landuse.filter(a => a.cls === 'quarry'));
   for (const w of town.ways) {
     if (w.bridge || (w.kind === 'road' && (w.cls === 'minor' || w.cls === 'service'))) continue;
     const p = w.pts;

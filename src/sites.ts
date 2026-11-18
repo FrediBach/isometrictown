@@ -630,15 +630,152 @@ function containers(B: Build, paper: Paper, M: Masks, x: number, y: number, ux: 
 
 // ---------------------------------------------------------------- Quarries
 
-/** Benches cut down into quarries, as nested outlines. */
-export function quarries(_B: Build, paper: Paper, town: Town, M: Masks): Extra {
+/** A hillside working with a broken high wall, benches and spoil beside the open yard. */
+function quarryWorking(B: Build, outline: number[], access: [number, number]): Solid {
+  const s = newSolid();
+  const { rect: site } = bestRect(outline);
+  if (!site) return s;
+  const { cx, cy } = site;
+  const radius = site.w / 2;
+  const [kx, ky] = B.key(cx, cy);
+  const pick = (salt: number) => hash(kx, ky, B.set.seed, salt);
+  // Present the exposed high wall in profile, with its low end towards the roadside entrance.
+  const [upX, upY] = B.cam.up;
+  const turn = (pick(14790) - 0.5) * 1.9;
+  const ux = upY * Math.cos(turn) - upX * Math.sin(turn);
+  const uy = -upX * Math.cos(turn) - upY * Math.sin(turn);
+  const side = (access[0] - cx) * ux + (access[1] - cy) * uy > 0 ? 1 : -1;
+  // Keep even the ends of long ledges and the outer wheel rut inside the reserved polygon.
+  const edges: { nx: number; ny: number; limit: number }[] = [];
+  for (let i = 0, j = outline.length - 2; i < outline.length; j = i, i += 2) {
+    const nx = outline[i + 1] - outline[j + 1], ny = outline[j] - outline[i];
+    edges.push({ nx, ny, limit: (outline[i] - cx) * nx + (outline[i + 1] - cy) * ny });
+  }
+  const within = (x: number, y: number, z: number) => {
+    let fraction = 1;
+    for (const { nx, ny, limit } of edges) {
+      const distance = x * nx + y * ny;
+      if (distance > limit && distance > 0) fraction = Math.min(fraction, limit / distance);
+    }
+    return [cx + x * fraction, cy + y * fraction, z];
+  };
+  const at = (across: number, forward: number, height: number) => {
+    const x = ux * across * side + uy * forward, y = uy * across * side - ux * forward;
+    const stretch = (site.L - site.w) / 2 * (x * site.ux + y * site.uy);
+    return within(radius * x + stretch * site.ux, radius * y + stretch * site.uy, height * radius);
+  };
+
+  // A high wall can wind across the site or break into two separate cuts. Each cut
+  // has its own crest, number of lifts and bench widths, with the ends grading down.
+  function cut(left: number, right: number, key: number): void {
+    const roll = (salt: number) => hash(kx, ky, B.set.seed, salt, key);
+    const spans = 2 + Math.floor((right - left) * (1.3 + 2 * roll(14800)));
+    const relief = 0.28 + 0.43 * roll(14801);
+    const lifts = Math.min(1 + Math.floor(3 * roll(14802)),
+      Math.max(1, Math.floor(B.cam.size(radius * relief) / LOD.quarryLift.mm)));
+    const bend = 0.10 + 0.44 * roll(14803), deepest = 0.25 + 0.5 * roll(14804);
+    const y0 = -0.55 + 0.18 * roll(14805), bench = 0.17 + 0.23 * roll(14806);
+    const profiles: number[][][] = [];
+    for (let i = 0; i <= spans; i++) {
+      const t = (i + (i > 0 && i < spans ? (roll(14810 + i) - 0.5) * 0.50 : 0)) / spans;
+      const x = left + (right - left) * t;
+      const y = y0 + Math.abs(t - deepest) * bend + (roll(14820 + i) - 0.5) * 0.18;
+      const h = relief * (0.34 + 0.66 * Math.sin(Math.PI * t)) * (0.8 + 0.40 * roll(14830 + i));
+      const profile = [at(x, y - 0.12, 0), at(x, y, h)];
+      const depth = bench * (0.75 + 0.45 * roll(14840 + i));
+      for (let lift = 1; lift <= lifts; lift++) {
+        const z = h * (1 - lift / lifts);
+        profile.push(at(x, y + depth * (lift - 0.6) / lifts, z));
+        if (lift < lifts) profile.push(at(x, y + depth * lift / lifts, z));
+      }
+      profiles.push(profile);
+    }
+    for (let i = 1; i < profiles.length; i++) {
+      const a = profiles[i - 1], b = profiles[i];
+      for (let j = 1; j < a.length; j++) s.faces.push([[...a[j - 1], ...b[j - 1], ...b[j], ...a[j]]]);
+      const width = Math.hypot(b[1][0] - a[1][0], b[1][1] - a[1][1]);
+      if (shows(B.cam, LOD.quarryJoint, Math.min(width, a[1][2] - a[2][2]))) {
+        const onFace = (along: number, down: number) => a[1].map((v, k) => {
+          const crest = v + along * (b[1][k] - v);
+          const foot = a[2][k] + along * (b[2][k] - a[2][k]);
+          return crest + down * (foot - crest);
+        });
+        const start = 0.25 + 0.5 * roll(14850 + i), lean = 0.45 * (roll(14860 + i) - 0.5);
+        s.lines.push({ pen: LINEWORK, pts: [...onFace(start, 0), ...onFace(start + lean, 0.62), ...onFace(start + lean / 2, 0.92)] });
+      }
+    }
+    for (let j = 0; j < profiles[0].length; j++)
+      s.lines.push({ pen: LINEWORK, pts: profiles.flatMap(p => p[j]) });
+    for (const [i, p] of profiles.entries()) {
+      const end = i === 0 || i === profiles.length - 1;
+      if (end) {
+        s.faces.push([p.flat()]);
+        s.lines.push({ pen: LINEWORK, pts: p.flat(), closed: true });
+      } else {
+        s.lines.push({ pen: LINEWORK, pts: p.slice(0, 3).flat() });
+        for (let j = 3; j < p.length; j += 2) s.lines.push({ pen: LINEWORK, pts: [...p[j], ...p[j + 1]] });
+      }
+    }
+  }
+  const left = -0.81 + 0.17 * pick(14870), right = 0.40 + 0.29 * pick(14871);
+  if (pick(14872) < 0.32) {
+    const split = -0.23 + 0.32 * pick(14873);
+    cut(left, split - 0.09, 0);
+    cut(split + 0.09, right, 1);
+  } else cut(left, right, 0);
+  s.shade = s.faces.slice();
+
+  // Distribute spoil along the open side, leaving a clear route into the yard.
+  const piles = Math.floor(3.7 * pick(14874));
+  for (let i = 0; i < piles; i++) {
+    const roll = (salt: number) => hash(kx, ky, B.set.seed, salt, i);
+    const x = -0.62 + (i + 0.3 + 0.4 * roll(14875)) / piles;
+    const y = 0.34 + 0.25 * roll(14876), width = Math.min(0.42 / piles, 0.13 + 0.14 * roll(14877));
+    const depth = width * (0.50 + 0.44 * roll(14878));
+    const count = 4 + Math.floor(3 * roll(14879)), toe: number[][] = [];
+    for (let j = 0; j < count; j++) {
+      const a = 2 * Math.PI * (j + 0.52 * roll(14880 + j)) / count;
+      toe.push(at(x + width * Math.cos(a), y + depth * Math.sin(a), 0));
+    }
+    const peak = at(x + width * (roll(14887) - 0.5), y, width * (0.45 + 0.6 * roll(14888)));
+    for (let j = 0; j < count; j++) {
+      s.faces.push([[...toe[j], ...toe[(j + 1) % count], ...peak]]);
+      if (j % 2 === 0) s.lines.push({ pen: LINEWORK, pts: [...toe[j], ...peak] });
+    }
+    s.lines.push({ pen: LINEWORK, pts: toe.flat(), closed: true });
+  }
+  if (shows(B.cam, LOD.ruts, radius * 0.13)) {
+    const lane = [at(0.48, 0.08, 0), at(0.72, 0.06, 0)];
+    const dx = access[0] - cx, dy = access[1] - cy;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 0) {
+      // Stop at the edge of the reserved site. Leave the crest intact when the road passes behind it.
+      const end = [cx + dx * radius / dist, cy + dy * radius / dist, 0];
+      if ((dx * ux + dy * uy) * side / dist > 0.55) lane.push(end);
+    }
+    for (const offset of [-0.065, 0.065]) {
+      const pts = lane.flatMap((p, i) => {
+        const a = lane[Math.max(0, i - 1)], b = lane[Math.min(lane.length - 1, i + 1)];
+        const k = offset * radius / (Math.hypot(b[0] - a[0], b[1] - a[1]) || 1);
+        return within(p[0] - cx - (b[1] - a[1]) * k, p[1] - cy + (b[0] - a[0]) * k, 0);
+      });
+      s.lines.push({ pen: LINEWORK, pts });
+    }
+  }
+  return s;
+}
+
+/** Stepped quarry workings and the contours of mapped pits. */
+export function quarries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const pits = town.landuse.filter((a) => a.cls === 'quarry');
+  const workings = pits.flatMap(a => a.quarryAccess ? [quarryWorking(B, a.shape[0].pts, a.quarryAccess)] : []);
   if (!pits.length) return { solids: [], draw: () => {} };
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
   return {
-    solids: [],
+    solids: workings,
     draw: () => {
       for (const a of pits) {
+        if (a.quarryAccess) continue;
         let ring: number[] | null = a.shape[0].pts;
         for (let k = 1; k <= 8 && ring; k++) {
           ring = offsetRing(a.shape[0].pts, () => k * 7);

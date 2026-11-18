@@ -11,7 +11,8 @@ import { hash, patch } from '@/rng';
 import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS, SHADOWS, type Settings } from '@/settings';
 import { curbs, fillRoads, footpaths, pathClearance, railways } from '@/streets';
 import { STYLES } from '@/styles';
-import type { Way } from '@/tiles';
+import { empty, type Way } from '@/tiles';
+import { quarries } from '@/sites';
 
 function build(more: Partial<Settings> = {}): Build {
   const set = { ...DEFAULT_SETTINGS, ...more };
@@ -23,6 +24,22 @@ function build(more: Partial<Settings> = {}): Build {
     toAbs: (x, y) => [x, y],
   };
 }
+
+test('equal-sized image quarries in one town have reproducible, structurally different workings', () => {
+  const B = build({ scale: 2500, source: 'image', seed: 17 });
+  const town = empty(), paper = new Paper(B.cam);
+  for (let i = 0; i < 8; i++) {
+    const x = i * 100;
+    const pts = [x - 30, -25, x + 30, -25, x + 30, 25, x - 30, 25];
+    town.landuse.push({ cls: 'quarry', shape: [{ pts, seam: new Uint8Array(4) }], quarryAccess: [x + 40, 0] });
+  }
+  const masks = { road: paper.mask(), water: paper.mask(), foot: paper.mask() } as Masks;
+  const draw = () => quarries(B, paper, town, masks).solids;
+  const solids = draw();
+  expect(solids).toHaveLength(8);
+  expect(draw()).toEqual(solids);
+  expect(new Set(solids.map(s => s.shade?.length)).size).toBeGreaterThan(3);
+});
 
 function shutterWall(scale: number, penWidth = 0.35, seed = 1, height = 30) {
   const B = build({ scale, penWidth, seed, bearing: 0 });

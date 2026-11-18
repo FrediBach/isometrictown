@@ -104,6 +104,8 @@ export const LOD = {
   caravan: { m: 6.8, mm: 1.8, what: 'Caravans and motorhomes on campsites: length' },
   campDetail: { m: 0.6, mm: 0.7, what: 'Windows, doors and wheels on caravans and motorhomes: window height' },
   playground: { m: 3, mm: 1.35, what: 'Swings and slides' },
+  quarryLift: { m: 6, mm: 0.95, what: 'Individual quarry benches: face height' },
+  quarryJoint: { m: 5, mm: 1.3, what: 'Fractures in exposed quarry faces: smaller face dimension' },
   farmyard: { m: 5, mm: 1, what: 'Silos and stacks in farmyards' },
   port: { m: 12, mm: 1.44, what: 'Quayside cranes and containers' },
   fountain: { m: 4, mm: 1.2, what: 'Fountains and statues on squares' },

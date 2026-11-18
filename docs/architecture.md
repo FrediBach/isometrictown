@@ -53,6 +53,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | `image-density.ts` | Samples tone at each plot, adjusts building footprints and leaves some pale plots as open ground. The layout reserves neighbouring plots before expanding buildings. |
 | `image-hatching.ts` | Samples tone in sheet millimetres to space hatch lines on projected buildings, ground and cast shadows. |
 | `image-space.ts` | Clips the visible town strokes to preserve transparency and optional highlights. Picking and the feature catalogue use the same reserved areas as the plotted sheet. |
+| `image-rock.ts` | Fits bare rock and roadside quarries into image-mode meadow before lots are occupied. |
 | `image-ferries.ts` | Image-mode waterfront access. Reserves footpaths and landing piers before buildings and joins facing piers where the ferry fits across continuous open water. |
 | `image-amenities.ts` | Image-mode civic uses on existing plots, protected when density changes. Street-front shops, stops and fuel points, meadow campsites and park recreation sites supply the same renderer inputs as their mapped counterparts. |
 | `image-ground.ts` | Image mode's open land from the zones: water, squares, parks, woods, meadow, sand, land use; fields and allotments cut into a staggered patchwork with tracks and footpaths between; the trees it plants itself in courtyards and churchyards (`Town.trees`, always empty from map tiles) |

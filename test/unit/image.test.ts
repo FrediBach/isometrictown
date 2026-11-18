@@ -5,6 +5,7 @@
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
 import { amenitiesOf, civicSites, parishChurch, parkingSites } from '@/image-amenities';
+import { rockSites } from '@/image-rock';
 import { ferryLandings } from '@/image-ferries';
 import { fieldBarns } from '@/image-buildings';
 import { Footprints, Ground, inShape } from '@/image-check';
@@ -589,6 +590,31 @@ describe('image neighbourhood amenities', () => {
     expect(town.ways[1].pts.slice(2)).toEqual(town.ways[2].pts.slice(0, 2));
     expect(new Ground(town).under(39, 73)).toBe('a car park');
     expect(place([road, { kind: 'path', cls: 'footway', width: 0, pts: [10, 72, 60, 72] }]).ways).toHaveLength(2);
+  });
+
+  test('a terraced quarry needs clear meadow beside a driveable way', () => {
+    const set = { ...DEFAULT_SETTINGS, scale: 2500 };
+    const cam = new Camera(set), target = readImage(PICTURES.gradient(), set, cam.rect);
+    target.tone.fill(0.6);
+    const place = (cls: string, stream = false) => {
+      const town = empty();
+      const meadow = { cls: 'meadow', shape: [{ pts: [-180, -180, 180, -180, 180, 180, -180, 180], seam: new Uint8Array(4) }] };
+      town.cover.push(meadow);
+      town.ways.push({ pts: [-90, 0, 90, 0], width: 0, kind: 'path', cls });
+      if (stream) town.streams.push({ pts: [-90, -25, 90, -25], width: 2 });
+      rockSites(town, [meadow], cam, target, new Ground(town), new Occupancy(-200, -200, 2, 400, 400), () => 0);
+      return town;
+    };
+    const town = place('track');
+    expect(town.landuse.map(a => a.cls)).toEqual(['quarry']);
+    expect(inShape(town.landuse[0].shape, 0, -25)).toBe(true);
+    expect(inShape(town.cover[0].shape, 0, -25)).toBe(false);
+    expect(place('footway').landuse).toHaveLength(0);
+    expect(place('track', true).landuse).toHaveLength(0);
+    target.weight.fill(0);
+    const clear = place('track');
+    expect(clear.landuse).toHaveLength(0);
+    expect(clear.cover.map(a => a.cls)).toEqual(['meadow']);
   });
 
   test('a barn and its silo yard fit beside a field track and stay out of the next parcel', () => {

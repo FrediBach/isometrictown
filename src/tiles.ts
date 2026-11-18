@@ -29,7 +29,12 @@ export type Lift = { pts: number[]; cls: string };
 /** A point of interest, e.g. a place of worship with its religion as `sub`. */
 export type Poi = { x: number; y: number; cls: string; sub: string };
 /** A land-use area such as residential or industrial. */
-export type Area = { shape: Shape; cls: string };
+export type Area = {
+  shape: Shape;
+  cls: string;
+  /** Road or track serving an image-mode quarry, in local metres. */
+  quarryAccess?: [number, number];
+};
 /** A waterway centre line: canal, stream, ditch. */
 export type Stream = { pts: number[]; width: number };
 
