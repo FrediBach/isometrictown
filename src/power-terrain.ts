@@ -4,7 +4,7 @@ import type { PowerContext, Shape, Town } from './tiles';
 type Check = { box: number[]; contains: (x: number, y: number) => boolean };
 
 /** World-space evidence for inferred power routes; absence of a screen mask is never evidence of land. */
-export function powerTerrain(town: Town) {
+export function powerTerrain(town: Town, image = false) {
   const context: PowerContext = town.powerContext ?? {
     land: [...town.green, ...town.wood, ...town.landuse.map((a) => a.shape), ...town.cover.map((a) => a.shape)],
     water: [...town.water, ...town.pools], buildings: town.buildings.map((b) => b.shape),
@@ -38,7 +38,8 @@ export function powerTerrain(town: Town) {
   };
   const land = index(polygons(context.land));
   const wet = index([...polygons(context.water), ...strips(context.streams)]);
-  const built = index(polygons(context.buildings));
+  const reserved = image ? [...town.plazas, ...town.helipads, ...town.landuse.filter(a => ['pitch', 'stadium', 'playground', 'railway', 'cemetery', 'quarry'].includes(a.cls)).map(a => a.shape)] : [];
+  const built = index([...polygons([...context.buildings, ...reserved]), ...(image ? strips(town.ways.filter(w => w.kind === 'rail')) : [])]);
   const road = index(strips(context.roads));
   const field = index(context.airfields.map((s) => ({ box: bounds(s[0].pts, 500), contains: () => true })));
   const clear = (x: number, y: number) => !wet(x, y) && !built(x, y) && !field(x, y);

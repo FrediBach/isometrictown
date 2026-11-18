@@ -206,7 +206,7 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
 
 - Add the numbers to `NumberKey`, with `FORMAT` entries. Handle `source`, `fabric` and `imageFit` in `shared()`/`fromQuery()` the way `style` is handled, and encode `imageFocus` the way `center` is. Validate all of them in `loadSettings()`.
 - None of them goes in `VIEW_KEYS`, because image mode has no locator map. Street guidance changes the network and its blocks. Density relays the buildings on those blocks. Height, hatching and empty-space changes can reuse the building layout.
-- **Defaults on first switching to Image:** scale 1:2500, tilt 40° (a higher view shifts less of the image up the sheet), power lines off and the title off. They are applied the way a preset's `extra` is applied in `goTo()`, and only to settings the user hasn't changed. Switching back to Map finds the map place untouched.
+- **Defaults on first switching to Image:** scale 1:2500, tilt 40° (a higher view shifts less of the image up the sheet), the title off and power lines following the Power setting (on by default). They are applied the way a preset's `extra` is applied in `goTo()`, and only to settings the user hasn't changed. Switching back to Map finds the map place untouched.
 
 ### 5.2 Drawn-as settings and the fictional place
 

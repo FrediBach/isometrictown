@@ -1389,7 +1389,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Transmission lines',
     source: ['invented'],
     what: 'Lattice pylons with four legs and arms, insulators and sagging wires; too small on paper, a flat A-frame.',
-    how: 'Inferred candidates on a fixed 3 km grid. Both supports and the complete wire corridor must lie on mapped land, clear of water, buildings and airfields. Unknown ground or a missing support breaks the run. Off-sheet checks use uncropped map geometry with a bounded outer tile margin. Both end towers must lie wholly beyond the print; incomplete runs are omitted. These are not confirmed utility routes.',
+    how: 'Inferred candidates on a fixed 3 km grid. Both supports and the complete wire corridor must lie on mapped land, clear of water, buildings and airfields. Unknown ground or a missing support breaks the run. Off-sheet checks use uncropped map geometry with a bounded outer tile margin. Both end towers must lie wholly beyond the print; incomplete runs are omitted. Lattice transmission lines appear in map mode only.',
     needs: ['power'],
     lod: ['pylon', 'lattice', 'pylonLegs', 'insulator'],
     strokes: ['power:powerLines'],
@@ -1400,11 +1400,11 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Poles along roads',
     source: ['invented'],
     what: 'Wooden poles with sagging wires and transformer cans here and there.',
-    how: 'Along primary to service roads: in town where that is the custom, only on country roads elsewhere. Compatible road sections form continuous routes, including small aligned tile-seam gaps, with a shared side and spacing and poles at bends. Short rural pockets beside a settlement do not restart the wires. Ambiguous forks remain separate. Wires join adjacent valid poles only, with no water or building crossing; rejected poles break the run and isolated poles are omitted.',
+    how: 'Along primary to service roads: in town where that is the custom, only on country roads elsewhere. Compatible road sections form continuous routes, including small aligned tile-seam gaps, with a shared side and spacing and poles at bends. Short rural pockets beside a settlement do not restart the wires. Ambiguous forks remain separate. Wires join adjacent valid poles only, with no water or building crossing; rejected poles break the run and isolated poles are omitted. Image villages use short poles with close wires, while larger settlements use taller feeders with wider arms. Image feeders follow whole street corridors and terminate on poles with underground cable risers.',
     regions: `In town too: ${listed(OVERHEAD_TOWN)}.`,
     needs: ['power'],
     lod: ['pole', 'poleWires', 'transformer'],
-    strokes: ['power:powerLines'],
+    strokes: ['power:powerLines', 'power:roadsideFeeders'],
   },
 
   // Light and sheet

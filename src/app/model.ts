@@ -117,10 +117,9 @@ function validateImage(s: Settings): void {
 
 /**
  * What a drawing made from an image starts with, the first time: a coarser scale fits more houses
- * under the image, a higher view shifts less of it up the sheet, and power lines and the title
- * would only get in the way. Each applies only while the setting is still at its default.
+ * under the image, a higher view shifts less of it up the sheet, and the title starts hidden. Each applies only while the setting is still at its default.
  */
-export const IMAGE_DEFAULTS: Partial<Settings> = { scale: 2500, tilt: 40, power: false, title: false };
+export const IMAGE_DEFAULTS: Partial<Settings> = { scale: 2500, tilt: 40, title: false };
 
 /** The settings on switching to image mode, with the image defaults for whatever hasn't been changed. */
 export function toImageMode(set: Settings): Settings {

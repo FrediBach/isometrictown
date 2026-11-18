@@ -1,4 +1,5 @@
 import { expect, test, vi } from 'vitest';
+import { imagePower } from '@/image-power';
 import { powerTerrain } from '@/power-terrain';
 import { powerLines, powerRunContinues } from '@/power';
 import type { Build } from '@/buildings';
@@ -7,7 +8,7 @@ import { Paper } from '@/raster';
 import type { Masks } from '@/nature';
 import { DEFAULT_SETTINGS } from '@/settings';
 import { STYLES } from '@/styles';
-import { powerContextTiles, type PowerContext, type Shape, type Town } from '@/tiles';
+import { empty, powerContextTiles, type PowerContext, type Shape, type Town } from '@/tiles';
 import { EARTH, Frame } from '@/geo';
 
 const rectangle = (x0: number, y0: number, x1: number, y1: number): Shape => [{ pts: [x0,y0,x1,y0,x1,y1,x0,y1], seam: new Uint8Array(4) }];
@@ -38,14 +39,14 @@ test('both ends on land cannot justify a span across a lake, stream or building'
   }
 });
 
-function drawn(c: PowerContext, offset = 0, view = 0) {
-  const set = { ...DEFAULT_SETTINGS, scale: 1000 }, cam = new Camera(set), paper = new Paper(cam);
+function drawn(c: PowerContext, offset = 0, view = 0, imageTown?: Town) {
+  const set = { ...DEFAULT_SETTINGS, source: imageTown ? 'image' as const : 'map' as const, scale: imageTown ? 2500 : 1000 }, cam = new Camera(set), paper = new Paper(cam);
   const B: Build = { set, cam, style: STYLES.alpine, seed: set.seed, sun: [1,0], equator: [0,-1], left: false,
     toAbs: (x,y) => [x+offset,y], key: (x,y) => [Math.round(x+offset),Math.round(y)], cell: (x,y,size) => [Math.floor((x+offset)/size),Math.floor(y/size)] };
   const M = Object.fromEntries(['water','pool','road','under','calm','green','wood','foot','shadow','title'].map(k => [k,paper.mask()])) as Masks;
   const lines: number[][] = [];
   vi.spyOn(paper, 'line3').mockImplementation((_pen, p) => { lines.push(p.map((v,i) => i%3===0 ? v+offset : v)); });
-  powerLines(B,paper,town(c),M,[-2000+view-offset,-2000,2000+view-offset,2000],B.toAbs,(x,y)=>[x-offset,y]).draw(paper);
+  powerLines(B,paper,imageTown ?? town(c),M,[-2000+view-offset,-2000,2000+view-offset,2000],B.toAbs,(x,y)=>[x-offset,y]).draw(paper);
   return lines;
 }
 
@@ -132,4 +133,52 @@ test('emitted roadside wires ignore feature splits and omit unsupported standalo
   // A strip across the middle leaves isolated foundations, but no complete span.
   c.water=[rectangle(-190,-100,190,300)];
   expect(drawn(c)).toHaveLength(0);
+});
+
+function imageSettlement(count: number, offset = 0) {
+  const houses: number[] = [];
+  for (let i = 0; i < count; i++) houses.push(offset + (i % 16 - 8) * 12, Math.floor(i / 16) * 15, 180);
+  return houses;
+}
+
+test('separate villages on one sheet keep their own supply', () => {
+  const grid = imagePower(Array.from({ length: 10 }, (_, i) => imageSettlement(24, i * 600)).flat());
+  expect(grid.settlements.map(s => s.tier)).toEqual(Array(10).fill('village'));
+  expect(grid.near(300, 0)).toBeUndefined();
+});
+
+test('image settlements graduate from short roadside poles to feeders without transmission pylons', () => {
+  for (const [count, poleHeight] of [[12, 7.5], [64, 13], [240, 13]]) {
+    const c = context(), scene = empty();
+    scene.powerContext = c;
+    scene.density.built = imageSettlement(count);
+    c.roads = [{ kind: 'road', cls: 'minor', width: 5, pts: [-120, -12, 60, -12] }];
+    const lines = drawn(c, 0, 0, scene);
+    expect(lines.some(p => p.length === 6 && p[2] === 0 && p[5] === poleHeight)).toBe(true);
+    expect(lines.some(p => p.length === 39 && p[2] > 20)).toBe(false);
+    if (count === 240) {
+      expect(drawn(c, 0, 0, scene)).toEqual(lines);
+      c.water = c.land;
+      expect(drawn(c, 0, 0, scene)).toEqual([]);
+    }
+  }
+});
+
+test('image feeders reach both terminals, change verge around blocked ground and omit an impassable corridor', () => {
+  const c = context(), scene = empty();
+  scene.powerContext = c;
+  scene.density.built = [...imageSettlement(12, -180), ...imageSettlement(12, 180)];
+  c.roads = [{ kind: 'road', cls: 'minor', width: 5, pts: [-240, -12, 180, -12] }];
+  // Opposite verges are obstructed at opposite ends. Open countryside separates the two villages.
+  c.buildings = [rectangle(-250, -11, -110, 5), rectangle(60, -30, 190, -13)];
+  const lines = drawn(c, 0, 0, scene);
+  const poles = lines.filter(p => p.length === 6 && p[2] === 0 && p[5] === 7.5);
+  expect(poles.length).toBeGreaterThan(10);
+  expect(poles[0][0]).toBeLessThan(-225);
+  expect(poles.at(-1)![0]).toBeGreaterThan(165);
+  expect(poles[0][1]).toBeLessThan(-12);
+  expect(poles.at(-1)![1]).toBeGreaterThan(-12);
+  expect(lines.filter(p => p.length === 39)).toHaveLength(poles.length - 1);
+  c.water = [rectangle(-8, -80, 8, 80)];
+  expect(drawn(c, 0, 0, scene)).toEqual([]);
 });

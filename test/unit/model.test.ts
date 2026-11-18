@@ -179,8 +179,8 @@ describe('image mode', () => {
     expect(toImageMode(base())).toMatchObject({ source: 'image', ...IMAGE_DEFAULTS });
     const mine = toImageMode({ ...base(), scale: 1600, power: true });
     expect(mine).toMatchObject({ source: 'image', scale: 1600, tilt: IMAGE_DEFAULTS.tilt });
-    // power was already on by default, so the user's "on" can't be told from it: image mode turns it off.
-    expect(mine.power).toBe(false);
+    expect(mine.power).toBe(true);
+    expect(toImageMode({ ...base(), power: false }).power).toBe(false);
   });
 
   test('resetting in image mode keeps the image and image mode', () => {

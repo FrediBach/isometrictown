@@ -6,6 +6,7 @@ import type { Paper } from './raster';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { Town, Way } from './tiles';
+import { imagePower, imageFeeders } from './image-power';
 import { urbanity } from './traffic';
 import { LOD, shows } from './lod';
 import { powerTerrain } from './power-terrain';
@@ -229,65 +230,66 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
 }
 
 /** Wooden poles along roads with wires between them. */
-function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[], terrain: Terrain): void {
+function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[], terrain: Terrain, grid?: ReturnType<typeof imagePower>): void {
   const { set, style } = B;
-  const urban = urbanity({ ...town, ways: terrain.roads }, B.toAbs);
+  const urban = grid ? undefined : urbanity({ ...town, ways: terrain.roads }, B.toAbs);
   const townToo = OVERHEAD_TOWN.has(style.id);
   const american = style.id === 'american' || style.id === 'antipodean';
   const asian = style.id === 'eastAsian';
-  const spacing = asian ? 30 : 38;
-  const H = american ? 10.5 : asian ? 11 : 8.5;
   const blocked = (x: number, y: number) => !terrain.support(x, y, false) || onMask(paper, M.title, x, y);
   const keyed = (w: Way, salt: number) => {
     const [k0, k1] = B.key(...roadAnchor(w));
     return hash(k0, k1, set.seed, salt);
   };
-  for (const w of powerRoads(terrain.roads, B.key)) {
-    if (keyed(w, 950) > (townToo ? 0.85 : 0.5)) continue;
-    const side = keyed(w, 951) < 0.5 ? 1 : -1;
+  const ways = powerRoads(terrain.roads, B.key);
+  const preferredSide = (w: Way) => keyed(w, 951) < 0.5 ? 1 : -1;
+  const [left, top, right, bottom] = B.cam.rect;
+  const visible = (x: number, y: number) => {
+    const sx = B.cam.sx(x, y), sy = B.cam.sy(x, y, 0);
+    return sx >= left && sx <= right && sy >= top && sy <= bottom;
+  };
+  const routes = grid ? imageFeeders(ways, grid, visible, (x, y) => !blocked(x, y),
+    (a, b, width) => terrain.span(a[0], a[1], b[0], b[1], false, width) && !crossesTitle(paper, M, a[0], a[1], b[0], b[1]),
+    preferredSide, h => shows(B.cam, LOD.pole, h)) :
+    ways.filter(w => keyed(w, 950) <= (townToo ? 0.85 : 0.5)).map(w => {
+      const side = preferredSide(w), spacing = asian ? 30 : 38;
+      return { poles: roadsideSupports(w, side, spacing), side, spacing, village: false, H: american ? 10.5 : asian ? 11 : 8.5, reach: 1.1 };
+    });
+  for (const { poles, H, village, reach, side, spacing } of routes) {
+    const feeder = !!grid && !village;
     // Arms across the road's direction carry the wires; the pole's top is the same for all.
-    const wires: [number, number][] = american
-      ? [
-          [-0.9, H - 0.4],
-          [0.9, H - 0.4],
-          [0, H - 2.0],
-        ]
-      : asian
-        ? [
-            [-0.8, H - 0.4],
-            [0.8, H - 0.4],
-            [-0.8, H - 1.6],
-            [0.8, H - 1.6],
-            [0, H - 3.0],
-            [0, H - 3.6],
-          ]
-        : [
-            [-0.6, H - 0.3],
-            [0, H],
-            [0.6, H - 0.3],
-          ];
+    let wires: [number, number][];
+    if (village) wires = [[0, H], [0.55, H - 0.35]];
+    else if (feeder) wires = [[-1.65, H - 0.5], [1.65, H - 0.5], [0, H], [0, H - 2.3]];
+    else if (american) wires = [[-0.9, H - 0.4], [0.9, H - 0.4], [0, H - 2.0]];
+    else if (asian) wires = [[-0.8, H - 0.4], [0.8, H - 0.4], [-0.8, H - 1.6], [0.8, H - 1.6], [0, H - 3.0], [0, H - 3.6]];
+    else wires = [[-0.6, H - 0.3], [0, H], [0.6, H - 0.3]];
     // Wires too close to read apart on paper close up into one thick stroke: keep one of each
     // close group, the ones nearest the pole first.
     const kept: [number, number][] = [];
     for (const wr of [...wires].sort((a, b) => Math.abs(a[0]) - Math.abs(b[0]) || b[1] - a[1]))
       if (kept.every(([b, z]) => shows(B.cam, LOD.poleWires, Math.hypot(b - wr[0], z - wr[1])))) kept.push(wr);
     const arms = new Set(kept.filter(([b]) => b !== 0).map(([, z]) => z));
-    const can = (american || asian) && shows(B.cam, LOD.transformer);
+    const can = (american || asian || feeder) && shows(B.cam, LOD.transformer);
     let prev: [number, number, number, number] | null = null;
     let previousPole: Line[] = [], previousDrawn = false;
-    const poles = roadsideSupports(w, side, spacing);
-    const rural = townToo ? null : ruralSupports(poles, urban);
+    const rural = !urban || townToo ? null : ruralSupports(poles, urban);
     for (let i=0; i<poles.length; i++) {
       const [x, y, nx, ny] = poles[i];
-      if (blocked(x, y) || (rural && !rural[i])) { prev = null; continue; }
+      if (!grid && (blocked(x, y) || (rural && !rural[i]))) { prev = null; continue; }
       const ux = ny * side, uy = -nx * side;
       const pole: Line[] = [];
       // The pole, and its cross-arms; retain them only if a verified span uses this support.
       pole.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
-      for (const z of arms) pole.push({ pen: LINEWORK, pts: [x + nx * 1.1, y + ny * 1.1, z, x - nx * 1.1, y - ny * 1.1, z] });
+      for (const z of arms) pole.push({ pen: LINEWORK, pts: [x + nx * reach, y + ny * reach, z, x - nx * reach, y - ny * reach, z] });
       // Now and then a transformer can on the pole.
       const [k0, k1] = B.key(x, y);
-      if (can && hash(k0, k1, set.seed, 952) < 0.15) {
+      const terminal = !!grid && (i === 0 || i === poles.length - 1);
+      if (terminal) {
+        // A cable riser takes the overhead circuit underground at the street end or junction.
+        pole.push({ pen: LINEWORK, pts: [x, y, H, x + nx * 0.7, y + ny * 0.7, H - 1, x + nx * 0.7, y + ny * 0.7, 0] });
+      }
+      if ((terminal && shows(B.cam, LOD.transformer)) || (can && hash(k0, k1, set.seed, 952) < 0.15)) {
         const cx = x - ux * 0.5;
         const cy = y - uy * 0.5;
         const z0 = H - 3.4;
@@ -297,7 +299,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
       if (prev) {
         const [px, py, pnx, pny] = prev;
         // Dedicated corner supports let the wires turn with the road.
-        if (Math.hypot(px - x, py - y) < spacing * 1.5 && terrain.span(px, py, x, y, false, 1.1) && !crossesTitle(paper, M, px, py, x, y)) {
+        if (grid || (Math.hypot(px - x, py - y) < spacing * 1.5 && terrain.span(px, py, x, y, false, reach) && !crossesTitle(paper, M, px, py, x, y))) {
           if (!previousDrawn) out.push(...previousPole);
           out.push(...pole);
           joined = true;
@@ -314,8 +316,9 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
 export function powerLines(B: Build, paper: Paper, town: Town, M: Masks, box: number[], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Extra {
   const out: Line[] = [];
   if (!B.set.power || !shows(B.cam, LOD.pylon)) return { solids: [], draw: () => {} };
-  const terrain = powerTerrain(town);
-  transmission(B, paper, town, M, box, toAbs, fromAbs, out, terrain);
-  if (shows(B.cam, LOD.pole)) distribution(B, paper, town, M, out, terrain);
+  const grid = B.set.source === 'image' ? imagePower(town.density.built) : undefined;
+  const terrain = powerTerrain(town, !!grid);
+  if (!grid) transmission(B, paper, town, M, box, toAbs, fromAbs, out, terrain);
+  if (grid || shows(B.cam, LOD.pole)) distribution(B, paper, town, M, out, terrain, grid);
   return { solids: [], draw: (p) => out.forEach((l) => p.line3(l.pen, l.pts)) };
 }
