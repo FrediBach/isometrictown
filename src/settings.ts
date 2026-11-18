@@ -29,6 +29,8 @@ export type Settings = {
   imageHatching: number;
   /** How strongly sustained image lines steer streets and paths. */
   imageContours: number;
+  /** How strongly sustained image lines turn houses and shape the backs of rows. */
+  imageFloorplans: number;
   /** Keep transparent areas and any selected highlights free of scene ink. */
   imagePreserveSpace: boolean;
   /** Adjusted tone at which paper is reserved. One selects transparency alone. */
@@ -184,6 +186,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageDensity: 0,
   imageHatching: 0,
   imageContours: 0,
+  imageFloorplans: 0,
   imagePreserveSpace: false,
   imageHighlight: 1,
   likeness: 0.6,

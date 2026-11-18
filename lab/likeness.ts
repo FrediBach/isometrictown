@@ -29,7 +29,7 @@ function fixture(name: string): Picture {
 export const PICTURES: Record<string, () => Picture> = { ...synthetic, astronaut: () => fixture('astronaut'), logo: () => fixture('logo') };
 export const SCALES = [1000, 2500, 5000, 8000];
 
-export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; density?: number; hatching?: number; contours?: number; preserveSpace?: boolean; highlight?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
+export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; density?: number; hatching?: number; contours?: number; floorplans?: number; preserveSpace?: boolean; highlight?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
 /** An RGB image, 8 bits a channel, for writing out. */
 export type Rgb = { w: number; h: number; data: Uint8Array };
 export type LikenessResult = {
@@ -93,6 +93,7 @@ export function caseSettings(pic: Picture, scale: number, o: LikenessOptions = {
     imageRelief: o.relief ?? DEFAULT_SETTINGS.imageRelief,
     imageDensity: o.density ?? DEFAULT_SETTINGS.imageDensity,
     imageHatching: o.hatching ?? DEFAULT_SETTINGS.imageHatching,
+    imageFloorplans: o.floorplans ?? DEFAULT_SETTINGS.imageFloorplans,
     imageContours: o.contours ?? DEFAULT_SETTINGS.imageContours,
     imagePreserveSpace: o.preserveSpace ?? DEFAULT_SETTINGS.imagePreserveSpace,
     imageHighlight: o.highlight ?? DEFAULT_SETTINGS.imageHighlight,

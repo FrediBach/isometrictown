@@ -12,7 +12,7 @@
  *   npm run likeness -- --tuned                     experimental tuning before drawing
  *   npm run likeness -- --likeness 0.2                 another Likeness
  *   npm run likeness -- --relief 1                     full Height from image
- *   npm run likeness -- --density 0.7 --hatching 1 --contours 0.5
+ *   npm run likeness -- --density 0.7 --hatching 1 --contours 0.5 --floorplans 1
  *   npm run likeness -- --preserve-space --highlight 0.9
  *   npm run likeness -- --pens archive                 another palette
  *   npm run likeness -- --sheet a4                     another sheet (A3 by default)
@@ -47,6 +47,7 @@ const options = {
   density: numberOption('density'),
   hatching: numberOption('hatching'),
   contours: numberOption('contours'),
+  floorplans: numberOption('floorplans'),
   preserveSpace: flag('preserve-space'),
   highlight: numberOption('highlight'),
   pens: opt('pens', undefined),

@@ -15,6 +15,7 @@ import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
 import { amenitiesOf, parkingSites } from './image-amenities';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
+import { FloorplanGuides } from './image-floorplans';
 import { buildingsOf, fieldBarns, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
 import { densityOf } from './image-density';
@@ -87,7 +88,7 @@ const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[]) => JSON.st
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
 let laid: { key: string; zones: Zones; layout: Layout } | null = null;
-let built: { key: string; density: number; town: Town } | null = null;
+let built: { key: string; density: number; floorplans: number; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture, reusing the last layout. The lab can request a tuned build of its own. */
@@ -117,8 +118,8 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true);
     return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
   }
-  if (built?.key !== townKey || built.density !== drawn.imageDensity) {
-    built = { key: townKey, density: drawn.imageDensity, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note).town };
+  if (built?.key !== townKey || built.density !== drawn.imageDensity || built.floorplans !== drawn.imageFloorplans) {
+    built = { key: townKey, density: drawn.imageDensity, floorplans: drawn.imageFloorplans, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note).town };
   }
   const town = structuredClone(built.town);
   imageHeights(town, target, cam, drawn, laid.layout.context);
@@ -205,7 +206,8 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
   const density = set.imageDensity !== 0 ? densityOf(target, cam, set.imageDensity < 0) : undefined;
-  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, occ: layout.context.occ.clone(), laid: new Footprints() });
+  const guides = set.imageFloorplans > 0 ? new FloorplanGuides(target, cam, set.imageFloorplans) : undefined;
+  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, guides, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
   let tunedFronts: Map<number, FrontageLot> | undefined;
   if (tuned) {

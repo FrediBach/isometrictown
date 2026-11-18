@@ -10,6 +10,7 @@ import { civicSites, parishChurch } from './image-amenities';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
 import { centre, Footprints, inShape, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type Density } from './image-density';
+import type { FloorplanGuides } from './image-floorplans';
 import { LABELS, type Label } from './image-tone';
 import { labelAt, type Zones } from './image-zones';
 import { hash } from './rng';
@@ -47,7 +48,7 @@ const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
 export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[]; pools: Shape[] };
-export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density };
+export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density; guides?: FloorplanGuides };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
@@ -330,7 +331,8 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       // Fractions of the block's depth, the same on every lot, so neighbours share their corners.
       const f0 = Math.min(0.3, back / l.depth);
       const f1 = Math.min(1, (back + dep) / l.depth);
-      const q = strip(l, f0, f1);
+      let q = strip(l, f0, f1);
+      if (c.guides && !hall) q = c.guides.row(q, (p) => within(p, ring) && c.ground.clear(p) && !laid.clash(p));
       const s = hall ? st + 1 : st;
       const roof = pitched(14047) ? undefined : 'flat';
       const h = s * style.floor + (roof ? 0 : allowance(Math.min(dep, D), style));
@@ -393,7 +395,9 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       if (!house) return [];
       const roof = pitched(14056) ? undefined : 'flat';
       const s = Math.min(st, 2);
-      plans.push({ ring: house.length === 8 ? shapedPlan(house, l.label, roof, r) : house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
+      if (house.length === 8) house = shapedPlan(house, l.label, roof, r);
+      if (c.guides) house = c.guides.detached(house, (p) => within(p, ring) && c.ground.clear(p) && !laid.clash(p));
+      plans.push({ ring: house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
       if (r(14730) < 0.16) {
         const pool = poolBehind(plans[0].ring, r);
         const [cx, cy] = centre(pool);
@@ -842,6 +846,10 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           const h = label === 'works' ? 6 + 2.5 * st : st * style.floor + (roof ? 0 : allowance(depth, style));
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
           if (!row) q = shapedPlan(q, label, roof, r);
+          if (c.guides && (row || label === 'suburb')) {
+            const fits = (p: number[]) => free(p, z.label[probe]) && c.ground.clear(p) && !c.laid.clash(p);
+            q = row ? c.guides.row(q, fits) : c.guides.detached(q, fits);
+          }
           const pool = label === 'suburb' && r(14730) < 0.16 ? poolBehind(q, r) : undefined;
           if (add({ ring: q, h, building, roof, pool: pool && free(pool, z.label[probe]) ? pool : undefined })) {
             occ.take(q, SHARED);

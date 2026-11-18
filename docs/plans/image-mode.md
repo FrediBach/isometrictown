@@ -147,7 +147,7 @@ Each rule is checked by a test (§18).
 2. **One renderer.** Image mode builds a `Town` and steers `classify()` through its usual evidence (§12.3). The shared renderer accepts the image target for hatch spacing and clipping reserved paper. It also handles planted trees (§13.4), image-made tags (§12.3) and the margin text (§16.4).
 3. **No network.** Nothing in image mode fetches. The test fetch stub throws on any call.
 4. **Deterministic.** The same image (by content), settings and seed give the same SVG. There is no `Math.random()`. Hashes use a fixed fictional `Frame` (§5.2) and salts from a reserved range, 14000–14999. LOD fades keep 9100 and up, and grep before taking any salt.
-5. **Structure is stable.** The zones, water, streets, blocks and parcels depend on the picture, its adjustments, the view geometry, style, Likeness, street pattern, Streets follow image lines and the seed. Building density can reuse those blocks. Height, hatch spacing and blank areas can reuse the building layout.
+5. **Structure is stable.** The zones, water, streets, blocks and parcels depend on the picture, its adjustments, the view geometry, style, Likeness, street pattern, Streets follow image lines and the seed. Building density and floorplan alignment can reuse those blocks. Height, hatch spacing and blank areas can reuse the building layout.
 6. **Believable beats like.** The rules in §10.5 and §11.4 are hard constraints. Likeness only weighs the soft costs.
 7. **Pass order holds.** Hatching uses the existing drawing passes. Preserve empty space clips the visible strokes after Humanize and before the frame, margin and pen planning. A pen colour change recolours the SVG and updates its likeness score.
 
@@ -198,6 +198,7 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
 | `imageRelief` | `number`, 0…1 | `0` | Height from image. Blends the town's usual heights with a skyline that rises in dark areas (§12.2). |
 | `imageDensity` | `number`, −1…1 | `0` | Building density from image. Negative values thin buildings across the picture, especially in pale areas. At positive values dark plots gain larger footprints and pale plots shrink or open into gardens. |
 | `imageHatching` | `number`, 0…1 | `0` | Hatching from image. Changes the spacing of existing roof, wall, field, park and shadow marks according to the projected tone. |
+| `imageFloorplans` | `number`, 0…1 | `0` | Turn detached houses and fit the rear walls of terraced rows to nearby sustained contours. |
 | `imageContours` | `number`, 0…1 | `0` | Streets follow image lines. Routes more of the network along long, connected image edges as the strength rises. |
 | `imagePreserveSpace` | `boolean` | `false` | Preserve empty space. Clips projected town linework where the target is transparent, including holes and Fit margins. |
 | `imageHighlight` | `number`, 0…1 | `1` | Highlight cutoff, used when preserving empty space. At 1 only transparency is cleared. Lower values also clear adjusted lightness at or above the cutoff. |

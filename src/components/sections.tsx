@@ -97,6 +97,7 @@ function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file
       />
       <Hint>Organic streets follow the image and wander; a grid keeps to two directions. Auto is a grid for the North American and Australian styles.</Hint>
       <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Lead streets and paths along long, connected edges in the picture." />
+      <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
       <BoolSetting name="imagePreserveSpace" label="Preserve empty space" />
       {set.imagePreserveSpace && <NumberSetting name="imageHighlight" label="Highlight cutoff" min={0} max={1} step={0.01} hint="Transparent areas stay blank. Lower the cutoff to clear light parts of the picture too." />}
       <Hint className="mt-2 mb-0">The town is laid out so that, seen from a step away, it looks like the image. The image stays in this browser: links carry its settings, but not the image itself.</Hint>
