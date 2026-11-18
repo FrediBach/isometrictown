@@ -115,7 +115,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 | `src/humanize.ts` | Deterministic stroke wobble and endpoint variation in sheet millimetres |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/gcode.ts`, `src/app/grbl.ts` | G-code for GRBL pen plotters, and plotting over USB with Web Serial |
-| `src/image.ts`, `src/image-*.ts` | Image mode (in progress): reads a picture, zones the ground to match it, lays out a town on the zones, and scores how like the picture the drawing is |
+| `src/image.ts`, `src/image-*.ts` | Image mode (in progress): reads a picture, zones the ground to match it, lays out a town on the zones, and scores how like the picture the drawing is. Open by invitation for now: `src/app/invite.ts` holds the key |
 | `src/worker.ts` | Runs all of the above off the main thread |
 | `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |
 

@@ -11,6 +11,7 @@ import { Camera } from '../camera';
 import { FORMAT, isDefault, MONO_INK, PRESETS, type BoolKey } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
+import { imageUnlocked } from '../app/invite';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
 import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
@@ -18,6 +19,7 @@ import { IMAGE_STYLE, STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
 import { ImageWell } from './image-well';
+import { InviteDialog } from './invite-dialog';
 import { LocatorMap } from './locator-map';
 import { PalettePicker } from './palette-picker';
 import { PlaceSearch } from './place-search';
@@ -41,17 +43,32 @@ type SourceSectionProps = {
 export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture, onFile }: SourceSectionProps) {
   const { set } = useSettings();
   const image = set.source === 'image';
+  const [unlocked, setUnlocked] = useState(imageUnlocked);
+  const [inviting, setInviting] = useState(false);
   return (
     <Section index={1} title={image ? 'Image' : 'Place'}>
       <Segmented
         aria-label="Draw from"
         value={set.source}
-        onValueChange={onSource}
+        onValueChange={(v) => (v === 'image' && !unlocked ? setInviting(true) : onSource(v))}
         className="mb-3.5 flex w-full"
         items={[
           { value: 'map', label: 'Map' },
-          { value: 'image', label: 'Image' },
+          {
+            value: 'image',
+            label: unlocked ? 'Image' : <>Image<LockIcon aria-hidden /></>,
+            title: unlocked ? undefined : 'Image (by invitation)',
+          },
         ]}
+      />
+      <InviteDialog
+        open={inviting}
+        onOpenChange={setInviting}
+        onUnlock={() => {
+          setUnlocked(true);
+          setInviting(false);
+          onSource('image');
+        }}
       />
       {image
         ? <ImageSource picture={picture} onFile={onFile} />

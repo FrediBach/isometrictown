@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { defaultsAt, fromSlider, IMAGE_DEFAULTS, isDefault, loadSettings, minutes, persist, selectPicture, slug, toImageMode, toSlider } from '@/app/model';
 import { PALETTES } from '@/palettes';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
+import { imageUnlocked, unlockImage } from '@/app/invite';
 
 // The browser bits model.ts reads and writes: storage, the address bar and history.
 let store: Map<string, string>;
@@ -14,17 +15,19 @@ beforeEach(() => {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => void store.set(k, v),
   });
+  unlockImage('8753');
   vi.stubGlobal('location', loc);
   vi.stubGlobal('history', { replaceState: (_s: unknown, _t: string, url: string) => void (loc.hash = url) });
 });
 
 const base = (): Settings => structuredClone(DEFAULT_SETTINGS);
 
-/** Persist in one browser, then open the link in another with nothing saved. */
-function share(set: Settings): Settings {
+/** Persist in one browser, then open the link in another with nothing saved but the image-mode invite. */
+function share(set: Settings, invited = true): Settings {
   persist(set);
   const link = loc.hash;
   store.clear();
+  if (invited) unlockImage('8753');
   loc.hash = link;
   return loadSettings();
 }
@@ -173,6 +176,14 @@ describe('image mode', () => {
     persist(image());
     loc.hash = '#47/9/35/2500/1/Mollis/source=image&image=0123456789abcdef';
     expect(loadSettings()).toMatchObject({ imageRelief: 0, imageDensity: 0, imageHatching: 0, imageContours: 0, imageFloorplans: 0, imagePreserveSpace: false, imageHighlight: 1 });
+  });
+
+  test('image mode is by invitation: a link opens on the map until the key is given', () => {
+    expect(share(image(), false).source).toBe('map');
+    expect(imageUnlocked()).toBe(false);
+    expect(unlockImage('1234')).toBe(false);
+    expect(unlockImage(' 8753 ')).toBe(true);
+    expect(imageUnlocked()).toBe(true);
   });
 
   test('switching to image mode sets its defaults only where nothing was changed', () => {

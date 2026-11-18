@@ -1,4 +1,5 @@
 import type { LngLat } from '../geo';
+import { imageUnlocked } from './invite';
 import { PALETTES } from '../palettes';
 import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
 import { STYLES } from '../styles';
@@ -97,6 +98,8 @@ const within = (v: unknown, lo: number, hi: number, def: number) => (typeof v ==
 function validateImage(s: Settings): void {
   const d = DEFAULT_SETTINGS;
   s.source = oneOf(s.source, ['map', 'image'], d.source);
+  // Image mode is by invitation: a stored setting or a link doesn't open it in a browser that hasn't been let in.
+  if (s.source === 'image' && !imageUnlocked()) s.source = 'map';
   s.imageFit = oneOf(s.imageFit, ['fill', 'fit'], d.imageFit);
   s.fabric = oneOf(s.fabric, ['auto', 'organic', 'grid'], d.fabric);
   if (typeof s.image !== 'string' || !/^([0-9a-f]{16})?$/.test(s.image)) s.image = '';
