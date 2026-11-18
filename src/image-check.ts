@@ -69,7 +69,7 @@ export function inside(p: number[]): [number, number][] {
 const cellId = (i: number, j: number) => (i + 32768) * 65536 + j + 32768;
 
 /** A lookup of things by 50 m cell, each filed in every cell its bounds (padded) touch. */
-class Index {
+export class Index {
   private grid = new Map<number, number[]>();
   add(k: number, p: ArrayLike<number>, pad = 0): void {
     let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];

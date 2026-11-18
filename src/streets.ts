@@ -380,7 +380,7 @@ export function pathLength(p: number[]): number {
 }
 
 /** A ground line with dash phase measured in sheet millimetres, continuous through bends. */
-function dashed(paper: Paper, p: number[], dash: number, gap: number, test: Test): void {
+export function dashed(paper: Paper, p: number[], dash: number, gap: number, test: Test): void {
   let inDash = true;
   let left = dash;
   const c = paper.cam;

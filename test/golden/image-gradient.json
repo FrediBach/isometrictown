@@ -1,5 +1,5 @@
 {
-  "likeness": {"score":0.655,"dE":[0.042,0.033],"ssim":0.2},
+  "likeness": {"score":0.654,"dE":[0.042,0.033],"ssim":0.199},
   "region": {"country":"Image","code":"","style":"central","left":false},
   "counts": {"buildings":1201,"houses":667,"trees":2041,"cars":329,"lamps":239},
   "census": {
@@ -44,12 +44,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 9252,
-    "rawLifts": 13689,
-    "inkMm": 41863.1,
-    "travelMm": 23604.9,
-    "minutes": 68.6,
-    "pens": [["Shadows",1944,6208],["Water",115,438.2],["Greenery",1623,4557.1],["Roofs",1801,9897.2],["Linework",3769,20762.5]]
+    "lifts": 9279,
+    "rawLifts": 13716,
+    "inkMm": 41929.9,
+    "travelMm": 23618,
+    "minutes": 68.8,
+    "pens": [["Shadows",1944,6208],["Water",115,437.9],["Greenery",1623,4557.1],["Roofs",1801,9897.2],["Linework",3796,20829.6]]
   },
   "features": {
     "buildings": [3204,11249.9],
@@ -58,16 +58,19 @@
     "ground": [840,1595.1],
     "lamps": [200,390.5],
     "life": [17,41.1],
+    "paths": [4,4.1],
     "rails": [28,248.4],
     "roofHatch": [882,2086.9],
     "roofs": [3860,7801],
     "rooftops": [17,46.3],
     "shadeWalls": [9,25.5],
     "shadows": [1825,6010.1],
+    "streets:bridges": [18,37.9],
     "streets:kerbs": [755,3829],
     "streets:plazas": [7,76],
+    "streets:railings": [4,25.7],
     "trees": [928,3134.4],
-    "water": [126,663.3],
+    "water": [127,662.4],
     "windows": [149,522]
   },
   "facets": {
@@ -208,8 +211,8 @@
     "trees/street-trees": [617,2003.3],
     "trees/wild-trees": [2,7.5],
     "water/pools": [11,32.6],
-    "water/shores": [5,202.7],
-    "water/waves": [110,427.9],
+    "water/shores": [6,202.2],
+    "water/waves": [110,427.6],
     "windows/apartment": [15,35.2],
     "windows/chimneys": [62,219],
     "windows/church-roof": [3,2.9],
@@ -235,5 +238,5 @@
     "windows/terrace": [127,468.4],
     "windows/worship": [3,2.9]
   },
-  "svg": {"bytes":530666,"sha1":"72c1b2f4b121799d"}
+  "svg": {"bytes":532913,"sha1":"884b6d0e104d89bc"}
 }

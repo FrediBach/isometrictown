@@ -5,7 +5,7 @@ import type { Paper, Test } from './raster';
 import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
 import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
-import { curbs, groundSeg, outline, shifted, walk } from './streets';
+import { curbs, dashed, groundSeg, outline, shifted, walk } from './streets';
 import type { Lift, Town, Way } from './tiles';
 import { calm, wake } from './ships';
 
@@ -238,11 +238,16 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   return {
     solids,
     draw: () => {
-      for (const f of town.ferries)
+      for (const f of town.ferries) {
+        if (B.set.source === 'image') {
+          dashed(paper, f, B.cam.tone(1.0), B.cam.tone(1.1), test);
+          continue;
+        }
         walk(f, 0, period, dash, (x, y, ux, uy) => {
           groundSeg(paper, LINEWORK, x, y, x + ux * dash, y + uy * dash, test);
           paper.end();
         });
+      }
       for (const [x, y, ux, uy] of wakes) wake(B, paper, M, x, y, ux, uy, 60, 9);
     },
   };

@@ -1,0 +1,101 @@
+/** Landing piers reached from land and short ferry crossings in image towns. */
+import { ringArea } from './geo';
+import type { Camera } from './camera';
+import type { Occupancy, Vary } from './image-blocks';
+import { containsSite, Footprints, Index } from './image-check';
+import { corners } from './shape';
+import { pathLength, walk } from './streets';
+import type { Town, Way } from './tiles';
+
+type Landing = { x: number; y: number; nx: number; ny: number; access: number[]; pier: number[]; rank: number };
+
+/** The footprint of a straight passage, including its full width. */
+function corridor(ax: number, ay: number, bx: number, by: number, width: number): number[] {
+  const L = Math.hypot(bx - ax, by - ay);
+  return corners({ cx: (ax + bx) / 2, cy: (ay + by) / 2, ux: (bx - ax) / L, uy: (by - ay) / L, L, w: width });
+}
+
+/** Add at most one ferry crossing per water body, or a single landing where only one bank is served. */
+export function ferryLandings(town: Town, cam: Camera, occ: Occupancy, vary: Vary): Way[] {
+  const paths: Way[] = [];
+  if (!town.water.length) return paths;
+  const access: number[][] = [], nearby = new Index(), blocked = new Footprints();
+  for (const w of town.ways) {
+    if (w.bridge || w.kind === 'rail' || w.cls === 'motorway' || w.cls === 'trunk') {
+      for (let i = 2; i < w.pts.length; i += 2) {
+        const ax = w.pts[i - 2], ay = w.pts[i - 1], bx = w.pts[i], by = w.pts[i + 1];
+        if (ax !== bx || ay !== by) blocked.add(corridor(ax, ay, bx, by, Math.max(5, w.width + 2)));
+      }
+    } else if (w.kind === 'road' || w.kind === 'path') {
+      const p = w.pts;
+      // Include the ends of short ways and regularly spaced access points on long streets.
+      const length = pathLength(p);
+      const step = Math.max(1, length / Math.max(1, Math.ceil(length / 16)));
+      walk(p, 0, step, 0, (x, y) => {
+        const point = [x, y];
+        nearby.add(access.push(point) - 1, point, 36);
+      });
+    }
+  }
+  if (!access.length) return paths;
+  const water = new Footprints();
+  for (const shape of town.water) water.add(shape[0].pts);
+  for (const stream of town.streams) {
+    const p = stream.pts;
+    for (let k = 2; k < p.length; k += 2) {
+      if (p[k - 2] !== p[k] || p[k - 1] !== p[k + 1]) blocked.add(corridor(p[k - 2], p[k - 1], p[k], p[k + 1], stream.width));
+    }
+  }
+  const [left, top, right, bottom] = cam.rect;
+  const served: Landing[] = [];
+  for (const shape of town.water) {
+    const shore = shape[0].pts, candidates: Landing[] = [];
+    if (shape.reduce((area, ring) => area + ringArea(ring.pts), 0) < 2500) continue;
+    walk([...shore, shore[0], shore[1]], 12, 36, 0, (x, y, ux, uy) => {
+      const sx = cam.sx(x, y), sy = cam.sy(x, y, 0);
+      if (sx < left || sx > right || sy < top || sy > bottom || served.some(p => Math.hypot(x - p.x, y - p.y) < 150)) return;
+      // Image water has counter-clockwise outer banks, with the wet side on the left.
+      const nx = -uy, ny = ux, length = 14 + 6 * vary(x, y, 14770);
+      const ax = x - 3 * nx, ay = y - 3 * ny, bx = x + length * nx, by = y + length * ny;
+      if (!containsSite(shape, corridor(x + nx, y + ny, bx, by, 4.6)) || blocked.touches(corridor(ax, ay, bx, by, 5))) return;
+      let distance = 36, path: number[] | undefined;
+      for (const k of nearby.at(ax, ay)) {
+        const [px, py] = access[k], d = Math.hypot(ax - px, ay - py);
+        if (d >= distance || d < 0.1) continue;
+        const approach = corridor(px, py, ax, ay, 2);
+        if (water.touches(approach) || blocked.touches(approach)) continue;
+        distance = d;
+        path = [px, py, ax, ay];
+      }
+      if (path)
+        candidates.push({ x: bx, y: by, nx, ny, access: path, pier: [ax, ay, bx, by], rank: distance / 36 + vary(x, y, 14771) });
+    });
+    candidates.sort((a, b) => a.rank - b.rank);
+    if (!candidates.length) continue;
+    const stops = [candidates[0]];
+    // Prefer a pair of banks facing each other. Leave twelve metres clear for the nine-metre hull.
+    crossing: for (let i = 0; i < candidates.length; i++) {
+      const a = candidates[i];
+      for (let j = i + 1; j < candidates.length; j++) {
+        const b = candidates[j];
+        const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy);
+        if (length < 120 || length > 900 || dx * a.nx + dy * a.ny < length * 0.4 || dx * b.nx + dy * b.ny > -length * 0.4) continue;
+        const channel = corridor(a.x, a.y, b.x, b.y, 12);
+        if (!containsSite(shape, channel) || blocked.touches(channel)) continue;
+        town.ferries.push([a.x, a.y, b.x, b.y]);
+        stops[0] = a;
+        stops.push(b);
+        break crossing;
+      }
+    }
+    served.push(...stops);
+    for (const stop of stops) {
+      const [px, py, ax, ay] = stop.access;
+      occ.fill([corridor(px, py, ax, ay, 3)]);
+      occ.fill([corridor(ax, ay, stop.x, stop.y, 5)]);
+      paths.push({ kind: 'path', cls: 'footway', width: 0, pts: stop.access },
+        { kind: 'path', cls: 'footway', sub: 'pier', bridge: true, width: 4, pts: stop.pier });
+    }
+  }
+  return paths;
+}

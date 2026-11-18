@@ -5,6 +5,7 @@
 import { describe, expect, test } from 'vitest';
 import { decodePicture, encodePicture, nameOf, pictureId } from '@/app/image-store';
 import { amenitiesOf, civicSites, parishChurch, parkingSites } from '@/image-amenities';
+import { ferryLandings } from '@/image-ferries';
 import { fieldBarns } from '@/image-buildings';
 import { Footprints, Ground, inShape } from '@/image-check';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
@@ -319,6 +320,34 @@ describe('outlines and water', () => {
     const c = chaikin([0, 0, 10, 0, 10, 10], 2);
     expect(c.slice(0, 2)).toEqual([0, 0]);
     expect(c.slice(-2)).toEqual([10, 10]);
+  });
+
+  test('ferries link reachable facing piers and keep the whole crossing clear of islands and bridges', () => {
+    const cam = new Camera({ ...DEFAULT_SETTINGS, scale: 2500 });
+    const build = (obstacle?: 'island' | 'bridge' | 'no access') => {
+      const town = empty(), occ = new Occupancy(-300, -200, 2, 600, 400);
+      const shore = { pts: [-140, -80, 140, -80, 140, 80, -140, 80], seam: new Uint8Array(4) };
+      town.water.push([shore]);
+      if (obstacle === 'island') town.water[0].push({ pts: [-3,-74,-3,74,3,74,3,-74], seam: new Uint8Array(4) });
+      if (obstacle === 'bridge') town.ways.push({ kind: 'road', cls: 'minor', width: 6, bridge: true, pts: [0,-90,0,90] });
+      if (obstacle !== 'no access') for (const x of [-150, 150])
+        town.ways.push({ kind: 'path', cls: 'footway', width: 0, pts: [x,-25,x,25] });
+      const paths = ferryLandings(town, cam, occ, () => 0.5);
+      for (const w of paths) {
+        const [x, y, ex, ey] = w.pts;
+        expect(occ.taken[occ.cellOf((x + ex) / 2, (y + ey) / 2)]).toBe(1);
+      }
+      return { ferries: town.ferries, piers: paths.filter(w => w.sub === 'pier') };
+    };
+    const clear = build();
+    expect(clear.piers).toHaveLength(2);
+    expect(clear.ferries).toEqual([clear.piers.flatMap(w => w.pts.slice(2))]);
+    expect(build()).toEqual(clear);
+    for (const obstacle of ['island', 'bridge'] as const) {
+      expect(build(obstacle).ferries).toHaveLength(0);
+      expect(build(obstacle).piers).toHaveLength(1);
+    }
+    expect(build('no access')).toEqual({ ferries: [], piers: [] });
   });
 
   test('water is a river when thin, the sea when it runs off the plan, else a lake', () => {

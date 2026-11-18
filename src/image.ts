@@ -8,6 +8,7 @@
  * the blocks between them are cut into lots (`image-blocks.ts`), each with buildings the way its
  * zone builds, and a few landmarks (`image-buildings.ts`).
  */
+import { ferryLandings } from './image-ferries';
 import { Camera } from './camera';
 import { Frame, ringArea, type LngLat } from './geo';
 import { amenitiesOf, parkingSites } from './image-amenities';
@@ -171,13 +172,15 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   for (const w of st.ways) occ.way(w);
   for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
   for (const s of [...town.water, ...streamShapes(town.streams), ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
+  const landings = ferryLandings(town, cam, occ, vary);
+  town.ways.push(...landings);
   parkingSites(town, zones, occ, vary);
   const mmPerMetre = 1000 / set.scale;
   note('Cutting blocks into lots');
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
   const ground = new Ground(town);
-  const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: st.paths, ways: st.ways, cores: st.cores, mmPerMetre };
+  const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: [...st.paths, ...landings], ways: st.ways, cores: st.cores, mmPerMetre };
   landmarks(blocks, context);
   return { town, streets: st.graph, blocks, context };
 }
