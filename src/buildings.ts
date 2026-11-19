@@ -82,7 +82,7 @@ export function facing(B: Build, ax: number, ay: number, bx: number, by: number)
 }
 
 /** Runs of consecutive edges that pass a filter, as 3D polylines at height z. */
-function runs(ring: Ring, z: number, keep: (i: number) => boolean, pen: number, out: Line3[]): void {
+export function runs(ring: Ring, z: number, keep: (i: number) => boolean, pen: number, out: Line3[]): void {
   const p = ring.pts;
   const n = p.length / 2;
   let start = -1;
@@ -602,7 +602,7 @@ function body(B: Build, b: Building): Solid[] {
   const ruined = !!B.fate && B.fate.stage >= RUIN_STAGE.shell;
   // Concrete towers and blocks lose their walls and stand as frames of floors on columns, until
   // too little is left to stand that way: a slab or two on stubs would look like a low roof.
-  if (ruined && info && (info.kind === 'tall' || info.kind === 'apartment') && H >= 15 && (info.roof === 'flat' || info.kind === 'tall') && B.fate!.stand * H >= 12) {
+  if (ruined && info && (info.kind === 'tall' || info.kind === 'apartment') && H >= 15 && (info.roof === 'flat' || info.kind === 'tall') && B.fate!.stand * (H - z0) >= 12) {
     // The façade gives way from the top down, gone by the time the tower starts to fall.
     const walls = Math.max(0, Math.min(1, (STAGES[3] + 0.1 - B.fate!.p) / 0.25)) * 0.85;
     frame(B, rings, H, info.facade.storey || B.style.floor, B.fate!.stand, solid, z0, { windows: true, pen: LINEWORK, ...fronts(info) }, walls);

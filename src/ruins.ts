@@ -1,10 +1,10 @@
-import { facing, prism, shadeWall, type PrismOptions, type Solid, type WallRing, type Build } from './buildings';
+import { facing, prism, runs, shadeWall, type PrismOptions, type Solid, type WallRing, type Build } from './buildings';
 import { LOWEST } from './decay';
-import { hash } from './rng';
+import { hash, patch } from './rng';
 import type { Info } from './classify';
 import { atLeast, LOD, shows } from './lod';
 import { LINEWORK, ROOFS } from './settings';
-import { pointInRing } from './geo';
+import { pointInRing, toRing } from './geo';
 import { offsetRing, type Rect } from './shape';
 import { ivy } from './growth';
 
@@ -166,7 +166,7 @@ export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omi
         heap(B, along, 1, 1.5, 0.8, 10120, out, ROOFS, 0.4);
       }
     }
-    strewTiles(B, reversed(inner[0]).pts, out);
+    strewTiles(B, inner.map(r => r.pts), out);
   }
   // Each wall casts its own shadow, so light falls into the shell.
   for (let k = 0; k < rings.length; k++) {
@@ -232,15 +232,16 @@ const BURIED = 0.7;
 
 /**
  * Broken tiles strewn over the floor of a ruin whose roof has fallen in: short red strokes
- * on a map-fixed grid inside `ring` (the walls' inside, counter-clockwise).
+ * on a grid anchored to the floor, clear of its walls and courtyards.
  */
-function strewTiles(B: Build, ring: number[], out: Solid): void {
+function strewTiles(B: Build, rings: number[][], out: Solid): void {
   const cam = B.cam;
   if (!shows(cam, LOD.stones, 0.5)) return;
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
   let y1 = -Infinity;
+  const ring = rings[0];
   for (let i = 0; i < ring.length; i += 2) {
     x0 = Math.min(x0, ring[i]);
     x1 = Math.max(x1, ring[i]);
@@ -248,16 +249,17 @@ function strewTiles(B: Build, ring: number[], out: Solid): void {
     y1 = Math.max(y1, ring[i + 1]);
   }
   const step = Math.max(1.3, cam.gap(1.6) / cam.s);
-  for (let x = Math.ceil(x0 / step) * step; x < x1; x += step)
-    for (let y = Math.ceil(y0 / step) * step; y < y1; y += step) {
+  for (let x = x0 + step / 2; x < x1; x += step)
+    for (let y = y0 + step / 2; y < y1; y += step) {
       const [k0, k1] = B.key(x, y);
       const g = (s: number) => hash(k0, k1, B.set.seed, 10076 + s);
       if (g(0) > 0.5) continue;
       const px = x + (g(1) - 0.5) * step;
       const py = y + (g(2) - 0.5) * step;
-      if (!pointInRing(px, py, ring)) continue;
+      if (!pointInRing(px, py, ring) || rings.some((r, i) => i > 0 && pointInRing(px, py, r))) continue;
       const a = g(3) * Math.PI;
       const l = 0.5 + 0.35 * g(4);
+      if (rings.some(r => toRing(px, py, r) <= l)) continue;
       const z = 0.1 + 0.4 * g(5);
       out.lines.push({ pen: ROOFS, pts: [px - Math.cos(a) * l, py - Math.sin(a) * l, z, px + Math.cos(a) * l, py + Math.sin(a) * l, z + 0.05], facet: 'rubble' });
     }
@@ -271,8 +273,7 @@ function runLength(B: Build): number {
 /**
  * A wall that has started to come down: each wall of the band breaks into runs of masonry,
  * each standing to its own height. `stand` is the share of the height `H` still standing:
- * runs stand between 0.4 and 1.3 of that, and within 2.5 m of a corner up to a whole
- * `stand` more, so corners stand longest. Heights are keyed on where each run is on the
+ * neighbouring runs break together and corners stand longest. Heights are keyed on where each run is on the
  * map, and only ever get lower as `stand` falls. Where height has gone, rubble lies at the
  * foot. Returns false when the band can't be made (see `shell()`).
  */
@@ -289,6 +290,8 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
   }
   const run = runLength(B);
   const flat = cam.gap(0.9) / (cam.s * cam.ca);
+  const height = H - z0;
+  const levels = Math.max(1, Math.floor(height / flat));
   const low = Math.max(cam.gap(0.9), cam.nib * 2.5);
   const seed = B.set.seed;
   const pen = o.pen;
@@ -317,13 +320,19 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
       const zs: number[] = [];
       for (let k = 0; k < m; k++) {
         const tm = (k + 0.5) / m;
-        const [k0, k1] = B.key(P[i * 2] + (P[j * 2] - P[i * 2]) * tm, P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * tm);
-        const a = LOWEST + 1.15 * hash(k0, k1, seed, 9960);
+        const x = P[i * 2] + (P[j * 2] - P[i * 2]) * tm;
+        const y = P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * tm;
+        const [X, Y] = B.toAbs(x, y);
+        const [k0, k1] = B.key(x, y);
+        const strength = 0.7 * patch(X / 12, Y / 12, seed, 10126) + 0.3 * hash(k0, k1, seed, 9960);
         const corner = Math.max(0, 1 - Math.min(tm, 1 - tm) * len / 2.5);
-        zs.push(z0 + Math.max(0.15, (H - z0) * Math.min(1, stand * (a + corner))));
+        // Start every run at the eaves. Weak stretches lose height first, in broad breaches.
+        const relief = LOWEST + 1.15 * strength + corner - 1;
+        const share = Math.min(1, stand + relief * Math.min(stand, 1 - stand));
+        // Runs within one visible step share a level, so their tops join into one stroke.
+        const level = Math.round(share * levels) / levels;
+        zs.push(z0 + Math.max(0.15, height * Math.max(LOWEST * stand, level)));
       }
-      // A step too small to see on paper is levelled down to its neighbour, so it isn't a speck.
-      for (let k = 1; k < m; k++) if (Math.abs(zs[k] - zs[k - 1]) < flat) zs[k] = zs[k - 1] = Math.min(zs[k], zs[k - 1]);
       heights.push(zs);
     }
     for (let i = 0; i < n; i++) {
@@ -344,6 +353,17 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
         const [bx, by] = at(P, (k + 1) / m);
         const [cx, cy] = at(Q, (k + 1) / m);
         const [dx, dy] = at(Q, k / m);
+        // Close the exposed end in the depth buffer even when its step is too small to ink.
+        if (k + 1 < m && zs[k + 1] !== z) {
+          const lo = Math.min(z, zs[k + 1]);
+          const hi = Math.max(z, zs[k + 1]);
+          out.faces.push([[bx, by, lo, cx, cy, lo, cx, cy, hi, bx, by, hi]]);
+          if (hi - lo >= flat - 1e-8 && hi - z0 >= BURIED) {
+            if (hi > partyZ) L([bx, by, Math.max(lo, partyZ), bx, by, hi]);
+            if (both) L([cx, cy, lo, cx, cy, hi]);
+            if (both) L([bx, by, hi, cx, cy, hi]);
+          }
+        }
         // A run come down almost to the ground is lost in the grass but for stretches of its top.
         if (z - z0 < BURIED) {
           out.faces.push([[ax, ay, z, bx, by, z, cx, cy, z, dx, dy, z]]);
@@ -374,15 +394,6 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
         if (partyZ < z) L([ax, ay, z, bx, by, z]);
         if (both) L([dx, dy, z, cx, cy, z]);
         out.casts.push({ ring: [ax, ay, bx, by, cx, cy, dx, dy], h: z });
-        // A step down to the next run: its end face, with an edge down each face and across the top.
-        if (k + 1 < m && Math.abs(zs[k + 1] - z) > 0.05 && Math.min(z, zs[k + 1]) - z0 >= BURIED) {
-          const lo = Math.min(z, zs[k + 1]);
-          const hi = Math.max(z, zs[k + 1]);
-          out.faces.push([[bx, by, lo, cx, cy, lo, cx, cy, hi, bx, by, hi]]);
-          if (hi > partyZ) L([bx, by, Math.max(lo, partyZ), bx, by, hi]);
-          if (both) L([cx, cy, lo, cx, cy, hi]);
-          if (both) L([bx, by, hi, cx, cy, hi]);
-        }
       }
       // Rubble along the foot of the wall, outside (unless a neighbour stands against it) and in.
       const along = (pts: number[]) => Array.from({ length: m + 1 }, (_, k) => at(pts, k / m));
@@ -403,7 +414,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
       if (top && zc - zl > 0.05) L([P[i * 2], P[i * 2 + 1], zc, Q[i * 2], Q[i * 2 + 1], zc]);
     }
   });
-  if (tiles) strewTiles(B, inner[0], out);
+  if (tiles) strewTiles(B, inner, out);
   return true;
 }
 
@@ -469,13 +480,14 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
   const cam = B.cam;
   const top = z0 + (H - z0) * stand;
   const count = Math.max(1, Math.floor((top - z0) / storey + 1e-6));
-  // The façade still stands on the lower floors, up to a floor line; the frame shows above it.
-  const kept = Math.min(count, Math.floor((walls * (top - z0)) / storey));
-  if (kept > 0 && o) prism(B, rings, z0, z0 + kept * storey, { ...o, roof: false }, out);
-  const from = z0 + kept * storey;
   // Every nth slab, so they keep apart on paper.
   let step = 1;
   while (storey * step * cam.ca * cam.s < cam.gap(2.5) && step < 64) step *= 2;
+  // Keep the visible storeys on the same levels throughout the collapse.
+  const kept = Math.floor(walls * (top - z0) / (storey * step)) * step;
+  const from = z0 + kept * storey;
+  if (kept > 0 && o) prism(B, rings, z0, from, { ...o, roof: false }, out);
+  const shade = B.set.shadows ? (out.shade ??= []) : undefined;
   // A slab is too thin to show its edge on paper: its top face and one outline round it.
   // Once it has started to fall, the top floor has gone and columns stick up past the last slab.
   const last = stand < 1 ? count - 1 : count;
@@ -487,7 +499,8 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
       return ring;
     });
     out.faces.push(at);
-    for (const ring of at) out.lines.push({ pen: LINEWORK, pts: ring, closed: true });
+    shade?.push(at);
+    for (const r of rings) runs(r, z, i => !r.seam[i], LINEWORK, out.lines);
   }
   // Columns: boxes where they read, else single strokes.
   const box = shows(cam, LOD.column, 0.5);
@@ -499,9 +512,11 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
       if (r.seam[i]) continue;
       const j = (i + 1) % n;
       const len = Math.hypot(p[j * 2] - p[i * 2], p[j * 2 + 1] - p[i * 2 + 1]);
+      if (shade && kept > 0) shade.push([[p[i * 2], p[i * 2 + 1], z0, p[j * 2], p[j * 2 + 1], z0,
+        p[j * 2], p[j * 2 + 1], from, p[i * 2], p[i * 2 + 1], from]]);
       const m = Math.max(1, Math.round(len / Math.max(12, cam.gap(6) / cam.s)));
       for (let k = 0; k < m; k++) {
-        // Just inside the slab edge.
+        // The columns follow the slab edge.
         const u = k / m;
         const x = p[i * 2] + (p[j * 2] - p[i * 2]) * u;
         const y = p[i * 2 + 1] + (p[j * 2 + 1] - p[i * 2 + 1]) * u;
@@ -509,12 +524,16 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
         // A few columns have gone from the top floors already.
         const zc = Math.max(from + storey, zTop - storey * Math.floor(hash(k0, k1, B.set.seed, 9970) * 3 * (1 - stand)));
         if (zc <= from) continue;
+        // A column casts a narrow strip across the sun, starting on the exposed floor.
+        if (shade) {
+          const dx = B.sun[1] * 0.25, dy = -B.sun[0] * 0.25;
+          shade.push([[x - dx, y - dy, from, x + dx, y + dy, from, x + dx, y + dy, zc, x - dx, y - dy, zc]]);
+        }
         if (box) prism(B, [{ pts: [x - 0.25, y - 0.25, x + 0.25, y - 0.25, x + 0.25, y + 0.25, x - 0.25, y + 0.25], seam: new Uint8Array(4) }], from, zc, { roof: false, windows: false, pen: LINEWORK }, out);
         else out.lines.push({ pen: LINEWORK, pts: [x, y, from, x, y, zc] });
       }
     }
   }
-  out.casts.push({ ring: rings[0].pts, h: zTop });
 }
 
 /** A roofless building's walls to `z1`: a whole shell while they all stand, ragged once they start to come down. `tiles` for one whose tiled roof fell in, which leaves red rubble. */

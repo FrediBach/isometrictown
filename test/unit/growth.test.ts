@@ -7,14 +7,22 @@ import { Paper } from '@/raster';
 import { DEFAULT_SETTINGS } from '@/settings';
 import { STYLES } from '@/styles';
 
-function grow(abandon: number, trees = 0.7): Tree[] {
+function grow(abandon: number, trees = 0.7, walls = false): Tree[] {
   const set = { ...DEFAULT_SETTINGS, scale: 1000, abandon, trees };
   const cam = new Camera(set);
   const paper = new Paper(cam);
   const B: Build = { set, cam, style: STYLES.alpine, seed: 1, sun: [1, 0], equator: [0, -1], left: false,
     key: (x, y) => [Math.round(x), Math.round(y)], toAbs: (x, y) => [x, y], cell: (x, y, size) => [Math.round(x / size), Math.round(y / size)] };
   const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((k) => [k, paper.mask()])) as Masks;
-  return wildGrowth(B, paper, null, M, paper.mask(), cam.region(0), (x, y) => [x, y], (X, Y) => [X, Y]);
+  const ruin = paper.mask();
+  if (walls) {
+    for (let x = -80; x < 80; x += 16) {
+      const plot = [[x, -60, x + 9, -60, x + 9, 60, x, 60]];
+      paper.fillMask(M.foot, plot);
+      paper.fillMask(ruin, plot);
+    }
+  }
+  return wildGrowth(B, paper, null, M, ruin, cam.region(0), (x, y) => [x, y], (X, Y) => [X, Y]);
 }
 
 test('nothing grows while the town is lived in, or with Trees off', () => {
@@ -22,15 +30,16 @@ test('nothing grows while the town is lived in, or with Trees off', () => {
   expect(grow(1, 0)).toEqual([]);
 });
 
-test('growth only comes in and gets bigger as the slider rises', () => {
+test.each([false, true])('growth only comes in and gets bigger as the slider rises, including beside walls (%s)', walls => {
   let last: Tree[] = [];
   for (const d of [0.4, 0.55, 0.7, 0.85, 1]) {
-    const now = grow(d);
+    const now = grow(d, 0.7, walls);
     const at = new Map(now.map((t) => [`${t.x},${t.y}`, t]));
     for (const t of last) {
       const n = at.get(`${t.x},${t.y}`);
       expect(n).toBeDefined();
       expect(n!.r).toBeGreaterThanOrEqual(t.r - 1e-9);
+      expect(n!.h).toBeGreaterThanOrEqual(t.h - 1e-9);
     }
     expect(now.length).toBeGreaterThanOrEqual(last.length);
     last = now;

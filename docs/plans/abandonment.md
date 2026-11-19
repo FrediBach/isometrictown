@@ -2,6 +2,17 @@
 
 **Status (2026-11-19):** M0 to M6 are built: the slider runs from the town as it is to overgrown ruins. What is left is in the notes from M6. Decisions that are yours to make are in §12. Each has a recommendation, and the plan assumes it until you say otherwise.
 
+### Drawing review, 2026-11-19
+
+| Finding | Change |
+| --- | --- |
+| The first broken-wall setting could drop a whole run almost to the ground. Independent damage on adjacent runs gave the silhouette many short teeth. | Runs start at the eaves, and damage is correlated across neighbouring runs. Nearby heights share a printable level, so a breach has a continuous edge and adjoining walls retain stronger corners. |
+| Midtown's bare frames cast the shadow of a solid tower. At coarse scales, losing a storey of façade also shifted every visible slab. | Visible floors stay on fixed storeys. The renderer projects the surviving slabs, lower walls and columns separately, including courtyard openings in each slab. |
+| Trees near masonry could grow, shrink back to bushes and disappear as the clearance test changed with their age. | Each spot tests the space its mature crown will need. A narrow spot supports a compact bush where there is room for one. |
+| Loose roof tiles moved with the view and could land in an open courtyard. | The scatter starts from the building's floor bounds. Each complete stroke clears both the outside wall and courtyard edges. |
+
+The LOD lab compared the same eight Mollis and Midtown sheets at 80% and 100%, at 1:1000 and 1:2500 with a 0.35 mm pen. Estimated plotting time fell by 3–9% across the set. At 100% and 1:2500, Midtown fell from 252.5 to 232.8 minutes and Mollis from 224.4 to 205.0 minutes. These are simulated plots. The visual review covered screen renderings and close-ups. An image-mode landscape at 1:2500 scored 0.557 at 0%, 0.600 at 65% and 0.428 at 100%. Returning the slider to zero reproduced its original SVG byte for byte.
+
 **After review (2026-11-19).**
 - *Growth starts earlier and ends denser:* gardens from 0.12 (80% of spots grown over by the end), parks 0.15 (70%), open country 0.2 (45%), fields 0.3 (65%), yards 0.35 (40%), ruin floors 0.4 (60%), roads 0.45 (25%); trees grow a little bigger.
 - *Grass* (`wildGrass()`, `ground:wild-grass`) spreads in patches from 0.15 over yards, roads, squares, gardens and ruin floors, until most ground is grass by the end; fields, meadows, parks and woods keep their own textures. A tuft is drawn whole or not at all, and never in shadow (half-hidden tufts and the small tuft were specks: the grass wasted 55% of its ink before, 4–6% now).
@@ -132,13 +143,13 @@ loadTown / imageScene ─► Town ─► render()
 
 ### 4.1 Progress
 
-The slider `d` is turned into a **progress** `p ∈ [0, 1]` for each thing:
+Each building has a progress value `p ∈ [0, 1]` at slider setting `d`.
 
 ```
-p = clamp((d · (1 + σ) − σ · u) , 0, 1)
+p = clamp((d − 0.3 · u) / 0.7, 0, 1)
 ```
 
-`u ∈ [0, 1)` is the thing's **resistance**, and σ (about 0.6) sets how far apart the first and last things go. At d = 0, p is 0 for everything (rule 1). At d = 1, p is 1 for everything. p never falls as d rises (rule 2). Every thing reads its own state from its p through thresholds, so a house can be boarded up (p 0.15) while the one opposite is roofless (p 0.55).
+A building with resistance `u` starts deteriorating at `d = 0.3 · u` and reaches its endpoint 0.7 later. A house can be boarded up at p = 0.15 while the one opposite is roofless at p = 0.55. Other features use their own intervals on the slider.
 
 ### 4.2 Resistance
 
@@ -146,9 +157,9 @@ p = clamp((d · (1 + σ) − σ · u) , 0, 1)
 
 - **Patch (≈ 50%).** Smooth value noise on map-fixed cells of about 150 m (`B.cell(x, y, 150)`, bilinear between cell hashes). Whole streets empty together.
 - **Own (≈ 30%).** The thing's own hash, so neighbours are not identical. Terraced houses share the terrace's `info.seed` for half of this, so rows mostly go together, with a single house fallen here and there.
-- **Kind (≈ 20%).** Sturdy things last. Churches, castles and civic buildings resist most, towers and large stone blocks next, then houses. Sheds, garages and allotment huts go first. Urbanity (`traffic.ts urbanity()`) adds a little: the outskirts empty first and the centre last.
+- **Kind (≈ 20%).** Sturdy things last. Churches, castles and civic buildings resist most, towers and large stone blocks next, then houses. Sheds, garages and allotment huts go first. The patch and the building's own variation spread these changes across a street.
 
-Everything that decays draws its `u` this way, with its own salt: buildings, roads, fences, power lines, fields.
+Roads, fences, power lines and fields have separate salts and use their own mix of neighbourhood and individual resistance.
 
 ### 4.3 The `Wild` field
 
@@ -206,11 +217,10 @@ A roofless building is drawn as a **wall band**: the outer ring and a ring inset
 
 ### 5.4 Stages 4 and 5: ragged walls and rubble
 
-Walls no longer have a level top. **`ragged(B, band, profile, out)`** in `ruins.ts` builds each wall edge as a strip of quads with a varying top. The profile is a stepped, piecewise-linear height along the edge, made from map-keyed hashes per metre of wall (keyed on the wall's ends, so it doesn't change with the view) and follows three rules:
+Each wall edge breaks into runs. Run length is at least 1.4 m, increasing at coarser scales so steps survive plotting.
 
-- **Corners stand higher** than the middle of a wall, and wall ends next to a corner fall away in steps, the way masonry breaks.
-- **Openings break first.** The wall over a window opening falls before the wall beside it, so ruins keep their rhythm of piers.
-- **Monotone.** The profile at p is the profile at 1 scaled up from the floor: each point's height is `min(H, H · f(p) + slack(t))` with `f` falling. A wall point never rises as p grows.
+- **Breaches.** A 12 m Mercator noise field gives adjacent runs a shared weakness. Each run adds its own variation, and masonry within 2.5 m of a corner gets extra height. Broken walls still lack individual window openings.
+- **Height.** Every run starts at the eaves. As the building falls, the renderer rounds each run to one of the wall's fixed, printable levels. Adjacent stretches at the same level join and a surviving run can only get lower.
 
 The top strip between the outer and inner profile is a face, its two edges are lines, and the vertical steps are lines. `shadeWall()` already takes a `top(t)` function, so shaded walls follow the broken top. Shadows cast from the band's rings at the wall height, not from the whole footprint at its old height.
 
@@ -218,7 +228,7 @@ The top strip between the outer and inner profile is a face, its two edges are l
 
 ### 5.5 Frames for towers and big blocks
 
-Concrete buildings don't come down like stone ones. Buildings classified `tall`, `apartment` or large `industrial` become a frame from stage 3: floor slabs as thin flat plates at each storey, columns at the corners and every 6 m along the edges, and the façade gone from floors at random, top floors first. From stage 4 the upper floors are missing and the top slabs hang at an angle, and from stage 5 a stump of two or three floors stands on a rubble mound. Each slab is a `prism()` 0.3 m thick, and each column a thin box. The frame has its own LOD rules (`LOD.slab`, `LOD.column`) and falls back to a ragged band where the frame wouldn't read.
+Towers and flat-roofed apartment blocks at least 15 m tall lose their façades from the top down. The frame draws level floor plates and columns spaced at least 12 m apart. The camera selects every first, second, fourth or later power-of-two storey to keep at least 2.5 mm between slabs at default Detail and pen width. These levels stay fixed as the façade recedes. When the frame starts falling, columns project above the highest surviving slab. Columns use boxes where `LOD.column` allows and single strokes farther away. Below 12 m of remaining structural height the building becomes a masonry ruin.
 
 ### 5.6 Landmarks and terraces
 

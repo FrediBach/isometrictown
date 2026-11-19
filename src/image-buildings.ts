@@ -5,7 +5,7 @@
  * town, a town hall on the largest square, schools with a pitch beside the parks. Streets the
  * blocks don't reach (dead ends, the town's outer edge) get buildings set along them.
  */
-import { pointInRing, ringArea } from './geo';
+import { pointInRing, ringArea, toRing } from './geo';
 import { civicSites, parishChurch } from './image-amenities';
 import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
 import { centre, Footprints, inShape, simpleFootprint, type Ground } from './image-check';
@@ -152,18 +152,6 @@ export function fieldBarns(town: Town, { box, vary, ground, laid, z }: Pick<Buil
   }
 }
 
-/** How far a point is from a ring's outline, m. */
-function toRing(x: number, y: number, p: number[]): number {
-  let best = Infinity;
-  for (let a = 0, b = p.length - 2; a < p.length; b = a, a += 2) {
-    const dx = p[a] - p[b];
-    const dy = p[a + 1] - p[b + 1];
-    const l2 = dx * dx + dy * dy || 1;
-    const t = Math.max(0, Math.min(1, ((x - p[b]) * dx + (y - p[b + 1]) * dy) / l2));
-    best = Math.min(best, Math.hypot(x - p[b] - dx * t, y - p[b + 1] - dy * t));
-  }
-  return best;
-}
 const within = (ring: number[], lot: number[]) => {
   for (let k = 0; k < ring.length; k += 2) if (!pointInRing(ring[k], ring[k + 1], lot) && toRing(ring[k], ring[k + 1], lot) > 0.05) return false;
   const [cx, cy] = centre(ring);

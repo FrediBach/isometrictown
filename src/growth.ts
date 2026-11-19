@@ -2,11 +2,10 @@ import type { Build, Solid } from './buildings';
 import { DECAY, stretch } from './decay';
 import { FIELD, GARDEN, MEADOW, ORCHARD, SCRUB, TUFT, TUFT_MM, VINEYARD, WILD, WILD_DEFAULT, type Ground } from './ground';
 import { REF_NIB } from './camera';
-import { patch } from './rng';
 import { LOD, shows, thin } from './lod';
 import type { Masks, Tree } from './nature';
 import type { Paper } from './raster';
-import { hash } from './rng';
+import { hash, patch } from './rng';
 import type { Test } from './raster';
 import { GREENERY } from './settings';
 
@@ -39,6 +38,14 @@ const WILDING: Record<'ruin' | 'garden' | 'park' | 'field' | 'road' | 'town' | '
 const STEP = 6.5;
 /** How far growth in a ruin keeps from its outline: the wall and a little more. */
 const WALL = 1.2;
+/** Directions sampled around a crown for wall clearance. */
+const D = Math.SQRT1_2;
+const CROWN = [[1, 0], [-1, 0], [0, 1], [0, -1], [D, D], [-D, D], [D, -D], [-D, -D]];
+
+/** Use the same radius when reserving a bush's space and drawing its crown. */
+function bushRadius(spread: number, grown: number): number {
+  return 0.6 + spread * 0.6 * grown + 0.2;
+}
 
 /**
  * Trees and bushes growing back over an abandoned town. `ruin` marks the footprints of
@@ -92,22 +99,29 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
       const come = h(0) / (w.cover * amount * sparse);
       if (s <= come) continue;
       const grown = Math.min(1, (s - come) / 0.45);
-      let most = w.most;
-      // A crown that would reach over a standing wall stays a bush.
-      const reach = 0.5 + (most - 0.5) * grown;
-      // In a ruin, everything within the walls' reach (`WALL`) of the crown must still be inside it.
+      // Reserve the mature crown when the spot germinates. A tree squeezed against
+      // masonry stays a small bush throughout its life.
       const inRuin = kind === 'ruin';
-      const clear = (r: number) => [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]].every(([dx, dy]) => inRuin ? on(ruin, x + dx * (r + WALL), y + dy * (r + WALL)) : !on(M.foot, x + dx * r, y + dy * r));
-      if (!clear(reach * 0.8)) most = 0.9;
-      if (!clear(Math.min(reach, most) * 0.7)) continue;
-      const bush = grown < 0.35 || most < 1.2 || h(3) < scrub;
+      const clear = (radius: number) => {
+        const reach = radius + (inRuin ? WALL : 0);
+        return CROWN.every(([dx, dy]) => inRuin
+          ? on(ruin, x + dx * reach, y + dy * reach)
+          : !on(M.foot, x + dx * reach, y + dy * reach));
+      };
+      const scrubby = h(3) < scrub;
+      const conifer = h(4) < region.conifer;
+      const crown = 1.2 + (w.most - 1.2) * (0.7 + 0.3 * h(5));
+      const mature = scrubby ? bushRadius(1.3, 1) : conifer ? Math.max(1.1, crown * 0.8) : crown;
+      const room = clear(mature);
+      if (!room && !clear(bushRadius(0.9, 1))) continue;
+      const most = room ? w.most : 0.9;
+      const bush = grown < 0.35 || !room || scrubby;
       if (bush) {
-        const r = 0.6 + Math.min(most, 1.3) * 0.6 * grown + 0.2;
+        const r = bushRadius(Math.min(most, 1.3), grown);
         out.push({ x, y, r, h: r, conifer: false, bush: true });
         continue;
       }
-      const conifer = h(4) < region.conifer;
-      const r = 1.2 + (most - 1.2) * grown * (0.7 + 0.3 * h(5));
+      const r = 1.2 + (crown - 1.2) * grown;
       // A young conifer is never narrower than the bush it grew from.
       out.push({ x, y, r: conifer ? Math.max(1.1, r * 0.8) : r, h: conifer ? 3 + 7 * grown : r + 1.5 + 3 * grown, conifer });
     }

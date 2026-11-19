@@ -69,3 +69,16 @@ export function pointInRing(x: number, y: number, pts: ArrayLike<number>): boole
   }
   return inside;
 }
+
+/** How far a point is from a ring's outline, m. */
+export function toRing(x: number, y: number, p: number[]): number {
+  let best = Infinity;
+  for (let a = 0, b = p.length - 2; a < p.length; b = a, a += 2) {
+    const dx = p[a] - p[b];
+    const dy = p[a + 1] - p[b + 1];
+    const l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((x - p[b]) * dx + (y - p[b + 1]) * dy) / l2));
+    best = Math.min(best, Math.hypot(x - p[b] - dx * t, y - p[b + 1] - dy * t));
+  }
+  return best;
+}

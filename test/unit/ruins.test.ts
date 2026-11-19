@@ -3,7 +3,7 @@ import { newSolid, type Build } from '@/buildings';
 import { Camera } from '@/camera';
 import { pointInRing } from '@/geo';
 import { frame, gable, ragged, shell } from '@/ruins';
-import { DEFAULT_SETTINGS } from '@/settings';
+import { DEFAULT_SETTINGS, LINEWORK, ROOFS } from '@/settings';
 import { STYLES } from '@/styles';
 
 function build(scale = 500): Build {
@@ -75,4 +75,57 @@ test('a gutted tower keeps fewer floors as it comes down', () => {
   expect(top(low)).toBeLessThan(top(whole));
   expect(top(whole)).toBeLessThanOrEqual(60 + 1e-9);
   expect(ink(low)).toBeLessThan(ink(whole));
+});
+
+test('each wall run starts at the eaves and only gets lower', () => {
+  let last: number[] | undefined;
+  for (const stand of [0.9999, 0.95, 0.75, 0.5, 0.3, 0.12]) {
+    const ruin = newSolid();
+    ragged(build(), [box], 6, 0.35, stand, { windows: false, pen: LINEWORK }, ruin);
+    const heights = ruin.faces.map(face => face[0]).filter(p =>
+      p.length === 12 && p[2] === p[5] && p[2] === p[8] && p[2] === p[11]).map(p => p[2]);
+    expect(heights.length).toBeGreaterThan(4);
+    if (last) {
+      expect(heights).toHaveLength(last.length);
+      heights.forEach((z, i) => expect(z).toBeLessThanOrEqual(last![i]));
+    } else expect(Math.min(...heights)).toBeCloseTo(6, 2);
+    last = heights;
+  }
+});
+
+test('a thinning façade reveals fixed slab levels, each casting its own shadow', () => {
+  const B = build(2500);
+  let previous: number[] = [];
+  for (const walls of [0.8, 0.65, 0.5, 0.25, 0]) {
+    const s = newSolid();
+    frame(B, [box], 60, 3, 1, s, 0, { pen: LINEWORK, windows: false }, walls);
+    const slabs = s.faces.filter(f => f[0].every((v, i) => i % 3 !== 2 || v === f[0][2]));
+    const levels = slabs.map(f => f[0][2]);
+    expect(levels.length).toBeGreaterThan(0);
+    for (const z of previous) expect(levels).toContain(z);
+    for (const slab of slabs) expect(s.shade).toContain(slab);
+    expect(s.casts).toHaveLength(0);
+    previous = levels;
+  }
+});
+
+test('tiles stay on the same roofed part of the plot when the view pans', () => {
+  const court = [6, 4, 6, 12, 18, 12, 18, 4];
+  function floorTiles(pan: number) {
+    const B = build();
+    B.key = (x, y) => [Math.round(x + pan), Math.round(y)];
+    const rings = [[0, 0, 24, 0, 24, 16, 0, 16], court].map(p => ({
+      pts: p.map((v, i) => i % 2 ? v : v - pan), seam: new Uint8Array(4),
+    }));
+    const s = newSolid();
+    expect(shell(B, rings, 6, 0.35, { pen: LINEWORK, windows: false }, s, 0, false, true)).toBe(true);
+    return s.lines.filter(l => l.pen === ROOFS && l.pts.length === 6 && l.pts[2] > 0)
+      .map(l => l.pts.map((v, i) => Number((i % 3 === 0 ? v + pan : v).toFixed(6))));
+  }
+  const tiles = floorTiles(0);
+  expect(tiles.length).toBeGreaterThan(4);
+  for (const [ax, ay, , bx, by] of tiles) {
+    for (const t of [0, 0.5, 1]) expect(pointInRing(ax + (bx - ax) * t, ay + (by - ay) * t, court)).toBe(false);
+  }
+  expect(floorTiles(47)).toEqual(tiles);
 });

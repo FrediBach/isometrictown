@@ -3,7 +3,7 @@
  * zone becomes, fields cut into a patchwork of parcels with tracks between, churchyards, and the
  * trees image mode plants itself (`Town.trees`), which the renderer draws like any other.
  */
-import { pointInRing, ringArea } from './geo';
+import { pointInRing, ringArea, toRing } from './geo';
 import type { Block } from './image-blocks';
 import type { Footprints, Ground } from './image-check';
 import { LABELS, type Label } from './image-tone';
@@ -210,17 +210,4 @@ export function treesOf(blocks: Block[], yards: Area[], laid: Footprints, ground
     scatter(ring, YARD_SPACING, 2.5, (_, __, r) => (r(14079) < 0.6 ? { r: 2.2 + r(14080), h: 8 + 4 * r(14081), conifer: r(14082) < 0.5 } : null));
   }
   return trees;
-}
-
-/** How far a point is from a ring's outline, m. */
-function toRing(x: number, y: number, p: number[]): number {
-  let best = Infinity;
-  for (let a = 0, b = p.length - 2; a < p.length; b = a, a += 2) {
-    const dx = p[a] - p[b];
-    const dy = p[a + 1] - p[b + 1];
-    const l2 = dx * dx + dy * dy || 1;
-    const t = Math.max(0, Math.min(1, ((x - p[b]) * dx + (y - p[b + 1]) * dy) / l2));
-    best = Math.min(best, Math.hypot(x - p[b] - dx * t, y - p[b + 1] - dy * t));
-  }
-  return best;
 }
