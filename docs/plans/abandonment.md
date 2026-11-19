@@ -2,6 +2,13 @@
 
 **Status (2026-11-19):** M0 to M6 are built: the slider runs from the town as it is to overgrown ruins. What is left is in the notes from M6. Decisions that are yours to make are in §12. Each has a recommendation, and the plan assumes it until you say otherwise.
 
+**After review (2026-11-19).**
+- *Growth starts earlier and ends denser:* gardens from 0.12 (80% of spots grown over by the end), parks 0.15 (70%), open country 0.2 (45%), fields 0.3 (65%), yards 0.35 (40%), ruin floors 0.4 (60%), roads 0.45 (25%); trees grow a little bigger.
+- *Grass* (`wildGrass()`, `ground:wild-grass`) spreads in patches from 0.15 over yards, roads, squares, gardens and ruin floors, until most ground is grass by the end; fields, meadows, parks and woods keep their own textures. A tuft is drawn whole or not at all, and never in shadow (half-hidden tufts and the small tuft were specks: the grass wasted 55% of its ink before, 4–6% now).
+- *Walls sink into it:* runs now come down to 0.15–1.3 of the standing share (was 0.4–1.3), and a run lower than 0.7 m shows only stretches of its top, two thirds of it, as if through grass; no faces' edges, steps or corners below that height.
+- *Red rubble:* a building whose roof was tiled (every roof but a flat one) heaps it inside in the roof pen once it falls in: patchy heaps along the inside walls, broken up where 40% of the wall is bare, and broken tiles (short red strokes) strewn over the floor. Heaps got their own salts (10100–10125), clear of the power poles'. `counts.houses` no longer counts red rubble as a roof.
+- *Ink at 1* against 0: wasted ink within 2 points at 1:1000 and lower at 1:2500; plotting time +20% to +39% (Midtown +160%), from the denser growth and grass.
+
 **Notes from M6.**
 - *Bridges* (D6): footbridges and bridges on minor roads (`FRAIL` in `infra.ts`) lose their middle span from 0.8 to 1, a gap of up to 10 m with jagged ends down the side in view. The road mask is cleared over the gap while the extra is made, so the kerbs stop at the broken ends and the water's ripples run through.
 - *Canopies:* platform canopies (bay by bay), bus shelters and petrol station canopies lose their roofs, then their posts, from 0.35 to 0.9. Bus stop signs stand.

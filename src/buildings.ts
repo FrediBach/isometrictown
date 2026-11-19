@@ -342,7 +342,7 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   // Its roof fallen in, a house stands as a shell, its gables still up over the end walls.
   if (B.fate && B.fate.stage >= RUIN_STAGE.shell) {
     const t = wallThickness(info);
-    if (ruin(B, [wall], He, t, { windows: true, pen: LINEWORK, ...fronts(info) }, out)) {
+    if (ruin(B, [wall], He, t, { windows: true, pen: LINEWORK, ...fronts(info) }, out, 0, true)) {
       if (endKind !== 'hip' && gablesStand(B))
         for (const { rect: r, party, outside } of parts)
           for (const side of [1, 3] as const) if (outside[side] && !party[side]) gable(B, r, side === 1 ? 1 : -1, He, tan, t, endKind === 'half' ? 0.6 : 1, out);
@@ -639,7 +639,8 @@ function body(B: Build, b: Building): Solid[] {
   if (ruined) {
     // Walls stand to the eaves the roof sat on.
     const top = !info || info.roof === 'flat' ? H : Math.max(Math.min(H, z0 + 3), H - 2.5);
-    if (ruin(B, rings, top, wallThickness(info), { windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid, z0)) return out;
+    // Every roof but a flat one was tiled or slated, and lies inside in red heaps.
+    if (ruin(B, rings, top, wallThickness(info), { windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid, z0, !!info && info.roof !== 'flat')) return out;
   }
   flat(B, b, rings, info, z0, H, k, out);
   return out;

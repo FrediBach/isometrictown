@@ -3,7 +3,8 @@ import { LOWEST } from './decay';
 import { hash } from './rng';
 import type { Info } from './classify';
 import { atLeast, LOD, shows } from './lod';
-import { LINEWORK } from './settings';
+import { LINEWORK, ROOFS } from './settings';
+import { pointInRing } from './geo';
 import { offsetRing, type Rect } from './shape';
 import { ivy } from './growth';
 
@@ -76,7 +77,7 @@ function reversed(r: WallRing): WallRing {
  * when the footprint can't be inset by the wall's thickness, so the caller can draw it
  * another way.
  */
-export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0, thin = false): boolean {
+export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0, thin = false, tiles = false): boolean {
   // Thickened up to twice to show its top; still too thin, it is drawn a hair thick, and its
   // inside faces, openings and foot still show that the roof has gone.
   const wide = atLeast(B.cam, LOD.wallTop, t, 2.5);
@@ -150,6 +151,23 @@ export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omi
     }
     flush();
   }
+  // The roof that fell in lies in red heaps along the inside walls, and broken tiles across the floor.
+  if (tiles && shows(B.cam, LOD.rubble, 3)) {
+    for (const r of inner) {
+      const p = r.pts;
+      const n = p.length / 2;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        if (r.seam[i]) continue;
+        // The inside rings run clockwise, so the floor is to the right of each wall.
+        const len = Math.hypot(p[j * 2] - p[i * 2], p[j * 2 + 1] - p[i * 2 + 1]);
+        const m = Math.max(2, Math.round(len / 1.5));
+        const along = Array.from({ length: m + 1 }, (_, k): [number, number] => [p[i * 2] + ((p[j * 2] - p[i * 2]) * k) / m, p[i * 2 + 1] + ((p[j * 2 + 1] - p[i * 2 + 1]) * k) / m]);
+        heap(B, along, 1, 1.5, 0.8, 10120, out, ROOFS, 0.4);
+      }
+    }
+    strewTiles(B, reversed(inner[0]).pts, out);
+  }
   // Each wall casts its own shadow, so light falls into the shell.
   for (let k = 0; k < rings.length; k++) {
     const a = rings[k].pts;
@@ -209,6 +227,42 @@ export function gable(B: Build, r: Rect, end: 1 | -1, He: number, tan: number, t
   out.shade = [...(out.shade ?? []), [face(0)]];
 }
 
+/** Walls lower than this (m) are lost in the grass but for stretches of their tops. */
+const BURIED = 0.7;
+
+/**
+ * Broken tiles strewn over the floor of a ruin whose roof has fallen in: short red strokes
+ * on a map-fixed grid inside `ring` (the walls' inside, counter-clockwise).
+ */
+function strewTiles(B: Build, ring: number[], out: Solid): void {
+  const cam = B.cam;
+  if (!shows(cam, LOD.stones, 0.5)) return;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < ring.length; i += 2) {
+    x0 = Math.min(x0, ring[i]);
+    x1 = Math.max(x1, ring[i]);
+    y0 = Math.min(y0, ring[i + 1]);
+    y1 = Math.max(y1, ring[i + 1]);
+  }
+  const step = Math.max(1.3, cam.gap(1.6) / cam.s);
+  for (let x = Math.ceil(x0 / step) * step; x < x1; x += step)
+    for (let y = Math.ceil(y0 / step) * step; y < y1; y += step) {
+      const [k0, k1] = B.key(x, y);
+      const g = (s: number) => hash(k0, k1, B.set.seed, 10076 + s);
+      if (g(0) > 0.5) continue;
+      const px = x + (g(1) - 0.5) * step;
+      const py = y + (g(2) - 0.5) * step;
+      if (!pointInRing(px, py, ring)) continue;
+      const a = g(3) * Math.PI;
+      const l = 0.5 + 0.35 * g(4);
+      const z = 0.1 + 0.4 * g(5);
+      out.lines.push({ pen: ROOFS, pts: [px - Math.cos(a) * l, py - Math.sin(a) * l, z, px + Math.cos(a) * l, py + Math.sin(a) * l, z + 0.05], facet: 'rubble' });
+    }
+}
+
 /** Length of the runs a ruined wall breaks into, in metres; longer where short runs wouldn't read. */
 function runLength(B: Build): number {
   return Math.max(1.4, B.cam.gap(2.5) / B.cam.s);
@@ -222,7 +276,7 @@ function runLength(B: Build): number {
  * map, and only ever get lower as `stand` falls. Where height has gone, rubble lies at the
  * foot. Returns false when the band can't be made (see `shell()`).
  */
-export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0, thin = false): boolean {
+export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0, thin = false, tiles = false): boolean {
   const cam = B.cam;
   const wide = atLeast(cam, LOD.wallTop, t, 2.5);
   const top = !thin && shows(cam, LOD.wallTop, wide);
@@ -246,6 +300,10 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
   const w = Math.min(2.2, lostH * 0.3);
   const lift = Math.min(1.1, lostH * 0.12);
   const heaped = lostH > 0.5 && shows(cam, LOD.rubble, 2 * w);
+  // A tiled roof that has fallen in lies in red heaps inside, whatever the walls have lost.
+  const wIn = tiles ? Math.max(w, 1.5) : w;
+  const liftIn = tiles ? Math.max(lift, 0.8) : lift;
+  const heapedIn = tiles ? shows(cam, LOD.rubble, 2 * wIn) : heaped;
   rings.forEach((r, ri) => {
     const P = r.pts;
     const Q = inner[ri];
@@ -260,9 +318,9 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
       for (let k = 0; k < m; k++) {
         const tm = (k + 0.5) / m;
         const [k0, k1] = B.key(P[i * 2] + (P[j * 2] - P[i * 2]) * tm, P[i * 2 + 1] + (P[j * 2 + 1] - P[i * 2 + 1]) * tm);
-        const a = LOWEST + 0.9 * hash(k0, k1, seed, 9960);
+        const a = LOWEST + 1.15 * hash(k0, k1, seed, 9960);
         const corner = Math.max(0, 1 - Math.min(tm, 1 - tm) * len / 2.5);
-        zs.push(z0 + Math.max(0.3, (H - z0) * Math.min(1, stand * (a + corner))));
+        zs.push(z0 + Math.max(0.15, (H - z0) * Math.min(1, stand * (a + corner))));
       }
       // A step too small to see on paper is levelled down to its neighbour, so it isn't a speck.
       for (let k = 1; k < m; k++) if (Math.abs(zs[k] - zs[k - 1]) < flat) zs[k] = zs[k - 1] = Math.min(zs[k], zs[k - 1]);
@@ -286,6 +344,17 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
         const [bx, by] = at(P, (k + 1) / m);
         const [cx, cy] = at(Q, (k + 1) / m);
         const [dx, dy] = at(Q, k / m);
+        // A run come down almost to the ground is lost in the grass but for stretches of its top.
+        if (z - z0 < BURIED) {
+          out.faces.push([[ax, ay, z, bx, by, z, cx, cy, z, dx, dy, z]]);
+          for (let q = 0; q < 3; q++) {
+            const [ex, ey] = [ax + ((bx - ax) * (q + 0.5)) / 3, ay + ((by - ay) * (q + 0.5)) / 3];
+            const [g0, g1] = B.key(ex, ey);
+            if (hash(g0, g1, seed, 10072) < 0.45) continue;
+            L([ax + ((bx - ax) * q) / 3, ay + ((by - ay) * q) / 3, z, ax + ((bx - ax) * (q + 1)) / 3, ay + ((by - ay) * (q + 1)) / 3, z]);
+          }
+          continue;
+        }
         // Outside, above any neighbour's wall against it.
         // A wall too low on paper to show its foot apart from its top keeps only its top.
         const footed = (z - partyZ) * cam.ca * cam.s >= low;
@@ -306,7 +375,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
         if (both) L([dx, dy, z, cx, cy, z]);
         out.casts.push({ ring: [ax, ay, bx, by, cx, cy, dx, dy], h: z });
         // A step down to the next run: its end face, with an edge down each face and across the top.
-        if (k + 1 < m && Math.abs(zs[k + 1] - z) > 0.05) {
+        if (k + 1 < m && Math.abs(zs[k + 1] - z) > 0.05 && Math.min(z, zs[k + 1]) - z0 >= BURIED) {
           const lo = Math.min(z, zs[k + 1]);
           const hi = Math.max(z, zs[k + 1]);
           out.faces.push([[bx, by, lo, cx, cy, lo, cx, cy, hi, bx, by, hi]]);
@@ -316,17 +385,16 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
         }
       }
       // Rubble along the foot of the wall, outside (unless a neighbour stands against it) and in.
-      if (heaped) {
-        const along = (pts: number[]) => Array.from({ length: m + 1 }, (_, k) => at(pts, k / m));
-        if (partyZ <= z0) heap(B, along(P), 1, w, lift, 9962, out);
-        heap(B, along(Q), -1, w, lift, 9964, out);
-      }
+      const along = (pts: number[]) => Array.from({ length: m + 1 }, (_, k) => at(pts, k / m));
+      if (heaped && partyZ <= z0) heap(B, along(P), 1, w, lift, 10100, out);
+      if (heapedIn) heap(B, along(Q), -1, wIn, liftIn, 10110, out, tiles ? ROOFS : LINEWORK, tiles ? 0.4 : 0);
     }
     // Corners: an upright at each, up to the taller of the two walls meeting there.
     for (let i = 0; i < n; i++) {
       const h = (i - 1 + n) % n;
       if (r.seam[i] || r.seam[h]) continue;
       const zc = Math.max(heights[h][heights[h].length - 1], heights[i][0]);
+      if (zc - z0 < BURIED) continue;
       const zp = Math.max(z0, r.party ? Math.max(r.party[h], r.party[i]) : 0);
       if (zc > zp) L([P[i * 2], P[i * 2 + 1], zp, P[i * 2], P[i * 2 + 1], zc]);
       if (top) L([Q[i * 2], Q[i * 2 + 1], z0, Q[i * 2], Q[i * 2 + 1], zc]);
@@ -335,6 +403,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
       if (top && zc - zl > 0.05) L([P[i * 2], P[i * 2 + 1], zc, Q[i * 2], Q[i * 2 + 1], zc]);
     }
   });
+  if (tiles) strewTiles(B, inner[0], out);
   return true;
 }
 
@@ -343,8 +412,9 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
  * outside it (to its right, as rings run) or -1 inside. The heap slopes from about `lift`
  * up the wall to an uneven toe about `w` out, with a few stones on it. Each point's reach is
  * keyed on where it is, so neighbouring runs share their ends and the toe runs on unbroken.
+ * Uses salts `salt` to `salt + 5`.
  */
-function heap(B: Build, wall: [number, number][], side: 1 | -1, w: number, lift: number, salt: number, out: Solid): void {
+function heap(B: Build, wall: [number, number][], side: 1 | -1, w: number, lift: number, salt: number, out: Solid, pen = LINEWORK, gaps = 0): void {
   const seed = B.set.seed;
   const [x0, y0] = wall[0];
   const [x1, y1] = wall[wall.length - 1];
@@ -354,16 +424,28 @@ function heap(B: Build, wall: [number, number][], side: 1 | -1, w: number, lift:
   const ny = (-(x1 - x0) / len) * side;
   const g = (x: number, y: number, s: number) => {
     const [k0, k1] = B.key(x, y);
-    return hash(k0, k1, seed, salt + s * 10);
+    return hash(k0, k1, seed, salt + s);
   };
   const toe = wall.map(([x, y]) => {
     const r = w * (0.55 + 0.6 * g(x, y, 0));
     return [x + nx * r, y + ny * r, 0];
   });
   const up = wall.map(([x, y]) => lift * (0.6 + 0.6 * g(x, y, 1)));
+  // Patchy heaps leave a share `gaps` of the wall bare, and the toe breaks there.
+  const pieces: number[][] = [];
+  let cur: number[] | null = null;
   for (let k = 0; k + 1 < wall.length; k++) {
     const [ax, ay] = wall[k];
     const [bx, by] = wall[k + 1];
+    if (gaps > 0 && g((ax + bx) / 2, (ay + by) / 2, 5) < gaps) {
+      cur = null;
+      continue;
+    }
+    if (!cur) {
+      cur = [...toe[k]];
+      pieces.push(cur);
+    }
+    cur.push(...toe[k + 1]);
     out.faces.push([[...toe[k], ...toe[k + 1], bx, by, up[k + 1], ax, ay, up[k]]]);
     // A few stones on the slope, where they read.
     if (!shows(B.cam, LOD.stones, 0.5) || g(ax, ay, 2) < 0.5) continue;
@@ -372,9 +454,9 @@ function heap(B: Build, wall: [number, number][], side: 1 | -1, w: number, lift:
     const x = ax + (bx - ax) * u + (toe[k][0] - ax) * v;
     const y = ay + (by - ay) * u + (toe[k][1] - ay) * v;
     const z = up[k] * (1 - v) * 0.9;
-    out.lines.push({ pen: LINEWORK, pts: [x - 0.25, y, z, x, y + 0.1, z + 0.2, x + 0.25, y, z], facet: 'rubble' });
+    out.lines.push({ pen, pts: [x - 0.25, y, z, x, y + 0.1, z + 0.2, x + 0.25, y, z], facet: 'rubble' });
   }
-  out.lines.push({ pen: LINEWORK, pts: toe.flat(), facet: 'rubble' });
+  for (const p of pieces) if (p.length >= 6) out.lines.push({ pen, pts: p, facet: 'rubble' });
 }
 
 /**
@@ -435,11 +517,11 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
   out.casts.push({ ring: rings[0].pts, h: zTop });
 }
 
-/** A roofless building's walls to `z1`: a whole shell while they all stand, ragged once they start to come down. */
-export function ruin(B: Build, rings: WallRing[], z1: number, t: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0): boolean {
+/** A roofless building's walls to `z1`: a whole shell while they all stand, ragged once they start to come down. `tiles` for one whose tiled roof fell in, which leaves red rubble. */
+export function ruin(B: Build, rings: WallRing[], z1: number, t: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0, tiles = false): boolean {
   const stand = B.fate?.stand ?? 1;
   // Its own thickness, then a hair thick (or none) where the footprint can't be inset that far.
-  for (const thin of [false, true]) if (stand >= 1 ? shell(B, rings, z1, t, o, out, z0, thin) : ragged(B, rings, z1, t, stand, o, out, z0, thin)) return true;
+  for (const thin of [false, true]) if (stand >= 1 ? shell(B, rings, z1, t, o, out, z0, thin, tiles) : ragged(B, rings, z1, t, stand, o, out, z0, thin, tiles)) return true;
   return false;
 }
 

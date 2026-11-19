@@ -53,7 +53,7 @@ const FURROW_MM: [number, number] = [1.8, 2.6];
 /** Dash and gap for stubble fields, mm on paper. */
 const STUBBLE_MM: [number, number] = [1.2, 1.0];
 /** Symbol grid for tufts and marsh, and for sand stipple, mm on paper. */
-const TUFT_MM = 3.2;
+export const TUFT_MM = 3.2;
 const SAND_MM = 2.4;
 
 export type Sport = 'soccer' | 'tennis' | 'basketball' | 'track' | 'multi';
@@ -702,7 +702,7 @@ function symbols(B: Build, paper: Paper, M: Masks, G: Ground, toAbs: (x: number,
   paper.layer = base;
 }
 
-const TUFT = [
+export const TUFT = [
   [-0.45, -0.42],
   [-0.22, 0],
   [0, -0.55],
@@ -726,7 +726,7 @@ const CREVASSE = [
 ];
 /** Symbol grid for boulders and crevasses, mm on paper. */
 const ROCK_MM = 3.6;
-const SMALL_TUFT = TUFT.map(([x, y]) => [x * 0.7, y * 0.7]);
+export const SMALL_TUFT = TUFT.map(([x, y]) => [x * 0.7, y * 0.7]);
 const DOT = [
   [-0.12, 0],
   [0.12, 0],

@@ -24,7 +24,7 @@ import { cracks, curbs, fillRoads, footpaths, pathClearance, lamps, outline, rai
 import { traffic } from './traffic';
 import { title } from './title';
 import { RUIN_STAGE, settle } from './decay';
-import { wildGrowth } from './growth';
+import { wildGrass, wildGrowth } from './growth';
 import { trains } from './trains';
 import { aviation } from './aircraft';
 import { powerLines } from './power';
@@ -206,7 +206,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       for (const f of facets) tick(f);
     }
     counts.buildings++;
-    if (made[0].lines.some((l) => l.pen === ROOFS)) counts.houses++;
+    // A house is one with a roof: red rubble from a fallen one doesn't count.
+    if (made[0].lines.some((l) => l.pen === ROOFS && l.facet !== 'rubble')) counts.houses++;
     solids.push(...made);
   }
 
@@ -374,6 +375,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   });
   if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths, hatching); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
+  // Grass taking an abandoned town back.
+  if (set.abandon > 0 && set.ground) withPen('ground', () => { wildGrass(B, paper, G, M, ruinCore, toAbs, fromAbs); }, 'wild-grass');
   withPen('streets', () => { curbs(paper, town.ways, M, B); }, 'kerbs');
   if (set.abandon > 0) withPen('streets', () => { cracks(B, paper, town.ways, M); }, 'cracks');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');

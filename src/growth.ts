@@ -1,10 +1,13 @@
 import type { Build, Solid } from './buildings';
 import { DECAY, stretch } from './decay';
-import { FIELD, GARDEN, MEADOW, ORCHARD, SCRUB, VINEYARD, WILD, WILD_DEFAULT, type Ground } from './ground';
+import { FIELD, GARDEN, MEADOW, ORCHARD, SCRUB, TUFT, TUFT_MM, VINEYARD, WILD, WILD_DEFAULT, type Ground } from './ground';
+import { REF_NIB } from './camera';
+import { patch } from './rng';
 import { LOD, shows, thin } from './lod';
 import type { Masks, Tree } from './nature';
 import type { Paper } from './raster';
 import { hash } from './rng';
+import type { Test } from './raster';
 import { GREENERY } from './settings';
 
 /*
@@ -19,17 +22,17 @@ type Wilding = { from: number; to: number; cover: number; most: number };
 
 const WILDING: Record<'ruin' | 'garden' | 'park' | 'field' | 'road' | 'town' | 'open', Wilding> = {
   /** Inside a roofless ruin, once its floor is open to the sky. */
-  ruin: { from: 0.5, to: 1, cover: 0.4, most: 2.2 },
-  garden: { from: 0.25, to: 0.85, cover: 0.5, most: 3.4 },
-  park: { from: 0.3, to: 0.95, cover: 0.45, most: 3.6 },
+  ruin: { from: 0.4, to: 1, cover: 0.6, most: 2.6 },
+  garden: { from: 0.12, to: 0.75, cover: 0.8, most: 3.6 },
+  park: { from: 0.15, to: 0.85, cover: 0.7, most: 3.8 },
   /** Fallow fields and meadows turning to young woodland. */
-  field: { from: 0.45, to: 1, cover: 0.4, most: 3 },
-  /** Roads: a little, late. */
-  road: { from: 0.65, to: 1, cover: 0.1, most: 2 },
+  field: { from: 0.3, to: 0.95, cover: 0.65, most: 3.2 },
+  /** Roads: later, and less. */
+  road: { from: 0.45, to: 1, cover: 0.25, most: 2.4 },
   /** Yards, squares and other built ground. */
-  town: { from: 0.5, to: 1, cover: 0.18, most: 2.6 },
+  town: { from: 0.35, to: 1, cover: 0.4, most: 3 },
   /** Open country the map says nothing about. */
-  open: { from: 0.35, to: 1, cover: 0.22, most: 3 },
+  open: { from: 0.2, to: 0.95, cover: 0.45, most: 3.2 },
 };
 
 /** Spacing of the growth grid, in metres. */
@@ -45,7 +48,7 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
   const { cam, set } = B;
   const out: Tree[] = [];
   const d = set.abandon;
-  if (d <= 0.25 || set.trees <= 0) return out;
+  if (d <= 0.12 || set.trees <= 0) return out;
   const region = WILD[B.style.id] ?? WILD_DEFAULT;
   const local = DECAY[B.style.id];
   const amount = Math.min(1.4, set.trees / 0.7) * (local?.grows ?? 1);
@@ -134,4 +137,55 @@ export function ivy(B: Build, ax: number, ay: number, bx: number, by: number, z0
     pts.push(ax + (bx - ax) * u, ay + (by - ay) * u, z0 + (top - z0) * t);
   }
   out.lines.push({ pen: GREENERY, pts, layer: 'trees', facet: 'ivy' });
+}
+
+/**
+ * Grass taking the ground back: tufts spreading over yards, roads, squares and the floors
+ * of ruins, in patches, thicker as the town goes further, until by the end most ground is
+ * grass and only the taller walls stand clear of it. Ground the map already textures
+ * (fields, meadows, parks, woods) keeps its own texture.
+ */
+export function wildGrass(B: Build, paper: Paper, G: Ground | null, M: Masks, ruin: Uint8Array, toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): void {
+  const { cam, set } = B;
+  const s = stretch(set.abandon, 0.15, 0.95);
+  if (s <= 0) return;
+  const box = cam.region(0);
+  const metre = toAbs(1, 0)[0] - toAbs(0, 0)[0];
+  const step = (cam.gap(TUFT_MM * 1.5) / cam.s) * metre;
+  const k = Math.max(1, cam.nib / REF_NIB);
+  const [A0x, A0y] = toAbs(box[0], box[1]);
+  const [A1x, A1y] = toAbs(box[2], box[3]);
+  const i0 = Math.floor(A0x / step);
+  const i1 = Math.ceil(A1x / step);
+  const j0 = Math.floor(A0y / step);
+  const j1 = Math.ceil(A1y / step);
+  if ((i1 - i0) * (j1 - j0) > 800000) return;
+  const keep: Test = (x, y, d) => !paper.on(M.water, x, y) && (!paper.on(M.foot, x, y) || paper.on(ruin, x, y)) && paper.seen(x, y, d);
+  for (let i = i0; i <= i1; i++)
+    for (let j = j0; j <= j1; j++) {
+      const r = (q: number) => hash(i, j, set.seed, 10060 + q);
+      const X = (i + 0.1 + 0.8 * r(1)) * step;
+      const Y = (j + 0.1 + 0.8 * r(2)) * step;
+      // In patches: thick in some places long before others.
+      const cover = Math.min(1, Math.max(0, (patch(X / (step * 6), Y / (step * 6), set.seed, 10068) - 0.2) * 1.6 + s * 0.9 - 0.3)) * s;
+      if (r(0) >= cover) continue;
+      const [x, y] = fromAbs(X, Y);
+      const sx = cam.sx(x, y);
+      const sy = cam.sy(x, y, 0);
+      if (paper.on(M.water, sx, sy) || paper.on(M.wood, sx, sy) || paper.on(M.green, sx, sy) || paper.on(M.pool, sx, sy) || paper.on(M.title, sx, sy)) continue;
+      if (paper.on(M.foot, sx, sy) && !paper.on(ruin, sx, sy)) continue;
+      // Fields, meadows and the like keep the texture they have; gardens and bare ground take grass.
+      const land = G ? paper.at(G.land, sx, sy) : 0;
+      if (land && land !== GARDEN) continue;
+      // Out of shadows, as other ground textures are, and drawn whole or not at all: a tuft
+      // half hidden by a tree or a wall would leave a speck.
+      if (paper.on(M.shadow, sx, sy)) continue;
+      // The full tuft only: the small one is under two pen widths across, a speck.
+      const shape = TUFT;
+      const d = cam.depth(x, y, 0);
+      const pts = shape.flatMap(([dx, dy]) => [sx + dx * k, sy + dy * k, d]);
+      let whole = true;
+      for (let q = 0; q < pts.length && whole; q += 3) whole = keep(pts[q], pts[q + 1], d) && !paper.on(M.shadow, pts[q], pts[q + 1]);
+      if (whole) paper.sheet(GREENERY, pts, () => true);
+    }
 }

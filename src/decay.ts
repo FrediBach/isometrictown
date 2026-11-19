@@ -248,7 +248,7 @@ export function standing(p: number, kind: Kind | undefined, style?: StyleId): nu
 }
 
 /** The lowest a ruined wall comes down to, as a share of its standing height (see `ruins.ts`). */
-export const LOWEST = 0.4;
+export const LOWEST = 0.15;
 
 /**
  * Every building's fate, worked out before any is drawn, so a ruin's neighbours know how
