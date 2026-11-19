@@ -31,6 +31,7 @@
 7. Keep it deterministic (`hash()` with `B.key` and a fresh salt) and keep it off roads, water and buildings with the masks.
 8. Add an entry to `ENTRIES_BY_HAND` in `src/catalogue.ts`: what it is, how it is found, its source, settings and LOD rules, and the tally name its strokes go under (`ground:windmills`). If it shares a feature with others, give it a facet (`paper.facet('windmills', …)`, or `tag(layer, solids, 'windmills')` in `render()`) so the catalogue can pick it out.
 9. Add a line to "What it draws" in the main README, and to the module table there if you added a file.
+10. Decide what it does as the town is abandoned (the Abandonment slider, [plans/abandonment.md](plans/abandonment.md)), even if that is "it goes at the Emptying phase". Ask `src/decay.ts`: `left(B, kind, x, y, salt)` for things that leave or fade over a span in `LEAVES`, `stepsGone()` for things that decay in steps, `B.fate` inside a building. Keep every change behind `B.set.abandon > 0`, so at 0 the drawing stays byte-identical, and never let a thing come back as the slider rises: decide once from the thing's own hash, and let only the share that has gone move with the slider.
 
 ## Add a setting
 

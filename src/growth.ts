@@ -1,6 +1,6 @@
 import type { Build, Solid } from './buildings';
-import { stretch } from './decay';
-import { FIELD, GARDEN, MEADOW, WILD, WILD_DEFAULT, type Ground } from './ground';
+import { DECAY, stretch } from './decay';
+import { FIELD, GARDEN, MEADOW, ORCHARD, SCRUB, VINEYARD, WILD, WILD_DEFAULT, type Ground } from './ground';
 import { LOD, shows, thin } from './lod';
 import type { Masks, Tree } from './nature';
 import type { Paper } from './raster';
@@ -34,10 +34,12 @@ const WILDING: Record<'ruin' | 'garden' | 'park' | 'field' | 'road' | 'town' | '
 
 /** Spacing of the growth grid, in metres. */
 const STEP = 6.5;
+/** How far growth in a ruin keeps from its outline: the wall and a little more. */
+const WALL = 1.2;
 
 /**
- * Trees and bushes growing back over an abandoned town. `ruin` marks the open insides of
- * roofless ruins, clear of their walls. Returns nothing while the town is lived in or Trees is off.
+ * Trees and bushes growing back over an abandoned town. `ruin` marks the footprints of
+ * roofless ruins; growth in them keeps clear of their walls. Returns nothing while the town is lived in or Trees is off.
  */
 export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, ruin: Uint8Array, box: [number, number, number, number], toAbs: (x: number, y: number) => [number, number], fromAbs: (X: number, Y: number) => [number, number]): Tree[] {
   const { cam, set } = B;
@@ -45,7 +47,9 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
   const d = set.abandon;
   if (d <= 0.25 || set.trees <= 0) return out;
   const region = WILD[B.style.id] ?? WILD_DEFAULT;
-  const amount = Math.min(1.4, set.trees / 0.7);
+  const local = DECAY[B.style.id];
+  const amount = Math.min(1.4, set.trees / 0.7) * (local?.grows ?? 1);
+  const scrub = local?.scrub ?? 0.35;
   const step = STEP * (toAbs(1, 0)[0] - toAbs(0, 0)[0]);
   const spread = thin(cam, LOD.treeSpacing, STEP);
   // Grown as close on paper at coarse scales as at 1:1000 would be a darker sheet: thinned
@@ -76,7 +80,8 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
       else if (paper.on(M.green, sx, sy)) kind = 'park';
       else {
         const land = G ? paper.at(G.land, sx, sy) : 0;
-        kind = land === GARDEN ? 'garden' : land === FIELD || land === MEADOW ? 'field' : land ? 'open' : G?.inTown(x, y, sx, sy) ? 'town' : 'open';
+        // Orchards and vineyards run wild like fields; scrub thickens like open country.
+        kind = land === GARDEN ? 'garden' : land === FIELD || land === MEADOW || land === ORCHARD || land === VINEYARD ? 'field' : land === SCRUB || land ? 'open' : G?.inTown(x, y, sx, sy) ? 'town' : 'open';
       }
       const w = WILDING[kind];
       const s = stretch(d, w.from, w.to);
@@ -87,11 +92,12 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
       let most = w.most;
       // A crown that would reach over a standing wall stays a bush.
       const reach = 0.5 + (most - 0.5) * grown;
+      // In a ruin, everything within the walls' reach (`WALL`) of the crown must still be inside it.
       const inRuin = kind === 'ruin';
-      const clear = (r: number) => [[r, 0], [-r, 0], [0, r], [0, -r]].every(([dx, dy]) => inRuin ? on(ruin, x + dx, y + dy) : !on(M.foot, x + dx, y + dy));
+      const clear = (r: number) => [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]].every(([dx, dy]) => inRuin ? on(ruin, x + dx * (r + WALL), y + dy * (r + WALL)) : !on(M.foot, x + dx * r, y + dy * r));
       if (!clear(reach * 0.8)) most = 0.9;
       if (!clear(Math.min(reach, most) * 0.7)) continue;
-      const bush = grown < 0.35 || most < 1.2 || h(3) < 0.35;
+      const bush = grown < 0.35 || most < 1.2 || h(3) < scrub;
       if (bush) {
         const r = 0.6 + Math.min(most, 1.3) * 0.6 * grown + 0.2;
         out.push({ x, y, r, h: r, conifer: false, bush: true });

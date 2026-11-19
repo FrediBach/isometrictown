@@ -12,7 +12,7 @@ import { letter } from './lettering';
 import { walk } from './streets';
 import { LOD, shows, showsAt } from './lod';
 import { emergency, local, tractor } from './vehicles';
-import { left, past } from './decay';
+import { left, past, stepsGone } from './decay';
 
 /**
  * Things that belong to particular places: parasols on beaches, tents and caravans at campsites, swings
@@ -941,17 +941,21 @@ export function busStops(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const x = r.px + nx * (r.hw + 2.0);
     const y = r.py + ny * (r.hw + 2.0);
     if (!free(paper, M, x, y) || !free(paper, M, x + nx * 0.9, y + ny * 0.9)) continue;
+    // In an abandoned town the shelter loses its roof, then its panels; the sign stands.
+    const worn = B.set.abandon > 0 ? stepsGone(B, 'canopies', x, y, 2, 10044) : 0;
     const s = newSolid();
     const P = (a: number, c: number, z: number) => [x + r.ux * a + nx * c, y + r.uy * a + ny * c, z];
     const back = [P(-1.8, 0.7, 0.1), P(1.8, 0.7, 0.1), P(1.8, 0.7, 2.3), P(-1.8, 0.7, 2.3)];
-    s.faces.push([back.flat()]);
-    s.lines.push({ pen: LINEWORK, pts: back.flat(), closed: true });
-    for (const a of [-1.8, 1.8]) {
-      const side = [P(a, 0.7, 0.1), P(a, -0.2, 0.1), P(a, -0.2, 2.3), P(a, 0.7, 2.3)];
-      s.faces.push([side.flat()]);
-      s.lines.push({ pen: LINEWORK, pts: side.flat(), closed: true });
+    if (worn < 2) {
+      s.faces.push([back.flat()]);
+      s.lines.push({ pen: LINEWORK, pts: back.flat(), closed: true });
+      for (const a of [-1.8, 1.8]) {
+        const side = [P(a, 0.7, 0.1), P(a, -0.2, 0.1), P(a, -0.2, 2.3), P(a, 0.7, 2.3)];
+        s.faces.push([side.flat()]);
+        s.lines.push({ pen: LINEWORK, pts: side.flat(), closed: true });
+      }
     }
-    slab(B, s, place(x, y, r.ux, r.uy, rect(-2, 2, -0.4, 0.9).map(([a, c]) => [a, c * 1])), 2.3, 2.45);
+    if (worn < 1) slab(B, s, place(x, y, r.ux, r.uy, rect(-2, 2, -0.4, 0.9).map(([a, c]) => [a, c * 1])), 2.3, 2.45);
     // The stop sign at the kerb end.
     const [sx, sy] = P(2.6, -1.2, 0);
     s.lines.push({ pen: LINEWORK, pts: [sx, sy, 0, sx, sy, 2.6] });
@@ -991,18 +995,20 @@ export function fuel(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     }
     if (!spot) continue;
     const [x, y] = spot;
+    // Left to rot, the canopy comes down, and then its columns.
+    const worn = B.set.abandon > 0 ? stepsGone(B, 'canopies', x, y, 2, 10044) : 0;
     const s = newSolid();
-    slab(B, s, place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), 4.6, 5.4, ROOFS);
+    if (worn < 1) slab(B, s, place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), 4.6, 5.4, ROOFS);
     for (const [a, c] of [
       [-4.5, 0],
       [4.5, 0],
     ]) {
       const [cx, cy] = [x + r.ux * a - r.uy * c, y + r.uy * a + r.ux * c];
-      s.lines.push({ pen: LINEWORK, pts: [cx, cy, 0, cx, cy, 4.6] });
+      if (worn < 2) s.lines.push({ pen: LINEWORK, pts: [cx, cy, 0, cx, cy, 4.6] });
       slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.4, 0.4, -1.6, 1.6)), 0, 0.2);
       slab(B, s, place(cx, cy, r.ux, r.uy, rect(-0.3, 0.3, -0.5, 0.5)), 0.2, 1.6);
     }
-    s.casts.push({ ring: place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), h: 5.2 });
+    if (worn < 1) s.casts.push({ ring: place(x, y, r.ux, r.uy, rect(-7, 7, -4.5, 4.5)), h: 5.2 });
     solids.push(s);
   }
   return { solids, draw: () => {} };

@@ -25,8 +25,6 @@ import { traffic } from './traffic';
 import { title } from './title';
 import { RUIN_STAGE, settle } from './decay';
 import { wildGrowth } from './growth';
-import { wallThickness } from './ruins';
-import { offsetRing } from './shape';
 import { trains } from './trains';
 import { aviation } from './aircraft';
 import { powerLines } from './power';
@@ -129,7 +127,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   };
   const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask(), title: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
-  /** The open insides of roofless ruins, where growth may stand. */
+  /** The footprints of roofless ruins, inside which growth may stand clear of the walls. */
   const ruinCore = paper.mask();
 
   onStage({ stage: 'ground' });
@@ -194,10 +192,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (!made) continue;
     // A roofless ruin's floor is open to the sky: growth may stand in it, clear of the walls.
     const fate = B.fates?.get(b);
-    if (fate && fate.stage >= RUIN_STAGE.shell) {
-      const core = offsetRing(b.shape[0].pts, () => wallThickness(b.info) + 0.8);
-      if (core) paper.fillMask(ruinCore, [core]);
-    }
+    if (fate && fate.stage >= RUIN_STAGE.shell) paper.fillMask(ruinCore, b.shape.map((r) => r.pts));
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
       const facets = buildingFacets(b);

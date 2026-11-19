@@ -2,6 +2,7 @@ import type { Build } from './buildings';
 import type { Kind } from './classify';
 import { pointInRing } from './geo';
 import { hash, patch } from './rng';
+import type { StyleId } from './styles';
 import type { Building } from './tiles';
 
 /*
@@ -92,6 +93,10 @@ export const LEAVES = {
   fences: [0.25, 0.9],
   /** Street lamps: heads off, posts leaning, then lying down, then gone. */
   lamps: [0.35, 1],
+  /** Footbridges and bridges on minor roads losing a span. */
+  bridges: [0.8, 1],
+  /** Canopies over platforms, bus stops and petrol pumps: roofs gone, then the posts. */
+  canopies: [0.35, 0.9],
   /** Pitch markings, goals and nets, pitch by pitch. */
   pitches: [0.2, 0.6],
   /** Garden and allotment sheds: their roofs fall in, then they are gone. */
@@ -224,10 +229,21 @@ export type Fate = { p: number; stage: number; key: [number, number]; holes: num
 const FALLS_FROM = STAGES[3];
 const STANDS: Partial<Record<Kind, number>> = { worship: 0.45, civic: 0.3, tall: 0.18, apartment: 0.15 };
 
+/**
+ * How abandonment ends by region: `stands` scales how much of the walls is left at the end
+ * (mud brick and stone last in dry air; the tropics bring everything down), `grows` how much
+ * grows back, and `scrub` the share of growth that stays bushes. Regions without a line are 1, 1, 0.35.
+ */
+export const DECAY: Partial<Record<StyleId, { stands: number; grows: number; scrub: number }>> = {
+  arid: { stands: 1.8, grows: 0.25, scrub: 0.8 },
+  tropical: { stands: 0.6, grows: 1.4, scrub: 0.25 },
+  mediterranean: { stands: 1.3, grows: 0.8, scrub: 0.6 },
+};
+
 /** The share of its walls' height a building at progress p still has: all of it until it starts to fall. */
-export function standing(p: number, kind: Kind | undefined): number {
+export function standing(p: number, kind: Kind | undefined, style?: StyleId): number {
   if (p <= FALLS_FROM) return 1;
-  const end = (kind && STANDS[kind]) ?? 0.12;
+  const end = Math.min(0.8, ((kind && STANDS[kind]) ?? 0.12) * ((style && DECAY[style]?.stands) ?? 1));
   return 1 - ((p - FALLS_FROM) / (1 - FALLS_FROM)) * (1 - end);
 }
 
@@ -291,7 +307,7 @@ export function fateOf(B: Build, b: Building): Fate | undefined {
   const prog = Math.max(0, Math.min(1, (d - START * u) / SPAN));
   let stage = 0;
   while (stage < STAGES.length && prog >= STAGES[stage]) stage++;
-  const fate: Fate = { p: prog, stage, key, holes: [], strokes: 0, stand: standing(prog, b.info?.kind) };
+  const fate: Fate = { p: prog, stage, key, holes: [], strokes: 0, stand: standing(prog, b.info?.kind, B.style.id) };
   // Holes open in the roof of a derelict building, more of them and wider as it goes on.
   for (let i = 0; i < 3; i++) {
     const h = (k: number) => hash(key[0], key[1], seed, 9870 + i * 4 + k);

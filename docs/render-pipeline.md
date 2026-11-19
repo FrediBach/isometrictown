@@ -16,17 +16,17 @@ Most drawing functions take `B: Build` (`src/buildings.ts`) first:
 type Build = { cam; set; style; sun; left; key };
 ```
 
-`sun` is a horizontal unit vector toward the sun; `left` means traffic keeps left; `key` gives the stable position key for `hash()`. `sunBearing(set)` supplies its compass bearing: with `autoSun` on (the default), 135° in the northern hemisphere and 45° in the southern hemisphere, independent of camera rotation. Manual lighting retains the view-relative `sunAngle`, added to the camera bearing. Cast shadows and wall tone use this same vector.
+`fate` is what has become of the building being built and `fates` every building's, when Abandonment is above 0 (see [plans/abandonment.md](plans/abandonment.md)); at 0 both are unset and nothing about the drawing changes. `sun` is a horizontal unit vector toward the sun; `left` means traffic keeps left; `key` gives the stable position key for `hash()`. `sunBearing(set)` supplies its compass bearing: with `autoSun` on (the default), 135° in the northern hemisphere and 45° in the southern hemisphere, independent of camera rotation. Manual lighting retains the view-relative `sunAngle`, added to the camera bearing. Cast shadows and wall tone use this same vector.
 
 ## Passes
 
 | Stage (`app/stages.ts`) | What happens |
 | --- | --- |
-| `ground` | `classify()` fills `Building.info`. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`). |
-| `buildings` | The cinematic title (if on) is placed first, so buildings it stands in can be left out. Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints, and the title's, go into `M.foot`. |
-| `life` | Trees (placed, then filtered by ground plan, plus orchards, gardens, scrub, hedgerows, street trees), traffic, parking, trains, then all the **extras** (lifts, ferries, bridges, airfields, aircraft, power, sites…). |
+| `ground` | `classify()` fills `Building.info`. With Abandonment above 0, `settle()` (`src/decay.ts`) then works out every building's fate into `B.fates` and lowers party heights next to ruins that have come down. Water, pools, green, wood and roads are filled into **masks**. `planGround()` builds the land-cover plan `G` (if `set.ground`); fallow fields and faded pitches are decided here. |
+| `buildings` | The cinematic title (if on) is placed first, so buildings it stands in can be left out. Buildings whose screen bounds touch `cam.rect` are built into `Solid`s; their footprints, and the title's, go into `M.foot`. `building()` sets `B.fate` for the one it builds, and roofless ones are drawn by `src/ruins.ts`; their footprints also go into a mask of their own, where only growth may stand. |
+| `life` | Trees (placed, then filtered by ground plan, plus orchards, gardens, scrub, hedgerows, street trees, and the growth over an abandoned town from `src/growth.ts`), traffic, parking, trains, then all the **extras** (lifts, ferries, bridges, airfields, aircraft, power, sites…). Each feature asks `src/decay.ts` what has become of its things; a bridge that loses a span clears the road mask over the gap here, before any line reads it. |
 | `light` | Trim pitched-roof end outlines where another pitched face continues the same plane. Every solid face and tree sprite is rasterised into the **depth buffer**; `finishDepth()`. Then shadows are swept into `M.shadow`. |
-| `lines` | Ground lines: waves, water outlines, park hatch, shadow hatch, ground textures, kerbs, rails, paths, lamps, railings, markings, each extra's `draw()`, fences. Then every solid's lines and tree sprites, traced against depth. Optional Humanize then loosens the visible strokes, before the precise frame and marginalia are added. |
+| `lines` | Ground lines: waves, water outlines, park hatch, shadow hatch, ground textures, kerbs (broken in an abandoned town), road cracks, rails, paths, lamps, railings, markings, each extra's `draw()`, fences. Then every solid's lines and tree sprites, traced against depth. Optional Humanize then loosens the visible strokes, before the precise frame and marginalia are added. |
 | `plan` | (in the worker) `plan()` joins touching strokes and orders them to cut pen travel; `toSvg()` writes one Inkscape layer per pen. |
 
 ## `Paper` (`src/raster.ts`)

@@ -600,8 +600,9 @@ function body(B: Build, b: Building): Solid[] {
   const simple = b.shape.length === 1 && seamless && z0 === 0;
   // Roofless: houses and churches keep their gables (see `house()`); anything else is a plain shell.
   const ruined = !!B.fate && B.fate.stage >= RUIN_STAGE.shell;
-  // Concrete towers and blocks lose their walls and stand as frames of floors on columns.
-  if (ruined && info && (info.kind === 'tall' || info.kind === 'apartment') && H >= 15 && (info.roof === 'flat' || info.kind === 'tall')) {
+  // Concrete towers and blocks lose their walls and stand as frames of floors on columns, until
+  // too little is left to stand that way: a slab or two on stubs would look like a low roof.
+  if (ruined && info && (info.kind === 'tall' || info.kind === 'apartment') && H >= 15 && (info.roof === 'flat' || info.kind === 'tall') && B.fate!.stand * H >= 12) {
     // The façade gives way from the top down, gone by the time the tower starts to fall.
     const walls = Math.max(0, Math.min(1, (STAGES[3] + 0.1 - B.fate!.p) / 0.25)) * 0.85;
     frame(B, rings, H, info.facade.storey || B.style.floor, B.fate!.stand, solid, z0, { windows: true, pen: LINEWORK, ...fronts(info) }, walls);

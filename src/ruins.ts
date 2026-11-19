@@ -85,7 +85,9 @@ export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omi
   const inner: WallRing[] = [];
   for (const r of rings) {
     // Inward is to the left of every ring: the outer one runs counter-clockwise, courtyards clockwise.
-    const pts = offsetRing(r.pts, () => d);
+    // A footprint that can't be inset even a hair is drawn with no thickness: its far walls'
+    // inside faces still show it is open.
+    const pts = offsetRing(r.pts, () => d) ?? (thin ? r.pts.slice() : null);
     if (!pts) return false;
     // Faces turned towards the inside of the building: the same edges, run the other way.
     inner.push(reversed({ pts, seam: r.seam, party: r.party?.map(() => 0) }));
@@ -227,7 +229,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
   const d = top ? wide : Math.min(t, 0.08);
   const inner: number[][] = [];
   for (const r of rings) {
-    const pts = offsetRing(r.pts, () => d);
+    const pts = offsetRing(r.pts, () => d) ?? (thin ? r.pts.slice() : null);
     if (!pts) return false;
     inner.push(pts);
   }
@@ -393,7 +395,9 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
   let step = 1;
   while (storey * step * cam.ca * cam.s < cam.gap(2.5) && step < 64) step *= 2;
   // A slab is too thin to show its edge on paper: its top face and one outline round it.
-  for (let f = kept > 0 ? kept : step; f <= count; f += step) {
+  // Once it has started to fall, the top floor has gone and columns stick up past the last slab.
+  const last = stand < 1 ? count - 1 : count;
+  for (let f = kept > 0 ? kept : step; f <= last; f += step) {
     const z = z0 + f * storey;
     const at = rings.map((r) => {
       const ring: number[] = [];
@@ -434,18 +438,9 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
 /** A roofless building's walls to `z1`: a whole shell while they all stand, ragged once they start to come down. */
 export function ruin(B: Build, rings: WallRing[], z1: number, t: number, o: Omit<PrismOptions, 'roof'>, out: Solid, z0 = 0): boolean {
   const stand = B.fate?.stand ?? 1;
-  // Its own thickness, then a hair thick where the footprint can't be inset that far.
+  // Its own thickness, then a hair thick (or none) where the footprint can't be inset that far.
   for (const thin of [false, true]) if (stand >= 1 ? shell(B, rings, z1, t, o, out, z0, thin) : ragged(B, rings, z1, t, stand, o, out, z0, thin)) return true;
-  // A footprint that can't be inset at all: its outside walls, open at the top, to about the height left.
-  const z = z0 + (z1 - z0) * Math.min(1, stand * 0.8);
-  prism(B, rings, z0, z, { ...o, roof: false, windows: false }, out);
-  for (const r of rings) {
-    const f: number[] = [];
-    for (let i = 0; i < r.pts.length; i += 2) f.push(r.pts[i], r.pts[i + 1], z);
-    out.lines.push({ pen: o.pen, pts: f, closed: true });
-  }
-  out.casts.push({ ring: rings[0].pts, h: z });
-  return true;
+  return false;
 }
 
 /** Whether a roofless house's gables still stand: each falls at its own point once the walls start to come down. */

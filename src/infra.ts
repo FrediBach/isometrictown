@@ -1,5 +1,5 @@
 import { car, newSolid, prism, wreck, type Build, type Solid } from './buildings';
-import { kept, LEFT_MOORED, left, parkedCar, wreckTwist } from './decay';
+import { kept, LEFT_MOORED, left, parkedCar, stepsGone, wreckTwist } from './decay';
 import { ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
@@ -299,8 +299,9 @@ export function moorings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
           const cx = x + nx * (beam / 2 + 0.6);
           const cy = y + ny * (beam / 2 + 0.6);
           if (!water(cx + ux * bl * 0.5, cy + uy * bl * 0.5) || !water(cx - ux * bl * 0.5, cy - uy * bl * 0.5) || !water(cx + nx * beam, cy + ny * beam)) continue;
-          // Half the boats are taken away as the town empties; the rest are left where they lie.
-          if (B.set.abandon > 0 && hash(k0, k1, B.set.seed, 9828) >= LEFT_MOORED && left(B, 'moored', cx, cy, 9829)) continue;
+          // Half the boats are taken away as the town empties; the rest are left where they lie,
+          // until they sink at their moorings late on.
+          if (B.set.abandon > 0 && (hash(k0, k1, B.set.seed, 9828) >= LEFT_MOORED ? left(B, 'moored', cx, cy, 9829) : left(B, 'wrecks', cx, cy, 10050))) continue;
           const f2 = h(3) < 0.5 ? 1 : -1;
           solids.push(boat(B, cx, cy, ux * f2, uy * f2, bl, beam));
         }
@@ -412,20 +413,38 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
         const u = Math.sin((Math.PI * (t - a)) / (b - a));
         return -WATER_DROP + (WATER_DROP - DECK) * Math.pow(u, 0.6);
       };
-      const top: number[] = [];
-      const soffit: number[] = [];
-      const fascia: number[] = [];
-      for (let t = t0; t <= t1 + 1e-6; t += 0.5) {
-        const tt = Math.min(t, t1);
-        top.push(...edge(tt, 0));
-        fascia.push(...edge(tt, -DECK));
-        soffit.push(...edge(tt, under(tt)));
+      // Late in an abandoned town a footbridge or a bridge on a minor road loses its middle
+      // span: the deck stops at broken ends, and water shows between.
+      const [mx, my] = at(p, cum, (t0 + t1) / 2);
+      const broken = len >= 10 && (w.kind === 'path' || FRAIL.has(w.cls)) && B.set.abandon > 0 && left(B, 'bridges', mx, my, 10040, 0.6);
+      const g0 = (t0 + t1) / 2 - Math.min(5, len * 0.18);
+      const g1 = (t0 + t1) / 2 + Math.min(5, len * 0.18);
+      for (const [a, b] of broken ? [[t0, g0], [g1, t1]] : [[t0, t1]]) {
+        const top: number[] = [];
+        const soffit: number[] = [];
+        const fascia: number[] = [];
+        for (let t = a; t <= b + 1e-6; t += 0.5) {
+          const tt = Math.min(t, b);
+          top.push(...edge(tt, 0));
+          fascia.push(...edge(tt, -DECK));
+          soffit.push(...edge(tt, under(tt)));
+        }
+        const back: number[] = [];
+        for (let i = soffit.length - 3; i >= 0; i -= 3) back.push(soffit[i], soffit[i + 1], soffit[i + 2]);
+        paper.fillMask3(M.under, [[...top, ...back]]);
+        lines.push(fascia);
+        if (arched) lines.push(soffit);
       }
-      const back: number[] = [];
-      for (let i = soffit.length - 3; i >= 0; i -= 3) back.push(soffit[i], soffit[i + 1], soffit[i + 2]);
-      paper.fillMask3(M.under, [[...top, ...back]]);
-      lines.push(fascia);
-      if (arched) lines.push(soffit);
+      if (broken) {
+        // The road surface goes over the gap, so its kerbs close round the broken ends.
+        const across = (t: number, s: number) => {
+          const [x, y, ux, uy] = at(p, cum, t);
+          return [x - uy * (hw + 0.4) * s, y + ux * (hw + 0.4) * s];
+        };
+        paper.fillMask(M.road, [[...across(g0, 1), ...across(g1, 1), ...across(g1, -1), ...across(g0, -1)]], 0);
+        // Jagged broken ends down the side in view.
+        for (const [g, d] of [[g0, 0.6], [g1, -0.6]]) lines.push([...edge(g, 0), ...edge(g - d, -DECK * 0.5), ...edge(g, -DECK)]);
+      }
       // Piers standing in the water.
       for (let k = 1; k < n; k++) {
         const t = t0 + k * span;
@@ -442,6 +461,9 @@ export function bridges(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   // Hidden behind whatever stands in front, like any other line.
   return { solids, draw: () => lines.forEach((l) => paper.line3(LINEWORK, l, (x, y, d) => (paper.on(M.under, x, y) || paper.on(M.water, x, y)) && paper.seen(x, y, d))) };
 }
+
+/** Bridges that may lose a span in an abandoned town: footbridges and those on minor roads. */
+const FRAIL = new Set(['minor', 'service', 'track', 'path', 'living_street', 'pedestrian']);
 
 // ---------------------------------------------------------------- Station platforms
 
@@ -466,6 +488,8 @@ export function platforms(B: Build, town: Town): Extra {
     // The canopy over the middle stretch, segment by segment so it follows a curve.
     const c0 = L * 0.25;
     const c1 = L * 0.75;
+    // In an abandoned town the canopy comes down a bay at a time, and then its columns.
+    let roofed = false;
     for (let t = c0; t < c1; t += 10) {
       const t1 = Math.min(c1, t + 10);
       const [x0, y0] = at(p, cum, t);
@@ -474,12 +498,16 @@ export function platforms(B: Build, town: Town): Extra {
       if (l < 1) continue;
       const ux = (x1 - x0) / l;
       const uy = (y1 - y0) / l;
-      slab(B, s, place(x0, y0, ux, uy, rect(0, l, -2.2, 2.2)), 3.6, 3.85, ROOFS);
-      s.lines.push({ pen: LINEWORK, pts: [x0, y0, 0.8, x0, y0, 3.6] });
+      const worn = B.set.abandon > 0 ? stepsGone(B, 'canopies', x0, y0, 2, 10044) : 0;
+      if (worn < 1) {
+        slab(B, s, place(x0, y0, ux, uy, rect(0, l, -2.2, 2.2)), 3.6, 3.85, ROOFS);
+        roofed = true;
+      }
+      if (worn < 2) s.lines.push({ pen: LINEWORK, pts: [x0, y0, 0.8, x0, y0, 3.6] });
     }
     const [ex, ey] = at(p, cum, c1);
-    s.lines.push({ pen: LINEWORK, pts: [ex, ey, 0.8, ex, ey, 3.6] });
-    s.casts.push({ ring: place(...(at(p, cum, c0).slice(0, 2) as [number, number]), ...(at(p, cum, (c0 + c1) / 2).slice(2) as [number, number]), rect(0, c1 - c0, -2.2, 2.2)), h: 3.8 });
+    if (B.set.abandon <= 0 || stepsGone(B, 'canopies', ex, ey, 2, 10044) < 2) s.lines.push({ pen: LINEWORK, pts: [ex, ey, 0.8, ex, ey, 3.6] });
+    if (roofed) s.casts.push({ ring: place(...(at(p, cum, c0).slice(0, 2) as [number, number]), ...(at(p, cum, (c0 + c1) / 2).slice(2) as [number, number]), rect(0, c1 - c0, -2.2, 2.2)), h: 3.8 });
     solids.push(s);
   }
   return { solids, draw: () => {} };

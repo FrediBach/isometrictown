@@ -24,8 +24,8 @@ export const FIELD = 1;
 export const MEADOW = 2;
 const WETLAND = 3;
 const SAND = 4;
-const ORCHARD = 5;
-const VINEYARD = 6;
+export const ORCHARD = 5;
+export const VINEYARD = 6;
 const CEMETERY = 7;
 /** Grass pitches keep a light hatch under their markings; hard courts and tracks stay clear. */
 const PITCH = 8;
@@ -35,7 +35,7 @@ export const GARDEN = 10;
 /** Residential areas whose buildings cover less than this share of the land count as gardens. */
 const GARDEN_COVERAGE = 0.3;
 /** Scrub: bushes over the grass. */
-const SCRUB = 11;
+export const SCRUB = 11;
 /** Allotments: a grid of little plots with sheds. */
 const ALLOTMENT = 12;
 /** Bare rock and scree: boulders. */
