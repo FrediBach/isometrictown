@@ -11,7 +11,7 @@ import { outline } from './streets';
 import type { Shape, Town } from './tiles';
 import { LOD, shows, thin } from './lod';
 import { combine, tractor } from './vehicles';
-import { left, past } from './decay';
+import { left, past, stepsGone } from './decay';
 
 /**
  * Ground textures for land with a character of its own: furrowed fields, vineyard rows,
@@ -133,6 +133,8 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
       // Only roughly rectangular pitches get markings, and not a big lawn that holds smaller pitches.
       const holdsOthers = sporty.some((b, k) => b !== a && centres[k] && centres[k]!.L * centres[k]!.w < rect.L * rect.w && pointInRing(centres[k]!.cx, centres[k]!.cy, a.shape[0].pts));
       if (holdsOthers || fill < (a.cls === 'track' ? 0.6 : 0.75)) continue;
+      // An abandoned pitch loses its markings and goals and is plain ground.
+      if (B.set.abandon > 0 && left(B, 'pitches', rect.cx, rect.cy, 10030, 0.6)) continue;
       let sport: Sport | undefined = a.cls === 'track' ? 'track' : undefined;
       for (const p of town.pois) {
         if (sport || p.cls !== 'pitch' || !pointInRing(p.x, p.y, a.shape[0].pts)) continue;
@@ -1072,9 +1074,12 @@ export function allotmentSheds(B: Build, paper: Paper, G: Ground, M: Masks): Sol
         const hl = 1.0 + hash(k0, k1, set.seed, 161) * 0.4;
         const hw = 0.8 + hash(k0, k1, set.seed, 162) * 0.3;
         const pts = [x - r.ux * hl - vx * hw, y - r.uy * hl - vy * hw, x + r.ux * hl - vx * hw, y + r.uy * hl - vy * hw, x + r.ux * hl + vx * hw, y + r.uy * hl + vy * hw, x - r.ux * hl + vx * hw, y - r.uy * hl + vy * hw];
+        // Left to rot, it loses its roof and then falls down.
+        const worn = set.abandon > 0 ? stepsGone(B, 'sheds', x, y, 2, 10020) : 0;
+        if (worn >= 2) continue;
         const s = newSolid();
-        prism(B, [{ pts, seam: new Uint8Array(4) }], 0, 2.2, { roof: true, windows: false, pen: LINEWORK }, s);
-        s.casts.push({ ring: pts, h: 2.2 });
+        prism(B, [{ pts, seam: new Uint8Array(4) }], 0, worn ? 1.4 : 2.2, { roof: !worn, windows: false, pen: LINEWORK }, s);
+        s.casts.push({ ring: pts, h: worn ? 1.4 : 2.2 });
         out.push(s);
       }
   }

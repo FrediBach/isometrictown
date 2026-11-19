@@ -11,6 +11,7 @@ import { urbanity } from './traffic';
 import { LOD, shows } from './lod';
 import { powerTerrain } from './power-terrain';
 import { powerRoads, roadsideSupports, ruralSupports, roadAnchor } from './power-roads';
+import { left as goneBy, stepsGone } from './decay';
 type Terrain = ReturnType<typeof powerTerrain>;
 
 /*
@@ -48,6 +49,20 @@ function wire(ax: number, ay: number, az: number, bx: number, by: number, bz: nu
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     pts.push(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t - 4 * sag * t * (1 - t));
+  }
+  out.push({ pen: LINEWORK, pts });
+}
+
+/**
+ * A broken span: the wire from a still standing (at height az) down to the ground part of
+ * the way to b, where it fell. `t` is how far along it lies.
+ */
+function hanging(ax: number, ay: number, az: number, bx: number, by: number, t: number, out: Line[]): void {
+  const pts: number[] = [];
+  const n = 8;
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    pts.push(ax + (bx - ax) * t * u, ay + (by - ay) * t * u, Math.max(0.2, az * (1 - u) * (1 - u)));
   }
   out.push({ pen: LINEWORK, pts });
 }
@@ -203,6 +218,12 @@ function transmission(B: Build, paper: Paper, town: Town, M: Masks, box: number[
           for (let k = 1; k < run.length; k++) {
             const prev = run[k - 1], tower = run[k];
             const sag = Math.hypot(prev.x - tower.x, prev.y - tower.y) * 0.025;
+            // Steel pylons stand to the end, but their spans break and hang down one by one.
+            if (B.set.abandon > 0 && goneBy(B, 'wires', (prev.x + tower.x) / 2, (prev.y + tower.y) / 2, 10014, 0.7)) {
+              const [b, z] = conductors(tower)[0];
+              hanging(prev.x - prev.dy * b, prev.y + prev.dx * b, z, tower.x - tower.dy * b, tower.y + tower.dx * b, 0.45, out);
+              continue;
+            }
             for (const [b, z] of conductors(tower)) wire(prev.x - prev.dy * b, prev.y + prev.dx * b, z, tower.x - tower.dy * b, tower.y + tower.dx * b, z, sag, out);
             wire(prev.x, prev.y, prev.H, tower.x, tower.y, tower.H, sag * 0.8, out);
           }
@@ -272,6 +293,7 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
     const arms = new Set(kept.filter(([b]) => b !== 0).map(([, z]) => z));
     const can = (american || asian || feeder) && shows(B.cam, LOD.transformer);
     let prev: [number, number, number, number] | null = null;
+    let prevWorn = 0;
     let previousPole: Line[] = [], previousDrawn = false;
     const rural = !urban || townToo ? null : ruralSupports(poles, urban);
     for (let i=0; i<poles.length; i++) {
@@ -279,9 +301,16 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
       if (!grid && (blocked(x, y) || (rural && !rural[i]))) { prev = null; continue; }
       const ux = ny * side, uy = -nx * side;
       const pole: Line[] = [];
+      // In an abandoned town a pole leans, falls and rots away.
+      const worn = set.abandon > 0 ? stepsGone(B, 'poles', x, y, 3, 10004) : 0;
+      const [wa, wb] = B.key(x, y);
+      const fall = hash(wa, wb, set.seed, 10007) * Math.PI * 2;
       // The pole, and its cross-arms; retain them only if a verified span uses this support.
-      pole.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
-      for (const z of arms) pole.push({ pen: LINEWORK, pts: [x + nx * reach, y + ny * reach, z, x - nx * reach, y - ny * reach, z] });
+      if (worn === 0) {
+        pole.push({ pen: LINEWORK, pts: [x, y, 0, x, y, H] });
+        for (const z of arms) pole.push({ pen: LINEWORK, pts: [x + nx * reach, y + ny * reach, z, x - nx * reach, y - ny * reach, z] });
+      } else if (worn === 1) pole.push({ pen: LINEWORK, pts: [x, y, 0, x + Math.cos(fall) * H * 0.25, y + Math.sin(fall) * H * 0.25, H * 0.97] });
+      else if (worn === 2) pole.push({ pen: LINEWORK, pts: [x, y, 0.15, x + Math.cos(fall) * H, y + Math.sin(fall) * H, 0.15] });
       // Now and then a transformer can on the pole.
       const [k0, k1] = B.key(x, y);
       const terminal = !!grid && (i === 0 || i === poles.length - 1);
@@ -303,9 +332,14 @@ function distribution(B: Build, paper: Paper, town: Town, M: Masks, out: Line[],
           if (!previousDrawn) out.push(...previousPole);
           out.push(...pole);
           joined = true;
-          for (const [b, z] of kept) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
+          // Wires run only between poles still upright; from a standing pole to a fallen one, one hangs down.
+          const broken = prevWorn > 0 || worn > 0 || (set.abandon > 0 && goneBy(B, 'wires', (px + x) / 2, (py + y) / 2, 10010, 0.7));
+          if (!broken) for (const [b, z] of kept) wire(px + pnx * b, py + pny * b, z, x + nx * b, y + ny * b, z, 0.9, out);
+          else if (prevWorn === 0 && kept.length) hanging(px + pnx * kept[0][0], py + pny * kept[0][0], kept[0][1], x, y, 0.5, out);
+          else if (worn === 0 && kept.length) hanging(x + nx * kept[0][0], y + ny * kept[0][0], kept[0][1], px, py, 0.5, out);
         }
       }
+      prevWorn = worn;
       prev = [x, y, nx, ny];
       previousPole = pole; previousDrawn = joined;
     }

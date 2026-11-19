@@ -5,6 +5,7 @@ import type { Info } from './classify';
 import { atLeast, LOD, shows } from './lod';
 import { LINEWORK } from './settings';
 import { offsetRing, type Rect } from './shape';
+import { ivy } from './growth';
 
 /*
  * Ruins: buildings that have lost their roofs, for the Abandonment slider (see
@@ -102,6 +103,15 @@ export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omi
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
       if (!r.seam[i]) shadeWall(B, p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1], z0, () => z1, out, false, true);
+    }
+  }
+  // Ivy up the outside walls in view.
+  for (const r of rings) {
+    const p = r.pts;
+    const n = p.length / 2;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      if (!r.seam[i] && !(r.party && r.party[i] > z0) && facing(B, p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1])) ivy(B, p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1], z0, z1, out);
     }
   }
   // The tops of the walls: one face between the outer rings and the inner ones.
@@ -281,6 +291,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
           out.faces.push([[ax, ay, partyZ, bx, by, partyZ, bx, by, z, ax, ay, z]]);
           if (footed) L([ax, ay, partyZ, bx, by, partyZ]);
           shadeWall(B, ax, ay, bx, by, partyZ, () => z, out);
+          ivy(B, ax, ay, bx, by, partyZ, z, out);
         }
         if (inFacing) {
           out.faces.push([[dx, dy, z0, cx, cy, z0, cx, cy, z, dx, dy, z]]);

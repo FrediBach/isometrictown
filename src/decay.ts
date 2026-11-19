@@ -92,6 +92,14 @@ export const LEAVES = {
   fences: [0.25, 0.9],
   /** Street lamps: heads off, posts leaning, then lying down, then gone. */
   lamps: [0.35, 1],
+  /** Pitch markings, goals and nets, pitch by pitch. */
+  pitches: [0.2, 0.6],
+  /** Garden and allotment sheds: their roofs fall in, then they are gone. */
+  sheds: [0.3, 0.85],
+  /** Spans of overhead wire breaking and hanging down. */
+  wires: [0.4, 0.85],
+  /** Wooden poles leaning, falling and rotting away. */
+  poles: [0.45, 1],
 } as const satisfies Record<string, readonly [number, number]>;
 
 /** Share of kerb stretches that still stand at the end, so the street pattern stays readable: main roads, other roads. */

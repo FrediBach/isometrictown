@@ -40,6 +40,7 @@ export const LOD = {
   rubble: { m: 2, mm: 1, what: 'Heaps of rubble at the foot of ruined walls: width' },
   stones: { m: 0.5, mm: 0.5, what: 'Stones on rubble heaps' },
   column: { m: 0.5, mm: 0.7, what: 'Columns of gutted concrete frames drawn as boxes; thinner, single strokes' },
+  ivy: { m: 3, mm: 1.5, what: 'Ivy climbing ruined walls: its height' },
   board: { m: 0.6, mm: 0.7, what: 'Boards across the windows and doors of abandoned buildings: their spacing' },
   gable: { m: 0.8, mm: 0.7, what: 'Stepped and shaped gables on street fronts: step width' },
   roofHatch: { m: 4, mm: 1.2, what: 'Roof hatching: slope from eave to ridge' },

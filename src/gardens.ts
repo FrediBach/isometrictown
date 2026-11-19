@@ -279,11 +279,13 @@ function yard(B: Build, b: Building, cx: number, cy: number, ok: (x: number, y: 
     const a = back - 4 - h(5) * 4;
     const l = left + (right - left) * h(6);
     const ring = [P(a - 1.0, l - 1.2), P(a + 1.0, l - 1.2), P(a + 1.0, l + 1.2), P(a - 1.0, l + 1.2)];
-    if (ring.every(([x, y]) => ok(x, y))) {
+    // Left to rot, it loses its roof and then falls down.
+    const worn = B.set.abandon > 0 ? stepsGone(B, 'sheds', ...P(a, l), 2, 10020) : 0;
+    if (worn < 2 && ring.every(([x, y]) => ok(x, y))) {
       const pts = ring.flat();
       const s = newSolid();
-      prism(B, [{ pts: ringArea(pts) < 0 ? ring.reverse().flat() : pts, seam: new Uint8Array(4) }], 0, 2.2, { roof: true, windows: false, pen: LINEWORK }, s);
-      s.casts.push({ ring: pts, h: 2.2 });
+      prism(B, [{ pts: ringArea(pts) < 0 ? ring.reverse().flat() : pts, seam: new Uint8Array(4) }], 0, worn ? 1.4 : 2.2, { roof: !worn, windows: false, pen: LINEWORK }, s);
+      s.casts.push({ ring: pts, h: worn ? 1.4 : 2.2 });
       solids.push(s);
     }
   }
@@ -291,6 +293,8 @@ function yard(B: Build, b: Building, cx: number, cy: number, ok: (x: number, y: 
   // A trampoline on the lawn.
   if (TRAMPOLINES.has(B.style.id) && h(7) < 0.15) {
     const [x, y] = P(back - 5 - h(8) * 3, (left + right) / 2 + (h(9) - 0.5) * 6);
+    // Taken with them, or left to rust away.
+    if (B.set.abandon > 0 && stepsGone(B, 'sheds', x, y, 1, 10024)) return;
     const R = 1.8;
     if ([0, 1, 2, 3].every((q) => ok(x + Math.cos((q * Math.PI) / 2) * R, y + Math.sin((q * Math.PI) / 2) * R))) {
       const rim: number[] = [];

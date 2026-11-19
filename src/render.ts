@@ -23,7 +23,10 @@ import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type L
 import { cracks, curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
-import { settle } from './decay';
+import { RUIN_STAGE, settle } from './decay';
+import { wildGrowth } from './growth';
+import { wallThickness } from './ruins';
+import { offsetRing } from './shape';
 import { trains } from './trains';
 import { aviation } from './aircraft';
 import { powerLines } from './power';
@@ -126,6 +129,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   };
   const M: Masks = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask(), foot: paper.mask(), shadow: paper.mask(), pool: paper.mask(), under: paper.mask(), calm: paper.mask(), title: paper.mask() };
   const counts: Counts = { buildings: 0, houses: 0, trees: 0, cars: 0, lamps: 0 };
+  /** The open insides of roofless ruins, where growth may stand. */
+  const ruinCore = paper.mask();
 
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
@@ -187,6 +192,12 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
     const made = at('buildings', () => (legible(B, b) ? building(B, b) : null));
     if (!made) continue;
+    // A roofless ruin's floor is open to the sky: growth may stand in it, clear of the walls.
+    const fate = B.fates?.get(b);
+    if (fate && fate.stage >= RUIN_STAGE.shell) {
+      const core = offsetRing(b.shape[0].pts, () => wallThickness(b.info) + 0.8);
+      if (core) paper.fillMask(ruinCore, [core]);
+    }
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
       const facets = buildingFacets(b);
@@ -240,6 +251,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     let list = from('park-trees', placeTrees(B, paper, M, box, toAbs, fromAbs));
     if (G) list = [...list.filter((t) => keepTree(B, G, paper, t)), ...from('orchard-trees', orchardTrees(B, paper, G, M)), ...from('garden-trees', gardenTrees(B, paper, G, M, box, toAbs, fromAbs)), ...from('scrub-bushes', scrubBushes(B, paper, G, M, box, toAbs, fromAbs)), ...from('hedgerows', hedgerows(B, paper, G, M)), ...from('wild-trees', wildTrees(B, paper, G, M, box, toAbs, fromAbs))];
     list.push(...from('street-trees', streetTrees(B, paper, town.ways, M)));
+    // An abandoned town growing back over.
+    list.push(...from('wild-growth', wildGrowth(B, paper, G, M, ruinCore, box, toAbs, fromAbs)));
     if (set.trees > 0) for (const [x, y] of rounds.centres) list.push({ x, y, r: 2.4, h: 6.5, conifer: false, from: 'roundabout-trees' });
     // Trees image mode planted where it wants them.
     if (set.trees > 0) list.push(...from('image-trees', town.trees.map((t) => ({ ...t }))));
