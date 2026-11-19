@@ -3,6 +3,7 @@ import { imageUnlocked } from './invite';
 import { PALETTES } from '../palettes';
 import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
 import { STYLES } from '../styles';
+import { phaseName } from '../decay';
 
 const STORE = 'isometrictown:settings';
 
@@ -74,6 +75,7 @@ export function loadSettings(): Settings {
   }
   if (!Number.isFinite(s.detail) || s.detail <= 0) s.detail = DEFAULT_SETTINGS.detail;
   s.humanize = Number.isFinite(s.humanize) ? Math.max(0, Math.min(1, s.humanize)) : 0;
+  s.abandon = Number.isFinite(s.abandon) ? Math.max(0, Math.min(1, s.abandon)) : 0;
   s.pens = migratePens(s.pens);
   s.layerPens = Object.fromEntries(Object.entries(s.layerPens ?? {}).filter(([key, value]) =>
     Object.hasOwn(LAYERS, key) && Number.isInteger(value) && value >= 0 && value < PEN_COUNT));
@@ -272,7 +274,7 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'imagePreserveSpace' | 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
@@ -298,6 +300,7 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   pitched: (v) => v.toFixed(2),
   trees: (v) => v.toFixed(2),
   cars: (v) => v.toFixed(2),
+  abandon: (v) => (v <= 0 ? 'Lived in' : `${phaseName(v)} · ${Math.round(v * 100)}%`),
   sunAngle: (v) => `${Math.round(v)}°`,
   sunHeight: (v) => `${Math.round(v)}°`,
   margin: (v) => `${Math.round(v)} mm`,

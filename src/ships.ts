@@ -9,6 +9,7 @@ import { offsetRing } from './shape';
 import { WATER } from './settings';
 import type { Town } from './tiles';
 import { local } from './vehicles';
+import { left as departed } from './decay';
 
 /*
  * Ships under way, picked by the kind of water they are on. Out at sea: container ships,
@@ -147,6 +148,8 @@ export function ships(B: Build, paper: Paper, town: Town, M: Masks, toAbs: (x: n
             if (!water(px, py) || onMask(paper, M.calm, px, py)) fits = false;
           }
         if (!fits || !shipRoom(water, x, y, head, L, beam)) continue;
+        // Ships stop calling at an abandoned town.
+        if (set.abandon > 0 && departed(B, 'ships', x, y, 9824)) continue;
         const vessel = ship(B, kind, x, y, ux, uy, L, beam, h);
         solids.push(vessel);
         // Big ships out at sea are often lying at anchor; the rest are moving.

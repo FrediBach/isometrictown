@@ -9,6 +9,7 @@ import { LINEWORK } from './settings';
 import { figure } from './sites';
 import type { Town, Way } from './tiles';
 import { racer, racerLength, type Racer } from './vehicles';
+import { left, past } from './decay';
 
 /*
  * Sport going on: football teams at a match or training on their pitches, players on tennis and
@@ -42,6 +43,7 @@ export function players(B: Build, paper: Paper, G: Ground, M: Masks): Extra {
   if (!set.life || !shows(cam, LOD.person) || !G.pitches.length) return none;
   const groups: { p: Pitch; players: Player[]; cones: Cone[] }[] = [];
   for (const p of G.pitches) {
+    if (set.abandon > 0 && left(B, 'people', p.rect.cx, p.rect.cy, 9816)) continue;
     const [k0, k1] = B.key(p.rect.cx, p.rect.cy);
     const h = (k: number) => hash(k0, k1, set.seed, 2200 + k);
     const players: Player[] = [];
@@ -220,7 +222,7 @@ export function racing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const [X, Y] = B.key(w.pts[0], w.pts[1]);
     const c0 = Math.round(X / 1500);
     const c1 = Math.round(Y / 1500);
-    if (hash(c0, c1, set.seed, 2300) > 0.65) continue;
+    if (hash(c0, c1, set.seed, 2300) > 0.65 || (set.abandon > 0 && past(B, 'people', hash(c0, c1, set.seed, 9815)))) continue;
     const kind: Racer = kart ? 'kart' : hash(c0, c1, set.seed, 2301) < 0.5 ? 'formula' : 'gt';
     const len = racerLength(kind);
     const p = w.pts;

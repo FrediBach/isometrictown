@@ -1,4 +1,5 @@
-import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, wreck, type Build, type Solid } from './buildings';
+import { left, parkedCar, wreckTwist } from './decay';
 import { at, measure } from './infra';
 import type { Masks } from './nature';
 import type { Paper } from './raster';
@@ -249,9 +250,19 @@ export function traffic(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
   const crossing = roadSurfaces(town.ways, degree, key);
   const put = (w: Way, x: number, y: number, ux: number, uy: number, kind: Kind, k: number, parked = false) => {
     if (!fits(w, x, y) || crossing(w, x, y, parked)) return;
-    // Cars go before buses and lorries as the scale coarsens: each one only while it reads as a vehicle.
     const [ka, kb] = B.key(x, y);
-    if (showsAt(cam, LOD.car, length(kind, k), [ka, kb], set.seed, 9104)) out.push(vehicle(B, x, y, ux, uy, kind, k));
+    // As the town empties, traffic stops and parked cars are driven away; a few are left to rust.
+    const fate = parked ? parkedCar(B, x, y) : set.abandon > 0 && left(B, 'traffic', x, y, 9800) ? null : 'car';
+    if (!fate) return;
+    // Cars go before buses and lorries as the scale coarsens: each one only while it reads as a vehicle.
+    if (!showsAt(cam, LOD.car, length(kind, k), [ka, kb], set.seed, 9104)) return;
+    if (fate === 'car') {
+      out.push(vehicle(B, x, y, ux, uy, kind, k));
+      return;
+    }
+    const s = wreck(B, x, y, ux, uy, wreckTwist(B, x, y), k);
+    s.facet = 'wreck';
+    out.push(s);
   };
 
   for (const w of town.ways) {

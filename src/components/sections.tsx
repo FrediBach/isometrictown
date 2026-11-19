@@ -220,6 +220,7 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
       <NumberSetting name="pitched" label="Pitched roofs" min={0} max={1} step={0.01} hint="How many houses get pitched roofs, compared with what is usual for the style." />
       <NumberSetting name="trees" label="Trees" min={0} max={1} step={0.01} />
       <NumberSetting name="cars" label="Traffic" min={0} max={1} step={0.01} />
+      <NumberSetting name="abandon" label="Abandonment" min={0} max={1} step={0.01} hint="From the town as it is to overgrown ruins: people leave, houses fall in, nature takes over." />
       <Caption className="mt-4">Layers</Caption>
       <KeyGrid className="mt-0">
         {keys.map(([k, label]) => (

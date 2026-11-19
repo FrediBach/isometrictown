@@ -5,6 +5,7 @@ import type { Paper, Test } from './raster';
 import { LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
 import { LOD, shows } from './lod';
+import { kept } from './decay';
 
 /** Regions where most railways run under overhead wires. */
 export const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
@@ -346,12 +347,15 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       });
       continue;
     }
-    // Farm tracks: two wheel ruts.
-    if (w.cls === 'track' && shows(B.cam, LOD.ruts)) {
-      for (const o of [0.8, -0.8]) dashed(paper, shifted(w.pts, o).filter((_, i) => i % 3 !== 2), dash, gap, test);
-      continue;
+    // Paths no one walks any more grow over, a stretch at a time.
+    for (const pts of kept(B, w.pts, 'paths', 9856, 10)) {
+      // Farm tracks: two wheel ruts.
+      if (w.cls === 'track' && shows(B.cam, LOD.ruts)) {
+        for (const o of [0.8, -0.8]) dashed(paper, shifted(pts, o).filter((_, i) => i % 3 !== 2), dash, gap, test);
+        continue;
+      }
+      dashed(paper, pts, dash, gap, test);
     }
-    dashed(paper, w.pts, dash, gap, test);
   }
 }
 

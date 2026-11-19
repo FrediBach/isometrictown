@@ -31,6 +31,11 @@ export const CASES: Case[] = [
   { id: 'betschwanden', what: 'Glarus valley village: railway, main road, stream, church and cemetery', set: at('Betschwanden', [9.0267, 46.9462], 35, 1000) },
   { id: 'emmental', what: 'Farmland, scattered farms and forest, coarse', set: at('Trubschachen', [7.8454, 46.922], 20, 4000) },
   {
+    id: 'mollis-abandon-35',
+    what: 'A town being left: traffic, people and herds gone, parked cars driven away or left as wrecks, paint and paths fading',
+    set: at('Mollis', MOLLIS, 35, 1000, { abandon: 0.35 }),
+  },
+  {
     id: 'mollis-title',
     what: 'Cinematic title standing on a street, with shading and round ends',
     set: at('Mollis', MOLLIS, 35, 1000, { title: true, titleText: 'Mollis', titleRound: true, titleReveal: 0.4 }),

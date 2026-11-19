@@ -30,7 +30,9 @@ function gated(s: Sheet, g: Gate): string[] {
 const RURAL = new Set<Gate>(['rails']);
 // This recorded city has supported roadside wires; rural transmission runs may be rejected.
 const POWER_BASE = CASES.find(c => c.id === 'midtown')!.set;
-const baseSet = (g: Gate) => g === 'power' ? POWER_BASE : (RURAL.has(g) ? RURAL_BASE : GATE_BASE);
+// Abandonment adds things only once the town is being left.
+const ABANDON_BASE: Settings = { ...GATE_BASE, abandon: 0.3 };
+const baseSet = (g: Gate) => g === 'power' ? POWER_BASE : g === 'abandon' ? ABANDON_BASE : (RURAL.has(g) ? RURAL_BASE : GATE_BASE);
 const bases = new Map<Settings, Promise<Sheet>>();
 const baseFor = (g: Gate) => bases.get(baseSet(g)) ?? bases.set(baseSet(g), draw(baseSet(g))).get(baseSet(g))!;
 

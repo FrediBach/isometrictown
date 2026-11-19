@@ -12,6 +12,7 @@ import { letter } from './lettering';
 import { walk } from './streets';
 import { LOD, shows, showsAt } from './lod';
 import { emergency, local, tractor } from './vehicles';
+import { left, past } from './decay';
 
 /**
  * Things that belong to particular places: parasols on beaches, tents and caravans at campsites, swings
@@ -84,6 +85,7 @@ export function beaches(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     if (!r) continue;
     grid(B, r, 7, 700, (x, y, h) => {
       if (h(0) > 0.3 || !inside(a, x, y) || !free(paper, M, x, y)) return;
+      if (B.set.abandon > 0 && left(B, 'leisure', x, y, 9840)) return;
       solids.push(parasol(x, y, h));
       const ang = h(3) * Math.PI;
       const ux = Math.cos(ang);
@@ -394,18 +396,20 @@ export function campsites(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const [k0, k1] = B.key(p.x, p.y);
     const h = (k: number) => hash(k0, k1, set.seed, 7410 + k);
     const roll = h(0);
+    // Campers leave an abandoned town with their tents, motorhomes and cars; caravans are left to rot.
+    const gone = set.abandon > 0 && left(B, 'leisure', p.x, p.y, 9838);
     // Across the pitch, towards the door side of a van facing the lane.
     const sx = -p.uy * door;
     const sy = p.ux * door;
     const at = (u: number) => [p.x + sx * u, p.y + sy * u] as const;
     const addCar = (u: number, salt: number) => {
-      if (set.cars <= 0 || h(salt) > 0.6) return;
+      if (set.cars <= 0 || h(salt) > 0.6 || gone) return;
       const [cx, cy] = at(u);
       if (!claim(discs(cx, cy, p.ux, p.uy, -2.3, 2.3, -1, 1), place(cx, cy, p.ux, p.uy, rect(-2.3, 2.3, -0.95, 0.95)))) return;
       if (showsAt(cam, LOD.car, 4.4, [k0, k1], set.seed, 7420)) solids.push(car(B, cx, cy, p.ux, p.uy, h(salt + 1)));
     };
     const van = p.vans ? (roll < 0.6 ? 'motorhome' : roll < 0.75 ? 'caravan' : null) : roll < 0.28 ? null : roll < 0.62 ? 'tents' : roll < 0.84 ? 'caravan' : 'motorhome';
-    if (!van) continue;
+    if (!van || (gone && (van !== 'caravan' || past(B, 'wrecks', h(15))))) continue;
     if (van === 'tents') {
       const count = h(1) < 0.35 ? 2 : 1;
       for (let t = 0; t < count; t++) {
@@ -529,7 +533,8 @@ export function farmyards(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       solids.push(s);
     }
     // A tractor parked along the barn's other side, sometimes with its trailer.
-    if (B.set.life && shows(B.cam, LOD.machine) && hash(k0, k1, B.set.seed, 2120) < 0.5) {
+    // It stays when the farm is left, until it rusts away.
+    if (B.set.life && shows(B.cam, LOD.machine) && hash(k0, k1, B.set.seed, 2120) < 0.5 && !(B.set.abandon > 0 && past(B, 'wrecks', hash(k0, k1, B.set.seed, 9834)))) {
       const d = -side * (r.w / 2 + 2.2);
       const dir = hash(k0, k1, B.set.seed, 2121) < 0.5 ? 1 : -1;
       const tool = hash(k0, k1, B.set.seed, 2122) < 0.4 ? 'trailer' : 'none';
@@ -1101,10 +1106,12 @@ export function people(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       if (!onMask(paper, M.foot, px, py)) figures.push([px, py, h(2)]);
     });
   }
+  // People leave an abandoned town, street by street.
+  const staying = set.abandon > 0 ? figures.filter(([x, y]) => !left(B, 'people', x, y, 9812)) : figures;
   return {
     solids: [],
     draw: (paper) => {
-      for (const [x, y, v] of figures) figure(paper, x, y, v);
+      for (const [x, y, v] of staying) figure(paper, x, y, v);
     },
   };
 }

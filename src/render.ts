@@ -260,7 +260,10 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const cars = tag('cars', at('cars', () => traffic(B, paper, town, M)));
   const bays = extra('markings', 'parking', () => parking(B, paper, town.ways, M));
   tag('cars', bays.solids);
-  counts.cars = cars.length + bays.solids.length;
+  // Cars left behind in an abandoned town are wrecks, not traffic.
+  const wrecks = [...cars, ...bays.solids].filter((s) => s.facet === 'wreck').length;
+  counts.cars = cars.length + bays.solids.length - wrecks;
+  if (wrecks) census.wreck = wrecks;
   solids.push(...cars, ...tag('life', at('life', () => trains(B, paper, town, M)), 'trains'));
   const extras = [bays, extra('rails', 'lifts', () => lifts(B, town)), extra('life', 'ferries', () => ferries(B, paper, town, M)), extra('life', 'moorings', () => moorings(B, paper, town, M)), extra('streets', 'bridges', () => bridges(B, paper, town, M)), extra('streets', 'platforms', () => platforms(B, town)), extra('streets', 'portals', () => portals(B, town)), extra('streets', 'airfields', () => airfields(B, paper, town, M)), extra('life', 'aviation', () => aviation(B, paper, town, M)), extra('power', set.source === 'image' ? 'roadsideFeeders' : 'powerLines', () => powerLines(B, paper, town, M, box, toAbs, fromAbs))];
   if (set.ground) extras.push(extra('ground', 'beaches', () => beaches(B, paper, town, M)), extra('ground', 'campsites', () => campsites(B, paper, town, M)), extra('ground', 'playgrounds', () => playgrounds(B, paper, town, M)), extra('ground', 'farmyards', () => farmyards(B, paper, town, M)), extra('ground', 'quarries', () => quarries(B, paper, town, M)));

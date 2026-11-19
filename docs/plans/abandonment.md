@@ -1,6 +1,15 @@
 # Abandonment: plan
 
-**Status (2026-11-19):** planned, nothing built. Decisions that are yours to make are in §12. Each has a recommendation, and the plan assumes it until you say otherwise.
+**Status (2026-11-19):** M0 (plumbing) and M1 (Emptying) are built; M2 is next. Decisions that are yours to make are in §12. Each has a recommendation, and the plan assumes it until you say otherwise.
+
+**Notes from M0 and M1.**
+- *No `Build.decay`.* Modules read `B.set.abandon` directly; a field on `Build` would only copy it. The `Wild` field and `Fate` arrive with M2 and M5.
+- *`decay.ts` so far:* `stretch()`, `resistance()` (a 150 m map-fixed patch blended with the thing's own hash), `gone()` and `left()` for things at a position, `past()` for things already keyed on their own cells (trains, herds, racing, helicopters), `LEAVES` with each kind of life's span, `parkedCar()` for the car-or-wreck-or-gone fate shared by kerb parking and bays, and `kept()`, which cuts a line into map-fixed runs and drops the faded ones (footpaths, taxiway and runway side lines).
+- *Salts 9800–9856* are taken by decay; grep before using one.
+- *Wrecks* are filed by facet (`cars/wreck`, `cars:parking/wreck`), since `extra()` overwrites a solid's `part`. They count in the census as `wreck`, and not in `counts.cars`.
+- *Trains* that have stopped still count as placed on their track, so no other train comes in to take the place.
+- *Not yet:* standing carriages in stations, tractors left as wrecks in fields, sunk boats, playground swings and pitch markings (with §8's ground in M5), the one last plane left behind (D5).
+- *Tests:* `test/unit/decay.test.ts` checks nothing is gone at 0 and everything at the end of its span, nothing comes back, things go over the span rather than at once, fates stay put under a pan, and `kept()` only shrinks. Every existing golden is unchanged. `mollis-abandon-35` is the first golden with the slider up (40 wrecks, no moving cars). The gates test draws its Abandonment base at 0.3.
 
 One new slider, **Abandonment**, takes any drawing, from the map or from an image, from the town as it is now (0) to a town people have long left: first fewer people and less traffic, then boarded windows and roofs falling in, then roofless shells, and at the end only overgrown ruins, mostly low walls along the old footprints, with trees growing out of them. At 0 nothing changes, down to the last stroke.
 

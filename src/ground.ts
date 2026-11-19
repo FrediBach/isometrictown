@@ -11,6 +11,7 @@ import { outline } from './streets';
 import type { Shape, Town } from './tiles';
 import { LOD, shows, thin } from './lod';
 import { combine, tractor } from './vehicles';
+import { left, past } from './decay';
 
 /**
  * Ground textures for land with a character of its own: furrowed fields, vineyard rows,
@@ -1134,6 +1135,8 @@ export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
     for (let j = j0; j <= j1; j++) {
       const h = (k: number) => hash(i, j, set.seed, 180 + k);
       if (h(0) > 0.25) continue;
+      // Herds are taken away as the farms are left.
+      if (set.abandon > 0 && past(B, 'farms', hash(i, j, set.seed, 9818))) continue;
       const [hx, hy] = fromAbs((i + 0.5) * step, (j + 0.5) * step);
       const count = 3 + Math.floor(h(1) * 5);
       for (let a = 0; a < count; a++) {
@@ -1204,6 +1207,7 @@ export function farmWork(B: Build, paper: Paper, G: Ground, M: Masks, toAbs: (x:
     const [k0, k1] = B.key(cx, cy);
     const h = (k: number) => hash(k0, k1, set.seed, 2100 + k);
     if (h(0) > (c.code === FIELD ? 0.2 : 0.12)) continue;
+    if (set.abandon > 0 && left(B, 'farms', cx, cy, 9820)) continue;
     const vx = -uy;
     const vy = ux;
     // Somewhere along a working line, heading up or down the field.

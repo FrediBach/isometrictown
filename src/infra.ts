@@ -1,4 +1,5 @@
-import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, wreck, type Build, type Solid } from './buildings';
+import { kept, LEFT_MOORED, left, parkedCar, wreckTwist } from './decay';
 import { ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
@@ -224,6 +225,7 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     if (!onMask(paper, M.water, x, y)) continue;
     // Heading one way or the other along the route, leaving a wake.
     const dir = hash(k0, k1, B.set.seed, 411) < 0.5 ? 1 : -1;
+    if (B.set.abandon > 0 && left(B, 'ships', x, y, 9826)) continue;
     const vessel = boat(B, x, y, ux * dir, uy * dir, 30, 9);
     solids.push(vessel);
     if (B.set.life) {
@@ -297,6 +299,8 @@ export function moorings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
           const cx = x + nx * (beam / 2 + 0.6);
           const cy = y + ny * (beam / 2 + 0.6);
           if (!water(cx + ux * bl * 0.5, cy + uy * bl * 0.5) || !water(cx - ux * bl * 0.5, cy - uy * bl * 0.5) || !water(cx + nx * beam, cy + ny * beam)) continue;
+          // Half the boats are taken away as the town empties; the rest are left where they lie.
+          if (B.set.abandon > 0 && hash(k0, k1, B.set.seed, 9828) >= LEFT_MOORED && left(B, 'moored', cx, cy, 9829)) continue;
           const f2 = h(3) < 0.5 ? 1 : -1;
           solids.push(boat(B, cx, cy, ux * f2, uy * f2, bl, beam));
         }
@@ -504,6 +508,7 @@ export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       const y = (j + 0.2 + 0.6 * h(2)) * step;
       // Open water all round.
       if (![0, 1, 2, 3, 4, 5, 6, 7].every((q) => water(x + Math.cos(q) * 22, y + Math.sin(q) * 22)) || !water(x, y)) continue;
+      if (set.abandon > 0 && left(B, 'ships', x, y, 9831)) continue;
       // Heading across the wind, either way.
       const head = wind + (h(3) < 0.5 ? 1 : -1) * (Math.PI / 2 + (h(4) - 0.5) * 0.8);
       const ux = Math.cos(head);
@@ -705,18 +710,20 @@ export function airfields(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       const test: Test = (x, y, d) => paper.on(M.road, x, y) && paper.seen(x, y, d);
       for (const w of town.runways) {
         if (w.cls === 'taxiway') {
-          paper.line3(LINEWORK, w.pts.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), test);
+          for (const piece of kept(B, w.pts, 'paint', 9846, 12)) paper.line3(LINEWORK, piece.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), test);
           continue;
         }
         walk(w.pts, 10, 50, 30, (x, y, ux, uy) => {
+          if (B.set.abandon > 0 && left(B, 'paint', x, y, 9848, 0.7)) return;
           groundSeg(paper, LINEWORK, x, y, x + ux * 30, y + uy * 30, test);
           paper.end();
         });
         // Side stripes and touchdown marks in pairs.
         for (const side of [-1, 1]) {
           const o = side * (w.width / 2 - 2);
-          paper.line3(LINEWORK, shifted(w.pts, o), test);
+          for (const piece of kept(B, shifted(w.pts, o).filter((_, i) => i % 3 !== 2), 'paint', 9850 + side, 12)) paper.line3(LINEWORK, piece.flatMap((v, i) => (i % 2 ? [v, 0] : [v])), test);
           walk(w.pts, 150, 150, 40, (x, y, ux, uy) => {
+            if (B.set.abandon > 0 && left(B, 'paint', x, y, 9853, 0.7)) return;
             for (const d of [6, 9]) {
               const v = side * d;
               groundSeg(paper, LINEWORK, x - uy * v, y + ux * v, x - uy * v + ux * 22, y + ux * v + uy * 22, test);
@@ -756,6 +763,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       // A dash pointing into the view is shorter on paper than one across it.
       const projected = Math.hypot(ux * B.cam.cb - uy * B.cam.sb, B.cam.sa * (ux * B.cam.sb + uy * B.cam.cb));
       if (!shows(B.cam, LOD.centreLine, 3 * projected)) return;
+      if (B.set.abandon > 0 && left(B, 'paint', x, y, 9842, 0.7)) return;
       groundSeg(paper, LINEWORK, x, y, x + ux * 3, y + uy * 3, test);
       paper.end();
     });
@@ -811,6 +819,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
           [-1.5, v],
           [1.5, v],
         ]);
+        if (B.set.abandon > 0 && left(B, 'paint', (ax + bx) / 2, (ay + by) / 2, 9844, 0.7)) continue;
         paper.line3(LINEWORK, [ax, ay, 0, bx, by, 0], test);
       }
     }
@@ -853,7 +862,14 @@ export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
       const cx = b.x + b.ux * (W / 2) + b.nx * (b.v0 + D / 2);
       const cy = b.y + b.uy * (W / 2) + b.ny * (b.v0 + D / 2);
       const [k0, k1] = B.key(cx, cy);
-      if (hash(k0, k1, set.seed, 440) < full && showsAt(cam, LOD.car, 4.4, [k0, k1], set.seed, 9104)) solids.push(car(B, cx, cy, b.nx, b.ny, hash(k0, k1, set.seed, 441)));
+      if (hash(k0, k1, set.seed, 440) >= full || !showsAt(cam, LOD.car, 4.4, [k0, k1], set.seed, 9104)) continue;
+      const fate = parkedCar(B, cx, cy);
+      if (fate === 'car') solids.push(car(B, cx, cy, b.nx, b.ny, hash(k0, k1, set.seed, 441)));
+      else if (fate === 'wreck') {
+        const s = wreck(B, cx, cy, b.nx, b.ny, wreckTwist(B, cx, cy), hash(k0, k1, set.seed, 441));
+        s.facet = 'wreck';
+        solids.push(s);
+      }
     }
   return {
     solids,
@@ -864,6 +880,7 @@ export function parking(B: Build, paper: Paper, ways: Way[], M: Masks): Extra {
         for (const u of [0, W]) {
           const x = b.x + b.ux * u;
           const y = b.y + b.uy * u;
+          if (set.abandon > 0 && left(B, 'paint', x, y, 9810, 0.7)) continue;
           groundSeg(paper, LINEWORK, x + b.nx * b.v0, y + b.ny * b.v0, x + b.nx * (b.v0 + D), y + b.ny * (b.v0 + D), test);
           paper.end();
         }

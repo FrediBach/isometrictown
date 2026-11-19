@@ -8,6 +8,7 @@ import { LINEWORK } from './settings';
 import { bestRect } from './shape';
 import type { Airport, Town } from './tiles';
 import { LOD, shows } from './lod';
+import { left } from './decay';
 
 /*
  * Aircraft: airliners at the big airports' stands, light aircraft parked on small airfields'
@@ -312,6 +313,10 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   };
   const clear = (x: number, y: number) => onSheet(x, y) && !onMask(paper, M.foot, x, y) && !onMask(paper, M.water, x, y);
   const life = set.life && shows(cam, LOD.aircraft);
+  // Aircraft leave an abandoned town early, one by one.
+  const put = (x: number, y: number, s: Solid) => {
+    if (!(set.abandon > 0 && left(B, 'aircraft', x, y, 9822))) solids.push(s);
+  };
 
   const pads = town.helipads.map((h) => bestRect(h[0].pts).rect).filter((R) => !!R);
   const nearPad = (x: number, y: number) => pads.some((R) => Math.hypot(R!.cx - x, R!.cy - y) < 20);
@@ -334,7 +339,7 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
         const y = R.cy + R.uy * t;
         if (!inside(x, y) || !clear(x, y) || r(x, y, 420) > 0.75) continue;
         const f = r(x, y, 421) < 0.5 ? 1 : -1;
-        solids.push(airliner(B, x, y, -R.uy * f, R.ux * f, 0.85 + 0.3 * r(x, y, 422)));
+        put(x, y, airliner(B, x, y, -R.uy * f, R.ux * f, 0.85 + 0.3 * r(x, y, 422)));
       }
       continue;
     }
@@ -350,7 +355,7 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
         const v = r(x, y, 425);
         const ux = -R.uy * facing;
         const uy = R.ux * facing;
-        solids.push(field?.gliders && v < 0.5 ? glider(B, x, y, ux, uy, v * 2) : lightPlane(B, x, y, ux, uy, v));
+        put(x, y, field?.gliders && v < 0.5 ? glider(B, x, y, ux, uy, v * 2) : lightPlane(B, x, y, ux, uy, v));
         n++;
       }
   }
@@ -380,13 +385,13 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
         const uy = end === 0 ? uy0 : -uy0;
         if (gliders) {
           // A glider on tow: the tug forty metres ahead, the rope between them.
-          solids.push(glider(B, x, y, ux, uy, r(x, y, 432)));
+          put(x, y, glider(B, x, y, ux, uy, r(x, y, 432)));
           const tx = x + ux * 40;
           const ty = y + uy * 40;
-          solids.push(lightPlane(B, tx, ty, ux, uy, 0.6));
+          put(tx, ty, lightPlane(B, tx, ty, ux, uy, 0.6));
           solids[solids.length - 1].lines.push({ pen: LINEWORK, pts: [x + ux * 3.5, y + uy * 3.5, 0.5, tx - ux * 4.3, ty - uy * 4.3, 0.9] });
-        } else if (w >= 40 && L > 1500) solids.push(airliner(B, x, y, ux, uy, 0.85 + 0.3 * r(x, y, 433)));
-        else solids.push(lightPlane(B, x, y, ux, uy, r(x, y, 434)));
+        } else if (w >= 40 && L > 1500) put(x, y, airliner(B, x, y, ux, uy, 0.85 + 0.3 * r(x, y, 433)));
+        else put(x, y, lightPlane(B, x, y, ux, uy, r(x, y, 434)));
         // A row of gliders waiting on the grass beside the strip.
         if (gliders) {
           const side = r(x, y, 435) < 0.5 ? 1 : -1;
@@ -395,7 +400,7 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
             const [gx0, gy0] = at(p, cum, end === 0 ? t + 25 + i * 20 : t - 25 - i * 20);
             const gx = gx0 - uy0 * side * (w / 2 + 12);
             const gy = gy0 + ux0 * side * (w / 2 + 12);
-            if (clear(gx, gy) && !onMask(paper, M.road, gx, gy)) solids.push(glider(B, gx, gy, ux, uy, r(gx, gy, 437)));
+            if (clear(gx, gy) && !onMask(paper, M.road, gx, gy)) put(gx, gy, glider(B, gx, gy, ux, uy, r(gx, gy, 437)));
           }
         }
         break;
@@ -424,7 +429,7 @@ export function aviation(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const field = nearest(town.airports, R.cx, R.cy, 600);
     if (life && r(R.cx, R.cy, 440) < (field?.heli ? 0.85 : 0.55)) {
       const t = r(R.cx, R.cy, 441) * Math.PI * 2;
-      solids.push(helicopter(B, R.cx, R.cy, z, Math.cos(t), Math.sin(t), r(R.cx, R.cy, 442)));
+      put(R.cx, R.cy, helicopter(B, R.cx, R.cy, z, Math.cos(t), Math.sin(t), r(R.cx, R.cy, 442)));
     }
   }
 

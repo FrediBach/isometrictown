@@ -6,6 +6,7 @@ import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { Town, Way } from './tiles';
 import { LOD, shows } from './lod';
+import { past } from './decay';
 
 /*
  * A few trains on the railways in view. Rail pieces are joined into continuous tracks, sorted by
@@ -427,6 +428,8 @@ export function trains(B: Build, paper: Paper, town: Town, M: Masks): Solid[] {
     const t = all[i];
     const [k0, k1] = stable(t);
     const r = (salt: number) => hash(k0, k1, set.seed, 700 + salt);
+    // Trains stop running as the town empties: the track counts as taken, so none comes in elsewhere.
+    if (set.abandon > 0 && past(B, 'trains', hash(k0, k1, set.seed, 9833))) return true;
     const train = compose(B, t.family, r, atPlatform);
     const GAP = 0.9;
     const length = (cars: Car[]) => cars.reduce((a, c) => a + c.len + GAP, -GAP);

@@ -72,6 +72,8 @@ export type Settings = {
   rooftops: boolean;
   trees: number;
   cars: number;
+  /** How far the town has been left to decay, from lived in (0) to overgrown ruins (1). See docs/plans/abandonment.md. */
+  abandon: number;
   lamps: boolean;
   paths: boolean;
   rails: boolean;
@@ -216,6 +218,7 @@ export const DEFAULT_SETTINGS: Settings = {
   rooftops: true,
   trees: 0.7,
   cars: 0.35,
+  abandon: 0,
   lamps: true,
   paths: true,
   rails: true,

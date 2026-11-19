@@ -11,6 +11,7 @@ import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from '
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
+import { past } from './decay';
 
 /** A 3D polyline. `on` restricts marks to a face; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
 export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string; edge?: number[][][]; roofJoin?: boolean };
@@ -709,7 +710,7 @@ function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
   out.lines.push({ pen: ROOFS, pts: [...P(-h, -h * 0.7), ...P(h, -h * 0.7)] }, { pen: ROOFS, pts: [...P(-h, h * 0.7), ...P(h, h * 0.7)] }, { pen: ROOFS, pts: [...P(0, -h * 0.7), ...P(0, h * 0.7)] });
   // Now and then the air ambulance is in.
   const [k0, k1] = B.key(rect.cx, rect.cy);
-  if (B.set.life && R >= 4.5 && hash(k0, k1, B.seed, 443) < 0.35) {
+  if (B.set.life && R >= 4.5 && hash(k0, k1, B.seed, 443) < 0.35 && !(B.set.abandon > 0 && past(B, 'aircraft', hash(k0, k1, B.seed, 9836)))) {
     const t = hash(k0, k1, B.seed, 444) * Math.PI * 2;
     const heli = helicopter(B, rect.cx, rect.cy, z, Math.cos(t), Math.sin(t), hash(k0, k1, B.seed, 445));
     out.faces.push(...heli.faces);
@@ -868,6 +869,18 @@ export function car(B: Build, x: number, y: number, ux: number, uy: number, k: n
   else if (!van) s.lines.push({ pen: LINEWORK, pts: [x + ux * 0.95 - vx * 0.9, y + uy * 0.95 - vy * 0.9, 1.4, x + ux * 0.95 + vx * 0.9, y + uy * 0.95 + vy * 0.9, 1.4] });
   s.casts.push({ ring: body, h: van ? 1.9 : 1.4 });
   return s;
+}
+
+/**
+ * A car left behind in an abandoned town: pushed askew where it was parked, by up to about 20°
+ * either way and half a metre aside. `t` in [0, 1) picks how; `k` is the car's own variety.
+ */
+export function wreck(B: Build, x: number, y: number, ux: number, uy: number, t: number, k: number): Solid {
+  const a = (t - 0.5) * 0.7;
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  const shove = (t - 0.5) * 1;
+  return car(B, x - uy * shove, y + ux * shove, ux * c - uy * s, ux * s + uy * c, k);
 }
 
 /**

@@ -49,7 +49,7 @@ export const GROUPS: { id: GroupId; title: string }[] = [
 ];
 
 /** Settings that switch things on: keys, or sliders that switch off at 0. */
-export type Gate = BoolKey | 'trees' | 'cars';
+export type Gate = BoolKey | 'trees' | 'cars' | 'abandon';
 
 export const GATE_LABEL: Partial<Record<Gate, string>> = {
   windows: 'Windows',
@@ -73,6 +73,7 @@ export const GATE_LABEL: Partial<Record<Gate, string>> = {
   title: 'Cinematic title',
   trees: 'Trees',
   cars: 'Traffic',
+  abandon: 'Abandonment',
 };
 
 export type Entry = {
@@ -742,6 +743,18 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['cars'],
     lod: ['car', 'carCabin'],
     strokes: ['=cars'],
+  },
+  {
+    id: 'wrecks',
+    group: 'streets',
+    name: 'Abandoned cars',
+    source: ['invented'],
+    what: 'Cars left behind where they were parked when the town was abandoned, pushed askew. They thin out and are gone under the growth late on.',
+    how: 'As Abandonment rises, parked cars are driven away street by street; three in ten are left behind instead. Which ones, and when, is fixed to the map.',
+    needs: ['cars', 'abandon'],
+    lod: ['car', 'carCabin'],
+    strokes: ['*/wreck'],
+    count: ['wreck'],
   },
   {
     id: 'emergency',
