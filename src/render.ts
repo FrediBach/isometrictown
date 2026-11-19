@@ -23,6 +23,7 @@ import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type L
 import { cracks, curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
+import { settle } from './decay';
 import { trains } from './trains';
 import { aviation } from './aircraft';
 import { powerLines } from './power';
@@ -128,6 +129,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   onStage({ stage: 'ground' });
   classify(town, style, set, B.key);
+  // An abandoned town: every building's fate, and party walls left bare where a neighbour has fallen.
+  if (set.abandon > 0) B.fates = settle(B, town.buildings);
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.

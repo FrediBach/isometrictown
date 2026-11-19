@@ -18,6 +18,8 @@ export type Info = {
   pitch: number;
   /** Per outer-ring edge: the height of the building next door where the edge is a shared party wall, else 0. */
   party: Float32Array;
+  /** Per outer-ring edge: which building (index in `town.buildings` as classified) is next door along it, or -1. */
+  partyWith: Int32Array;
   /** Direction of the nearest street, and the unit vector from the building towards it. */
   street?: [number, number];
   toStreet?: [number, number];
@@ -289,6 +291,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
 
   // Party walls: an edge that runs back-to-back along a neighbour's edge.
   const party = bs.map((b) => new Float32Array(b.shape[0].pts.length / 2));
+  const partyWith = bs.map((b) => new Int32Array(b.shape[0].pts.length / 2).fill(-1));
   /** Per building: [edge, neighbour] pairs, turned into neighbour heights once every height is known. */
   const partyNb: number[][] = bs.map(() => []);
   const parent = Int32Array.from({ length: N }, (_, i) => i);
@@ -537,6 +540,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
       roof,
       pitch,
       party: party[i],
+      partyWith: partyWith[i],
       street,
       toStreet,
       streetGap,
@@ -560,7 +564,10 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
 
   for (let i = 0; i < N; i++) {
     const nb = partyNb[i];
-    for (let k = 0; k < nb.length; k += 2) party[i][nb[k]] = Math.max(party[i][nb[k]], bs[nb[k + 1]].h);
+    for (let k = 0; k < nb.length; k += 2) {
+      if (bs[nb[k + 1]].h >= party[i][nb[k]]) partyWith[i][nb[k]] = nb[k + 1];
+      party[i][nb[k]] = Math.max(party[i][nb[k]], bs[nb[k + 1]].h);
+    }
   }
 }
 

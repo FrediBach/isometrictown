@@ -12,7 +12,7 @@ import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './sha
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 import { fateOf, lost, past, RUIN_STAGE, STAGES, wornAs, type Fate } from './decay';
-import { gable, shell, wallThickness } from './ruins';
+import { frame, gable, gablesStand, ruin, wallThickness } from './ruins';
 
 /** A 3D polyline. `on` restricts marks to a face; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
 export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string; edge?: number[][][]; roofJoin?: boolean };
@@ -59,6 +59,8 @@ export type Build = {
   seed: number;
   /** What has become of the building being built, when the town is being abandoned. */
   fate?: Fate;
+  /** Every building's fate, as `settle()` worked them out. */
+  fates?: Map<Building, Fate>;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */
@@ -74,7 +76,7 @@ export function newSolid(): Solid {
 }
 
 /** Front-facing: the wall's outward normal points down the sheet, towards the viewer. */
-function facing(B: Build, ax: number, ay: number, bx: number, by: number): boolean {
+export function facing(B: Build, ax: number, ay: number, bx: number, by: number): boolean {
   const [ux, uy] = B.cam.up;
   return (by - ay) * ux - (bx - ax) * uy < 0;
 }
@@ -340,8 +342,8 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   // Its roof fallen in, a house stands as a shell, its gables still up over the end walls.
   if (B.fate && B.fate.stage >= RUIN_STAGE.shell) {
     const t = wallThickness(info);
-    if (shell(B, [wall], He, t, { windows: true, pen: LINEWORK, ...fronts(info) }, out)) {
-      if (endKind !== 'hip')
+    if (ruin(B, [wall], He, t, { windows: true, pen: LINEWORK, ...fronts(info) }, out)) {
+      if (endKind !== 'hip' && gablesStand(B))
         for (const { rect: r, party, outside } of parts)
           for (const side of [1, 3] as const) if (outside[side] && !party[side]) gable(B, r, side === 1 ? 1 : -1, He, tan, t, endKind === 'half' ? 0.6 : 1, out);
       return { main, P: null, He, tan };
@@ -537,7 +539,7 @@ function shopSide(info: Info | undefined): [number, number] | undefined {
 export function building(B: Build, b: Building): Solid[] {
   const drawing = B.seed;
   B.seed = seedFor(B.set, b.info?.seed);
-  B.fate = fateOf(B, b);
+  B.fate = B.fates?.get(b) ?? fateOf(B, b);
   try {
     const out = body(B, b);
     // The flag is taken down early.
@@ -598,6 +600,13 @@ function body(B: Build, b: Building): Solid[] {
   const simple = b.shape.length === 1 && seamless && z0 === 0;
   // Roofless: houses and churches keep their gables (see `house()`); anything else is a plain shell.
   const ruined = !!B.fate && B.fate.stage >= RUIN_STAGE.shell;
+  // Concrete towers and blocks lose their walls and stand as frames of floors on columns.
+  if (ruined && info && (info.kind === 'tall' || info.kind === 'apartment') && H >= 15 && (info.roof === 'flat' || info.kind === 'tall')) {
+    // The façade gives way from the top down, gone by the time the tower starts to fall.
+    const walls = Math.max(0, Math.min(1, (STAGES[3] + 0.1 - B.fate!.p) / 0.25)) * 0.85;
+    frame(B, rings, H, info.facade.storey || B.style.floor, B.fate!.stand, solid, z0, { windows: true, pen: LINEWORK, ...fronts(info) }, walls);
+    return out;
+  }
   if (info && z0 === 0) {
     const tan = Math.tan((info.pitch * Math.PI) / 180);
     switch (info.roof) {
@@ -629,7 +638,7 @@ function body(B: Build, b: Building): Solid[] {
   if (ruined) {
     // Walls stand to the eaves the roof sat on.
     const top = !info || info.roof === 'flat' ? H : Math.max(Math.min(H, z0 + 3), H - 2.5);
-    if (shell(B, rings, top, wallThickness(info), { windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid, z0)) return out;
+    if (ruin(B, rings, top, wallThickness(info), { windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid, z0)) return out;
   }
   flat(B, b, rings, info, z0, H, k, out);
   return out;

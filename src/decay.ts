@@ -195,11 +195,12 @@ export const STAGES = [0.12, 0.3, 0.5, 0.65, 0.85] as const;
 /** The building stages that change how it is built, rather than its details. */
 export const RUIN_STAGE = { shell: 3, broken: 4, footprint: 5 } as const;
 /**
- * How far apart the first and the last building go. Progress is `d · (1 + SPREAD) − SPREAD · u`,
- * so a typical house (u about 0.5) closes up near 0.3, loses its roof near 0.5 and is a
- * footprint by 0.75, while the sturdiest hold out to the end.
+ * When buildings start to go, and how long they take. A building starts at `START · u` of the
+ * slider and is a footprint `SPAN` later, so a typical house (u about 0.5) closes up near 0.23,
+ * loses its roof near 0.5 and is a footprint by 0.75; the sturdiest finish at the very end.
  */
-const SPREAD = 1.2;
+const START = 0.3;
+const SPAN = 1 - START;
 /** How long each kind of building holds out, 0 to 1: sheds go first, churches last. */
 const STURDY: Record<Kind, number> = { shed: 0.1, industrial: 0.35, house: 0.45, terrace: 0.5, apartment: 0.6, tall: 0.65, civic: 0.8, worship: 0.95 };
 
@@ -209,7 +210,51 @@ const STURDY: Record<Kind, number> = { shed: 0.1, industrial: 0.35, house: 0.45,
  * decisions. `holes` holds the holes in its roof as x, y, radius in local metres, and
  * `strokes` counts its roof hatching as it is drawn, to pick the rafters left in a hole.
  */
-export type Fate = { p: number; stage: number; key: [number, number]; holes: number[]; strokes: number };
+export type Fate = { p: number; stage: number; key: [number, number]; holes: number[]; strokes: number; stand: number };
+
+/** Where walls start to come down, in a building's progress, and the share of their height that stays at the end by kind. */
+const FALLS_FROM = STAGES[3];
+const STANDS: Partial<Record<Kind, number>> = { worship: 0.45, civic: 0.3, tall: 0.18, apartment: 0.15 };
+
+/** The share of its walls' height a building at progress p still has: all of it until it starts to fall. */
+export function standing(p: number, kind: Kind | undefined): number {
+  if (p <= FALLS_FROM) return 1;
+  const end = (kind && STANDS[kind]) ?? 0.12;
+  return 1 - ((p - FALLS_FROM) / (1 - FALLS_FROM)) * (1 - end);
+}
+
+/** The lowest a ruined wall comes down to, as a share of its standing height (see `ruins.ts`). */
+export const LOWEST = 0.4;
+
+/**
+ * Every building's fate, worked out before any is drawn, so a ruin's neighbours know how
+ * low its walls have come: where they are below a neighbour's party wall, that wall shows.
+ * Call after `classify()`, with the buildings it classified.
+ */
+export function settle(B: Build, bs: Building[]): Map<Building, Fate> {
+  const fates = new Map<Building, Fate>();
+  if (B.set.abandon <= 0) return fates;
+  for (const b of bs) {
+    const f = fateOf(B, b);
+    if (f) fates.set(b, f);
+  }
+  for (const b of bs) {
+    const info = b.info;
+    if (!info || !info.partyWith.some((j) => j >= 0)) continue;
+    let party: Float32Array | null = null;
+    info.partyWith.forEach((j, e) => {
+      const nb = j >= 0 ? bs[j] : undefined;
+      const f = nb && fates.get(nb);
+      if (!nb || !f || f.stand >= 1) return;
+      const low = nb.h * f.stand * LOWEST;
+      if (low >= info.party[e]) return;
+      party ??= info.party.slice();
+      party[e] = low;
+    });
+    if (party) b.info = { ...info, party };
+  }
+  return fates;
+}
 
 /** A building's fate, or undefined when the town is lived in. */
 export function fateOf(B: Build, b: Building): Fate | undefined {
@@ -235,10 +280,10 @@ export function fateOf(B: Build, b: Building): Fate | undefined {
   const own = row ? (hash(key[0], key[1], seed, 9861) + hash(row[0], row[1], seed, 9861)) / 2 : hash(key[0], key[1], seed, 9861);
   const area = resistance(B, cx, cy, 9862, 0);
   const u = area * 0.5 + own * 0.3 + (b.info ? STURDY[b.info.kind] : 0.45) * 0.2;
-  const prog = Math.max(0, Math.min(1, d * (1 + SPREAD) - SPREAD * u));
+  const prog = Math.max(0, Math.min(1, (d - START * u) / SPAN));
   let stage = 0;
   while (stage < STAGES.length && prog >= STAGES[stage]) stage++;
-  const fate: Fate = { p: prog, stage, key, holes: [], strokes: 0 };
+  const fate: Fate = { p: prog, stage, key, holes: [], strokes: 0, stand: standing(prog, b.info?.kind) };
   // Holes open in the roof of a derelict building, more of them and wider as it goes on.
   for (let i = 0; i < 3; i++) {
     const h = (k: number) => hash(key[0], key[1], seed, 9870 + i * 4 + k);
@@ -253,9 +298,9 @@ export function fateOf(B: Build, b: Building): Fate | undefined {
   return fate;
 }
 
-/** The catalogue facet for a building's stage, or undefined while it is lived in. Broken shells and footprint ruins come with M4. */
+/** The catalogue facet for a building's stage, or undefined while it is lived in. */
 export function wornAs(f: Fate): string | undefined {
-  return f.stage === 0 ? undefined : f.stage === 1 ? 'closed-up' : f.stage === 2 ? 'derelict' : 'shell';
+  return ['', 'closed-up', 'derelict', 'shell', 'broken-shell', 'footprint-ruin'][f.stage] || undefined;
 }
 
 /** Whether the building being drawn has lost a thing by now, at its own point from `from` to `from + span` of its progress. */

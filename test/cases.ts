@@ -46,6 +46,16 @@ export const CASES: Case[] = [
     set: at('Nördlingen', [10.4878, 48.8518], 30, 2500, { abandon: 0.65 }),
   },
   {
+    id: 'midtown-abandon-80',
+    what: 'Towers gutted to frames of floors on columns, the low blocks round them come down to broken walls',
+    set: at('Midtown Manhattan', [-73.984, 40.7549], 29, 2000, { abandon: 0.8 }),
+  },
+  {
+    id: 'mollis-abandon-100',
+    what: 'Abandonment at its end: every building a footprint ruin of low ragged walls and rubble, the church tower standing',
+    set: at('Mollis', MOLLIS, 35, 1000, { abandon: 1 }),
+  },
+  {
     id: 'mollis-title',
     what: 'Cinematic title standing on a street, with shading and round ends',
     set: at('Mollis', MOLLIS, 35, 1000, { title: true, titleText: 'Mollis', titleRound: true, titleReveal: 0.4 }),
