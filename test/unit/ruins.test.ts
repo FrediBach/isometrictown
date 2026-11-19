@@ -1,9 +1,11 @@
 import { expect, test } from 'vitest';
-import { newSolid, type Build } from '@/buildings';
+import { newSolid, prism, type Build } from '@/buildings';
 import { Camera } from '@/camera';
 import { pointInRing } from '@/geo';
+import { ivy } from '@/growth';
+import { Paper } from '@/raster';
 import { frame, gable, ragged, shell } from '@/ruins';
-import { DEFAULT_SETTINGS, LINEWORK, ROOFS } from '@/settings';
+import { DEFAULT_SETTINGS, GREENERY, LINEWORK, ROOFS } from '@/settings';
 import { STYLES } from '@/styles';
 
 function build(scale = 500): Build {
@@ -128,4 +130,106 @@ test('tiles stay on the same roofed part of the plot when the view pans', () => 
     for (const t of [0, 0.5, 1]) expect(pointInRing(ax + (bx - ax) * t, ay + (by - ay) * t, court)).toBe(false);
   }
   expect(floorTiles(47)).toEqual(tiles);
+});
+
+test('ivy extends from fixed roots on roofed, roofless and crumbling walls', () => {
+  function vines(p: number, kind: 'roofed' | 'shell' | 'broken', seed = 1, pan = 0, base = 0, trees = 0.7) {
+    const B = build();
+    B.seed = seed;
+    B.set.trees = trees;
+    B.key = (x, y) => [Math.round(x + pan), Math.round(y)];
+    B.toAbs = (x, y) => [x + pan, y];
+    B.fate = { p, stage: 2, key: [0, 0], holes: [], strokes: 0, stand: 1 };
+    // Only the long south wall is exposed. The other visible wall is a party wall.
+    const ring = { pts: [-pan, 0, 160 - pan, 0, 160 - pan, 10, -pan, 10],
+      seam: Uint8Array.of(0, 1, 0, 0), party: Float32Array.of(0, 0, 0, 15) };
+    const s = newSolid();
+    const opts = { pen: LINEWORK, windows: false, ivy: true };
+    if (kind === 'roofed') prism(B, [ring], base, 12, { ...opts, roof: true }, s);
+    if (kind === 'shell') shell(B, [ring], 12, 0.35, opts, s, base);
+    if (kind === 'broken') ragged(B, [ring], 12, 0.35, 0.4, opts, s, base);
+    return s.lines.filter(l => l.facet === 'ivy').map(l => l.pts.map((v, i) => +(i % 3 === 0 ? v + pan : v).toFixed(7)));
+  }
+  // Remove each circuit of a leaf, which unfurls as the stem grows past it.
+  const roots = (lines: number[][]) => lines.filter(l => l[1] < 0 && l[2] === 0).map(line => {
+    const spine: number[][] = [];
+    for (let i = 0; i < line.length; i += 3) {
+      const v = line.slice(i, i + 3);
+      const prev = spine.findIndex(q => q.every((n, k) => n === v[k]));
+      if (prev < 0) spine.push(v);
+      else spine.length = prev + 1;
+    }
+    return spine.flat();
+  });
+  const early = vines(0.42, 'roofed');
+  const mature = vines(0.9, 'shell');
+  expect(roots(early).length).toBeGreaterThan(0);
+  expect(mature.length).toBeGreaterThan(roots(mature).length);
+  expect(vines(0.9, 'roofed')).toEqual(mature);
+  expect(vines(0.9, 'shell', 1, 47)).toEqual(mature);
+  expect(vines(0.9, 'shell', 2)).not.toEqual(mature);
+  for (const stem of roots(early)) {
+    const taller = roots(mature).find(l => l[0] === stem[0])!;
+    // All completed bends persist, and the still-growing last segment gets longer.
+    expect(taller.slice(0, stem.length - 3)).toEqual(stem.slice(0, -3));
+    expect(taller.at(-1)!).toBeGreaterThanOrEqual(stem.at(-1)!);
+  }
+  const broken = vines(0.9, 'broken');
+  expect(roots(broken).length).toBeGreaterThan(0);
+  for (const stem of roots(broken)) {
+    const whole = roots(mature).find(l => l[0] === stem[0])!;
+    expect(stem.slice(0, -3)).toEqual(whole.slice(0, stem.length - 3));
+    expect(stem.at(-1)!).toBeLessThanOrEqual(whole.at(-1)!);
+  }
+  expect(mature.every(l => l.every((v, i) => i % 3 !== 1 || v === 0 || (v < 0 && l[i + 1] === 0)))).toBe(true);
+  expect(vines(0, 'roofed')).toEqual([]);
+  expect(vines(0.9, 'shell', 1, 0, 0, 0)).toEqual([]);
+  expect(vines(0.9, 'broken', 1, 0, 3)).toEqual([]);
+});
+
+test('mature ivy spreads along low walls and breaks at gaps in the masonry', () => {
+  const B = build();
+  B.fate = { p: 1, stage: 5, key: [0, 0], holes: [], strokes: 0, stand: 0.12 };
+  const runs = [1.2, 0, 1.8, 0.9, 3, 0, 1.3, 1.2];
+  const s = newSolid();
+  ivy(B, 0, 0, 80, 0, 8, s, undefined, runs);
+  expect(s.lines.some(l => Math.abs(l.pts.at(-3)! - l.pts[0]) > 3 && l.pts[2] < 1.2)).toBe(true);
+  for (const { pts } of s.lines) {
+    for (let i = 3; i < pts.length; i += 3) {
+      for (const t of [0.1, 0.5, 0.9]) {
+        const x = pts[i - 3] + t * (pts[i] - pts[i - 3]);
+        const z = pts[i - 1] + t * (pts[i + 2] - pts[i - 1]);
+        // The vertical connection exactly at a step belongs to its taller wall.
+        if (Math.abs(x / 10 - Math.round(x / 10)) > 1e-8) expect(z).toBeLessThanOrEqual(runs[Math.floor(x / 10)]);
+      }
+    }
+  }
+});
+
+test.each([1000, 2500])('the plotted ivy connects every leafy shoot to a visible root at 1:%i', scale => {
+  const B = build(scale);
+  B.fate = { p: 1, stage: 3, key: [0, 0], holes: [], strokes: 0, stand: 1 };
+  const face = [[-30, 0, 0, 30, 0, 0, 30, 0, 10, -30, 0, 10]];
+  const solid = newSolid();
+  ivy(B, -30, 0, 30, 0, 10, solid, face);
+  const paper = new Paper(B.cam);
+  paper.fillFace(face, 0, 0);
+  paper.finishDepth();
+  const rooted = new Set<string>();
+  const key = (x: number, y: number) => `${x.toFixed(6)},${y.toFixed(6)}`;
+  for (const l of solid.lines) {
+    const before = paper.pens[GREENERY].length;
+    paper.line3(GREENERY, l.pts, paper.onFace(0, l.groundFoot));
+    const paths = paper.pens[GREENERY].slice(before);
+    expect(paths).toHaveLength(1);
+    const [sx, sy] = paths[0];
+    if (l.groundFoot) {
+      expect(l.pts[1]).toBeLessThan(0);
+      expect(sx).toBeCloseTo(B.cam.sx(l.pts[0], l.pts[1]), 6);
+      expect(sy).toBeCloseTo(B.cam.sy(l.pts[0], l.pts[1], 0), 6);
+    } else expect(rooted.has(key(sx, sy))).toBe(true);
+    for (let i = 0; i < paths[0].length; i += 2) rooted.add(key(paths[0][i], paths[0][i + 1]));
+  }
+  expect(solid.lines.filter(l => l.groundFoot).length).toBeGreaterThan(0);
+  expect(solid.lines.some(l => !l.groundFoot)).toBe(true);
 });

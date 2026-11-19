@@ -1,7 +1,7 @@
 import type { Build, Solid } from './buildings';
 import { DECAY, stretch } from './decay';
 import { FIELD, GARDEN, MEADOW, ORCHARD, SCRUB, TUFT, TUFT_MM, VINEYARD, WILD, WILD_DEFAULT, type Ground } from './ground';
-import { REF_NIB } from './camera';
+import { REF_NIB, type Camera } from './camera';
 import { LOD, shows, thin } from './lod';
 import type { Masks, Tree } from './nature';
 import type { Paper } from './raster';
@@ -128,29 +128,213 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
   return out;
 }
 
+/** The exposed face a colony occupies, measured along the wall and up from its foot. */
+type IvyWall = {
+  cam: Camera; len: number; across: number; height: number; runs?: number[];
+  point: (u: number, z: number, outward?: number) => number[];
+  ink: (pts: number[], groundFoot?: boolean) => void;
+};
+
 /**
- * Ivy up a ruined wall from a to b, standing to z: a wavy stroke or two climbing from its
- * foot, more of them as the town goes further. Only on walls facing the viewer.
+ * Climbers on a ground-floor wall. Roots and forks belong to the whole edge, even when
+ * the wall breaks into runs. Each shoot keeps its lower bends as its growing tip climbs.
  */
-export function ivy(B: Build, ax: number, ay: number, bx: number, by: number, z0: number, z: number, out: Solid): void {
-  const f = B.fate;
-  if (!f || !B.set.trees) return;
-  const share = 0.35 * stretch(f.p, 0.45, 1);
-  if (share <= 0 || !shows(B.cam, LOD.ivy, z - z0)) return;
-  const len = Math.hypot(bx - ax, by - ay);
+export function ivy(B: Build, ax: number, ay: number, bx: number, by: number, height: number, out: Solid, face?: number[][], runs?: number[]): void {
+  const p = B.fate?.p ?? 0;
+  if (p <= 0.08 || B.set.trees <= 0) return;
+  const { cam } = B;
+  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy);
+  if (len < 2) return;
   const [k0, k1] = B.key((ax + bx) / 2, (ay + by) / 2);
-  const g = (s: number) => hash(k0, k1, B.seed, 9990 + s);
-  if (g(0) >= share) return;
-  const u0 = 0.2 + 0.6 * g(1);
-  const top = z0 + (z - z0) * (0.5 + 0.4 * g(2));
-  const pts: number[] = [];
-  const n = 6;
-  for (let k = 0; k <= n; k++) {
-    const t = k / n;
-    const u = Math.max(0, Math.min(1, u0 + (Math.sin(t * 9 + g(3) * 6) * 0.6) / Math.max(1, len)));
-    pts.push(ax + (bx - ax) * u, ay + (by - ay) * u, z0 + (top - z0) * t);
+  const count = Math.max(1, Math.round(len / 9));
+  const bay = len / count;
+  const across = Math.abs((dx * cam.cb - dy * cam.sb) / len);
+  const cover = 0.94 * (DECAY[B.style.id]?.grows ?? 1) * Math.min(1.4, B.set.trees / 0.7);
+  // Work in metres along and up the wall until a stroke is ready for the depth pass.
+  const wall: IvyWall = {
+    cam, len, across, height, runs,
+    point: (u, z, outward = 0) => [ax + (dx * u + dy * outward) / len, ay + (dy * u - dx * outward) / len, z],
+    ink: (pts, groundFoot) => out.lines.push({ pen: GREENERY, pts, layer: 'trees', facet: 'ivy', on: face, groundFoot }),
+  };
+  cam.within('trees', () => {
+    if (!shows(cam, LOD.ivyMat, height * cam.ca)) return;
+    for (let i = 0; i < count; i++) {
+      const g = (salt: number, joint = 0) => hash(k0, k1, B.seed, i, joint, salt);
+      if (g(11670) >= cover) continue;
+      const start = 0.08 + 0.2 * g(11671);
+      if (p <= start) continue;
+      const root = (i + 0.28 + 0.44 * g(11672)) * bay;
+      const heightAtMaturity = 9 + 10 * g(11674);
+      // Both side shoots fork from the same woody stem above the wall foot.
+      const phase = g(11688) * 2 * Math.PI;
+      const sway = Math.min(0.65, root * 0.2, (len - root) * 0.2);
+      const leader = (z: number) => root + sway * (Math.sin(0.68 * z + phase) - Math.sin(phase));
+      const collar = 0.55 + 0.55 * g(11689);
+      const grown = stretch(p, start, start + 0.38);
+      const centralTip = Math.min(heightAtMaturity * grown, ivyCeiling(wall, root - 2 * sway, root + 2 * sway));
+      if (shows(cam, LOD.ivy, Math.min(centralTip * cam.ca, bay * across))) {
+        const fork = Math.min(collar, centralTip);
+        // Keep the foot and junction in the actual plotted polyline at every stage.
+        ivyRunner(wall, leader, 0, centralTip, fork, bay, g);
+        if (centralTip > collar) for (const side of [-1, 1]) {
+          const rand = (salt: number, node = 0) => hash(k0, k1, B.seed, i, side, node, salt);
+          const delay = 0.045 + 0.12 * rand(11681);
+          const age = stretch(p, start + delay, start + delay + 0.38);
+          if (age <= 0) continue;
+          const base = leader(collar);
+          const room = side < 0 ? base - i * bay : (i + 1) * bay - base;
+          const lean = side * room * (0.64 + 0.23 * rand(11683));
+          if (!shows(cam, LOD.ivyShoot, Math.abs(lean) * across)) continue;
+          const curl = rand(11690) * Math.PI * 2;
+          const at = (z: number) => {
+            const h = z - collar;
+            const fan = 1 - Math.exp(-h / (1.1 + Math.abs(lean) * 0.45));
+            return base + lean * fan * (0.88 + 0.12 * Math.sin(h * 0.85 + curl));
+          };
+          const ceiling = ivyCeiling(wall, Math.min(base, base + lean), Math.max(base, base + lean));
+          const tip = Math.min(ceiling, collar + age * heightAtMaturity * (0.52 + 0.38 * rand(11684)));
+          if (shows(cam, LOD.ivy, (tip - collar) * cam.ca)) ivyRunner(wall, at, collar, tip, collar, bay * 0.8, rand);
+        }
+      }
+      // Low mats occupy broken masonry where upright shoots no longer have room.
+      if (runs) {
+        const coverAge = stretch(p, start + 0.14, start + 0.52);
+        const half = bay * (0.35 + 0.16 * g(11685)) * coverAge;
+        const left = Math.max(i * bay, root - half), right = Math.min((i + 1) * bay, root + half);
+        if (shows(cam, LOD.ivy, (right - left) * across)) {
+          ivyMat(wall, left, right, (2.6 + 2.8 * g(11686)) * coverAge, g(11687) * 6);
+        }
+      }
+    }
+  });
+}
+
+/** The lowest surviving masonry beneath a stroke, including its clearance from the rim. */
+function ivyCeiling({ height, runs, len }: IvyWall, lo: number, hi: number): number {
+  if (runs) {
+    const first = Math.max(0, Math.floor(lo / len * runs.length));
+    const last = Math.min(runs.length - 1, Math.floor(hi / len * runs.length));
+    for (let k = first; k <= last; k++) height = Math.min(height, runs[k]);
   }
-  out.lines.push({ pen: GREENERY, pts, layer: 'trees', facet: 'ivy' });
+  return height - 0.15;
+}
+
+/** Trace a climbing stem through its fork and leaf nodes. Leaves share their stalk's
+ * first and last point so a plotter can draw each blade and continue up the same stem. */
+function ivyRunner(wall: IvyWall, at: (z: number) => number, base: number, tip: number, fork: number, bay: number,
+  rand: (salt: number, node?: number) => number): void {
+  const { cam, across, len, point, ink } = wall;
+  const pts: number[] = [];
+  if (base === 0) {
+    // A short runner lies on the soil, turns in at the footing, then climbs. All
+    // three belong to one pen stroke, even when the ground portion alone is tiny.
+    const u = at(0), side = rand(11692) < 0.5 ? -1 : 1;
+    const toe = side * Math.min(0.6 + 0.4 * rand(11693), side < 0 ? u : len - u);
+    pts.push(...point(u + toe, 0, 0.42), ...point(u + 0.56 * toe, 0, 0.34), ...point(u + 0.2 * toe, 0, 0.12));
+  }
+  pts.push(...point(at(base), base));
+  const stride = Math.max(1.45 + 0.95 * rand(11675), cam.gap(1.8) / (cam.s * cam.ca)) * (base > 0 ? 1.2 : 1);
+  const outward = Math.sign(at(base + 1) - at(base));
+  const firstSide = base > 0 ? outward : rand(11676) < 0.5 ? -1 : 1;
+  let z = base;
+  // Sample the fixed curve on the same lattice as it grows, including each junction.
+  const ascend = (to: number) => {
+    for (let k = Math.floor(z / 0.45) + 1; k * 0.45 < to; k++) pts.push(...point(at(k * 0.45), k * 0.45));
+    if (to > z) pts.push(...point(at(to), to));
+    z = to;
+  };
+  ascend(fork);
+  for (let j = 0; z < tip; j++) {
+    const firstGap = base > 0 ? 0.8 : 0.28;
+    const node = z + stride * (j === 0 ? firstGap : 1) * (0.78 + 0.48 * rand(11680, j));
+    ascend(Math.min(node, tip));
+    if (z === tip) break;
+    const side = j % 2 ? firstSide : -firstSide;
+    const u = at(z);
+    // At small scales a single blade stands for a leafy spray. Give larger sprays
+    // more room between nodes and leave the curved leader bare where even that cannot fit.
+    const aspect = 0.82 + 0.17 * rand(11679, j);
+    // Inward leaves on a fork have only the gap back to the parent stem.
+    const room = base > 0 && side !== outward ? Math.abs(u - at(base)) * 0.65 : bay;
+    const size = Math.min(room, bay * (base === 0 ? 0.53 : 0.38), side < 0 ? u : len - u,
+      Math.max(1.1 + 1.12 * rand(11678, j), cam.gap(1.25) / (cam.s * Math.min(across, aspect * cam.ca))));
+    const bladeH = Math.min(size * aspect, z * 1.25);
+    const ceiling = ivyCeiling(wall, Math.min(u, u + side * size), Math.max(u, u + side * size));
+    const growth = Math.min(1, (Math.min(tip, ceiling) - z) / bladeH);
+    const readable = Math.min(size * across, bladeH * cam.ca) * growth;
+    if (shows(cam, LOD.ivyLeaf, readable) && readable * cam.s >= cam.nib * 2.4) {
+      ivyLeaf(pts, point, u, z, side * size * growth, bladeH * growth,
+        0.95 * rand(11691, j) - 0.58, shows(cam, LOD.ivyLobes, readable));
+    }
+  }
+  ink(pts, base === 0);
+}
+
+/** An ivy blade seen against the wall, with two basal lobes and a longer, drooping tip.
+ * The same short stalk carries a simpler heart-shaped blade where the lobes close up. */
+function ivyLeaf(pts: number[], point: IvyWall['point'], u: number, z: number, reach: number, h: number, tilt: number, lobed: boolean): void {
+  const blade = (x: number, y: number) => pts.push(...point(u + reach * x, z + h * (y + tilt * x)));
+  let x = 0, y = 0;
+  // Quadratic arcs round the shoulders. The changes of tangent at the lobe tips
+  // keep the juvenile leaf's outline recognisable at a pen's width.
+  const arc = (cx: number, cy: number, ex: number, ey: number) => {
+    for (let k = 1; k <= 3; k++) {
+      const t = k / 3, v = 1 - t;
+      blade(v * v * x + 2 * v * t * cx + t * t * ex, v * v * y + 2 * v * t * cy + t * t * ey);
+    }
+    x = ex; y = ey;
+  };
+  arc(0.11, 0.19, 0.28, 0.19);
+  if (lobed) {
+    arc(0.07, 0.60, 0.32, 0.53);
+    arc(0.41, 0.56, 0.48, 0.73);
+    arc(0.59, 0.56, 0.60, 0.36);
+  } else arc(0.11, 0.78, 0.58, 0.40);
+  arc(0.89, 0.17, 1, -0.22);
+  arc(0.77, -0.10, 0.58, -0.20);
+  if (lobed) {
+    arc(0.49, -0.28, 0.42, -0.49);
+    arc(0.32, -0.32, 0.19, -0.28);
+  } else arc(0.31, -0.41, 0.18, -0.26);
+  arc(0.09, -0.03, 0.28, 0.19);
+  arc(0.11, 0.19, 0, 0);
+}
+
+/** The scalloped upper edge of a mat of older foliage. Its runners spread sideways even
+ * where the masonry is too low for an upright stem. Each breach cuts it at the actual step. */
+function ivyMat({ cam, len, height, runs, across, point, ink }: IvyWall, left: number, right: number, rise: number, phase: number): void {
+  const width = right - left;
+  const run = len / (runs?.length ?? 1);
+  const first = Math.floor(left / run), last = Math.ceil(right / run);
+  // Keep the notches between leaf clusters only while their spacing reads on paper.
+  const pitch = Math.max(0.4, cam.gap(0.52) / (cam.s * across));
+  const steps = Math.max(2, Math.ceil(width / pitch));
+  let pts: number[] = [];
+  for (let k = first; k < last; k++) {
+    const ceiling = (runs ? runs[k] : height) - 0.12;
+    const h = Math.min(rise, ceiling);
+    if (!shows(cam, LOD.ivyMat, h * cam.ca)) {
+      if (pts.length) { pts.push(...point(k * run, 0)); ink(pts); }
+      pts = [];
+      continue;
+    }
+    const lo = Math.max(left, k * run), hi = Math.min(right, (k + 1) * run);
+    const crest = (u: number) => {
+      const t = (u - left) / width;
+      const arch = Math.sqrt(Math.max(0, 4 * t * (1 - t)));
+      const lobe = 0.62 + 0.24 * Math.abs(Math.sin(8 * t + phase)) + 0.14 * Math.abs(Math.sin(21 * t - phase));
+      pts.push(...point(u, 0.12 + (h - 0.12) * arch * lobe));
+    };
+    if (!pts.length) pts.push(...point(lo, 0));
+    crest(lo);
+    for (let j = Math.floor((lo - left) / width * steps) + 1; j < steps; j++) {
+      const u = left + width * j / steps;
+      if (u >= hi) break;
+      crest(u);
+    }
+    crest(hi);
+  }
+  if (pts.length) { pts.push(...point(right, 0)); ink(pts); }
 }
 
 /**

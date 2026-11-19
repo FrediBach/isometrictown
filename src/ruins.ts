@@ -94,7 +94,7 @@ export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omi
     inner.push(reversed({ pts, seam: r.seam, party: r.party?.map(() => 0) }));
   }
   // The outer walls with their doors and shop fronts; the inner faces with windows only.
-  prism(B, rings, z0, z1, { ...o, roof: false }, out);
+  prism(B, rings, z0, z1, { ...o, ivy: true, roof: false }, out);
   const from = out.lines.length;
   prism(B, inner, z0, z1, { roof: false, windows: o.windows, pen: o.pen, facade: o.facade, shutters: o.shutters }, out);
   // Inside a shell the walls are in shade, which is what tells it from a flat roof at a
@@ -106,15 +106,6 @@ export function shell(B: Build, rings: WallRing[], z1: number, t: number, o: Omi
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
       if (!r.seam[i]) shadeWall(B, p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1], z0, () => z1, out, false, true);
-    }
-  }
-  // Ivy up the outside walls in view.
-  for (const r of rings) {
-    const p = r.pts;
-    const n = p.length / 2;
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      if (!r.seam[i] && !(r.party && r.party[i] > z0) && facing(B, p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1])) ivy(B, p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1], z0, z1, out);
     }
   }
   // The tops of the walls: one face between the outer rings and the inner ones.
@@ -382,7 +373,6 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
           out.faces.push([[ax, ay, partyZ, bx, by, partyZ, bx, by, z, ax, ay, z]]);
           if (footed) L([ax, ay, partyZ, bx, by, partyZ]);
           shadeWall(B, ax, ay, bx, by, partyZ, () => z, out);
-          ivy(B, ax, ay, bx, by, partyZ, z, out);
         }
         if (inFacing) {
           out.faces.push([[dx, dy, z0, cx, cy, z0, cx, cy, z, dx, dy, z]]);
@@ -395,6 +385,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
         if (both) L([dx, dy, z, cx, cy, z]);
         out.casts.push({ ring: [ax, ay, bx, by, cx, cy, dx, dy], h: z });
       }
+      if (outFacing && partyZ === 0) ivy(B, P[i * 2], P[i * 2 + 1], P[j * 2], P[j * 2 + 1], H, out, undefined, zs.map(z => z < BURIED ? 0 : z));
       // Rubble along the foot of the wall, outside (unless a neighbour stands against it) and in.
       const along = (pts: number[]) => Array.from({ length: m + 1 }, (_, k) => at(pts, k / m));
       if (heaped && partyZ <= z0) heap(B, along(P), 1, w, lift, 10100, out);

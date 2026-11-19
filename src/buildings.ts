@@ -12,10 +12,11 @@ import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './sha
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
 import { fateOf, lost, past, RUIN_STAGE, STAGES, wornAs, type Fate } from './decay';
+import { ivy } from './growth';
 import { frame, gable, gablesStand, ruin, wallThickness } from './ruins';
 
-/** A 3D polyline. `on` restricts marks to a face; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
-export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string; edge?: number[][][]; roofJoin?: boolean };
+/** A 3D polyline. `on` restricts marks to a face, with `groundFoot` allowing its runner on the soil; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
+export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; groundFoot?: boolean; facet?: string; edge?: number[][][]; roofJoin?: boolean };
 /** Something solid: faces for the depth buffer, lines to draw, and outlines that cast shadows. */
 export type Solid = {
   layer?: LayerId;
@@ -113,7 +114,7 @@ export function runs(ring: Ring, z: number, keep: (i: number) => boolean, pen: n
 }
 
 /** `shop` is the direction of the street: walls facing it get shop fronts on the ground floor. */
-export type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number; shop?: [number, number]; balconies?: 0 | 1 | 2; street?: [number, number]; door?: boolean; shutters?: number; facade?: Facade };
+export type PrismOptions = { roof: boolean; windows: boolean; ivy?: boolean; pen: number; topPen?: number; shop?: [number, number]; balconies?: 0 | 1 | 2; street?: [number, number]; door?: boolean; shutters?: number; facade?: Facade };
 
 /**
  * Walls and an optional flat roof over footprint rings, from z0 to z1. Where a wall is a
@@ -146,7 +147,8 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
       const [ax, ay, bx, by] = [p[i * 2], p[i * 2 + 1], p[j * 2], p[j * 2 + 1]];
       if (ring.seam[i]) continue;
       if (!facing(B, ax, ay, bx, by)) continue;
-      out.faces.push([[ax, ay, z0, bx, by, z0, bx, by, z1, ax, ay, z1]]);
+      const face = [[ax, ay, z0, bx, by, z0, bx, by, z1, ax, ay, z1]];
+      out.faces.push(face);
       const zb = Math.max(z0, next(i));
       if (zb >= z1 - 0.3) continue;
       front[i] = 1;
@@ -160,6 +162,7 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
         const wall = { ax, ay, bx, by, len, z0: shop ? SHOP_H : zb, z1, ground: zb === 0 && !shop, street: toStreet, door: i === doorEdge && !shop, balconies: bal, shutters: o.shutters ?? -1 };
         windows(B, wall, o.facade ?? PLAIN, out);
       }
+      if (o.ivy && zb === 0) ivy(B, ax, ay, bx, by, z1, out, face);
       shadeWall(B, ax, ay, bx, by, zb, () => z1, out);
     }
     if (o.roof) runs(ring, z1, (i) => !ring.seam[i], o.topPen ?? o.pen, out.lines);
@@ -511,7 +514,7 @@ function temple(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   const r = { ...rect, L: rect.L * f, w: rect.w * f };
   const He = Math.min(Math.max(3.5, H * 0.5), 7);
   const tan1 = Math.tan((27 * Math.PI) / 180);
-  prism(B, [{ pts: corners(r), seam: new Uint8Array(4) }], 0, He, { roof: false, windows: true, pen: LINEWORK, facade: info.facade, street: info.toStreet }, out);
+  prism(B, [{ pts: corners(r), seam: new Uint8Array(4) }], 0, He, { roof: false, windows: true, pen: LINEWORK, ivy: true, facade: info.facade, street: info.toStreet }, out);
   B.cam.within('roofs', () => pitchedRoof(B, { rect: r, He, tan: tan1, ends: ['hip', 'hip'], sides: [1.1, 1.1], o: 1.1, hatch: B.set.roofHatch }, out));
   const inner = { ...r, L: r.L * 0.6, w: r.w * 0.6 };
   const He2 = He + (r.w / 2) * tan1 * 0.55 + 1.6;
@@ -527,8 +530,8 @@ function hasDoor(info: Info | undefined): boolean {
 
 /** Wall options that come from what we know of the building: shops, balconies, doors, shutters and its window scheme. */
 function fronts(info: Info | undefined): Omit<PrismOptions, 'roof' | 'windows' | 'pen'> {
-  if (!info) return {};
-  return { shop: shopSide(info), balconies: info.balconies, street: info.toStreet, door: hasDoor(info), shutters: info.shutters, facade: info.facade };
+  if (!info) return { ivy: true };
+  return { ivy: true, shop: shopSide(info), balconies: info.balconies, street: info.toStreet, door: hasDoor(info), shutters: info.shutters, facade: info.facade };
 }
 
 function shopSide(info: Info | undefined): [number, number] | undefined {

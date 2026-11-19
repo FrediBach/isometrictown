@@ -397,7 +397,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       paper.layer = (s.part ? `${layer}:${s.part}` : layer) + tail + (l.facet ? `/${l.facet}` : '');
       const on = l.on && faceNo.get(l.on);
       const edge = l.edge?.flatMap((f) => { const n = faceNo.get(f); return n === undefined ? [] : [n]; });
-      paper.line3(layerPen(set, layer, l.pen), l.pts, edge ? paper.onEdge(edge) : on === undefined ? paper.seen : paper.onFace(on), l.closed);
+      paper.line3(layerPen(set, layer, l.pen), l.pts, edge ? paper.onEdge(edge) : on === undefined ? paper.seen : paper.onFace(on, l.groundFoot), l.closed);
     }
   }
   paper.layer = '';

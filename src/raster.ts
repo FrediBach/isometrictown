@@ -462,10 +462,11 @@ export class Paper {
    * (or a pixel beside it) is the nearest there. Two roofs that nearly coincide would otherwise
    * both show their hatching through each other, in a dark crossed patch.
    */
-  onFace(face: number): Test {
+  onFace(face: number, groundFoot = false): Test {
     const { owner, W, H } = this;
     return (x, y, d) => {
       if (!this.seen(x, y, d)) return false;
+      if (groundFoot && Math.abs(d - this.cam.groundDepth(y)) < 1e-6) return true;
       const px = Math.floor((x - this.x0) * this.ppm);
       const py = Math.floor((y - this.y0) * this.ppm);
       for (let dy = -1; dy <= 1; dy++) {
