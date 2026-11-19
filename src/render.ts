@@ -20,7 +20,7 @@ import type { Target } from './image-read';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
 import { LINEWORK, GREENERY, ROOFS, WATER, layerPen, lockKey, sunBearing, type LayerId, type Settings } from './settings';
-import { curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
+import { cracks, curbs, fillRoads, footpaths, pathClearance, lamps, outline, railways } from './streets';
 import { traffic } from './traffic';
 import { title } from './title';
 import { trains } from './trains';
@@ -187,6 +187,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (b.info) {
       const id = pickKeys.push(lockKey(b.info.seed)) - 1;
       const facets = buildingFacets(b);
+      // Closed up or derelict, as `building()` marked it.
+      if (made[0].facet) facets.push(made[0].facet);
       const facet = facets.join('/');
       for (const s of made) {
         s.pick = id;
@@ -361,7 +363,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   });
   if (set.shadows) withPen('shadows', () => { castShadows(paper, M, paths, hatching); });
   if (G) withPen('ground', () => { drawGround(B, paper, M, G, toAbs, fromAbs, paths); });
-  withPen('streets', () => { curbs(paper, town.ways, M); }, 'kerbs');
+  withPen('streets', () => { curbs(paper, town.ways, M, B); }, 'kerbs');
+  if (set.abandon > 0) withPen('streets', () => { cracks(B, paper, town.ways, M); }, 'cracks');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');
   if (set.rails) withPen('rails', () => { railways(B, paper, town.ways, M); });
   if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M); });

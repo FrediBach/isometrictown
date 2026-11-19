@@ -103,13 +103,15 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
   // First, so anything mapped explicitly paints over it.
   if (B.style.id !== 'arid') G.gardens = paintGardens(paper, town, G.land);
   for (const a of town.cover) {
-    const code = CODES[a.cls];
+    const farmed = CODES[a.cls];
     const { rect } = bestRect(a.shape[0].pts);
-    if (!code || !rect) continue;
+    if (!farmed || !rect) continue;
+    // A field no one ploughs any more lies fallow as meadow; its hedges stay.
+    const code = farmed === FIELD && B.set.abandon > 0 && left(B, 'fields', rect.cx, rect.cy, 9950, 0.6) ? MEADOW : farmed;
     const rings = a.shape.map((r) => r.pts);
     paper.fillMask(G.land, rings, code);
     G.covers.push({ shape: a.shape, code, rect });
-    if (code === FIELD || code === ORCHARD || code === VINEYARD) {
+    if (farmed === FIELD || code === ORCHARD || code === VINEYARD) {
       paper.fillMask(G.farms, rings);
       G.farmShapes.push(a.shape);
     }

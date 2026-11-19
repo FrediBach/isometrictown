@@ -1,6 +1,18 @@
 # Abandonment: plan
 
-**Status (2026-11-19):** M0 (plumbing) and M1 (Emptying) are built; M2 is next. Decisions that are yours to make are in §12. Each has a recommendation, and the plan assumes it until you say otherwise.
+**Status (2026-11-19):** M0 (plumbing), M1 (Emptying) and M2 (Neglect) are built; M3 is next. Decisions that are yours to make are in §12. Each has a recommendation, and the plan assumes it until you say otherwise.
+
+**Notes from M2.**
+- *Fates are made in `building()`,* not in a pass of their own: it already swaps in the building's seed, and now sets `B.fate` from `fateOf()` the same way, so no change to `render()`'s order was needed. A building's resistance is half its 150 m neighbourhood, three tenths its own hash (half of that its terrace row's) and a fifth how sturdy its kind is. Progress is `d · 1.6 − 0.6 · u`, so at 0.5 nearly every building is at least derelict and about half have reached the shell stage, which looks derelict until M3 draws shells.
+- *The catalogue counts* `closed-up` and `derelict` buildings: `building()` marks its solids and `render()` adds the mark to the building's facets.
+- *Windows* (`facades.ts worn()`): shuttered windows close; three quarters of ground-floor windows are boarded (frame and three slightly skewed boards, `LOD.board`); the rest break, a jagged line across one corner where glazing bars would show, and lose their bars. Doors are boarded with a cross; shop windows are boarded in panels and lose their awnings. Windows drawn as single strokes or rows don't change.
+- *Roof holes* are discs in plan, cut out of the roof hatching (`roofs.ts outside()`); every third stroke runs on across them as a bare rafter. Up to three per building, opening from progress 0.3 and growing. They need no change to the depth buffer.
+- *Dormers stay* until the roof goes (M3): taking them off left the roof looking untouched, not derelict. Chimneys, rooftop boxes and solar panels go, and the town hall's flag comes down early.
+- *Kerbs* break in 6 m stretches (`kept()` with a share that never goes: half on main roads, a third on others, so the street pattern stays). Scraps under 1.5 m are dropped. Bends follow the stretch at their vertex.
+- *Cracks* (`streets.ts cracks()`, `streets:cracks`) are zigzags in from one kerb, sized by their own length (`LOD.crack`) and drawn straight when the zigzag wouldn't read, with an upright tuft of weeds later (`LOD.weed`). At 1:2500 this halved their wasted ink, to about 10%.
+- *Lamps, fences and fields:* lamps lose their heads, lean, lie down and go (`stepsGone()`, four steps); garden fences lose rails bay by bay, then posts; driveway cars follow `parkedCar()`; mapped farmland goes fallow as meadow and keeps its edges and hedgerows. Image mode's fields do the same.
+- *LOD lab* takes `--set key=value,…` for any setting. At 0.5 against 0, across Mollis, Emmental and Midtown at 1:1000 and 1:2500, wasted ink stays within 0.5 points either way and plotting time falls 4–11%.
+- *Tests:* fates and roof holes never go back, stepped decay is complete at the end of its span, and the new golden `betschwanden-abandon-50` shows a derelict village.
 
 **Notes from M0 and M1.**
 - *No `Build.decay`.* Modules read `B.set.abandon` directly; a field on `Build` would only copy it. The `Wild` field and `Fate` arrive with M2 and M5.

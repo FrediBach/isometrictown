@@ -2,16 +2,19 @@ import type { Build } from './buildings';
 import { onMask } from './infra';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
-import { LINEWORK } from './settings';
+import { GREENERY, LINEWORK } from './settings';
 import type { Shape, Way } from './tiles';
 import { LOD, shows } from './lod';
-import { kept } from './decay';
+import { kept, LEAVES, KERBS_KEPT, runGone, stepsGone, left, gone } from './decay';
+import { hash } from './rng';
 
 /** Regions where most railways run under overhead wires. */
 export const ELECTRIC = new Set(['alpine', 'dutch', 'central', 'nordic', 'british', 'french', 'mediterranean', 'eastern', 'eastAsian']);
 // The mask and its outline must use the same chords at road joints.
 const ROAD_JOINT_SIDES = 12;
 const LIT = new Set(['minor', 'tertiary', 'secondary', 'primary', 'trunk']);
+/** Main roads, which keep more of their kerbs as the town decays. */
+const MAIN = new Set(['motorway', 'trunk', 'primary', 'secondary']);
 
 function polygon(cx: number, cy: number, r: number, n: number): number[] {
   const pts: number[] = [];
@@ -84,12 +87,15 @@ export function outline(paper: Paper, pen: number, shapes: Shape[], mask: Uint8A
 }
 
 /** Kerb lines: both sides of every road plus round joints, kept only on the edge of the road union. */
-export function curbs(paper: Paper, ways: Way[], M: Masks): void {
+export function curbs(paper: Paper, ways: Way[], M: Masks, B?: Build): void {
+  // In an abandoned town kerbs break up a stretch at a time, though never all of them.
+  const broken = !!B && B.set.abandon > LEAVES.kerbs[0];
   for (const w of ways) {
     if (w.kind !== 'road') continue;
     const hw = w.width / 2;
     const p = w.pts;
     const n = p.length / 2;
+    const most = 1 - (MAIN.has(w.cls) ? KERBS_KEPT.main : KERBS_KEPT.other);
     for (const side of [1, -1]) {
       for (let i = 0; i + 1 < n; i++) {
         const [ax, ay, bx, by] = [p[i * 2], p[i * 2 + 1], p[i * 2 + 2], p[i * 2 + 3]];
@@ -97,11 +103,23 @@ export function curbs(paper: Paper, ways: Way[], M: Masks): void {
         if (l < 1e-6) continue;
         const nx = (-(by - ay) / l) * side;
         const ny = ((bx - ax) / l) * side;
-        groundSeg(paper, LINEWORK, ax + nx * hw, ay + ny * hw, bx + nx * hw, by + ny * hw, edgeTest(paper, M.road, nx, ny));
+        const test = edgeTest(paper, M.road, nx, ny);
+        if (!broken) {
+          groundSeg(paper, LINEWORK, ax + nx * hw, ay + ny * hw, bx + nx * hw, by + ny * hw, test);
+          continue;
+        }
+        paper.end();
+        for (const q of kept(B!, [ax + nx * hw, ay + ny * hw, bx + nx * hw, by + ny * hw], 'kerbs', side > 0 ? 9900 : 9904, 6, 0.7, most)) {
+          // A scrap left at the end of a segment would only be a speck.
+          if (Math.hypot(q[q.length - 2] - q[0], q[q.length - 1] - q[1]) < Math.min(1.5, l - 1e-6)) continue;
+          groundSeg(paper, LINEWORK, q[0], q[1], q[q.length - 2], q[q.length - 1], test);
+          paper.end();
+        }
       }
       paper.end();
     }
     for (let i = 0; i < n; i++) {
+      if (broken && runGone(B!, 'kerbs', p[i * 2], p[i * 2 + 1], 9908, 0.7, most)) continue;
       if (i > 0 && i < n - 1) {
         const e1x = p[i * 2] - p[i * 2 - 2];
         const e1y = p[i * 2 + 1] - p[i * 2 - 1];
@@ -184,11 +202,63 @@ export function lamps(B: Build, paper: Paper, ways: Way[], M: Masks): number {
       if (paper.on(M.road, sx, sy) || paper.on(M.foot, sx, sy) || paper.on(M.water, sx, sy)) return;
       const ax = lx - nx * 1.3;
       const ay = ly - ny * 1.3;
-      paper.line3(LINEWORK, [lx, ly, 0, lx, ly, 5.4, ax, ay, 5.6, ax, ay, 5.25]);
-      count++;
+      // In an abandoned town a lamp loses its head, leans, falls and is gone.
+      const worn = B.set.abandon > 0 ? stepsGone(B, 'lamps', lx, ly, 4, 9930) : 0;
+      if (worn === 0) {
+        paper.line3(LINEWORK, [lx, ly, 0, lx, ly, 5.4, ax, ay, 5.6, ax, ay, 5.25]);
+        count++;
+        return;
+      }
+      const [k0, k1] = B.key(lx, ly);
+      const a = hash(k0, k1, B.set.seed, 9934) * Math.PI * 2;
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      if (worn === 1) paper.line3(LINEWORK, [lx, ly, 0, lx, ly, 5.4]);
+      else if (worn === 2) paper.line3(LINEWORK, [lx, ly, 0, lx + dx * 1.5, ly + dy * 1.5, 5.2]);
+      else if (worn === 3) paper.line3(LINEWORK, [lx, ly, 0.1, lx + dx * 5.4, ly + dy * 5.4, 0.1], (sx, sy, d) => !paper.on(M.road, sx, sy) && !paper.on(M.foot, sx, sy) && paper.seen(sx, sy, d));
     });
   }
   return count;
+}
+
+/**
+ * Cracks across the carriageways of an abandoned town, a short zigzag in from one kerb, and
+ * later a tuft of weeds where each starts.
+ */
+export function cracks(B: Build, paper: Paper, ways: Way[], M: Masks): void {
+  const { cam, set } = B;
+  if (set.abandon <= LEAVES.cracks[0] || !shows(cam, LOD.crack)) return;
+  const test: Test = (x, y, d) => paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && paper.seen(x, y, d);
+  const step = Math.max(5, cam.gap(3) / cam.s);
+  const weeds = shows(cam, LOD.weed);
+  for (const w of ways) {
+    if (w.kind !== 'road' || w.bridge) continue;
+    const hw = w.width / 2;
+    walk(w.pts, step * 0.5, step, step * 0.5, (x, y, ux, uy) => {
+      if (!left(B, 'cracks', x, y, 9920, 0.6)) return;
+      const [k0, k1] = B.key(x, y);
+      const h = (k: number) => hash(k0, k1, set.seed, 9910 + k);
+      const side = h(0) < 0.5 ? 1 : -1;
+      const vx = -uy * side;
+      const vy = ux * side;
+      const o0 = hw * (0.95 - 0.25 * h(1));
+      const o1 = o0 - w.width * (0.25 + 0.4 * h(2));
+      // Too short to read, it is left out; too short for its zigzag to read, it is one stroke.
+      if (!shows(cam, LOD.crack, o0 - o1, h(7))) return;
+      const bends = cam.size(o0 - o1) >= 3 * LOD.crack.mm ? 3 : 1;
+      const pts: number[] = [];
+      for (let k = 0; k <= bends; k++) {
+        const o = o0 + ((o1 - o0) * k) / bends;
+        const a = bends === 1 ? 0 : (h(3 + k) - 0.5) * 1.4;
+        pts.push(x + ux * a + vx * o, y + uy * a + vy * o);
+      }
+      for (let k = 0; k + 3 < pts.length; k += 2) groundSeg(paper, LINEWORK, pts[k], pts[k + 1], pts[k + 2], pts[k + 3], test);
+      paper.end();
+      if (!weeds || !gone(B, x, y, 0.35, 0.9, 9922, 0.6)) return;
+      const [tx, ty] = [pts[0], pts[1]];
+      paper.line3(GREENERY, [tx - 0.3, ty, 0.5, tx, ty, 0, tx + 0.3, ty, 0.55], (sx, sy, d) => !paper.on(M.foot, sx, sy) && paper.seen(sx, sy, d));
+    });
+  }
 }
 
 /** A polyline shifted sideways by o metres, at height z, as flat x, y, z. */

@@ -95,7 +95,51 @@ function hatch(B: Build, out: Solid, on: number[][] | undefined, pts: number[]):
     pts[i] += d;
     pts[i + 3] -= d;
   }
-  out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts });
+  const holes = B.fate?.holes;
+  if (!holes?.length) {
+    out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts });
+    return;
+  }
+  // A derelict roof with holes in it: strokes stop at the holes, but every third one runs
+  // on across them, a rafter left bare where the tiles have gone.
+  if (B.fate!.strokes++ % 3 === 0) {
+    out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts });
+    return;
+  }
+  for (const [t0, t1] of outside(pts, holes)) {
+    if (!c.within('roofHatch', () => shows(c, LOD.roofHatch, ((t1 - t0) * len - 2 * inset) / c.s))) continue;
+    const piece = [0, 1, 2].map((i) => pts[i] + (pts[i + 3] - pts[i]) * t0).concat([0, 1, 2].map((i) => pts[i] + (pts[i + 3] - pts[i]) * t1));
+    out.lines.push({ pen: ROOFS, layer: 'roofHatch', on, pts: piece, facet: 'roof-holes' });
+  }
+}
+
+/** The parts of a stroke (x, y, z, x, y, z) outside every hole (x, y, r as seen from above), as ranges of 0 to 1 along it. */
+function outside(pts: number[], holes: number[]): [number, number][] {
+  const dx = pts[3] - pts[0];
+  const dy = pts[4] - pts[1];
+  const a = dx * dx + dy * dy;
+  let parts: [number, number][] = [[0, 1]];
+  for (let h = 0; h < holes.length; h += 3) {
+    const fx = pts[0] - holes[h];
+    const fy = pts[1] - holes[h + 1];
+    const b = 2 * (fx * dx + fy * dy);
+    const cc = fx * fx + fy * fy - holes[h + 2] * holes[h + 2];
+    const disc = b * b - 4 * a * cc;
+    if (a < 1e-12 || disc <= 0) continue;
+    const q = Math.sqrt(disc);
+    const i0 = (-b - q) / (2 * a);
+    const i1 = (-b + q) / (2 * a);
+    const next: [number, number][] = [];
+    for (const [p0, p1] of parts) {
+      if (i1 <= p0 || i0 >= p1) next.push([p0, p1]);
+      else {
+        if (i0 > p0) next.push([p0, i0]);
+        if (i1 < p1) next.push([i1, p1]);
+      }
+    }
+    parts = next;
+  }
+  return parts;
 }
 
 /** Outline of a decorated gable across the end wall, from v = -hw to v = +hw, as [v, z] pairs. */

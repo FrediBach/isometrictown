@@ -11,7 +11,7 @@ import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from '
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
-import { past } from './decay';
+import { fateOf, lost, past, STAGES, wornAs, type Fate } from './decay';
 
 /** A 3D polyline. `on` restricts marks to a face; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
 export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string; edge?: number[][][]; roofJoin?: boolean };
@@ -56,6 +56,8 @@ export type Build = {
   left: boolean;
   /** Seed for what is being built: the drawing's, or the current building's locked seed. */
   seed: number;
+  /** What has become of the building being built, when the town is being abandoned. */
+  fate?: Fate;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */
@@ -241,6 +243,13 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const hw = bay * 0.36;
     out.lines.push({ pen: LINEWORK, pts: [...P(m - hw, 0, 0.35), ...P(m + hw, 0, 0.35), ...P(m + hw, 0, 2.6), ...P(m - hw, 0, 2.6)], closed: true });
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
+    // A shop that has closed down: its window boarded over in panels, and its awning gone.
+    const fate = B.fate;
+    if (fate && fate.p > STAGES[0] + 0.15 * hash(k0, k1, B.set.seed, 9893)) {
+      if (shows(B.cam, LOD.board, hw * 0.66))
+        for (const t of [-1 / 3, 1 / 3]) out.lines.push({ pen: LINEWORK, pts: [...P(m + hw * t, 0, 0.35), ...P(m + hw * t, 0, 2.6)] });
+      continue;
+    }
     if (hash(k0, k1, B.seed, 340) < 0.25 || !showsAt(B.cam, LOD.awning, 1.3, [k0, k1], B.seed, 9100)) continue;
     // The awning: a sloping canvas with a short valance, striped in the roof pen.
     const aw = bay * 0.42;
@@ -360,7 +369,8 @@ function roofDetailsLines(B: Build, info: Info, main: Part, P: Pitched, He: numb
   const rnd = (salt: number) => hash(k0, k1, B.seed, 300 + salt);
   const own = B.key(r.cx, r.cy);
   const mine = (salt: number) => hash(own[0], own[1], B.seed, 320 + salt);
-  if (info.chimney) {
+  // Chimneys come down as a house goes derelict.
+  if (info.chimney && !lost(B, 9891)) {
     if (party[1] || party[3]) {
       // Terraces share stacks on the party walls.
       const sk = party[1] ? 1 : -1;
@@ -419,7 +429,7 @@ function flat(B: Build, b: Building, rings: WallRing[], info: Info | undefined, 
   else if ((info?.parapet || info?.castle) && set.details) parapet(B, rings, H, solid);
   const pad = !!info?.hospital && set.details && helipad(B, b, H, solid);
   const area = Math.abs(ringArea(rings[0].pts));
-  if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55) rooftop(B, b, H, k, out);
+  if (!pad && set.rooftops && area > 220 && H < 150 && hash(k[0], k[1], B.seed, 2) < 0.55 && !lost(B, 9892)) rooftop(B, b, H, k, out);
 }
 
 /** A shed or sawtooth roof over a near-rectangular footprint. */
@@ -513,12 +523,18 @@ function shopSide(info: Info | undefined): [number, number] | undefined {
 export function building(B: Build, b: Building): Solid[] {
   const drawing = B.seed;
   B.seed = seedFor(B.set, b.info?.seed);
+  B.fate = fateOf(B, b);
   try {
     const out = body(B, b);
-    if (b.info?.townHall && B.set.details) flag(B, b, out);
+    // The flag is taken down early.
+    if (b.info?.townHall && B.set.details && !lost(B, 9890, STAGES[0], 0.1)) flag(B, b, out);
+    // What has become of it, for the catalogue; `render()` adds it to the building's facets.
+    const wear = B.fate && wornAs(B.fate);
+    if (wear) for (const s of out) s.facet = wear;
     return out;
   } finally {
     B.seed = drawing;
+    B.fate = undefined;
   }
 }
 

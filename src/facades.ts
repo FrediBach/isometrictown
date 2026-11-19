@@ -4,6 +4,7 @@ import { atLeast, LOD, shows } from './lod';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { StyleId } from './styles';
+import { STAGES } from './decay';
 
 /** How a building's windows are laid out. */
 export type Pattern = 'grid' | 'paired' | 'tall' | 'small' | 'irregular' | 'ribbon' | 'curtain' | 'blank' | 'clerestory' | 'officeEnd' | 'sparse';
@@ -516,9 +517,22 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
           if (shows(cam, LOD.windowTick, t * cam.ca)) L(LINEWORK, [...P(um, 0, zm - t / 2), ...P(um, 0, zm + t / 2)]);
           break;
         }
-        const bars = c.fa.bars && shows(cam, LOD.glazingBars, room);
         const pen = o.shutters ?? -1;
-        if (pen >= 0 && o.closed) {
+        // An abandoned building: shutters closed, ground-floor windows boarded up, then broken glass.
+        const wear = B.fate ? worn(c, o, pen) : 'whole';
+        const bars = c.fa.bars && wear === 'whole' && shows(cam, LOD.glazingBars, room);
+        if (wear === 'boarded') {
+          rect(LINEWORK, u0, u1, z0, z1);
+          const n = 3;
+          const lean = (at(c, um, 9896, Math.round(z0 * 2)) - 0.5) * 0.3 * (z1 - z0);
+          if (shows(cam, LOD.board, (z1 - z0) / (n + 1) * cam.ca * c.across / along))
+            for (let k = 1; k <= n; k++) {
+              const z = z0 + ((z1 - z0) * k) / (n + 1);
+              L(LINEWORK, [...P(u0 - 0.08, 0, z - lean / n), ...P(u1 + 0.08, 0, z + lean / n)]);
+            }
+          break;
+        }
+        if (pen >= 0 && (o.closed || wear === 'shut')) {
           // Shutters closed against the sun: a pair of panels meeting in the middle.
           rect(pen, u0, u1, z0, z1);
           if (shows(cam, LOD.shutter, (u1 - u0) * 0.5 * c.across - cam.nib / cam.s))
@@ -534,6 +548,13 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
           if (bars) L(LINEWORK, [...P(um, 0, z0), ...P(um, 0, z1)]);
         } else {
           rect(LINEWORK, u0, u1, z0, z1);
+          // A pane gone: a jagged break across one corner.
+          if (wear === 'broken' && shows(cam, LOD.glazingBars, room)) {
+            const flip = at(c, um, 9897, Math.round(z0 * 2)) < 0.5;
+            const U = (t: number) => (flip ? u1 - (u1 - u0) * t : u0 + (u1 - u0) * t);
+            const Z = (t: number) => z0 + (z1 - z0) * t;
+            L(LINEWORK, [...P(U(0), 0, Z(0.45)), ...P(U(0.3), 0, Z(0.62)), ...P(U(0.22), 0, Z(0.78)), ...P(U(0.5), 0, Z(1))]);
+          }
           if (bars && u1 - u0 >= 0.8) {
             L(LINEWORK, [...P(um, 0, z0), ...P(um, 0, z1)]);
             const zt = z0 + (z1 - z0) * 0.68;
@@ -561,6 +582,11 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
         // Taller than a window, down to the ground, with a little hood over it.
         if (!full) break;
         L(LINEWORK, [...P(u0, 0, z0), ...P(u0, 0, z1), ...P(u1, 0, z1), ...P(u1, 0, z0)]);
+        // Nailed shut with two boards across it once the house is left.
+        if (B.fate && B.fate.p > STAGES[0] + 0.12 * at(c, um, 9898) && shows(cam, LOD.board, (u1 - u0) * c.across)) {
+          L(LINEWORK, [...P(u0, 0, z0 + 0.3), ...P(u1, 0, z1 - 0.3)]);
+          L(LINEWORK, [...P(u0, 0, z1 - 0.3), ...P(u1, 0, z0 + 0.3)]);
+        }
         L(LINEWORK, [...P(u0 - 0.25, 0, z1 + 0.25), ...P(u0 - 0.25, 0.45, z1 + 0.25), ...P(u1 + 0.25, 0.45, z1 + 0.25), ...P(u1 + 0.25, 0, z1 + 0.25)]);
         break;
       case 'loading':
@@ -604,6 +630,21 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
     }
   }
   if (full) for (const b of c.bals) balcony(c, out, b);
+}
+
+/**
+ * What has become of a window in an abandoned building, at its own point in the building's
+ * progress: shuttered windows are closed; ground-floor windows are mostly boarded up as the
+ * building is closed; the glass of the rest breaks as it goes derelict. Once it changes, it stays.
+ */
+function worn(c: Ctx, o: Opening, pen: number): 'whole' | 'shut' | 'boarded' | 'broken' {
+  const p = c.B.fate!.p;
+  const um = (o.u0 + o.u1) / 2;
+  const floor = Math.round(o.z0 * 2);
+  const h = at(c, um, 9894, floor);
+  if (pen >= 0) return p > STAGES[0] + 0.15 * h ? 'shut' : 'whole';
+  if (c.w.ground && o.z0 - c.w.z0 < 2 && at(c, um, 9895, floor) < 0.75) return p > STAGES[0] + 0.15 * h ? 'boarded' : 'whole';
+  return p > STAGES[1] + 0.2 * h ? 'broken' : 'whole';
 }
 
 /**

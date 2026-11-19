@@ -204,6 +204,18 @@ const ENTRIES_BY_HAND: Entry[] = [
 
   // Buildings
   {
+    id: 'abandoned-buildings',
+    group: 'buildings',
+    name: 'Abandoned buildings',
+    source: ['invented'],
+    what: 'Buildings left empty: shutters closed, ground-floor windows and doors boarded up, shop windows boarded over and their awnings and the town hall flag taken down; then broken panes, chimneys and rooftop boxes gone and holes in the roof, the tiles gone and bare rafters showing.',
+    how: 'Each building goes at its own pace as Abandonment rises: mostly with its neighbourhood, a terraced row largely together, sheds first and churches last. Each window, chimney and hole has its own point in that.',
+    needs: ['abandon'],
+    lod: ['board', 'glazingBars', 'roofHatch'],
+    count: ['closed-up', 'derelict'],
+    unit: 'building',
+  },
+  {
     id: 'footprints',
     group: 'buildings',
     name: 'Footprints',
@@ -743,6 +755,17 @@ const ENTRIES_BY_HAND: Entry[] = [
     needs: ['cars'],
     lod: ['car', 'carCabin'],
     strokes: ['=cars'],
+  },
+  {
+    id: 'road-cracks',
+    group: 'streets',
+    name: 'Cracked roads',
+    source: ['invented'],
+    what: 'Short zigzag cracks in from the kerb across the carriageways of an abandoned town, with tufts of weeds in them later on. Kerbs break up a stretch at a time, though half the kerbs of main roads and a third of the others stay to the end, and street lamps lose their heads, lean, fall and are gone.',
+    how: 'Each crack, kerb stretch and lamp goes at its own point as Abandonment rises, mostly with its neighbourhood. Which ones is fixed to the map.',
+    needs: ['abandon'],
+    lod: ['crack', 'weed'],
+    strokes: ['streets:cracks'],
   },
   {
     id: 'wrecks',

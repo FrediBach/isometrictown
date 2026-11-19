@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import type { Build } from '@/buildings';
 import { Camera } from '@/camera';
-import { gone, kept, LEAVES, left, parkedCar, past, phaseName, resistance } from '@/decay';
+import { fateOf, gone, kept, LEAVES, left, parkedCar, past, phaseName, resistance, stepsGone } from '@/decay';
+import type { Building } from '@/tiles';
 import { DEFAULT_SETTINGS } from '@/settings';
 import { STYLES } from '@/styles';
 
@@ -88,5 +89,43 @@ describe('abandonment', () => {
       last = l;
     }
     expect(last).toBe(0);
+  });
+
+  /** A 12 × 8 m house at (x, y). */
+  const house = (x: number, y: number): Building => ({ shape: [{ pts: [x, y, x + 12, y, x + 12, y + 8, x, y + 8], seam: new Uint8Array(4) }], h: 7, min: 0 });
+
+  test('buildings only ever get worse, and their roof holes only grow', () => {
+    expect(fateOf(build(0), house(0, 0))).toBeUndefined();
+    for (const [x, y] of SPOTS.slice(0, 120)) {
+      let last = { p: 0, stage: 0, holes: [] as number[] };
+      for (const d of STEPS.slice(1)) {
+        const f = fateOf(build(d), house(x, y))!;
+        expect(f.p).toBeGreaterThanOrEqual(last.p);
+        expect(f.stage).toBeGreaterThanOrEqual(last.stage);
+        expect(f.holes.length).toBeGreaterThanOrEqual(last.holes.length);
+        // Every hole there before is still there, as wide or wider; holes may open in any order.
+        for (let i = 0; i < last.holes.length; i += 3) {
+          let found = false;
+          for (let j = 0; j < f.holes.length; j += 3)
+            if (f.holes[j] === last.holes[i] && f.holes[j + 1] === last.holes[i + 1]) found = f.holes[j + 2] >= last.holes[i + 2];
+          expect(found).toBe(true);
+        }
+        last = f;
+      }
+      expect(last.p).toBe(1);
+    }
+  });
+
+  test('stepped decay never steps back, and is complete at the end of its span', () => {
+    for (const [x, y] of SPOTS) {
+      let last = 0;
+      for (const d of STEPS) {
+        const n = stepsGone(build(d), 'lamps', x, y, 4, 9900);
+        expect(n).toBeGreaterThanOrEqual(last);
+        last = n;
+      }
+      expect(last).toBe(4);
+      expect(stepsGone(build(0), 'lamps', x, y, 4, 9900)).toBe(0);
+    }
   });
 });

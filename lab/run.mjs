@@ -10,6 +10,7 @@
  *   npm run lod -- --name after --compare before  print what changed
  *   npm run lod -- --detail 1.5 --pen 0.5         other Detail or pen width
  *   npm run lod -- --layer-detail trees:0.5       Detail for some layers only, as layer:detail,…
+ *   npm run lod -- --set abandon=0.6,life=0       any other settings, as key=value,…
  *   npm run lod -- --no-png                       numbers only, faster
  *
  * Downloads are cached on disk in lab/.cache, so reruns don't touch the network.
@@ -39,6 +40,9 @@ const penWidth = Number(opt('pen', '0.35'));
 const tags = flag('tags');
 const layerDetailArg = opt('layer-detail', null);
 const layerDetail = layerDetailArg ? Object.fromEntries(layerDetailArg.split(',').map((p) => p.split(':')).map(([k, v]) => [k, Number(v)])) : undefined;
+const setArg = opt('set', null);
+// Numbers and true/false become numbers and booleans; anything else stays text.
+const set = setArg ? Object.fromEntries(setArg.split(',').map((p) => p.split('=')).map(([k, v]) => [k, v === 'true' || v === 'false' ? v === 'true' : v !== '' && Number.isFinite(Number(v)) ? Number(v) : v])) : undefined;
 const compare = opt('compare', null);
 
 // Downloads, cached on disk and a few at a time.
@@ -91,7 +95,7 @@ function die(msg) {
 }
 
 mkdirSync(outDir, { recursive: true });
-const report = { name, detail, humanize, penWidth, tags, layerDetail, at: new Date().toISOString(), cases: [] };
+const report = { name, detail, humanize, penWidth, tags, layerDetail, set, at: new Date().toISOString(), cases: [] };
 const fmt = (v, d = 0) => v.toLocaleString('en', { maximumFractionDigits: d, minimumFractionDigits: d });
 const pct = (v) => `${fmt(v * 100, 1)}%`;
 
@@ -100,7 +104,7 @@ for (const place of places) {
   for (const scale of scales) {
     const label = `${place.id} 1:${scale}`.padEnd(24);
     try {
-      const r = await lab.runCase(place, scale, { detail, humanize, penWidth, tags, layerDetail });
+      const r = await lab.runCase(place, scale, { detail, humanize, penWidth, tags, layerDetail, set });
       const file = `${place.id}-${scale}`;
       writeFileSync(path.join(outDir, `${file}.svg`), r.svg);
       const t = r.stats.total;

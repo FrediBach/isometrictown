@@ -1,4 +1,4 @@
-import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { car, newSolid, prism, wreck, type Build, type Solid } from './buildings';
 import { FIELD, GARDEN, MEADOW, type Ground } from './ground';
 import { ringArea } from './geo';
 import type { Masks, Tree } from './nature';
@@ -9,6 +9,7 @@ import { GREENERY, LINEWORK } from './settings';
 import { walk } from './streets';
 import type { StyleId } from './styles';
 import type { Building, Town, Way } from './tiles';
+import { LEAVES, parkedCar, stepsGone, wreckTwist } from './decay';
 
 /**
  * Made-up garden and field boundaries, and street trees. The map rarely draws plots,
@@ -192,16 +193,28 @@ export function plots(B: Build, paper: Paper, town: Town, G: Ground, M: Masks): 
   return {
     solids,
     draw: () => {
+      const decaying = B.set.abandon > LEAVES.fences[0];
       for (const f of fences) {
         const [ax, ay, bx, by] = f.pts;
         const len = Math.hypot(bx - ax, by - ay);
         const ux = (bx - ax) / len;
         const uy = (by - ay) / len;
-        paper.line3(LINEWORK, [ax, ay, f.picket ? 0.8 : 1.0, bx, by, f.picket ? 0.8 : 1.0]);
+        const rail = f.picket ? 0.8 : 1.0;
         const step = f.picket ? 1.8 : 2.4;
         const n = Math.max(1, Math.round(len / step));
+        if (!decaying) paper.line3(LINEWORK, [ax, ay, rail, bx, by, rail]);
+        else {
+          // A fence left to rot loses its rails bay by bay, then its posts.
+          for (let k = 0; k < n; k++) {
+            const t0 = (k / n) * len;
+            const t1 = ((k + 1) / n) * len;
+            if (stepsGone(B, 'fences', ax + ux * (t0 + t1) / 2, ay + uy * (t0 + t1) / 2, 2, 9940) >= 1) continue;
+            paper.line3(LINEWORK, [ax + ux * t0, ay + uy * t0, rail, ax + ux * t1, ay + uy * t1, rail]);
+          }
+        }
         for (let k = 0; k <= n; k++) {
           const t = (k / n) * len;
+          if (decaying && stepsGone(B, 'fences', ax + ux * t, ay + uy * t, 2, 9942) >= 2) continue;
           paper.line3(LINEWORK, [ax + ux * t, ay + uy * t, 0, ax + ux * t, ay + uy * t, f.picket ? 1.1 : 1.15]);
         }
       }
@@ -249,7 +262,15 @@ function yard(B: Build, b: Building, cx: number, cy: number, ok: (x: number, y: 
         marks.push({ pts: [ax, ay, 0, bx, by, 0], ground: true });
       }
       const [x, y] = P(front + 3, lane);
-      if (len >= 6 && B.set.cars > 0 && h(2) < 0.55 && ok(x, y) && shows(B.cam, LOD.car, 4.4, h(9104))) solids.push(car(B, x, y, tx, ty, h(3)));
+      if (len >= 6 && B.set.cars > 0 && h(2) < 0.55 && ok(x, y) && shows(B.cam, LOD.car, 4.4, h(9104))) {
+        const fate = parkedCar(B, x, y);
+        if (fate === 'car') solids.push(car(B, x, y, tx, ty, h(3)));
+        else if (fate === 'wreck') {
+          const s = wreck(B, x, y, tx, ty, wreckTwist(B, x, y), h(3));
+          s.facet = 'wreck';
+          solids.push(s);
+        }
+      }
     }
   }
 

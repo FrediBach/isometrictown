@@ -36,6 +36,11 @@ export const CASES: Case[] = [
     set: at('Mollis', MOLLIS, 35, 1000, { abandon: 0.35 }),
   },
   {
+    id: 'betschwanden-abandon-50',
+    what: 'A village gone derelict: boarded and broken windows, holes in roofs, chimneys down, kerbs broken, cracked roads, lamps down, fences rotting',
+    set: at('Betschwanden', [9.0267, 46.9462], 35, 1000, { abandon: 0.5 }),
+  },
+  {
     id: 'mollis-title',
     what: 'Cinematic title standing on a street, with shading and round ends',
     set: at('Mollis', MOLLIS, 35, 1000, { title: true, titleText: 'Mollis', titleRound: true, titleReveal: 0.4 }),
