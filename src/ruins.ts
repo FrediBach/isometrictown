@@ -252,7 +252,7 @@ function strewTiles(B: Build, rings: number[][], out: Solid): void {
   for (let x = x0 + step / 2; x < x1; x += step)
     for (let y = y0 + step / 2; y < y1; y += step) {
       const [k0, k1] = B.key(x, y);
-      const g = (s: number) => hash(k0, k1, B.set.seed, 10076 + s);
+      const g = (s: number) => hash(k0, k1, B.seed, 10076 + s);
       if (g(0) > 0.5) continue;
       const px = x + (g(1) - 0.5) * step;
       const py = y + (g(2) - 0.5) * step;
@@ -293,7 +293,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
   const height = H - z0;
   const levels = Math.max(1, Math.floor(height / flat));
   const low = Math.max(cam.gap(0.9), cam.nib * 2.5);
-  const seed = B.set.seed;
+  const seed = B.seed;
   const pen = o.pen;
   const L = (pts: number[]) => {
     out.lines.push({ pen, pts });
@@ -426,7 +426,7 @@ export function ragged(B: Build, rings: WallRing[], H: number, t: number, stand:
  * Uses salts `salt` to `salt + 5`.
  */
 function heap(B: Build, wall: [number, number][], side: 1 | -1, w: number, lift: number, salt: number, out: Solid, pen = LINEWORK, gaps = 0): void {
-  const seed = B.set.seed;
+  const seed = B.seed;
   const [x0, y0] = wall[0];
   const [x1, y1] = wall[wall.length - 1];
   const len = Math.hypot(x1 - x0, y1 - y0);
@@ -522,7 +522,7 @@ export function frame(B: Build, rings: WallRing[], H: number, storey: number, st
         const y = p[i * 2 + 1] + (p[j * 2 + 1] - p[i * 2 + 1]) * u;
         const [k0, k1] = B.key(x, y);
         // A few columns have gone from the top floors already.
-        const zc = Math.max(from + storey, zTop - storey * Math.floor(hash(k0, k1, B.set.seed, 9970) * 3 * (1 - stand)));
+        const zc = Math.max(from + storey, zTop - storey * Math.floor(hash(k0, k1, B.seed, 9970) * 3 * (1 - stand)));
         if (zc <= from) continue;
         // A column casts a narrow strip across the sun, starting on the exposed floor.
         if (shade) {
@@ -548,5 +548,5 @@ export function ruin(B: Build, rings: WallRing[], z1: number, t: number, o: Omit
 export function gablesStand(B: Build): boolean {
   const f = B.fate;
   if (!f || f.stand >= 1) return true;
-  return f.stand > 0.75 + 0.2 * hash(f.key[0], f.key[1], B.set.seed, 9972);
+  return f.stand > 0.75 + 0.2 * hash(f.key[0], f.key[1], B.seed, 9972);
 }

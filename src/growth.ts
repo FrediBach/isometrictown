@@ -139,7 +139,7 @@ export function ivy(B: Build, ax: number, ay: number, bx: number, by: number, z0
   if (share <= 0 || !shows(B.cam, LOD.ivy, z - z0)) return;
   const len = Math.hypot(bx - ax, by - ay);
   const [k0, k1] = B.key((ax + bx) / 2, (ay + by) / 2);
-  const g = (s: number) => hash(k0, k1, B.set.seed, 9990 + s);
+  const g = (s: number) => hash(k0, k1, B.seed, 9990 + s);
   if (g(0) >= share) return;
   const u0 = 0.2 + 0.6 * g(1);
   const top = z0 + (z - z0) * (0.5 + 0.4 * g(2));

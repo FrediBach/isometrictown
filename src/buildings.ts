@@ -249,7 +249,7 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
     const [k0, k1] = B.key(ax + dx * m, ay + dy * m);
     // A shop that has closed down: its window boarded over in panels, and its awning gone.
     const fate = B.fate;
-    if (fate && fate.p > STAGES[0] + 0.15 * hash(k0, k1, B.set.seed, 9893)) {
+    if (fate && fate.p > STAGES[0] + 0.15 * hash(k0, k1, B.seed, 9893)) {
       if (shows(B.cam, LOD.board, hw * 0.66))
         for (const t of [-1 / 3, 1 / 3]) out.lines.push({ pen: LINEWORK, pts: [...P(m + hw * t, 0, 0.35), ...P(m + hw * t, 0, 2.6)] });
       continue;

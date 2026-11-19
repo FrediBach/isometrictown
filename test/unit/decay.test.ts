@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import type { Build } from '@/buildings';
+import { building, type Build } from '@/buildings';
 import { Camera } from '@/camera';
-import { fateOf, gone, kept, LEAVES, left, parkedCar, past, phaseName, resistance, stepsGone } from '@/decay';
-import type { Building } from '@/tiles';
-import { DEFAULT_SETTINGS } from '@/settings';
+import { classify } from '@/classify';
+import { fateOf, gone, kept, LEAVES, left, parkedCar, past, phaseName, resistance, RUIN_STAGE, settle, stepsGone } from '@/decay';
+import { empty, type Building } from '@/tiles';
+import { DEFAULT_SETTINGS, lockKey } from '@/settings';
 import { STYLES } from '@/styles';
 
 /** A Build whose local origin sits at (ox, oy) in map metres, as a pan would move it. */
@@ -94,14 +95,54 @@ describe('abandonment', () => {
   /** A 12 × 8 m house at (x, y). */
   const house = (x: number, y: number): Building => ({ shape: [{ pts: [x, y, x + 12, y, x + 12, y + 8, x, y + 8], seam: new Uint8Array(4) }], h: 7, min: 0 });
 
+  test('terrace neighbours lose their roofs at different times and keep their strength across pans', () => {
+    function row(seed: number, pan = 0) {
+      const B = build(0.65, pan);
+      B.set.seed = seed;
+      const town = empty();
+      town.buildings = Array.from({ length: 40 }, (_, i) => house(i * 12 - pan, 0));
+      classify(town, B.style, B.set, B.key);
+      expect(town.buildings.every(b => b.info!.kind === 'terrace')).toBe(true);
+      const roofed = town.buildings.map(b => fateOf(B, b)!.stage < RUIN_STAGE.shell);
+      B.set.abandon = 1;
+      const walls = town.buildings.map(b => fateOf(B, b)!.stand);
+      return { roofed, walls };
+    }
+    const first = row(1);
+    expect(first.roofed).toContain(true);
+    expect(first.roofed).toContain(false);
+    expect(Math.max(...first.walls) - Math.min(...first.walls)).toBeGreaterThan(0.2);
+    expect(row(1, 47)).toEqual(first);
+    expect(row(124).roofed).not.toEqual(first.roofed);
+  });
+
+  test('a locked house keeps its fate and broken masonry when the town seed changes', () => {
+    function ruin(seed: number, lock?: number) {
+      const B = build(0.93);
+      B.set.seed = B.seed = seed;
+      const town = empty();
+      const b = house(15, 21);
+      town.buildings = [b];
+      if (lock !== undefined) B.set.seedLocks = { [lockKey(B.key(21, 25))]: lock };
+      classify(town, B.style, B.set, B.key);
+      B.fates = settle(B, town.buildings);
+      return { solid: building(B, b), fate: B.fates.get(b)! };
+    }
+    const first = ruin(3);
+    expect(first.fate.stage).toBeGreaterThanOrEqual(RUIN_STAGE.broken);
+    expect(ruin(124, 3)).toEqual(first);
+    expect(ruin(124).fate.stand).not.toBe(first.fate.stand);
+  });
+
   test('buildings only ever get worse, and their roof holes only grow', () => {
     expect(fateOf(build(0), house(0, 0))).toBeUndefined();
     for (const [x, y] of SPOTS.slice(0, 120)) {
-      let last = { p: 0, stage: 0, holes: [] as number[] };
+      let last = { p: 0, stage: 0, stand: 1, holes: [] as number[] };
       for (const d of STEPS.slice(1)) {
         const f = fateOf(build(d), house(x, y))!;
         expect(f.p).toBeGreaterThanOrEqual(last.p);
         expect(f.stage).toBeGreaterThanOrEqual(last.stage);
+        expect(f.stand).toBeLessThanOrEqual(last.stand);
         expect(f.holes.length).toBeGreaterThanOrEqual(last.holes.length);
         // Every hole there before is still there, as wide or wider; holes may open in any order.
         for (let i = 0; i < last.holes.length; i += 3) {

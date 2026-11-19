@@ -2,6 +2,7 @@ import type { Build } from './buildings';
 import type { Kind } from './classify';
 import { pointInRing } from './geo';
 import { hash, patch } from './rng';
+import { seedFor } from './settings';
 import type { StyleId } from './styles';
 import type { Building } from './tiles';
 
@@ -38,12 +39,12 @@ export function stretch(d: number, start: number, end: number): number {
  * How long a thing at (x, y) holds out, in [0, 1): mostly its neighbourhood, so whole streets
  * empty together, and partly its own hash, so neighbours differ. `own` is the share of its own.
  */
-export function resistance(B: Build, x: number, y: number, salt: number, own = 0.4): number {
+export function resistance(B: Build, x: number, y: number, salt: number, own = 0.4, seed = B.set.seed): number {
   const [X, Y] = B.toAbs(x, y);
   const [k0, k1] = B.key(x, y);
   // The smooth patch keeps to the middle; stretch it back out towards 0 and 1.
-  const area = Math.min(0.999, Math.max(0, (patch(X / NEIGHBOURHOOD, Y / NEIGHBOURHOOD, B.set.seed, salt) - 0.5) * 1.7 + 0.5));
-  return area * (1 - own) + hash(k0, k1, B.set.seed, salt + 1) * own;
+  const area = Math.min(0.999, Math.max(0, (patch(X / NEIGHBOURHOOD, Y / NEIGHBOURHOOD, seed, salt) - 0.5) * 1.7 + 0.5));
+  return area * (1 - own) + hash(k0, k1, seed, salt + 1) * own;
 }
 
 /**
@@ -208,9 +209,8 @@ export const STAGES = [0.12, 0.3, 0.5, 0.65, 0.85] as const;
 /** The building stages that change how it is built, rather than its details. */
 export const RUIN_STAGE = { shell: 3, broken: 4, footprint: 5 } as const;
 /**
- * When buildings start to go, and how long they take. A building starts at `START · u` of the
- * slider and is a footprint `SPAN` later, so a typical house (u about 0.5) closes up near 0.23,
- * loses its roof near 0.5 and is a footprint by 0.75; the sturdiest finish at the very end.
+ * The neighbourhood sets when a building closes up. Its usual span from first wear to ruin
+ * is 0.7 of the slider. Houses vary the structural part of that span with their strength.
  */
 const START = 0.3;
 const SPAN = 1 - START;
@@ -241,9 +241,9 @@ export const DECAY: Partial<Record<StyleId, { stands: number; grows: number; scr
 };
 
 /** The share of its walls' height a building at progress p still has: all of it until it starts to fall. */
-export function standing(p: number, kind: Kind | undefined, style?: StyleId): number {
+export function standing(p: number, kind: Kind | undefined, style?: StyleId, wallFactor = 1): number {
   if (p <= FALLS_FROM) return 1;
-  const end = Math.min(0.8, ((kind && STANDS[kind]) ?? 0.12) * ((style && DECAY[style]?.stands) ?? 1));
+  const end = Math.min(0.8, ((kind && STANDS[kind]) ?? 0.12) * wallFactor * ((style && DECAY[style]?.stands) ?? 1));
   return 1 - ((p - FALLS_FROM) / (1 - FALLS_FROM)) * (1 - end);
 }
 
@@ -298,16 +298,31 @@ export function fateOf(B: Build, b: Building): Fate | undefined {
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;
   const key = B.key(cx, cy);
-  const seed = B.set.seed;
+  const seed = seedFor(B.set, b.info?.seed);
   // A terraced row mostly goes together: half of each house's own part is the row's.
   const row = b.info?.kind === 'terrace' ? b.info.seed : null;
   const own = row ? (hash(key[0], key[1], seed, 9861) + hash(row[0], row[1], seed, 9861)) / 2 : hash(key[0], key[1], seed, 9861);
-  const area = resistance(B, cx, cy, 9862, 0);
-  const u = area * 0.5 + own * 0.3 + (b.info ? STURDY[b.info.kind] : 0.45) * 0.2;
-  const prog = Math.max(0, Math.min(1, (d - START * u) / SPAN));
+  const area = resistance(B, cx, cy, 9862, 0, seed);
+  const kind = b.info?.kind ?? 'house';
+  const u = area * 0.5 + own * 0.3 + STURDY[kind] * 0.2;
+  const start = START * u;
+  let prog = Math.max(0, Math.min(1, (d - start) / SPAN));
+  let wallFactor = 1;
+  if ((kind === 'house' || kind === 'terrace') && prog > STAGES[0]) {
+    // A few unusually sound houses hold up well after their neighbours, even in one row.
+    const strength = hash(key[0], key[1], seed, 10127) ** 3;
+    const delay = 0.4 * strength - 0.045;
+    const closedAt = start + SPAN * STAGES[0];
+    const roofAt = start + SPAN * STAGES[2] + delay;
+    const ruinAt = Math.min(1, start + SPAN + delay);
+    prog = d < roofAt
+      ? STAGES[0] + (STAGES[2] - STAGES[0]) * stretch(d, closedAt, roofAt)
+      : STAGES[2] + (1 - STAGES[2]) * stretch(d, roofAt, ruinAt);
+    wallFactor = 0.75 + 2.6 * strength;
+  }
   let stage = 0;
   while (stage < STAGES.length && prog >= STAGES[stage]) stage++;
-  const fate: Fate = { p: prog, stage, key, holes: [], strokes: 0, stand: standing(prog, b.info?.kind, B.style.id) };
+  const fate: Fate = { p: prog, stage, key, holes: [], strokes: 0, stand: standing(prog, kind, B.style.id, wallFactor) };
   // Holes open in the roof of a derelict building, more of them and wider as it goes on.
   for (let i = 0; i < 3; i++) {
     const h = (k: number) => hash(key[0], key[1], seed, 9870 + i * 4 + k);
@@ -331,7 +346,7 @@ export function wornAs(f: Fate): string | undefined {
 export function lost(B: Build, salt: number, from: number = STAGES[1], span = 0.2): boolean {
   const f = B.fate;
   if (!f) return false;
-  return f.p > from + span * hash(f.key[0], f.key[1], B.set.seed, salt);
+  return f.p > from + span * hash(f.key[0], f.key[1], B.seed, salt);
 }
 
 /** Whether a run of a line starting at (x, y) has gone: see `kept()`. */

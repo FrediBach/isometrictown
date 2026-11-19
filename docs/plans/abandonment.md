@@ -143,13 +143,17 @@ loadTown / imageScene ─► Town ─► render()
 
 ### 4.1 Progress
 
-Each building has a progress value `p ∈ [0, 1]` at slider setting `d`.
+Each building has a progress value `p ∈ [0, 1]` at slider setting `d`. Its neighbourhood and kind set the usual timing.
 
 ```
 p = clamp((d − 0.3 · u) / 0.7, 0, 1)
 ```
 
-A building with resistance `u` starts deteriorating at `d = 0.3 · u` and reaches its endpoint 0.7 later. A house can be boarded up at p = 0.15 while the one opposite is roofless at p = 0.55. Other features use their own intervals on the slider.
+A building with resistance `u` starts deteriorating at `d = 0.3 · u` and normally reaches its endpoint 0.7 later. Other features use their own intervals on the slider.
+
+Detached and terraced houses follow the neighbourhood through closure (p = 0.12). After that, each house's structural strength determines when the roof falls and how much masonry survives. A hash of the individual footprint's map position and its effective seed, cubed, gives an occasional exceptionally strong house even in a terrace. The roof falls up to 4.5 slider points earlier or 35.5 points later than usual. From roof loss to its final ruin, the remaining stages follow in order. At 100% every house has lost its roof. In a temperate region, the wall-height factor at that point ranges from 9% to about 40% of the original eaves height, before individual breaches and corners are drawn.
+
+A building or terrace seed lock supplies the seed for its timing, masonry and roof damage. Each house in a locked row still gets its own strength from its position.
 
 ### 4.2 Resistance
 
