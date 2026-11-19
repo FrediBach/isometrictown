@@ -192,8 +192,14 @@ export function kept(B: Build, pts: number[], kind: keyof typeof LEAVES, salt: n
 
 /** Where each building stage starts, in its progress: closed, derelict, shell, broken shell, footprint ruin. */
 export const STAGES = [0.12, 0.3, 0.5, 0.65, 0.85] as const;
-/** How far apart the first and the last building go, as a share of the slider. */
-const SPREAD = 0.6;
+/** The building stages that change how it is built, rather than its details. */
+export const RUIN_STAGE = { shell: 3, broken: 4, footprint: 5 } as const;
+/**
+ * How far apart the first and the last building go. Progress is `d · (1 + SPREAD) − SPREAD · u`,
+ * so a typical house (u about 0.5) closes up near 0.3, loses its roof near 0.5 and is a
+ * footprint by 0.75, while the sturdiest hold out to the end.
+ */
+const SPREAD = 1.2;
 /** How long each kind of building holds out, 0 to 1: sheds go first, churches last. */
 const STURDY: Record<Kind, number> = { shed: 0.1, industrial: 0.35, house: 0.45, terrace: 0.5, apartment: 0.6, tall: 0.65, civic: 0.8, worship: 0.95 };
 
@@ -247,9 +253,9 @@ export function fateOf(B: Build, b: Building): Fate | undefined {
   return fate;
 }
 
-/** The catalogue facet for a building's stage, or undefined while it is lived in. Shells and ruins come with M3 and M4. */
+/** The catalogue facet for a building's stage, or undefined while it is lived in. Broken shells and footprint ruins come with M4. */
 export function wornAs(f: Fate): string | undefined {
-  return f.stage === 0 ? undefined : f.stage === 1 ? 'closed-up' : 'derelict';
+  return f.stage === 0 ? undefined : f.stage === 1 ? 'closed-up' : f.stage === 2 ? 'derelict' : 'shell';
 }
 
 /** Whether the building being drawn has lost a thing by now, at its own point from `from` to `from + span` of its progress. */

@@ -11,7 +11,8 @@ import { LINEWORK, ROOFS, SHADOWS, seedFor, type Settings, type LayerId } from '
 import { bestRect, corners, orthoParts, turn, type Part, type Rect } from './shape';
 import type { Style } from './styles';
 import type { Building, Ring } from './tiles';
-import { fateOf, lost, past, STAGES, wornAs, type Fate } from './decay';
+import { fateOf, lost, past, RUIN_STAGE, STAGES, wornAs, type Fate } from './decay';
+import { gable, shell, wallThickness } from './ruins';
 
 /** A 3D polyline. `on` restricts marks to a face; `edge` names supporting faces for exact rim visibility. `roofJoin` marks an end whose coplanar continuations must be trimmed. */
 export type Line3 = { pen: number; pts: number[]; closed?: boolean; layer?: LayerId; on?: number[][]; facet?: string; edge?: number[][][]; roofJoin?: boolean };
@@ -110,7 +111,7 @@ function runs(ring: Ring, z: number, keep: (i: number) => boolean, pen: number, 
 }
 
 /** `shop` is the direction of the street: walls facing it get shop fronts on the ground floor. */
-type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number; shop?: [number, number]; balconies?: 0 | 1 | 2; street?: [number, number]; door?: boolean; shutters?: number; facade?: Facade };
+export type PrismOptions = { roof: boolean; windows: boolean; pen: number; topPen?: number; shop?: [number, number]; balconies?: 0 | 1 | 2; street?: [number, number]; door?: boolean; shutters?: number; facade?: Facade };
 
 /**
  * Walls and an optional flat roof over footprint rings, from z0 to z1. Where a wall is a
@@ -190,11 +191,12 @@ export function prism(B: Build, rings: WallRing[], z0: number, z1: number, o: Pr
 }
 
 /** Shade a wall up to its profile, continuing existing strokes through the eaves where possible. */
-export function shadeWall(B: Build, ax: number, ay: number, bx: number, by: number, z0: number, top: (t: number) => number, out: Solid, extend = false): void {
+export function shadeWall(B: Build, ax: number, ay: number, bx: number, by: number, z0: number, top: (t: number) => number, out: Solid, extend = false, inShade = false): void {
   const { cam, set } = B;
   const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy);
   if (!set.shadeWalls || len < 1e-8 || !facing(B, ax, ay, bx, by)) return;
-  const away = (dx * B.sun[1] - dy * B.sun[0]) / len;
+  // `inShade` walls are shaded fully whichever way they face: the insides of a roofless shell.
+  const away = inShade ? 0.7 : (dx * B.sun[1] - dy * B.sun[0]) / len;
   if (away <= 0.2) return;
   if (extend) {
     let continued = false;
@@ -267,7 +269,8 @@ function shopfront(B: Build, ax: number, ay: number, bx: number, by: number, len
 }
 
 type HouseOptions = { roof: 'gabled' | 'hipped' | 'halfHipped'; tan: number; maxHe?: number; details: boolean };
-type House = { main: Part; P: Pitched; He: number; tan: number };
+/** `P` is null for a house whose roof has fallen in. */
+type House = { main: Part; P: Pitched | null; He: number; tan: number };
 
 /** Turn a part a quarter turn, keeping its side flags with the sides they belong to. */
 function turnPart(part: Part): Part {
@@ -333,9 +336,20 @@ function house(B: Build, b: Building, info: Info, H: number, o: HouseOptions, ou
   let He = Math.max(2.8, H - rise * 0.45);
   if (o.maxHe) He = Math.min(He, o.maxHe);
 
+  const endKind: End = o.roof === 'hipped' ? 'hip' : o.roof === 'halfHipped' ? 'half' : 'gable';
+  // Its roof fallen in, a house stands as a shell, its gables still up over the end walls.
+  if (B.fate && B.fate.stage >= RUIN_STAGE.shell) {
+    const t = wallThickness(info);
+    if (shell(B, [wall], He, t, { windows: true, pen: LINEWORK, ...fronts(info) }, out)) {
+      if (endKind !== 'hip')
+        for (const { rect: r, party, outside } of parts)
+          for (const side of [1, 3] as const) if (outside[side] && !party[side]) gable(B, r, side === 1 ? 1 : -1, He, tan, t, endKind === 'half' ? 0.6 : 1, out);
+      return { main, P: null, He, tan };
+    }
+  }
+
   prism(B, [wall], 0, He, { roof: false, windows: true, pen: LINEWORK, ...fronts(info) }, out);
 
-  const endKind: End = o.roof === 'hipped' ? 'hip' : o.roof === 'halfHipped' ? 'half' : 'gable';
   let P: Pitched | null = null;
   parts.forEach((part, i) => {
     const { rect: r, party, outside } = part;
@@ -458,7 +472,7 @@ function church(B: Build, b: Building, info: Info, H: number, out: Solid): boole
   const sk = d >= 0 ? 1 : -1;
   const x = r.cx + r.ux * sk * (r.L / 2 - s / 2);
   const y = r.cy + r.uy * sk * (r.L / 2 - s / 2);
-  const ridge = made.P.Hr;
+  const ridge = made.P?.Hr ?? made.He + (r.w / 2) * Math.min(Math.tan((50 * Math.PI) / 180), 13 / (r.w / 2));
   const h = H > ridge + 6 ? Math.min(H, 90) : ridge + 4 + s * 0.8;
   // Onion domes in the east and round the Alps, spires elsewhere.
   const onions = ONIONS[B.style.id] ?? 0;
@@ -582,6 +596,8 @@ function body(B: Build, b: Building): Solid[] {
 
   const seamless = !b.shape.some((r) => r.seam.some((v) => v));
   const simple = b.shape.length === 1 && seamless && z0 === 0;
+  // Roofless: houses and churches keep their gables (see `house()`); anything else is a plain shell.
+  const ruined = !!B.fate && B.fate.stage >= RUIN_STAGE.shell;
   if (info && z0 === 0) {
     const tan = Math.tan((info.pitch * Math.PI) / 180);
     switch (info.roof) {
@@ -589,26 +605,31 @@ function body(B: Build, b: Building): Solid[] {
       case 'hipped':
       case 'halfHipped':
         if (simple && house(B, b, info, H, { roof: info.roof, tan, details: true }, solid)) return out;
-        if (seamless && B.style.blocks !== 'flat' && skirtBlock(B, rings, H, info, false, solid)) return out;
+        if (!ruined && seamless && B.style.blocks !== 'flat' && skirtBlock(B, rings, H, info, false, solid)) return out;
         break;
       case 'mansard':
       case 'skirt':
-        if (seamless && skirtBlock(B, rings, H, info, info.roof === 'mansard', solid)) return out;
+        if (!ruined && seamless && skirtBlock(B, rings, H, info, info.roof === 'mansard', solid)) return out;
         break;
       case 'shed':
       case 'sawtooth':
-        if (simple && oneWay(B, b, info, H, solid)) return out;
+        if (!ruined && simple && oneWay(B, b, info, H, solid)) return out;
         break;
       case 'church':
         if (simple && church(B, b, info, H, solid)) return out;
         break;
       case 'mosque':
-        if (seamless && mosque(B, b, rings, info, H, k, out)) return out;
+        if (!ruined && seamless && mosque(B, b, rings, info, H, k, out)) return out;
         break;
       case 'temple':
-        if (simple && temple(B, b, info, H, solid)) return out;
+        if (!ruined && simple && temple(B, b, info, H, solid)) return out;
         break;
     }
+  }
+  if (ruined) {
+    // Walls stand to the eaves the roof sat on.
+    const top = !info || info.roof === 'flat' ? H : Math.max(Math.min(H, z0 + 3), H - 2.5);
+    if (shell(B, rings, top, wallThickness(info), { windows: true, pen: LINEWORK, ...fronts(info), shop: z0 === 0 ? shopSide(info) : undefined }, solid, z0)) return out;
   }
   flat(B, b, rings, info, z0, H, k, out);
   return out;

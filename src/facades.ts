@@ -4,7 +4,7 @@ import { atLeast, LOD, shows } from './lod';
 import { hash } from './rng';
 import { LINEWORK } from './settings';
 import type { StyleId } from './styles';
-import { STAGES } from './decay';
+import { RUIN_STAGE, STAGES } from './decay';
 
 /** How a building's windows are laid out. */
 export type Pattern = 'grid' | 'paired' | 'tall' | 'small' | 'irregular' | 'ribbon' | 'curtain' | 'blank' | 'clerestory' | 'officeEnd' | 'sparse';
@@ -532,7 +532,7 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
             }
           break;
         }
-        if (pen >= 0 && (o.closed || wear === 'shut')) {
+        if (pen >= 0 && wear !== 'open' && (o.closed || wear === 'shut')) {
           // Shutters closed against the sun: a pair of panels meeting in the middle.
           rect(pen, u0, u1, z0, z1);
           if (shows(cam, LOD.shutter, (u1 - u0) * 0.5 * c.across - cam.nib / cam.s))
@@ -561,8 +561,8 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
             L(LINEWORK, [...P(u0, 0, zt), ...P(u1, 0, zt)]);
           }
         }
-        // Shutters folded back either side.
-        if (pen >= 0) {
+        // Shutters folded back either side, until they fall off.
+        if (pen >= 0 && wear !== 'open') {
           const sw = Math.min(0.42, (u1 - u0) * 0.3);
           const far = sw + 0.06;
           const gap = Math.max(0.06, cam.nib * 1.5 / (cam.s * c.across));
@@ -637,13 +637,16 @@ function draw(c: Ctx, mode: Mode, out: Solid): void {
  * progress: shuttered windows are closed; ground-floor windows are mostly boarded up as the
  * building is closed; the glass of the rest breaks as it goes derelict. Once it changes, it stays.
  */
-function worn(c: Ctx, o: Opening, pen: number): 'whole' | 'shut' | 'boarded' | 'broken' {
-  const p = c.B.fate!.p;
+function worn(c: Ctx, o: Opening, pen: number): 'whole' | 'shut' | 'boarded' | 'broken' | 'open' {
+  const { p, stage } = c.B.fate!;
   const um = (o.u0 + o.u1) / 2;
   const floor = Math.round(o.z0 * 2);
   const h = at(c, um, 9894, floor);
+  const boarded = c.w.ground && o.z0 - c.w.z0 < 2 && at(c, um, 9895, floor) < 0.75;
+  // A shell's windows are empty openings, though boards nailed over them may hold.
+  if (stage >= RUIN_STAGE.shell) return boarded && pen < 0 ? 'boarded' : 'open';
   if (pen >= 0) return p > STAGES[0] + 0.15 * h ? 'shut' : 'whole';
-  if (c.w.ground && o.z0 - c.w.z0 < 2 && at(c, um, 9895, floor) < 0.75) return p > STAGES[0] + 0.15 * h ? 'boarded' : 'whole';
+  if (boarded) return p > STAGES[0] + 0.15 * h ? 'boarded' : 'whole';
   return p > STAGES[1] + 0.2 * h ? 'broken' : 'whole';
 }
 

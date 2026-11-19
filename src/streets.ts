@@ -256,7 +256,7 @@ export function cracks(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       paper.end();
       if (!weeds || !gone(B, x, y, 0.35, 0.9, 9922, 0.6)) return;
       const [tx, ty] = [pts[0], pts[1]];
-      paper.line3(GREENERY, [tx - 0.3, ty, 0.5, tx, ty, 0, tx + 0.3, ty, 0.55], (sx, sy, d) => !paper.on(M.foot, sx, sy) && paper.seen(sx, sy, d));
+      paper.line3(GREENERY, [tx - 0.5, ty, 0.8, tx, ty, 0, tx + 0.5, ty, 0.85], (sx, sy, d) => !paper.on(M.foot, sx, sy) && paper.seen(sx, sy, d));
     });
   }
 }

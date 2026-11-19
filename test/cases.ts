@@ -41,6 +41,11 @@ export const CASES: Case[] = [
     set: at('Betschwanden', [9.0267, 46.9462], 35, 1000, { abandon: 0.5 }),
   },
   {
+    id: 'nordlingen-abandon-65',
+    what: 'A walled old town in collapse: terraced rows standing as roofless shells with their gables, shaded inside, a few roofs still on',
+    set: at('Nördlingen', [10.4878, 48.8518], 30, 2500, { abandon: 0.65 }),
+  },
+  {
     id: 'mollis-title',
     what: 'Cinematic title standing on a street, with shading and round ends',
     set: at('Mollis', MOLLIS, 35, 1000, { title: true, titleText: 'Mollis', titleRound: true, titleReveal: 0.4 }),
