@@ -114,6 +114,7 @@ function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file
         ]}
       />
       <Hint>Organic streets follow the image and wander; a grid keeps to two directions. Auto is a grid for the North American and Australian styles.</Hint>
+      <NumberSetting name="imageRoundabouts" label="More roundabouts" min={0} max={2} step={0.01} hint="At 0%, junctions become roundabouts as often as in real towns of the style. Raise it for more, still most often where busy roads meet; at 200% nearly every junction with room is one." />
       <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Lead streets and paths along long, connected edges in the picture." />
       <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
       <BoolSetting name="imagePreserveSpace" label="Preserve empty space" />

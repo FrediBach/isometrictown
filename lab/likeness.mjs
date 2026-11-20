@@ -14,6 +14,7 @@
  *   npm run likeness -- --relief 1                     full Height from image
  *   npm run likeness -- --density 0.7 --hatching 1 --contours 0.5 --floorplans 1
  *   npm run likeness -- --neighbours 1                 zone borders as in real towns
+ *   npm run likeness -- --roundabouts 1                more roundabouts than real towns build
  *   npm run likeness -- --preserve-space --highlight 0.9
  *   npm run likeness -- --pens archive                 another palette
  *   npm run likeness -- --sheet a4                     another sheet (A3 by default)
@@ -50,6 +51,7 @@ const options = {
   contours: numberOption('contours'),
   floorplans: numberOption('floorplans'),
   neighbours: numberOption('neighbours'),
+  roundabouts: numberOption('roundabouts'),
   preserveSpace: flag('preserve-space'),
   highlight: numberOption('highlight'),
   pens: opt('pens', undefined),

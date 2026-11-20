@@ -61,6 +61,20 @@ test('busy junctions are controlled more often than quiet ones', () => {
   expect(controlOf(['minor', 'minor', 'minor'], 'suburb', 'no-such-style', 0.999)).toBe('none');
 });
 
+test('more roundabouts raises their odds and leaves real rates alone at 0', () => {
+  const arms = ['secondary', 'tertiary', 'minor', 'minor'];
+  const count = (more: number) => {
+    let n = 0;
+    for (let k = 0; k < 2000; k++) if (controlOf(arms, 'suburb', 'british', (k + 0.5) / 2000, more) === 'roundabout') n++;
+    return n;
+  };
+  expect(count(0)).toBe([...Array(2000).keys()].filter((k) => controlOf(arms, 'suburb', 'british', (k + 0.5) / 2000) === 'roundabout').length);
+  expect(count(0.5)).toBeGreaterThan(count(0));
+  expect(count(1)).toBeGreaterThan(3 * count(0));
+  // At 200% even a junction of two quiet streets, which real towns never make one, nearly always is.
+  expect(controlOf(['minor', 'minor', 'minor'], 'suburb', 'central', 0.9, 2)).toBe('roundabout');
+});
+
 test('crossings at a junction with signals have signals, and stand beyond the kerb of the widest street there', () => {
   const ways: Way[] = [
     { pts: [0, 0, 100, 0], kind: 'road', width: 13, cls: 'primary' },

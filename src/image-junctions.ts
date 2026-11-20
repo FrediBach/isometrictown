@@ -41,16 +41,28 @@ function habits(style: string): JunctionStyle {
 /** The learnt table's zone, from a zone label. */
 const zoneOf = (label: Label | undefined): string => (label && label in JUNCTIONS.styles.all.signals ? label : 'other');
 
+/** How much More roundabouts multiplies a junction's odds of being one at 100% (squared at 200%), and the least chance it starts from: real towns never make some kinds of junction roundabouts. */
+const MORE_ROUNDABOUTS = 100;
+const MORE_FLOOR = 0.002;
+
 /**
  * How a junction is controlled, from the classes of its arms, the zone round it and the regional
  * style: the chance of each from the learnt tables, and `pick` (a hash in [0, 1)) choosing.
+ * `more` (0 to 2) raises the odds of a roundabout above the learnt ones, 100 times at 1 and 10,000
+ * times at 2, so the
+ * junctions real towns most often make roundabouts stay the likeliest. It starts from a chance of
+ * at least 0.2%, so quiet junctions that real towns never make roundabouts can become one too.
  */
-export function controlOf(arms: string[], label: Label | undefined, style: string, pick: number): 'roundabout' | 'signals' | 'none' {
+export function controlOf(arms: string[], label: Label | undefined, style: string, pick: number, more = 0): 'roundabout' | 'signals' | 'none' {
   const h = habits(style);
   const r = arms.map(rankOf).sort((a, b) => b - a);
   const key = `${r[0]}${r[1]}${Math.min(arms.length, 4)}`;
   const zone = zoneOf(label);
-  const round = h.roundabout[zone]?.[key] ?? h.roundabout.other?.[key] ?? 0;
+  const learnt = h.roundabout[zone]?.[key] ?? h.roundabout.other?.[key] ?? 0;
+  const boost = Math.max(0, Math.min(2, more));
+  const f = MORE_ROUNDABOUTS ** boost;
+  const base = boost > 0 ? Math.max(learnt, MORE_FLOOR) : learnt;
+  const round = base >= 1 ? 1 : (base * f) / (1 - base + base * f);
   const lit = (h.signals[zone]?.[key] ?? h.signals.other?.[key] ?? 0) * (1 - round);
   return pick < round ? 'roundabout' : pick < round + lit ? 'signals' : 'none';
 }
@@ -100,8 +112,10 @@ export function makeRoundabout(g: Graph, v: number, r: number, cls: string, wate
     }
     if (!at) return null;
     const rest = [at[0], at[1], ...p.slice(k)];
-    // Long enough that the streets' rules still hold (§10.5): junctions 20 m apart, dead ends 25 m long.
-    if (lengthOf(rest) < 25) return null;
+    // Long enough that the streets' rules still hold (§10.5): dead ends 25 m long, junctions 20 m apart, edges 10 m.
+    const far = from ? e.b : e.a;
+    const farDeg = g.edges.reduce((n, f) => n + (f.a === far ? 1 : 0) + (f.b === far ? 1 : 0), 0);
+    if (lengthOf(rest) < (farDeg === 1 ? 25 : farDeg >= 3 ? 20 : 10)) return null;
     // The arm must leave the ring roughly square, not graze it.
     let q = 2;
     while (q + 2 < rest.length && Math.hypot(rest[q] - rest[0], rest[q + 1] - rest[1]) < 8) q += 2;

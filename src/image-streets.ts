@@ -55,7 +55,7 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number };
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number };
 
 const L = (l: Label) => LABELS.indexOf(l);
 const WATER = L('water');
@@ -562,7 +562,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
       if (x < z.x0 + 40 || y < z.y0 + 40 || x > x1 - 40 || y > y1 - 40) continue;
       const arms = g.edges.filter((e) => (e.a === v) !== (e.b === v)).map((e) => e.cls);
       const at = labelAt(x, y);
-      const control = controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950));
+      const control = controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950), set.roundabouts ?? 0);
       if (control === 'signals') signals.push(x, y);
       if (control !== 'roundabout') continue;
       const top = arms.reduce((a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a));

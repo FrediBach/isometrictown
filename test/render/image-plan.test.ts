@@ -227,6 +227,17 @@ describe('zoning', () => {
 });
 
 describe('the street graph', () => {
+  test('more roundabouts lays more of them, and the streets still keep every rule', () => {
+    const pic = PICTURES.gradient();
+    const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, scale: 2500, tilt: 40, sheet: 'a4', style: 'british' };
+    const rings = (sc: Scene) => sc.town.ways.filter((w) => w.kind === 'road' && w.pts.length > 8 && Math.hypot(w.pts[0] - w.pts[w.pts.length - 2], w.pts[1] - w.pts[w.pts.length - 1]) < 0.5).length;
+    const real = imageScene(pic, set);
+    const more = imageScene({ ...pic, id: 'roundabouts' }, { ...set, imageRoundabouts: 1 });
+    expect(rings(more)).toBeGreaterThan(rings(real) + 3);
+    expect(streetRules(more.streets)).toEqual([]);
+    expect(plausibility(more.town)).toEqual([]);
+  });
+
   const pics = ['gradient', 'disc', 'stripes', 'cross', 'landscape'] as const;
   // Each picture with one street pattern, the two taking turns.
   for (const [k, name] of pics.entries())

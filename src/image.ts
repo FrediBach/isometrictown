@@ -80,7 +80,7 @@ export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, nu
  * Detail, pen width, pen colours, sun, shadows and the layer switches only change how it
  * is drawn, so they never move a street.
  */
-const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'imageNeighbours', 'imageContours', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
+const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'imageNeighbours', 'imageRoundabouts', 'imageContours', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
 /** And the target, on what decides how the drawing should look. */
 const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia'];
 
@@ -162,7 +162,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
-  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary }, parks);
+  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts }, parks);
   town.controls = st.controls;
   // Roundabout islands: nothing is laid on them, and the renderer plants them.
   const islands: Shape[] = st.roundabouts.map((o) => [{ pts: o.pts.slice(0, -2), seam: new Uint8Array(o.pts.length / 2 - 1) }]);

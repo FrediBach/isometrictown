@@ -33,6 +33,8 @@ export type Settings = {
   imageFloorplans: number;
   /** How far zoning follows which districts border which in real towns, rather than the hand-made rules. */
   imageNeighbours: number;
+  /** More roundabouts than real towns build, 0 to 2: 0 keeps the learnt rates, 1 makes their odds 100 times higher, 2 makes nearly every junction with room one. */
+  imageRoundabouts: number;
   /** Keep transparent areas and any selected highlights free of scene ink. */
   imagePreserveSpace: boolean;
   /** Adjusted tone at which paper is reserved. One selects transparency alone. */
@@ -192,6 +194,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageContours: 0,
   imageFloorplans: 0,
   imageNeighbours: 0,
+  imageRoundabouts: 0,
   imagePreserveSpace: false,
   imageHighlight: 1,
   likeness: 0.6,
