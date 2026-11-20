@@ -384,7 +384,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M); });
   if (set.lamps && at('lamps', () => shows(cam, LOD.lamp))) withPen('lamps', () => { counts.lamps = lamps(B, paper, town.ways, M); });
   withPen('streets', () => { railings(paper, town.ways); }, 'railings');
-  withPen('markings', () => { markings(B, paper, town.ways, M); });
+  withPen('markings', () => { markings(B, paper, town.ways, M, town.controls); });
   for (const e of extras) e.draw(paper);
   withPen('ground', () => { paper.facet('plots', () => fences?.draw()); });
 

@@ -15,6 +15,7 @@
     "calibrate": "node lab/calibrate.mjs",
     "adjacency": "node lab/adjacency.mjs",
     "floorplans": "node lab/floorplans.mjs",
+    "junctions": "node lab/junctions.mjs",
     "test": "tsc -p test && vitest run",
     "test:unit": "vitest run --project unit",
     "test:watch": "vitest --project unit",

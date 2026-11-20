@@ -113,7 +113,7 @@ function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (sal
     const front = depth >= 22 && pick < 0.06 ? [0.32, 0, 0.32, cut, 0.68, cut, 0.68, 0] : [];
     outline = [0, 0, ...front, 1, 0, 1, 1, 0.68, 1, 0.68, 1 - cut, 0.32, 1 - cut, 0.32, 1, 0, 1];
   } else {
-    const plan = learntPlan(label, width, depth, mmPerMetre, false, r(14760), r(14761));
+    const plan = learntPlan(label, width, depth, mmPerMetre, false, r(14940), r(14941));
     if (!plan) return q;
     outline = plan.ring;
   }
@@ -340,9 +340,9 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       else if (!hall) {
         // A plan learnt from real terraces: wings reaching back into the yard, a stair tower, a
         // narrower rear range. A street side often repeats one, mirrored house by house in pairs.
-        const run = side(14762) < (UNIFORM[l.label] ?? 0);
-        const pick = run ? side(14763) : r(14763);
-        const flip = run ? ((l.index + (side(14764) < 0.5 ? 0 : 1)) % 2 ? 0.25 : 0.75) : r(14764);
+        const run = side(14942) < (UNIFORM[l.label] ?? 0);
+        const pick = run ? side(14943) : r(14943);
+        const flip = run ? ((l.index + (side(14944) < 0.5 ? 0 : 1)) % 2 ? 0.25 : 0.75) : r(14944);
         const main = (f1 - f0) * l.depth;
         const plan = squareish(l) ? learntPlan(l.label, frontage(l), main, c.mmPerMetre, true, pick, flip) : null;
         // Wings reach as far back as the lot lets them, so long as the main range keeps most of its depth.
@@ -397,7 +397,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       const right = r(14053) < 0.5;
       // A plan learnt from real suburbs. One that leaves part of its box empty (an L, a porch
       // recess) first tries a box a little larger, so the house keeps about its floor area.
-      const plan = learntPlan('suburb', ww, dd, c.mmPerMetre, false, r(14760), r(14761));
+      const plan = learntPlan('suburb', ww, dd, c.mmPerMetre, false, r(14940), r(14941));
       const grow = plan ? Math.min(1.2, 1 / Math.sqrt(planFill(plan.ring))) : 1;
       let house: number[] | null = null;
       let houseDepth = dd;
@@ -794,8 +794,8 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
     for (const sideSign of [1, -1]) {
       // A row keeps one depth and building line along a street side, and often one learnt plan.
       const rowHash = vary(p[0], p[1], sideSign > 0 ? 14020 : 14021);
-      const runPlan = vary(p[0], p[1], sideSign > 0 ? 14765 : 14766);
-      const runPick = vary(p[0], p[1], sideSign > 0 ? 14767 : 14768);
+      const runPlan = vary(p[0], p[1], sideSign > 0 ? 14945 : 14946);
+      const runPick = vary(p[0], p[1], sideSign > 0 ? 14947 : 14948);
       let s = 4;
       while (s < total - 4 && out.buildings.length < MAX_BUILDINGS) {
         const plot = index++;
@@ -876,7 +876,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           let wing: { lot: Pick<Lot, 'o' | 'i' | 'depth'>; plan: number[]; depth: number } | undefined;
           if (row && q.length === 8 && !c.guides) {
             const run = runPlan < (UNIFORM[label] ?? 0);
-            const plan = learntPlan(label, chord, depth, c.mmPerMetre, true, run ? runPick : r(14763), run ? (plot % 2 ? 0.25 : 0.75) : r(14764));
+            const plan = learntPlan(label, chord, depth, c.mmPerMetre, true, run ? runPick : r(14943), run ? (plot % 2 ? 0.25 : 0.75) : r(14944));
             if (plan) {
               const nx0 = (q[6] - q[0]) / depth, ny0 = (q[7] - q[1]) / depth;
               const nx1 = (q[4] - q[2]) / depth, ny1 = (q[5] - q[3]) / depth;

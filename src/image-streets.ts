@@ -17,15 +17,17 @@ import { blur, BUILT, LABELS, type Label } from './image-tone';
 import { simplify, streamsOf, traceLines } from './image-water';
 import type { Zones } from './image-zones';
 import type { Settings } from './settings';
-import { patch } from './rng';
+import { crossingsOf, controlOf, makeRoundabout, radiusOf, type Roundabout } from './image-junctions';
+import { hash, patch } from './rng';
 import { LOD } from './lod';
 import { offsetRing } from './shape';
 import { joinedTracks } from './trains';
-import { ROAD_WIDTH, type Shape, type Stream, type Way } from './tiles';
+import { ROAD_WIDTH, type Controls, type Shape, type Stream, type Way } from './tiles';
 
 /** The street network as a graph: node coordinates as flat [x, y, …], edges as polylines between nodes. */
 export type Graph = { nodes: number[]; edges: GraphEdge[] };
-export type GraphEdge = { a: number; b: number; pts: number[]; cls: string; main: boolean };
+/** An edge; `ring` marks a stretch of a roundabout, which the rules for streets don't hold to. */
+export type GraphEdge = { a: number; b: number; pts: number[]; cls: string; main: boolean; ring?: boolean };
 
 /** Street spacing in each built zone, m, at its densest and its sparsest (§10.4). */
 const SPACING: Partial<Record<Label, [number, number]>> = { old: [35, 60], rows: [60, 110], blocks: [60, 110], suburb: [80, 150], towers: [100, 180], works: [120, 250] };
@@ -53,7 +55,7 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string };
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number };
 
 const L = (l: Label) => LABELS.indexOf(l);
 const WATER = L('water');
@@ -213,7 +215,7 @@ function contourGuides(t: Target, strength: number): number[][] {
 }
 
 /** What the streets come to: roads and paths as ways, the graph the roads form, turning circles, streams, and the town's cores, largest first. */
-export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[]; cores: [number, number][] };
+export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[]; cores: [number, number][]; roundabouts: Roundabout[]; controls: Controls };
 
 /** Lay out the streets over a land plan, following the target as `cam` sees it. */
 export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettings, parks: Shape[]): Streets {
@@ -547,6 +549,30 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   // Plan lanes where their true width meets the road rule at reference detail and pen width.
   rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 
+  // Junctions as real towns of the style control them: some become roundabouts, some get signals.
+  const vary = set.vary ?? ((x: number, y: number, salt: number) => hash(Math.round(x), Math.round(y), set.seed, salt));
+  const roundabouts: Roundabout[] = [];
+  const signals: number[] = [];
+  {
+    const deg = degrees(g);
+    const N = g.nodes.length / 2;
+    for (let v = 0; v < N; v++) {
+      if (deg[v] < 3) continue;
+      const [x, y] = [g.nodes[v * 2], g.nodes[v * 2 + 1]];
+      if (x < z.x0 + 40 || y < z.y0 + 40 || x > x1 - 40 || y > y1 - 40) continue;
+      const arms = g.edges.filter((e) => (e.a === v) !== (e.b === v)).map((e) => e.cls);
+      const at = labelAt(x, y);
+      const control = controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950));
+      if (control === 'signals') signals.push(x, y);
+      if (control !== 'roundabout') continue;
+      const top = arms.reduce((a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a));
+      const r = radiusOf(top, ROAD_WIDTH[top] ?? ROAD_WIDTH.minor, set.style, vary(x, y, 14951));
+      const ring = makeRoundabout(g, v, r, top === 'service' ? 'minor' : top, water);
+      if (ring) roundabouts.push(ring);
+    }
+    compact(g);
+  }
+
   // Turning circles where suburban streets end.
   const deg = degrees(g);
   const circles: Shape[] = [];
@@ -573,7 +599,13 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   // Thin dark bluish lines are streams and ditches.
   const streams = streamsOf((c) => ridge[c] < 0 && blue[c] === 1, z, 25);
-  return { ways: waysOf(g, water), paths, graph: g, circles, streams, cores: settlements.map(s => s.centre) };
+  const ways = waysOf(g, water, roundabouts);
+  const zoneAt = (x: number, y: number) => {
+    const at = labelAt(x, y);
+    return at < 0 ? undefined : LABELS[at];
+  };
+  const controls: Controls = { signals, crossings: crossingsOf(ways, signals, roundabouts, zoneAt, set.style, vary) };
+  return { ways, paths, graph: g, circles, streams, cores: settlements.map(s => s.centre), roundabouts, controls };
 }
 
 const reverse = (p: number[]) => {
@@ -1154,9 +1186,10 @@ function rank(g: Graph, z: Zones, lanes: boolean): void {
  * The graph as ways: edges chained through plain bends into longer streets of one class, and
  * cut where they cross water, the crossings marked as bridges.
  */
-function waysOf(g: Graph, water: (x: number, y: number) => boolean): Way[] {
+function waysOf(g: Graph, water: (x: number, y: number) => boolean, roundabouts: Roundabout[] = []): Way[] {
   const deg = degrees(g);
-  const used = new Uint8Array(g.edges.length);
+  // A roundabout goes in whole, as one closed way, so the renderer finds it and plants its island.
+  const used = Uint8Array.from(g.edges, (e) => (e.ring ? 1 : 0));
   const at: number[][] = Array.from({ length: g.nodes.length / 2 }, () => []);
   g.edges.forEach((e, i) => {
     at[e.a].push(i);
@@ -1188,7 +1221,7 @@ function waysOf(g: Graph, water: (x: number, y: number) => boolean): Way[] {
       chains.push({ pts: pts.slice(0, m + 2), cls: e0.cls }, { pts: pts.slice(m), cls: e0.cls });
     } else chains.push({ pts, cls: e0.cls });
   });
-  const ways: Way[] = [];
+  const ways: Way[] = roundabouts.map((o) => ({ pts: o.pts, kind: 'road', width: ROAD_WIDTH[o.cls] ?? ROAD_WIDTH.minor, cls: o.cls }));
   for (const c of chains) {
     // Walk the street in short steps and cut it where it goes on or off the water.
     const out: number[][] = [[c.pts[0], c.pts[1]]];
@@ -1255,6 +1288,7 @@ export function streetRules(g: Graph): string[] {
     at[e.a].push(i);
     at[e.b].push(i);
     const len = lengthOf(e.pts);
+    if (e.ring) return;
     if (len < RULES.edge - 1e-6) out.push(`edge of ${len.toFixed(1)} m`);
     if (!e.main && (deg[e.a] === 1) !== (deg[e.b] === 1) && len < RULES.deadEnd - 1e-6) out.push(`dead end of ${len.toFixed(1)} m`);
     if (len < RULES.junctions - 1e-6 && deg[e.a] >= 3 && deg[e.b] >= 3) out.push(`junctions ${len.toFixed(1)} m apart`);

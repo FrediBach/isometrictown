@@ -7,7 +7,7 @@ import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
 import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
 import { curbs, dashed, groundSeg, outline, shifted, walk } from './streets';
-import type { Lift, Town, Way } from './tiles';
+import type { Controls, Lift, Town, Way } from './tiles';
 import { calm, wake } from './ships';
 
 /**
@@ -766,8 +766,12 @@ export function airfields(B: Build, paper: Paper, town: Town, M: Masks): Extra {
 
 // ---------------------------------------------------------------- Road markings
 
-/** Centre dashes on main roads and zebra crossings near busy junctions. */
-export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
+/**
+ * Centre dashes on main roads, and zebra crossings and traffic lights: near busy junctions where
+ * the renderer infers them (map towns), or where `controls` places them (image towns), with stop
+ * lines on the approaches to signals.
+ */
+export function markings(B: Build, paper: Paper, ways: Way[], M: Masks, controls: Controls | null = null): void {
   if (!B.set.markings || !shows(B.cam, LOD.centreLine)) return;
   const key = (x: number, y: number) => `${Math.round(x * 2)},${Math.round(y * 2)}`;
   const degree = new Map<string, number>();
@@ -778,6 +782,52 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
   const junction = (x: number, y: number) => (degree.get(key(x, y)) ?? 0) >= 3;
   const zebras: [number, number][] = [];
   const test: Test = (x, y, d) => paper.on(M.road, x, y) && !paper.on(M.foot, x, y) && paper.seen(x, y, d);
+  /** A traffic light on the kerb to the right of traffic heading against the street's direction (`dir` 1) or along it (−1). */
+  const light = (x: number, y: number, ux: number, uy: number, dir: number, width: number) => {
+    const side = B.left ? -dir : dir;
+    const px = x - uy * side * (width / 2 + 0.8);
+    const py = y + ux * side * (width / 2 + 0.8);
+    if (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py)) return;
+    paper.line3(LINEWORK, [px, py, 0, px, py, 3.2]);
+    const fx = -ux * dir * 0.2;
+    const fy = -uy * dir * 0.2;
+    const box = [px + fx - uy * 0.2, py + fy + ux * 0.2, px + fx + uy * 0.2, py + fy - ux * 0.2];
+    paper.line3(LINEWORK, [box[0], box[1], 2.2, box[2], box[3], 2.2, box[2], box[3], 3.3, box[0], box[1], 3.3], paper.seen, true);
+  };
+  /** A stop line across the lanes of traffic heading as for `light()`. */
+  const stopLine = (x: number, y: number, ux: number, uy: number, dir: number, width: number) => {
+    if (!shows(B.cam, LOD.zebra, width / 2)) return;
+    const side = B.left ? -dir : dir;
+    const [ax, ay, bx, by] = place(x, y, ux, uy, [[0, 0.3 * side], [0, (width / 2 - 0.4) * side]]);
+    if (B.set.abandon > 0 && left(B, 'paint', (ax + bx) / 2, (ay + by) / 2, 9845, 0.7)) return;
+    paper.line3(LINEWORK, [ax, ay, 0, bx, by, 0], test);
+  };
+  /** Zebra stripes across a street `width` wide at a point, where at least three show clear of each other. */
+  const zebra = (x: number, y: number, ux: number, uy: number, width: number) => {
+    const cam = B.cam;
+    const dx = cam.sx(x + ux, y + uy) - cam.sx(x, y);
+    const dy = cam.sy(x + ux, y + uy, 0) - cam.sy(x, y, 0);
+    const along = Math.hypot(dx, dy);
+    if (!shows(cam, LOD.zebra, 3 * along / cam.s) || 3 * along < 2 * cam.nib) return;
+    const nx = cam.sx(x - uy, y + ux) - cam.sx(x, y);
+    const ny = cam.sy(x - uy, y + ux, 0) - cam.sy(x, y, 0);
+    const across = Math.abs(dx * ny - dy * nx) / along;
+    if (across < 1e-9) return;
+    const step = Math.max(1.3, cam.gap(0.8) / across, 2 * cam.nib / across);
+    const count = Math.floor((width - 2) / step) + 1;
+    // Keep a centred group with clear paper between stripes; a pair no longer reads as a crossing.
+    if (count < 3) return;
+    zebras.push([x, y]);
+    for (let i = 0; i < count; i++) {
+      const v = (i - (count - 1) / 2) * step;
+      const [ax, ay, bx, by] = place(x, y, ux, uy, [
+        [-1.5, v],
+        [1.5, v],
+      ]);
+      if (B.set.abandon > 0 && left(B, 'paint', (ax + bx) / 2, (ay + by) / 2, 9844, 0.7)) continue;
+      paper.line3(LINEWORK, [ax, ay, 0, bx, by, 0], test);
+    }
+  };
   for (const w of ways) {
     if (w.kind !== 'road' || !MARKED.has(w.cls) || w.width < 10) continue;
     const p = w.pts;
@@ -796,7 +846,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       paper.end();
     });
     // Zebras a little way in from junctions, and traffic lights at the busier ones.
-    if (!shows(B.cam, LOD.zebra)) continue;
+    if (controls || !shows(B.cam, LOD.zebra)) continue;
     if (w.cls !== 'tertiary') {
       for (const [isJ, t, dir] of [
         [j0, 2, 1],
@@ -807,15 +857,7 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
         const [k0, k1] = B.key(x, y);
         if (hash(k0, k1, B.set.seed, 435) > 0.6) continue;
         // On the kerb to the right of traffic heading into the junction.
-        const side = B.left ? -dir : dir;
-        const px = x - uy * side * (w.width / 2 + 0.8);
-        const py = y + ux * side * (w.width / 2 + 0.8);
-        if (onMask(paper, M.foot, px, py) || onMask(paper, M.water, px, py)) continue;
-        paper.line3(LINEWORK, [px, py, 0, px, py, 3.2]);
-        const fx = -ux * dir * 0.2;
-        const fy = -uy * dir * 0.2;
-        const box = [px + fx - uy * 0.2, py + fy + ux * 0.2, px + fx + uy * 0.2, py + fy - ux * 0.2];
-        paper.line3(LINEWORK, [box[0], box[1], 2.2, box[2], box[3], 2.2, box[2], box[3], 3.3, box[0], box[1], 3.3], paper.seen, true);
+        light(x, y, ux, uy, dir, w.width);
       }
     }
     for (const [isJ, t] of [
@@ -827,29 +869,66 @@ export function markings(B: Build, paper: Paper, ways: Way[], M: Masks): void {
       const [k0, k1] = B.key(x, y);
       // One zebra per spot, even where a road is split into pieces or carriageways.
       if (hash(k0, k1, B.set.seed, 430) > 0.6 || zebras.some(([zx, zy]) => Math.hypot(zx - x, zy - y) < 14)) continue;
-      const cam = B.cam;
-      const dx = cam.sx(x + ux, y + uy) - cam.sx(x, y);
-      const dy = cam.sy(x + ux, y + uy, 0) - cam.sy(x, y, 0);
-      const along = Math.hypot(dx, dy);
-      if (!shows(cam, LOD.zebra, 3 * along / cam.s) || 3 * along < 2 * cam.nib) continue;
-      const nx = cam.sx(x - uy, y + ux) - cam.sx(x, y);
-      const ny = cam.sy(x - uy, y + ux, 0) - cam.sy(x, y, 0);
-      const across = Math.abs(dx * ny - dy * nx) / along;
-      if (across < 1e-9) continue;
-      const step = Math.max(1.3, cam.gap(0.8) / across, 2 * cam.nib / across);
-      const count = Math.floor((w.width - 2) / step) + 1;
-      // Keep a centred group with clear paper between stripes; a pair no longer reads as a crossing.
-      if (count < 3) continue;
-      zebras.push([x, y]);
-      for (let i = 0; i < count; i++) {
-        const v = (i - (count - 1) / 2) * step;
-        const [ax, ay, bx, by] = place(x, y, ux, uy, [
-          [-1.5, v],
-          [1.5, v],
-        ]);
-        if (B.set.abandon > 0 && left(B, 'paint', (ax + bx) / 2, (ay + by) / 2, 9844, 0.7)) continue;
-        paper.line3(LINEWORK, [ax, ay, 0, bx, by, 0], test);
+      zebra(x, y, ux, uy, w.width);
+    }
+  }
+  if (!controls || !shows(B.cam, LOD.zebra)) return;
+  // Placed signals and crossings: lights and stop lines on every street into a junction with signals.
+  const sig = controls.signals;
+  const signalled = (x: number, y: number, d: number) => {
+    for (let k = 0; k < sig.length; k += 2) if (Math.hypot(sig[k] - x, sig[k + 1] - y) < d) return true;
+    return false;
+  };
+  // How far the widest street at each junction reaches from its middle, so lights stand at the corner, clear of it.
+  const reach = new Map<string, number>();
+  for (const w of ways) {
+    if (w.kind !== 'road') continue;
+    for (const k of [key(w.pts[0], w.pts[1]), key(w.pts[w.pts.length - 2], w.pts[w.pts.length - 1])]) reach.set(k, Math.max(reach.get(k) ?? 0, w.width / 2));
+  }
+  for (const w of ways) {
+    if (w.kind !== 'road' || w.bridge || w.pts.length < 4) continue;
+    const p = w.pts;
+    const cum = measure(p);
+    const L = cum[cum.length - 1];
+    for (const [ex, ey, dir] of [
+      [p[0], p[1], 1],
+      [p[p.length - 2], p[p.length - 1], -1],
+    ] as const) {
+      if (!signalled(ex, ey, 1)) continue;
+      // The light at the corner, the stop line behind the crossing image mode puts 2.5 m beyond it.
+      const r = reach.get(key(ex, ey)) ?? w.width / 2;
+      if (L < 2 * (r + 6)) continue;
+      const [x, y, ux, uy] = at(p, cum, dir > 0 ? r + 0.6 : L - r - 0.6);
+      light(x, y, ux, uy, dir, w.width);
+      const [sx, sy] = at(p, cum, dir > 0 ? r + 5.5 : L - r - 5.5);
+      stopLine(sx, sy, ux, uy, dir, w.width);
+    }
+  }
+  for (const c of controls.crossings) {
+    // The street the crossing is on, and its direction there.
+    let best = 1;
+    let found: [number, number, number] | null = null;
+    for (const w of ways) {
+      if (w.kind !== 'road') continue;
+      const p = w.pts;
+      for (let k = 2; k < p.length; k += 2) {
+        const [ax, ay, bx, by] = [p[k - 2], p[k - 1], p[k], p[k + 1]];
+        const dx = bx - ax;
+        const dy = by - ay;
+        const l = Math.hypot(dx, dy) || 1;
+        const t = Math.max(0, Math.min(l, ((c.x - ax) * dx + (c.y - ay) * dy) / l));
+        const d = Math.hypot(ax + (dx * t) / l - c.x, ay + (dy * t) / l - c.y);
+        if (d < best) [best, found] = [d, [dx / l, dy / l, w.width]];
       }
+    }
+    if (!found) continue;
+    const [ux, uy, width] = found;
+    zebra(c.x, c.y, ux, uy, width);
+    // Signals of its own between junctions: a light and a stop line before it for each direction.
+    if (c.kind !== 'signals' || signalled(c.x, c.y, 15)) continue;
+    for (const dir of [1, -1]) {
+      light(c.x + ux * dir * 2.5, c.y + uy * dir * 2.5, ux, uy, dir, width);
+      stopLine(c.x + ux * dir * 4, c.y + uy * dir * 4, ux, uy, dir, width);
     }
   }
 }

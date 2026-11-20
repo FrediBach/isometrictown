@@ -23,6 +23,8 @@ export type Building = { shape: Shape; h: number; min: number; guess?: boolean; 
 export type Tagged = { x: number; y: number; building?: string; roof?: string; across?: boolean; from?: 'image' };
 export type WayKind = 'road' | 'rail' | 'path';
 /** `sub` is the OpenMapTiles subclass (tram, narrow_gauge, steps…), `service` the kind of service road (parking_aisle, driveway…). `streetTram` marks a shared tram corridor on both road and rail. */
+/** Junctions with traffic signals, as flat [x, y, …] at the street ends meeting there, and pedestrian crossings on the streets. */
+export type Controls = { signals: number[]; crossings: { x: number; y: number; kind: 'zebra' | 'signals' }[] };
 export type Way = { pts: number[]; kind: WayKind; width: number; cls: string; sub?: string; service?: string; unpaved?: boolean; bridge?: boolean; oneway?: 1 | -1; streetTram?: boolean };
 /** A cable car, gondola, chair lift or drag lift. */
 export type Lift = { pts: number[]; cls: string };
@@ -81,6 +83,8 @@ export type Town = {
   airports: Airport[];
   /** Trees with a place of their own, as image mode plants them. Always empty from map tiles. */
   trees: { x: number; y: number; r: number; h: number; conifer: boolean }[];
+  /** Traffic signals and pedestrian crossings as image mode places them; null from map tiles, whose markings the renderer infers. */
+  controls: Controls | null;
   /**
    * How built up the land is, from every tile loaded rather than only the area drawn, so that
    * what is worked out from it (traffic, parking, power lines) doesn't change as the view pans:
@@ -241,7 +245,7 @@ function readTile(x: number, y: number, onDownload?: () => void): Promise<Town> 
 
 /** A town with nothing in it. */
 export function empty(): Town {
-  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], trees: [], density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
+  return { buildings: [], water: [], waterCls: [], green: [], wood: [], plazas: [], ways: [], pois: [], numbers: [], landuse: [], cover: [], streams: [], tagged: [], tunnels: [], lifts: [], ferries: [], pools: [], runways: [], aprons: [], peaks: [], helipads: [], airports: [], trees: [], controls: null, density: { built: [], shops: [] }, nearby: { landuse: [], pois: [], numbers: [], helipads: [], ways: [] } };
 }
 
 /** Decode one tile into absolute Web Mercator metres. */

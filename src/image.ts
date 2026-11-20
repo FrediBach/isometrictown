@@ -12,7 +12,7 @@ import { villageRailway } from './image-rail';
 import { rockSites } from './image-rock';
 import { ferryLandings } from './image-ferries';
 import { Camera } from './camera';
-import { Frame, ringArea, type LngLat } from './geo';
+import { Frame, pointInRing, ringArea, type LngLat } from './geo';
 import { amenitiesOf, parkingSites } from './image-amenities';
 import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { FloorplanGuides } from './image-floorplans';
@@ -29,7 +29,7 @@ import { reachHeight, streamShapes } from './render';
 import { hash } from './rng';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { IMAGE_STYLE, STYLES, type Region, type Style, type StyleId } from './styles';
-import { empty, type Town } from './tiles';
+import { empty, type Shape, type Town } from './tiles';
 
 export { plausibility } from './image-check';
 
@@ -162,7 +162,10 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
-  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id }, parks);
+  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary }, parks);
+  town.controls = st.controls;
+  // Roundabout islands: nothing is laid on them, and the renderer plants them.
+  const islands: Shape[] = st.roundabouts.map((o) => [{ pts: o.pts.slice(0, -2), seam: new Uint8Array(o.pts.length / 2 - 1) }]);
   town.ways = [...st.ways, ...st.paths, ...fields.tracks, ...allots.tracks];
   const tram = tramRoute(st.ways, st.cores);
   if (tram) town.ways.push(tram);
@@ -175,13 +178,13 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   for (const w of st.ways) occ.way(w);
   for (const w of [...st.paths, ...fields.tracks, ...allots.tracks]) occ.way({ ...w, width: 1.5 }, 0.5);
   const streams = streamShapes(town.streams);
-  for (const s of [...town.water, ...streams, ...parks, ...town.wood, ...town.plazas]) occ.fill(s.map((r) => r.pts));
+  for (const s of [...town.water, ...streams, ...parks, ...town.wood, ...town.plazas, ...islands]) occ.fill(s.map((r) => r.pts));
   const landings = ferryLandings(town, cam, occ, vary);
   town.ways.push(...landings);
   parkingSites(town, zones, occ, vary);
   const mmPerMetre = 1000 / set.scale;
   note('Cutting blocks into lots');
-  const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre);
+  const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre).filter((b) => !st.roundabouts.some((o) => pointInRing(...centre(b.face), o.pts)));
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
   const ground = new Ground(town);
   const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: [...st.paths, ...landings], ways: st.ways, cores: st.cores, mmPerMetre };
