@@ -217,7 +217,6 @@ export class Paper {
     return mask[this.index(x, y)];
   }
 
-  /** Mark ground rings (flat x,y local metres at z = 0) in a mask, with 1 or another code. */
   /** Fill a mask with polygons given in 3D (flat x, y, z), where they show on the sheet. */
   fillMask3(mask: Uint8Array, rings: number[][], value = 1): void {
     const cam = this.cam;
@@ -230,7 +229,8 @@ export class Paper {
     scan(P, W, this.H, (y, xa, xb) => mask.fill(value, y * W + xa, y * W + xb + 1));
   }
 
-  fillMask(mask: Uint8Array, rings: ArrayLike<number>[], value = 1): void {
+  /** Mark ground rings in a mask, optionally limiting the fill to selected pixels. */
+  fillMask(mask: Uint8Array, rings: ArrayLike<number>[], value = 1, keep?: (pixel: number) => boolean): void {
     const cam = this.cam;
     const P = rings.map((r) => {
       const out = new Array<number>(r.length);
@@ -241,7 +241,12 @@ export class Paper {
       return out;
     });
     const W = this.W;
-    scan(P, W, this.H, (y, xa, xb) => mask.fill(value, y * W + xa, y * W + xb + 1));
+    scan(P, W, this.H, (y, xa, xb) => {
+      const start = y * W + xa, end = y * W + xb + 1;
+      if (keep) {
+        for (let i = start; i < end; i++) if (keep(i)) mask[i] = value;
+      } else mask.fill(value, start, end);
+    });
   }
 
   /** Done filling depth: build the 3×3 max buffer used for line visibility. */

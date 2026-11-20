@@ -59,12 +59,12 @@
     "wreck": 193
   },
   "plan": {
-    "lifts": 32752,
-    "rawLifts": 44828,
-    "inkMm": 114179.2,
-    "travelMm": 68388.9,
-    "minutes": 225.6,
-    "pens": [["Shadows",8462,15659.6],["Water",120,422.2],["Greenery",7439,26268.7],["Roofs",2791,10214],["Linework",13940,61614.7]]
+    "lifts": 32963,
+    "rawLifts": 45039,
+    "inkMm": 114765.2,
+    "travelMm": 68451,
+    "minutes": 226.9,
+    "pens": [["Shadows",8614,15967.3],["Water",120,422.2],["Greenery",7498,26547],["Roofs",2791,10214],["Linework",13940,61614.7]]
   },
   "features": {
     "buildings": [19292,45293.3],
@@ -72,18 +72,18 @@
     "cars:parking": [26,88],
     "cars:stations": [13,22.7],
     "details": [109,177.4],
-    "ground": [966,2916.8],
+    "ground": [1004,2984.5],
     "ground:campsites": [11,16.3],
     "ground:wild-grass": [685,1447.7],
     "lamps": [197,340.2],
-    "parks": [890,3415.7],
+    "parks": [911,3626.3],
     "power:powerLines": [15,36.9],
     "rails": [72,618.1],
     "roofHatch": [1107,2407.8],
     "roofs": [2765,7784.8],
     "rooftops": [18,38.4],
     "shadeWalls": [3589,6985.8],
-    "shadows": [4878,8673.8],
+    "shadows": [5030,8981.5],
     "streets:bridges": [22,58.1],
     "streets:busStops": [12,25.5],
     "streets:cracks": [707,913.3],
@@ -162,12 +162,12 @@
     "details/shutters": [14,45.7],
     "details/terrace": [68,113.2],
     "ground/allotment-sheds": [115,154.9],
-    "ground/allotments": [282,1525.8],
+    "ground/allotments": [282,1526.5],
     "ground/farm-edges": [62,236.9],
-    "ground/lawns": [239,452.5],
-    "ground/meadows": [249,512.5],
+    "ground/lawns": [267,501],
+    "ground/meadows": [259,530.9],
     "ground/open-country": [19,34.3],
-    "parks/grass": [361,1140.9],
+    "parks/grass": [382,1351.5],
     "parks/park-edges": [329,1417.3],
     "parks/wood-edges": [200,857.4],
     "rails/catenary": [36,277.6],
@@ -350,5 +350,5 @@
     "windows/terrace": [547,1735.8],
     "windows/town-hall": [8,36.3]
   },
-  "svg": {"bytes":1611933,"sha1":"ca76d0230761d8d1"}
+  "svg": {"bytes":1618904,"sha1":"740ba1f66fde2cb0"}
 }

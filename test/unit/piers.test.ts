@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import type { Build } from '@/buildings';
 import { Camera } from '@/camera';
-import { bridges, pierOutline } from '@/infra';
+import { bridges, ferries, pierOutline } from '@/infra';
 import type { Masks } from '@/nature';
 import { Paper } from '@/raster';
 import { DEFAULT_SETTINGS } from '@/settings';
@@ -9,8 +9,8 @@ import { STYLES } from '@/styles';
 import type { Town, Way } from '@/tiles';
 import piers from '../fixtures/lake-piers.json';
 
-function setup(bearing = 35) {
-  const set = { ...DEFAULT_SETTINGS, scale: 1000, bearing }, cam = new Camera(set), paper = new Paper(cam);
+function setup(bearing = 35, penWidth = DEFAULT_SETTINGS.penWidth) {
+  const set = { ...DEFAULT_SETTINGS, scale: 1000, bearing, penWidth }, cam = new Camera(set), paper = new Paper(cam);
   const B: Build = { set, cam, style: STYLES.alpine, seed: set.seed, sun: [1, 0], equator: [0, -1], left: false,
     key: (x, y) => [Math.round(x), Math.round(y)], toAbs: (x, y) => [x, y], cell: (x, y, size) => [Math.floor(x / size), Math.floor(y / size)] };
   const M = Object.fromEntries(['water', 'pool', 'road', 'under', 'calm', 'green', 'wood', 'foot', 'shadow', 'title'].map(k => [k, paper.mask()])) as Masks;
@@ -53,4 +53,16 @@ test('pier decks really occlude water, while open pier centre lines retain their
   expect(bridge.solids).toHaveLength(0);
   other.paper.finishDepth(); bridge.draw(other.paper);
   expect(other.paper.pens.flat().length).toBeGreaterThan(2);
+});
+
+test.each(['map', 'image'] as const)('%s ferries use the crossing for placement without drawing its route', source => {
+  const { B, paper, M } = setup(0, 0.2);
+  B.set.source = source;
+  B.set.life = false; // Turn off wakes so any marks on the water would be route strokes.
+  const result = ferries(B, paper, { ferries: [[-90, 0, 90, 0]] } as Town, M);
+  expect(result.solids).toHaveLength(1);
+  expect(result.solids[0].lines.length).toBeGreaterThan(0);
+  paper.finishDepth();
+  result.draw(paper);
+  expect(paper.pens.flat()).toHaveLength(0);
 });

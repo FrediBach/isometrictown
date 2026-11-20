@@ -367,7 +367,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     });
     paper.facet('pools', () => pools(paper, M, town.pools));
   });
-  const paths = (set.parks || G || set.shadows) && set.paths ? at('paths', () => pathClearance(B, paper, town.ways)) : undefined;
+  const paths = (set.parks || G || set.shadows) && set.paths ? at('paths', () => pathClearance(B, paper, town.ways, M, G?.land)) : undefined;
   if (set.parks) withPen('parks', () => {
     paper.facet('grass', () => parkGrass(paper, M, G, paths, hatching));
     paper.facet('park-edges', () => outline(paper, GREENERY, town.green, M.green, (x, y) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && !paper.on(M.wood, x, y)));
@@ -381,7 +381,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   if (set.abandon > 0) withPen('streets', () => { cracks(B, paper, town.ways, M); }, 'cracks');
   withPen('streets', () => { outline(paper, LINEWORK, town.plazas, M.road); }, 'plazas');
   if (set.rails) withPen('rails', () => { railways(B, paper, town.ways, M); });
-  if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M); });
+  if (set.paths) withPen('paths', () => { footpaths(B, paper, town.ways, M, G?.land); });
   if (set.lamps && at('lamps', () => shows(cam, LOD.lamp))) withPen('lamps', () => { counts.lamps = lamps(B, paper, town.ways, M); });
   withPen('streets', () => { railings(paper, town.ways); }, 'railings');
   withPen('markings', () => { markings(B, paper, town.ways, M, town.controls); });

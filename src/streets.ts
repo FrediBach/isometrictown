@@ -1,4 +1,5 @@
 import type { Build } from './buildings';
+import { GARDEN, MEADOW, SCRUB } from './ground';
 import { onMask } from './infra';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
@@ -365,15 +366,21 @@ function railProjection(B: Build, p: number[], g: number): { gauge: number; pitc
   return { gauge, pitch: Math.max(2.6, Math.max(c.gap(1.2), c.nib * 2) / separation) };
 }
 
+function drawsPathDash(M: Masks, land: Uint8Array | undefined, pixel: number): boolean {
+  const cover = land?.[pixel];
+  return !M.green[pixel] && !M.wood[pixel] && cover !== MEADOW && cover !== SCRUB && cover !== GARDEN;
+}
+
 /** Reserve a continuous, pen-scaled corridor through park tone for drawable paths. */
-export function pathClearance(B: Build, paper: Paper, ways: Way[]): Uint8Array {
+export function pathClearance(B: Build, paper: Paper, ways: Way[], M: Masks, land?: Uint8Array): Uint8Array {
   const mask = paper.mask();
   if (!B.set.paths) return mask;
   const cam = B.cam;
-  const fill = (p: number[]) => {
+  const keepDash = (pixel: number) => drawsPathDash(M, land, pixel);
+  const fill = (p: number[], dashedPath: boolean) => {
     const ground: number[] = [];
     for (let i = 0; i < p.length; i += 2) ground.push(...cam.ground(p[i], p[i + 1]));
-    paper.fillMask(mask, [ground]);
+    paper.fillMask(mask, [ground], 1, dashedPath ? keepDash : undefined);
   };
   for (const w of ways) {
     if (!visiblePath(B, w)) continue;
@@ -388,9 +395,9 @@ export function pathClearance(B: Build, paper: Paper, ways: Way[]): Uint8Array {
       const len = Math.hypot(bx - ax, by - ay);
       if (len < 1e-6) continue;
       const nx = -(by - ay) / len * r, ny = (bx - ax) / len * r;
-      fill([ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny]);
-      fill(polygon(ax, ay, r, 12));
-      fill(polygon(bx, by, r, 12));
+      fill([ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, ax - nx, ay - ny], spread === 0);
+      fill(polygon(ax, ay, r, 12), spread === 0);
+      fill(polygon(bx, by, r, 12), spread === 0);
     }
   }
   return mask;
@@ -401,11 +408,12 @@ function visiblePath(B: Build, w: Way): boolean {
 }
 
 /** Dashed paths, paired track ruts and stair treads. */
-export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
+export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks, land?: Uint8Array): void {
   // Measure on the sheet, so foreshortening cannot turn dashes into filtered specks.
   const dash = B.cam.tone(1.1);
   const gap = B.cam.tone(0.8);
   const test: Test = (x, y, d) => !paper.on(M.road, x, y) && !paper.on(M.water, x, y) && paper.seen(x, y, d);
+  const pathInk: Test = (x, y, d) => drawsPathDash(M, land, paper.index(x, y)) && test(x, y, d);
   for (const w of ways) {
     if (!visiblePath(B, w)) continue;
     const pitch = w.sub === 'steps' ? stairPitch(B, w.pts) : 0;
@@ -424,7 +432,7 @@ export function footpaths(B: Build, paper: Paper, ways: Way[], M: Masks): void {
         for (const o of [0.8, -0.8]) dashed(paper, shifted(pts, o).filter((_, i) => i % 3 !== 2), dash, gap, test);
         continue;
       }
-      dashed(paper, pts, dash, gap, test);
+      dashed(paper, pts, dash, gap, pathInk);
     }
   }
 }

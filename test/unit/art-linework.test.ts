@@ -334,27 +334,27 @@ test('a right-angle kerb emits only the outside arc at its bend', () => {
 });
 
 
-test.each([0.35, 0.7])('park tone leaves a continuous path corridor with a %s mm pen', (penWidth) => {
+test.each([0.35, 0.7])('park tone continues across a hidden path with a %s mm pen', (penWidth) => {
   const B = build({ penWidth, paths: true });
   const paper = new Paper(B.cam);
   const M = Object.fromEntries(['road', 'water', 'green', 'wood', 'foot', 'shadow', 'pool', 'under', 'calm', 'title'].map((key) => [key, paper.mask()])) as Masks;
   const rect = [180, 120, 220, 120, 220, 150, 180, 150];
   paper.fillMask(M.green, [rect.flatMap((v, i) => i % 2 ? [] : B.cam.ground(v, rect[i + 1]))]);
   const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(200, 110), ...B.cam.ground(200, 160)] }];
-  const mask = pathClearance(B, paper, ways);
+  const mask = pathClearance(B, paper, ways, M);
   paper.finishDepth();
   parkGrass(paper, M, null, mask);
   expect(paper.pens[GREENERY].length).toBeGreaterThan(5);
-  for (const line of paper.pens[GREENERY]) {
-    for (let i = 0; i < line.length; i += 2) expect(Math.abs(line[i] - 200)).toBeGreaterThan(penWidth * 1.5);
-  }
-  expect(paper.on(mask, 200, 135)).toBe(true);
-  expect(paper.on(mask, 200 + penWidth * 3, 135)).toBe(false);
+  const withPath = paper.pens[GREENERY].splice(0);
+  parkGrass(paper, M);
+  expect(paper.pens[GREENERY]).toEqual(withPath);
+  expect(paper.on(mask, 200, 135)).toBe(false);
+  expect(paper.on(mask, 200, 115)).toBe(true);
   B.set.paths = false;
-  expect(pathClearance(B, paper, ways).some(Boolean)).toBe(false);
+  expect(pathClearance(B, paper, ways, M).some(Boolean)).toBe(false);
   B.set.paths = true;
-  expect(pathClearance(B, paper, [{ ...ways[0], sub: 'platform' }]).some(Boolean)).toBe(false);
-  expect(pathClearance(B, paper, [{ ...ways[0], pts: [0, 0, 0.1, 0] }]).some(Boolean)).toBe(false);
+  expect(pathClearance(B, paper, [{ ...ways[0], sub: 'platform' }], M).some(Boolean)).toBe(false);
+  expect(pathClearance(B, paper, [{ ...ways[0], pts: [0, 0, 0.1, 0] }], M).some(Boolean)).toBe(false);
 });
 
 
@@ -362,7 +362,7 @@ function textureGround(paper: Paper): Ground {
   return { land: paper.mask(), farms: paper.mask(), farmShapes: [], covers: [], cemeteries: [], pitches: [], gardens: false, inTown: () => false };
 }
 
-test.each([0.35, 0.7])('paths omit whole lawn and wild-country symbols with a %s mm pen', (penWidth) => {
+test.each([0.35, 0.7])('visible paths clear wild-country symbols and hidden paths preserve lawn texture with a %s mm pen', (penWidth) => {
   for (const garden of [false, true]) {
     const B = build({ penWidth, paths: true });
     const draw = (clear: boolean) => {
@@ -371,13 +371,17 @@ test.each([0.35, 0.7])('paths omit whole lawn and wild-country symbols with a %s
       const G = textureGround(paper);
       if (garden) { G.land.fill(GARDEN); G.gardens = true; }
       const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(200, 20), ...B.cam.ground(200, 263)] }];
-      const mask = clear ? pathClearance(B, paper, ways) : undefined;
+      const mask = clear ? pathClearance(B, paper, ways, M, G.land) : undefined;
       paper.finishDepth();
       drawGround(B, paper, M, G, B.toAbs, B.toAbs, mask);
       return paper.pens.flat();
     };
     const before = draw(false), after = draw(true);
     expect(after.length).toBeGreaterThan(10);
+    if (garden) {
+      expect(after).toEqual(before);
+      continue;
+    }
     expect(after.length).toBeLessThan(before.length);
     const whole = new Set(before.map((line) => JSON.stringify(line)));
     for (const line of after) {
@@ -397,7 +401,7 @@ test('field rows break at path corridors while field boundaries stay intact', ()
   G.farmShapes.push(shape);
   paper.fillMask(G.land, [shape[0].pts], FIELD);
   paper.fillMask(G.farms, [shape[0].pts]);
-  const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(210, 20), ...B.cam.ground(210, 263)] }]);
+  const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(210, 20), ...B.cam.ground(210, 263)] }], M, G.land);
   paper.tally = new Map();
   paper.layer = 'ground';
   paper.finishDepth();
@@ -416,12 +420,25 @@ test('field rows break at path corridors while field boundaries stay intact', ()
 
 function pathLines(B: Build, pts: number[], road = false, sub?: string) {
   const paper = new Paper(B.cam);
-  const M = { road: paper.mask(), water: paper.mask() } as Masks;
+  const M = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask() } as Masks;
   if (road) paper.fillMask(M.road, [[...B.cam.ground(198, 100), ...B.cam.ground(202, 100), ...B.cam.ground(202, 160), ...B.cam.ground(198, 160)]]);
   paper.finishDepth();
   footpaths(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts, sub }], M);
   return paper.pens[LINEWORK];
 }
+
+test('a path crossing a park keeps its dashes on both approaches', () => {
+  const B = build({ paths: true });
+  const paper = new Paper(B.cam);
+  const M = { road: paper.mask(), water: paper.mask(), green: paper.mask(), wood: paper.mask() } as Masks;
+  paper.fillMask(M.green, [[...B.cam.ground(190, 110), ...B.cam.ground(210, 110), ...B.cam.ground(210, 130), ...B.cam.ground(190, 130)]]);
+  paper.finishDepth();
+  footpaths(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(180, 120), ...B.cam.ground(220, 120)] }], M);
+  const xs = paper.pens[LINEWORK].flatMap(line => line.filter((_, i) => i % 2 === 0));
+  expect(xs.some(x => x < 190)).toBe(true);
+  expect(xs.some(x => x > 210)).toBe(true);
+  expect(xs.some(x => x > 191 && x < 209)).toBe(false);
+});
 
 function strokeLength(p: number[]): number {
   let length = 0;
@@ -490,7 +507,8 @@ test('narrow projected stairs fall back to the same readable dashes and corridor
   expect(steps).toEqual(pathLines(B, pts));
   const paper = new Paper(B.cam);
   const way: Way = { kind: 'path', cls: 'path', width: 1, pts };
-  expect(pathClearance(B, paper, [{ ...way, sub: 'steps' }])).toEqual(pathClearance(B, paper, [way]));
+  const M = { green: paper.mask(), wood: paper.mask() } as Masks;
+  expect(pathClearance(B, paper, [{ ...way, sub: 'steps' }], M)).toEqual(pathClearance(B, paper, [way], M));
 });
 
 
@@ -595,11 +613,11 @@ test('hidden and water-covered shadow areas cannot keep a tiny visible island al
 test.each([0.35, 0.7])('shadow hatching leaves a continuous path corridor with a %s mm pen', (penWidth) => {
   const B = build({ penWidth, paths: true });
   const paper = new Paper(B.cam);
-  const M = { shadow: paper.mask(), water: paper.mask(), road: paper.mask() } as Masks;
+  const M = { shadow: paper.mask(), water: paper.mask(), road: paper.mask(), green: paper.mask(), wood: paper.mask() } as Masks;
   const rect = [[180, 120], [200, 120], [200, 140], [180, 140]].flatMap(([x, y]) => B.cam.ground(x, y));
   paper.fillMask(M.shadow, [rect]);
   const ways: Way[] = [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(190, 110), ...B.cam.ground(190, 150)] }];
-  const mask = pathClearance(B, paper, ways);
+  const mask = pathClearance(B, paper, ways, M);
   paper.finishDepth();
   castShadows(paper, M, mask);
   expect(paper.pens[SHADOWS].length).toBeGreaterThan(5);
@@ -609,7 +627,7 @@ test.each([0.35, 0.7])('shadow hatching leaves a continuous path corridor with a
   }
   paper.pens[SHADOWS].splice(0);
   B.set.paths = false;
-  castShadows(paper, M, pathClearance(B, paper, ways));
+  castShadows(paper, M, pathClearance(B, paper, ways, M));
   const disabled = paper.pens[SHADOWS].splice(0);
   castShadows(paper, M);
   expect(paper.pens[SHADOWS]).toEqual(disabled);
@@ -622,13 +640,13 @@ test.each([0.35, 0.7])('shadow hatching leaves a continuous path corridor with a
 test('path clearance removes the tiny shadow fragments it separates', () => {
   const B = build({ paths: true });
   const paper = new Paper(B.cam);
-  const M = { shadow: paper.mask(), water: paper.mask(), road: paper.mask() } as Masks;
+  const M = { shadow: paper.mask(), water: paper.mask(), road: paper.mask(), green: paper.mask(), wood: paper.mask() } as Masks;
   paper.fillMask(M.shadow, [[[180, 120], [182.5, 120], [182.5, 122], [180, 122]].flatMap(([x, y]) => B.cam.ground(x, y))]);
   paper.finishDepth();
   castShadows(paper, M);
   expect(paper.pens[SHADOWS].length).toBeGreaterThan(0);
   paper.pens[SHADOWS].splice(0);
-  const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(181.25, 110), ...B.cam.ground(181.25, 150)] }]);
+  const mask = pathClearance(B, paper, [{ kind: 'path', cls: 'path', width: 1, pts: [...B.cam.ground(181.25, 110), ...B.cam.ground(181.25, 150)] }], M);
   castShadows(paper, M, mask);
   expect(paper.pens[SHADOWS]).toHaveLength(0);
 });

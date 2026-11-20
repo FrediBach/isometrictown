@@ -6,7 +6,7 @@ import type { Paper, Test } from './raster';
 import { LOD, shows, showsAt } from './lod';
 import { hash } from './rng';
 import { LINEWORK, ROOFS, SHADOWS, WATER } from './settings';
-import { curbs, dashed, groundSeg, outline, shifted, walk } from './streets';
+import { curbs, groundSeg, outline, shifted, walk } from './streets';
 import type { Controls, Lift, Town, Way } from './tiles';
 import { calm, wake } from './ships';
 
@@ -211,7 +211,7 @@ export function boat(B: Build, x: number, y: number, ux: number, uy: number, len
   return s;
 }
 
-/** Ferry routes: a dotted line across the water, with the ferry somewhere along it. */
+/** Place ferries along their routes and draw their wakes. */
 export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   if (!B.set.water || !town.ferries.length) return none;
   const solids: Solid[] = [];
@@ -233,23 +233,9 @@ export function ferries(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       calm(paper, M, x, y, ux * dir, uy * dir, 30, 9, 60, vessel.casts[0].ring);
     }
   }
-  const s = B.cam.s;
-  const dash = 0.7 / s;
-  const period = dash + 1.1 / s;
-  const test: Test = (x, y, d) => paper.on(M.water, x, y) && !paper.on(M.road, x, y) && paper.seen(x, y, d);
   return {
     solids,
     draw: () => {
-      for (const f of town.ferries) {
-        if (B.set.source === 'image') {
-          dashed(paper, f, B.cam.tone(1.0), B.cam.tone(1.1), test);
-          continue;
-        }
-        walk(f, 0, period, dash, (x, y, ux, uy) => {
-          groundSeg(paper, LINEWORK, x, y, x + ux * dash, y + uy * dash, test);
-          paper.end();
-        });
-      }
       for (const [x, y, ux, uy] of wakes) wake(B, paper, M, x, y, ux, uy, 60, 9);
     },
   };

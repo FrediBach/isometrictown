@@ -35,26 +35,26 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 7524,
-    "rawLifts": 8351,
-    "inkMm": 36635.9,
-    "travelMm": 19766.1,
-    "minutes": 57,
-    "pens": [["Shadows",2043,10214.9],["Water",30,121.7],["Greenery",895,3760],["Roofs",1664,9001.4],["Linework",2892,13538]]
+    "lifts": 7110,
+    "rawLifts": 7937,
+    "inkMm": 36853.6,
+    "travelMm": 19863.6,
+    "minutes": 55,
+    "pens": [["Shadows",1914,10703.5],["Water",30,121.7],["Greenery",892,3795.7],["Roofs",1664,9001.4],["Linework",2610,13231.3]]
   },
   "features": {
     "buildings": [846,5177.2],
     "cars": [179,836],
     "details": [125,184.7],
-    "ground": [644,1945],
+    "ground": [650,1957.9],
     "lamps": [15,46.5],
     "markings": [22,48],
-    "parks": [81,511.7],
-    "paths": [290,316.9],
+    "parks": [72,534.6],
+    "paths": [8,10.2],
     "roofHatch": [1281,4896.2],
     "roofs": [801,4034.7],
     "rooftops": [66,675.3],
-    "shadows": [2043,10214.9],
+    "shadows": [1914,10703.5],
     "streets:busStops": [6,19.7],
     "streets:kerbs": [241,1698.8],
     "streets:railings": [4,10.5],
@@ -109,12 +109,12 @@
     "details/sparse-windows": [3,9.3],
     "details/terrace": [111,149.8],
     "ground/cemeteries": [61,82.5],
-    "ground/lawns": [305,628],
-    "ground/meadows": [150,314.7],
+    "ground/lawns": [310,638.7],
+    "ground/meadows": [151,316.9],
     "ground/multi": [3,65.3],
     "ground/pitches": [3,65.3],
     "ground/plots": [125,854.5],
-    "parks/grass": [24,163.4],
+    "parks/grass": [15,186.3],
     "parks/park-edges": [53,277],
     "parks/wood-edges": [4,71.3],
     "roofHatch/blank-windows": [4,8.5],
@@ -205,5 +205,5 @@
     "windows/terrace": [577,578],
     "windows/worship": [4,8.6]
   },
-  "svg": {"bytes":311592,"sha1":"63aff68e36520dbb"}
+  "svg": {"bytes":300884,"sha1":"4827adff946ab2e8"}
 }
