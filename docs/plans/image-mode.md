@@ -340,7 +340,7 @@ The worker measures likeness on the **real** strokes of every finished drawing (
 | `blocks` | perimeter apartment blocks round courtyards | mid-dark, neutral |
 | `towers` | towers and slabs on open ground | dark, neutral, high contrast |
 
-Each cell gets a label, a **level** from 0 to 1 within the label's range and, for built labels, a **warmth** from 0 to 1.
+Each cell gets a label, a **level** from 0 to 1 within the label's range and, for built labels, a **warmth** from 0 to 1. In housing, warmth sets the share of plots that use the regional roof style. When a dark, neutral part of the picture is darker than either roof material at the chosen density, a small advantage for flat roofs gives a mix of flat and regional roofs. A clear colour or tone advantage still selects the better match.
 
 ### 8.2 Costs
 

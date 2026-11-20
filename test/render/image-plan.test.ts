@@ -206,6 +206,18 @@ describe('zoning', () => {
     expect(built / zones.label.length).toBeLessThan(0.01);
   });
 
+  test('a dark patch keeps regional roofs as the drawing moves from 1:3000 to 1:4000', () => {
+    const pic = paint('Black bar on green', (u, v) => u > 0.4 && u < 0.6 && v > 0.2 && v < 0.8 ? [0, 0, 0] : [95, 130, 90]);
+    for (const scale of [3000, 3500, 4000]) {
+      const { cam, zones } = plan(pic, { ...base, scale, likeness: 0.8, imageContrast: 1.2 });
+      const [x, y] = cam.ground(cam.sheet[0] / 2, cam.sheet[1] / 2);
+      const c = Math.floor((y - zones.y0) / zones.cell) * zones.W + Math.floor((x - zones.x0) / zones.cell);
+      expect(BUILT.has(LABELS[zones.label[c]])).toBe(true);
+      expect(zones.warmth[c]).toBeGreaterThan(0.25);
+      if (scale === 4000) expect(zones.warmth[c]).toBeLessThan(1);
+    }
+  });
+
   test('neighbourhoods as in real towns rearrange the plan, and the town still keeps every rule', () => {
     const pic = PICTURES.landscape();
     const set: Settings = { ...base, image: pic.id };

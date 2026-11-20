@@ -47,6 +47,8 @@ const COMPACT = 0.03;
 const SLIC_ROUNDS = 5;
 /** Typical height of each label's buildings, m: the image is read half that high, where their roofs and walls show. */
 export const HEIGHT: Partial<Record<Label, number>> = { works: 8, suburb: 7, rows: 11, old: 15, blocks: 20, towers: 50 };
+/** Maximum difference in OKLab fit for which a dark, neutral patch can keep a mix of regional and flat roofs. */
+const ROOF_FIT_TOLERANCE = 0.02;
 const LEVELS = [0, 0.25, 0.5, 0.75, 1];
 /** Radius over which built-up land counts as town rather than country, m. */
 const URBAN_RADIUS = 160;
@@ -267,17 +269,31 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       const l = LABELS[k];
       const t = spLab[liftOf(l)];
       let best = Infinity;
-      LEVELS.forEach((v, li) => colours[k][li].forEach((col, wi) => {
+      const housing = l === 'suburb' || l === 'rows' || l === 'old' || l === 'blocks';
+      const targetChroma = Math.hypot(t[s * 3 + 1], t[s * 3 + 2]);
+      const distance = (col: readonly number[]) => {
         const dL = t[s * 3] - col[0];
         const da = t[s * 3 + 1] - col[1];
         const db = t[s * 3 + 2] - col[2];
-        const d = Math.sqrt(dL * dL + chroma * chroma * (da * da + db * db));
-        if (d < best) {
-          best = d;
-          bestLevel[s * K + k] = v;
-          bestWarmth[s * K + k] = BUILT.has(l) ? wi : 0;
+        return Math.sqrt(dL * dL + chroma * chroma * (da * da + db * db));
+      };
+      LEVELS.forEach((v, li) => {
+        const [first, pitched] = colours[k][li];
+        const flatCost = distance(first);
+        const pitchedCost = pitched ? distance(pitched) : Infinity;
+        const d = Math.min(flatCost, pitchedCost);
+        if (d >= best) return;
+        best = d;
+        bestLevel[s * K + k] = v;
+        bestWarmth[s * K + k] = Number(pitchedCost < flatCost);
+        if (housing && pitched && flatCost <= pitchedCost) {
+          // Both swatches can be too light for a dark, neutral area. Let the regional roof
+          // style break close ties there, fading its say as the image gains colour.
+          const shortfall = Math.min(first[0], pitched[0]) - t[s * 3];
+          const gap = Math.min(ROOF_FIT_TOLERANCE, shortfall) - targetChroma;
+          if (gap > 0) bestWarmth[s * K + k] = Math.max(0, 1 - (pitchedCost - flatCost) / gap);
         }
-      }));
+      });
       const u = URBAN[l] ?? 0;
       const urb = u > 0 ? u * (1 - spUrban[s]) : -u * spUrban[s];
       data[s * K + k] = spWeight[s] * best + prior * (BASE[l] + urb);
