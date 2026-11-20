@@ -133,7 +133,8 @@ export class Occupancy {
     if (i1 < i0 || j1 < j0) return true;
     const lw = i1 - i0 + 1;
     const lh = j1 - j0 + 1;
-    const inside = new Uint8Array(lw * lh);
+    // Only erosion needs neighbouring cells. Other callers can use each span as it is found.
+    const inside = erode ? new Uint8Array(lw * lh) : null;
     const xs: number[] = [];
     for (let j = j0; j <= j1; j++) {
       const y = y0 + (j + 0.5) * cs;
@@ -148,19 +149,24 @@ export class Occupancy {
       for (let k = 0; k + 1 < xs.length; k += 2) {
         const ia = Math.max(i0, Math.ceil((xs[k] - x0) / cs - 0.5));
         const ib = Math.min(i1, Math.floor((xs[k + 1] - x0) / cs - 0.5));
-        for (let i = ia; i <= ib; i++) inside[(j - j0) * lw + i - i0] = 1;
+        if (inside) {
+          if (ia <= ib) inside.fill(1, (j - j0) * lw + ia - i0, (j - j0) * lw + ib - i0 + 1);
+        } else {
+          for (let i = ia; i <= ib; i++) if (!fn(j * W + i)) return false;
+        }
       }
     }
+    if (!inside) return true;
     let any = false;
     for (let v = 0; v < lh; v++)
       for (let u = 0; u < lw; u++) {
         const l = v * lw + u;
         if (!inside[l]) continue;
-        if (erode && (u === 0 || v === 0 || u === lw - 1 || v === lh - 1 || !inside[l - 1] || !inside[l + 1] || !inside[l - lw] || !inside[l + lw])) continue;
+        if (u === 0 || v === 0 || u === lw - 1 || v === lh - 1 || !inside[l - 1] || !inside[l + 1] || !inside[l - lw] || !inside[l + lw]) continue;
         any = true;
         if (!fn((j0 + v) * W + i0 + u)) return false;
       }
-    if (!any && erode) {
+    if (!any) {
       const r = rings[0];
       let cx = 0;
       let cy = 0;

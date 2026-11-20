@@ -120,20 +120,26 @@ function boxes(sigma: number): number[] {
   return Array.from({ length: n }, (_, i) => (i < m ? lo : lo + 2));
 }
 
-/** One box pass along rows (`dx` 1) or columns, the edges held, from `src` into `dst`. */
+/** One box pass along rows or columns, the edges held, from `src` into `dst`. */
 function boxPass(src: Float32Array, dst: Float32Array, W: number, H: number, r: number, along: boolean): void {
   const lines = along ? H : W;
   const len = along ? W : H;
   const stride = along ? 1 : W;
   const inv = 1 / (2 * r + 1);
+  // Each line adds and drops samples at the same offsets, including at the held edges.
+  const enter = new Int32Array(len);
+  const leave = new Int32Array(len);
+  for (let k = 0; k < len; k++) {
+    enter[k] = Math.min(len - 1, k + r + 1) * stride;
+    leave[k] = Math.max(0, k - r) * stride;
+  }
   for (let j = 0; j < lines; j++) {
     const base = along ? j * W : j;
-    const at = (k: number) => src[base + Math.max(0, Math.min(len - 1, k)) * stride];
     let sum = 0;
-    for (let k = -r; k <= r; k++) sum += at(k);
+    for (let k = -r; k <= r; k++) sum += src[base + Math.max(0, Math.min(len - 1, k)) * stride];
     for (let k = 0; k < len; k++) {
       dst[base + k * stride] = sum * inv;
-      sum += at(k + r + 1) - at(k - r);
+      sum += src[base + enter[k]] - src[base + leave[k]];
     }
   }
 }

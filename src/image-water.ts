@@ -151,9 +151,12 @@ const EDGE_SMOOTH = 8;
 
 /** Shapes (outer ring, then its holes) of the cells in `mask`, simplified and smoothed; specks under `minCells` are dropped. */
 export function shapesOf(mask: Uint8Array, g: GroundGrid, minCells = 2, smooth = 2): Shape[] {
-  const soft = Float32Array.from(mask);
+  if (!mask.some(Boolean)) return [];
+  const soft = new Float32Array(mask);
   blur(soft, g.W, g.H, EDGE_SMOOTH / g.cell);
-  const rings = contours(Uint8Array.from(soft, (v) => (v >= 0.5 ? 1 : 0)), g)
+  const smoothed = new Uint8Array(mask.length);
+  for (let i = 0; i < soft.length; i++) smoothed[i] = soft[i] >= 0.5 ? 1 : 0;
+  const rings = contours(smoothed, g)
     .filter((r) => Math.abs(ringArea(r)) >= minCells * g.cell * g.cell)
     // Simplified a little coarser than a superpixel's ripples, so outlines don't scallop.
     .map((r) => chaikin(simplify(r, Math.max(g.cell * 0.6, EDGE_TOL), true), smooth, true))

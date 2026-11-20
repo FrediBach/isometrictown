@@ -119,6 +119,43 @@ export function ringsMeet(a: number[], b: number[]): boolean {
   return pointInRing(a[0], a[1], b) || pointInRing(b[0], b[1], a) || outlinesMeet(a, b);
 }
 
+/** Edges of a long outline filed in horizontal strips for repeated collision tests. */
+class BandedRing {
+  private rows = new Map<number, number[]>();
+
+  constructor(private pts: number[]) {
+    for (let a = 0, b = pts.length - 2; a < pts.length; b = a, a += 2) {
+      const first = Math.floor(Math.min(pts[a + 1], pts[b + 1]) / SIZE);
+      const last = Math.floor(Math.max(pts[a + 1], pts[b + 1]) / SIZE);
+      for (let j = first; j <= last; j++) {
+        const row = this.rows.get(j);
+        if (row) row.push(pts[b], pts[b + 1], pts[a], pts[a + 1]);
+        else this.rows.set(j, [pts[b], pts[b + 1], pts[a], pts[a + 1]]);
+      }
+    }
+  }
+
+  meets(ring: number[]): boolean {
+    if (pointInRing(this.pts[0], this.pts[1], ring)) return true;
+    const x = ring[0], y = ring[1];
+    // Edges keep their winding order. Each omitted chain lies entirely above or below
+    // this strip, so joining its ends cannot change the ray test at this height.
+    const row = this.rows.get(Math.floor(y / SIZE));
+    if (row && pointInRing(x, y, row)) return true;
+    for (let c = 0, d = ring.length - 2; c < ring.length; d = c, c += 2) {
+      const first = Math.floor(Math.min(ring[c + 1], ring[d + 1]) / SIZE);
+      const last = Math.floor(Math.max(ring[c + 1], ring[d + 1]) / SIZE);
+      for (let j = first; j <= last; j++) {
+        const edges = this.rows.get(j);
+        if (!edges) continue;
+        for (let a = 0; a < edges.length; a += 4)
+          if (meet(ring[c], ring[c + 1], ring[d], ring[d + 1], edges[a + 2], edges[a + 3], edges[a], edges[a + 1])) return true;
+      }
+    }
+    return false;
+  }
+}
+
 /** Whether the whole site lies inside one area, clear of its boundary and any holes. */
 export function containsSite(shape: Shape, site: number[]): boolean {
   return inShape(shape, site[0], site[1]) && shape.every(r =>
@@ -280,12 +317,16 @@ export class Ground {
 export class Footprints {
   private rings: number[][] = [];
   private index = new Index();
+  private banded = new Map<number, BandedRing>();
   /** How many footprints are laid; each one's number for `clash()` is its place in that count. */
   get count(): number {
     return this.rings.length;
   }
   add(ring: number[]): void {
-    this.index.add(this.rings.push(ring) - 1, ring);
+    const j = this.rings.push(ring) - 1;
+    this.index.add(j, ring);
+    // Short building outlines are cheaper to check directly than to index by edge.
+    if (ring.length >= 128) this.banded.set(j, new BandedRing(ring));
   }
   /** Whether a point is inside any footprint laid. */
   covers(x: number, y: number): boolean {
@@ -294,8 +335,8 @@ export class Footprints {
   /** Whether any occupied outline touches, crosses or contains this ring, including narrow corner overlaps. */
   touches(ring: number[]): boolean {
     for (const j of this.index.around(ring)) {
-      const other = this.rings[j];
-      if (ringsMeet(ring, other)) return true;
+      const banded = this.banded.get(j);
+      if (banded ? banded.meets(ring) : ringsMeet(ring, this.rings[j])) return true;
     }
     return false;
   }

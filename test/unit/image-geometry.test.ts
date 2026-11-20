@@ -1,6 +1,26 @@
 import { expect, test } from 'vitest';
-import { Ground, plausibility, simpleFootprint } from '@/image-check';
+import { Footprints, Ground, plausibility, ringsMeet, simpleFootprint } from '@/image-check';
 import { empty } from '@/tiles';
+
+test('indexed outlines keep the same containment, crossings and shared edges at strip boundaries', () => {
+  const corners = [-100, -100, 100, -100, 125, 100, 100, 150, 50, 150, 50, 0, -100, 0];
+  const outline: number[] = [];
+  for (let a = 0; a < corners.length; a += 2) {
+    const b = (a + 2) % corners.length;
+    for (let i = 0; i < 16; i++) outline.push(
+      corners[a] + (corners[b] - corners[a]) * i / 16,
+      corners[a + 1] + (corners[b + 1] - corners[a + 1]) * i / 16,
+    );
+  }
+  const occupied = new Footprints();
+  occupied.add(outline);
+  for (const size of [1, 50, 300]) {
+    for (let y = -150; y <= 150; y += 25) for (let x = -150; x <= 100; x += 25) {
+      const q = [x, y, x + size, y, x + size, y + size, x, y + size];
+      expect(occupied.touches(q)).toBe(ringsMeet(q, outline));
+    }
+  }
+});
 
 test('footprints may turn inwards but no edges cross, touch or double back', () => {
   expect(simpleFootprint([0, 0, 8, 0, 8, 3, 3, 3, 3, 7, 0, 7])).toBe(true);
