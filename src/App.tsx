@@ -248,7 +248,7 @@ export function App() {
   return (
     <div className={cn('grid h-screen', full ? 'grid-cols-1' : 'grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1')}>
       {/* Hidden rather than unmounted in full size, so the locator map keeps its state. */}
-      <aside hidden={full} className="overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
+      <aside hidden={full} className="relative overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
         <SettingsContext value={settings}>
           <TitleBlock onPalette={setPens} />
           <SourceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} onSource={setSource} picture={picture} onFile={(f) => void chooseImage(f)} />
