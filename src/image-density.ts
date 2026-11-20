@@ -28,15 +28,18 @@ export function vacant(density: number, x: number, y: number, vary: Vary): boole
 
 /**
  * Try a footprint with the requested coverage. Rows keep their street fronts and grow towards
- * the courtyard, with the depth at each party wall shared by both houses. Detached buildings
+ * the courtyard, with the depth at each party wall shared by both houses, or through `deepen`
+ * where a learnt plan stands on the lot. Detached buildings
  * also use more of their plot's width. In tight quarters, take only the extra ground that fits.
  */
-export function footprintAtDensity(ring: number[], row: boolean, density: Density, fits: (ring: number[]) => boolean): number[] {
+export function footprintAtDensity(ring: number[], row: boolean, density: Density, fits: (ring: number[]) => boolean, deepen?: (more: number) => number[]): number[] {
   const [x, y] = centre(ring);
   const d = density(x, y);
   if (!d) return ring;
-  const wanted = ring.slice();
-  if (row) {
+  let wanted = ring.slice();
+  // A learnt plan on a row lot is drawn again deeper, wings and all, from the same front.
+  if (row && deepen) wanted = deepen(d * (d > 0 ? 0.9 : 0.30));
+  else if (row) {
     for (let a = 0; a < ring.length / 2; a += 2) {
       const b = ring.length - a - 2;
       const side = density((ring[a] + ring[b]) / 2, (ring[a + 1] + ring[b + 1]) / 2);

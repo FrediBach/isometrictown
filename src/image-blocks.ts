@@ -381,6 +381,39 @@ export function strip(l: Lot, f0: number, f1: number): number[] {
   }
   return [...front, ...reversed(back)];
 }
+/**
+ * A plan on a lot: `ring` in the unit box (along the front by length, in from it), its front set
+ * `back` m behind the lot's and `depth` m deep. Walls along the front bend with the lot's front,
+ * and the plan's sides fall on the lot's, so neighbours still share their walls.
+ */
+export function onLot(l: Pick<Lot, 'o' | 'i' | 'depth'>, ring: readonly number[], back: number, depth: number): number[] {
+  const n = l.o.length / 2;
+  const cum = [0];
+  for (let k = 1; k < n; k++) cum.push(cum[k - 1] + Math.hypot(l.o[k * 2] - l.o[k * 2 - 2], l.o[k * 2 + 1] - l.o[k * 2 - 1]));
+  const total = cum[n - 1] || 1;
+  const at = (a: number, b: number, out: number[]) => {
+    let k = 0;
+    while (k < n - 2 && cum[k + 1] < a * total) k++;
+    const t = Math.max(0, Math.min(1, (a * total - cum[k]) / (cum[k + 1] - cum[k] || 1)));
+    const f = (back + b * depth) / l.depth;
+    const ox = l.o[k * 2] + (l.o[k * 2 + 2] - l.o[k * 2]) * t;
+    const oy = l.o[k * 2 + 1] + (l.o[k * 2 + 3] - l.o[k * 2 + 1]) * t;
+    const ix = l.i[k * 2] + (l.i[k * 2 + 2] - l.i[k * 2]) * t;
+    const iy = l.i[k * 2 + 1] + (l.i[k * 2 + 3] - l.i[k * 2 + 1]) * t;
+    out.push(ox + (ix - ox) * f, oy + (iy - oy) * f);
+  };
+  const out: number[] = [];
+  for (let k = 0; k < ring.length; k += 2) {
+    const j = (k + 2) % ring.length;
+    at(ring[k], ring[k + 1], out);
+    // A wall along the front gets a corner at each bend of the lot's front it passes.
+    if (ring[k + 1] !== ring[j + 1]) continue;
+    const [a0, a1] = [ring[k], ring[j]];
+    const bends = cum.slice(1, -1).map((c) => c / total).filter((a) => a > Math.min(a0, a1) && a < Math.max(a0, a1));
+    for (const a of a1 > a0 ? bends : bends.reverse()) at(a, ring[k + 1], out);
+  }
+  return out;
+}
 /** A lot's depth from front to back, m, on average. */
 export function lotDepth(l: Lot): number {
   let d = 0;

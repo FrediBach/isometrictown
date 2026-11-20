@@ -1,7 +1,75 @@
+/**
+ * Floorplans for image mode: plans learnt from real towns (`image-floorplan-data.ts`, made by
+ * `npm run floorplans`), and guides that turn footprints to follow the picture's contours.
+ */
 import type { Camera } from './camera';
 import { centre } from './image-check';
+import { PLAN_GRID, PLANS } from './image-floorplan-data';
 import type { Target } from './image-read';
+import type { Label } from './image-tone';
 import { traceLines } from './image-water';
+
+/** A learnt plan is used only where its shortest wall is at least this long on paper, mm; the plain box stands in for it otherwise. */
+export const PLAN_JOG_MM = 0.6;
+
+/** The shortest wall of a unit plan stretched to `W` × `D`, m. */
+function shortest(ring: readonly number[], W: number, D: number): number {
+  let min = Infinity;
+  for (let k = 0; k < ring.length; k += 2) {
+    const j = (k + 2) % ring.length;
+    min = Math.min(min, Math.abs(ring[j] - ring[k]) * W + Math.abs(ring[j + 1] - ring[k + 1]) * D);
+  }
+  return min / PLAN_GRID;
+}
+
+/**
+ * A plan for a building of `label`, as a counter-clockwise ring in the unit box with the street
+ * along y = 0, or null for the plain box. Each learnt plan is weighed by how often the zone
+ * builds it and, for a detached building `W` wide along the street and `D` deep (m), by how near
+ * its usual proportions and size are. For a house in a row, `D` is the main range's depth and
+ * only the frontage is weighed: the plan's rear wings reach further back, as `depth` gives.
+ * `pick` and `flip` are hashes in [0, 1); `flip` below a half mirrors the plan.
+ */
+export function learntPlan(label: Label, W: number, D: number, mmPerMetre: number, row: boolean, pick: number, flip: number): { ring: number[]; depth: number } | null {
+  const plans = PLANS[label];
+  if (!plans?.length) return null;
+  const box = plans.find((p) => p.ring.length === 8);
+  const boxAspect = box?.aspect ?? 1;
+  const weights = plans.map((p) => {
+    const span = row ? Math.sqrt(p.area / p.aspect) : 0;
+    const depth = row ? (D * p.aspect) / boxAspect : D;
+    if (p !== box && shortest(p.ring, W, depth) * mmPerMetre < PLAN_JOG_MM) return 0;
+    const sd = Math.max(0.3, p.spread);
+    // A row's plain range suits any frontage; its other plans only frontages near their own.
+    const shape = row ? (p === box ? 0 : Math.log(W / span) / 0.4) : Math.log(D / W / p.aspect) / sd;
+    const size = row ? 0 : Math.log((W * D) / p.area) / 0.9;
+    return p.share * Math.exp(-0.5 * (shape * shape + size * size));
+  });
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (!total) return null;
+  let at = pick * total;
+  let k = 0;
+  while (k < plans.length - 1 && at >= weights[k]) at -= weights[k++];
+  const p = plans[k];
+  if (p === box) return null;
+  const ring: number[] = [];
+  if (flip < 0.5) for (let i = p.ring.length - 2; i >= 0; i -= 2) ring.push(1 - p.ring[i] / PLAN_GRID, p.ring[i + 1] / PLAN_GRID);
+  else for (let i = 0; i < p.ring.length; i += 2) ring.push(p.ring[i] / PLAN_GRID, p.ring[i + 1] / PLAN_GRID);
+  // Start at the front corner furthest left, so the first wall runs along the street as callers expect.
+  let s = 0;
+  for (let i = 2; i < ring.length; i += 2) if (ring[i + 1] < ring[s + 1] || (ring[i + 1] === ring[s + 1] && ring[i] < ring[s])) s = i;
+  return { ring: [...ring.slice(s), ...ring.slice(0, s)], depth: row ? (D * p.aspect) / boxAspect : D };
+}
+
+/** How much of its box a unit plan covers. */
+export function planFill(ring: readonly number[]): number {
+  let a = 0;
+  for (let k = 0; k < ring.length; k += 2) {
+    const j = (k + 2) % ring.length;
+    a += ring[k] * ring[j + 1] - ring[j] * ring[k + 1];
+  }
+  return a / 2;
+}
 
 type Guide = { x: number; y: number; nx: number; ny: number };
 const CELL = 8;

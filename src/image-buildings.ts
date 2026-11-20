@@ -7,10 +7,10 @@
  */
 import { pointInRing, ringArea, toRing } from './geo';
 import { civicSites, parishChurch } from './image-amenities';
-import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
+import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, onLot, pavementOf, ROWS, strip, type Block, type Lot, type Vary } from './image-blocks';
 import { centre, Footprints, inShape, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type Density } from './image-density';
-import type { FloorplanGuides } from './image-floorplans';
+import { learntPlan, planFill, type FloorplanGuides } from './image-floorplans';
 import { LABELS, type Label } from './image-tone';
 import { labelAt, type Zones } from './image-zones';
 import { hash } from './rng';
@@ -36,6 +36,8 @@ const ROW: Partial<Record<Label, { back: [number, number]; depth: [number, numbe
 };
 /** The narrowest plot in a row on paper, mm: at coarse scales rows are drawn as fewer, longer buildings. */
 export const ROW_LOT_MM = 1.4;
+/** How often a street side of each row zone repeats one learnt plan, as builders put up a terrace, rather than each house going its own way. */
+const UNIFORM: Partial<Record<Label, number>> = { rows: 0.8, blocks: 0.5, old: 0.3 };
 /** Churches stand at least this far apart, m, and one is sought in every cell this size of built town. */
 const CHURCH_SPACING = 350;
 const PARISH = 500;
@@ -82,40 +84,40 @@ function poolClearance(pts: number[], x: number, y: number): number {
   for (let i = 0; i < pts.length; i += 2) radius = Math.max(radius, Math.hypot(pts[i] - x, pts[i + 1] - y));
   return radius + 1;
 }
-/** Cut a street-facing rectangle back to form wings, a service court or a bevelled tower. */
-function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (salt: number) => number): number[] {
+/** A unit-box plan laid on a rectangle: `F` its front corner, `u` along the street, `v` in from it, `W` × `D` m. */
+function placed(plan: readonly number[], F: readonly number[], u: readonly number[], v: readonly number[], W: number, D: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < plan.length; i += 2) out.push(F[0] + u[0] * plan[i] * W + v[0] * plan[i + 1] * D, F[1] + u[1] * plan[i] * W + v[1] * plan[i + 1] * D);
+  return out;
+}
+
+/**
+ * Lay a street-facing rectangle out as a plan its zone builds: one learnt from real towns, or now
+ * and then a bevelled tower or a works pair of halls round a service court. Sawtooth halls stay plain.
+ */
+function shapedPlan(q: number[], label: Label, roof: string | undefined, r: (salt: number) => number, mmPerMetre: number): number[] {
+  if (roof === 'sawtooth') return q;
   const pick = r(14680);
-  if (pick >= 0.55 || roof === 'sawtooth') return q;
   const ux = q[2] - q[0], uy = q[3] - q[1];
   const vx = q[6] - q[0], vy = q[7] - q[1];
   const width = Math.hypot(ux, uy), depth = Math.hypot(vx, vy);
   const cut = 0.26 + 0.10 * r(14681);
   let outline: number[];
-  if (label === 'towers') {
+  if (label === 'towers' && pick < 0.2) {
     // Equal setbacks in metres keep the corner facets square on long slabs too.
     const setback = Math.min(width, depth) * (0.16 + 0.08 * r(14682));
     const a = setback / width, b = setback / depth;
     outline = [a, 0, 1 - a, 0, 1, b, 1, 1 - b, 1 - a, 1, a, 1, 0, 1 - b, 0, b];
-  } else if (label === 'suburb' || label === 'works') {
-    if (width < 9 || depth < 8) return q;
-    if (label === 'works' && width >= 24 && pick < 0.26) {
-      // Two parallel halls can share a central link, leaving loading courts at both ends.
-      const front = depth >= 22 && pick < 0.12 ? [0.32, 0, 0.32, cut, 0.68, cut, 0.68, 0] : [];
-      outline = [0, 0, ...front, 1, 0, 1, 1, 0.68, 1, 0.68, 1 - cut, 0.32, 1 - cut, 0.32, 1, 0, 1];
-    } else if (label === 'suburb' && width >= 10 && pick < 0.22) {
-      outline = [0, 0, 1, 0, 1, 1 - cut, 0.73, 1 - cut, 0.73, 1, 0.27, 1, 0.27, 1 - cut, 0, 1 - cut];
-    } else if (r(14683) < 0.5) {
-      outline = [0, 0, 1, 0, 1, 1 - cut, 0.56, 1 - cut, 0.56, 1, 0, 1];
-    } else {
-      outline = [0, 0, 1, 0, 1, 1, 0.44, 1, 0.44, 1 - cut, 0, 1 - cut];
-    }
-  } else return q;
-  for (let i = 0; i < outline.length; i += 2) {
-    const a = outline[i], b = outline[i + 1];
-    outline[i] = q[0] + ux * a + vx * b;
-    outline[i + 1] = q[1] + uy * a + vy * b;
+  } else if (label === 'works' && width >= 24 && depth >= 8 && pick < 0.12) {
+    // Two parallel halls can share a central link, leaving loading courts at both ends.
+    const front = depth >= 22 && pick < 0.06 ? [0.32, 0, 0.32, cut, 0.68, cut, 0.68, 0] : [];
+    outline = [0, 0, ...front, 1, 0, 1, 1, 0.68, 1, 0.68, 1 - cut, 0.32, 1 - cut, 0.32, 1, 0, 1];
+  } else {
+    const plan = learntPlan(label, width, depth, mmPerMetre, false, r(14760), r(14761));
+    if (!plan) return q;
+    outline = plan.ring;
   }
-  return outline;
+  return placed(outline, q, [ux / width, uy / width], [vx / depth, vy / depth], width, depth);
 }
 
 /** Place gabled barns beside rural routes, with an open yard for silos and farm machinery. */
@@ -186,17 +188,28 @@ function frontOf(l: Lot): { A: [number, number]; u: [number, number]; v: [number
   return { A: [ax, ay], u, v: [-u[1], u[0]], L };
 }
 
+/** Whether a lot's back is about as long as its front, so a plan laid on it isn't squeezed into a wedge. */
+function squareish(l: Lot): boolean {
+  let o = 0;
+  let i = 0;
+  for (let k = 2; k < l.o.length; k += 2) {
+    o += Math.hypot(l.o[k] - l.o[k - 2], l.o[k + 1] - l.o[k - 1]);
+    i += Math.hypot(l.i[k] - l.i[k - 2], l.i[k + 1] - l.i[k - 1]);
+  }
+  return i > 0.75 * o && i < 1.33 * o;
+}
+
 /** How much a pitched roof adds over the walls, as `classify()` reckons it, for a building this wide. */
 const allowance = (w: number, style: Style) => Math.min((w / 2) * Math.tan(((style.pitch[0] + style.pitch[1]) * Math.PI) / 360), 13) * 0.45;
 
-type Plan = { ring: number[]; pool?: number[]; h: number; building: string; roof?: string; across?: boolean; poi?: Poi };
+type Plan = { ring: number[]; pool?: number[]; h: number; building: string; roof?: string; across?: boolean; poi?: Poi; deepen?: (more: number) => number[] };
 
 /** A building plot on a street the blocks don't reach. Its index follows the street walk, even where a plot is skipped. */
 export type FrontageLot = { ring: number[]; label: Label; level: number; warmth: number; way: number; side: number; index: number };
 
 type FrontageOptions = { record?: FrontageLot[]; tuned?: ReadonlyMap<number, FrontageLot> };
 
-type DensityPlot = { empty: boolean; row: boolean; fits: (ring: number[]) => boolean; record?: FrontageLot };
+type DensityPlot = { empty: boolean; row: boolean; fits: (ring: number[]) => boolean; record?: FrontageLot; deepen?: (more: number) => number[] };
 
 /** Lay out the buildings on the blocks' lots, then along the streets the blocks don't reach. */
 export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: FrontageOptions): Built {
@@ -255,7 +268,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       const lot = lotRing(l);
       const [x, y] = centre(lot);
       const densityPlot = { empty: vacant(Math.abs(set.imageDensity) * c.density(x, y), x, y, vary), row: ROWS.has(l.label), fits: (ring: number[]) => within(ring, lot) };
-      for (const p of plans) if (add(p)) plots[out.buildings.length - 1] = densityPlot;
+      for (const p of plans) if (add(p)) plots[out.buildings.length - 1] = p.deepen ? { ...densityPlot, deepen: p.deepen } : densityPlot;
     } else for (const p of plans) add(p);
   }
 
@@ -320,15 +333,37 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       const f0 = Math.min(0.3, back / l.depth);
       const f1 = Math.min(1, (back + dep) / l.depth);
       let q = strip(l, f0, f1);
-      if (c.guides && !hall) q = c.guides.row(q, (p) => within(p, ring) && c.ground.clear(p) && !laid.clash(p));
+      let deepest = Math.min(dep, l.depth - back);
+      let deepen: ((more: number) => number[]) | undefined;
+      const guided = c.guides && !hall ? c.guides.row(q, (p) => within(p, ring) && c.ground.clear(p) && !laid.clash(p)) : q;
+      if (guided !== q) q = guided;
+      else if (!hall) {
+        // A plan learnt from real terraces: wings reaching back into the yard, a stair tower, a
+        // narrower rear range. A street side often repeats one, mirrored house by house in pairs.
+        const run = side(14762) < (UNIFORM[l.label] ?? 0);
+        const pick = run ? side(14763) : r(14763);
+        const flip = run ? ((l.index + (side(14764) < 0.5 ? 0 : 1)) % 2 ? 0.25 : 0.75) : r(14764);
+        const main = (f1 - f0) * l.depth;
+        const plan = squareish(l) ? learntPlan(l.label, frontage(l), main, c.mmPerMetre, true, pick, flip) : null;
+        // Wings reach as far back as the lot lets them, so long as the main range keeps most of its depth.
+        const reach = plan && Math.min(plan.depth, l.depth - back - 1);
+        if (plan && reach && reach >= main) {
+          const p = onLot(l, plan.ring, back, reach);
+          if (within(p, ring)) {
+            q = p;
+            deepest = reach;
+            deepen = (more) => onLot(l, plan.ring, back, reach * (1 + more));
+          }
+        }
+      }
       const s = hall ? st + 1 : st;
       const roof = pitched(14047) ? undefined : 'flat';
       const h = s * style.floor + (roof ? 0 : allowance(Math.min(dep, D), style));
       const building = hall?.building ?? (l.label === 'old' && s > 3 ? 'apartments' : l.label === 'blocks' ? 'apartments' : 'terrace');
-      const plans: Plan[] = [{ ring: q, h, building, roof, poi: hall?.poi }];
+      const plans: Plan[] = [{ ring: q, h, building, roof, poi: hall?.poi, deepen }];
       // A back building behind a yard, on a plot deep enough, the more often the denser the zone.
       const yard = 3 + 3 * side(14096);
-      const rear0 = back + dep + yard;
+      const rear0 = back + Math.max(dep, deepest) + yard;
       const rearDepth = Math.min(l.depth - rear0 - 1, 8 + 6 * side(14097));
       if (!hall && rearDepth >= 5 && r(14098) < l.level) {
         const rs = Math.max(1, s - 2);
@@ -359,21 +394,18 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       let sb = 7 - 3 * l.level + 3 * (r(14050) - 0.5);
       if (ww < 6) return [];
       const m = L / 2 + (r(14051) - 0.5) * Math.max(0, L - ww - 5) * 0.6;
-      const wing = r(14052) < 0.25;
       const right = r(14053) < 0.5;
-      const ex = 4 + 2 * r(14054);
-      const wg = ww * (0.4 + 0.1 * r(14055));
+      // A plan learnt from real suburbs. One that leaves part of its box empty (an L, a porch
+      // recess) first tries a box a little larger, so the house keeps about its floor area.
+      const plan = learntPlan('suburb', ww, dd, c.mmPerMetre, false, r(14760), r(14761));
+      const grow = plan ? Math.min(1.2, 1 / Math.sqrt(planFill(plan.ring))) : 1;
       let house: number[] | null = null;
+      let houseDepth = dd;
       for (let tries = 0; tries < 3 && !house; tries++) {
-        const F: [number, number] = [A[0] + u[0] * (m - ww / 2) + v[0] * sb, A[1] + u[1] * (m - ww / 2) + v[1] * sb];
-        const P = (a: number, b: number) => [F[0] + u[0] * a + v[0] * b, F[1] + u[1] * a + v[1] * b];
-        const q =
-          wing && tries === 0
-            ? right
-              ? [...P(0, 0), ...P(ww, 0), ...P(ww, dd + ex), ...P(ww - wg, dd + ex), ...P(ww - wg, dd), ...P(0, dd)]
-              : [...P(0, 0), ...P(ww, 0), ...P(ww, dd), ...P(wg, dd), ...P(wg, dd + ex), ...P(0, dd + ex)]
-            : rect(F, u, v, ww, dd);
-        if (within(q, ring)) house = q;
+        const [w, d] = tries === 0 ? [ww * grow, dd * grow] : [ww, dd];
+        const F: [number, number] = [A[0] + u[0] * (m - w / 2) + v[0] * sb, A[1] + u[1] * (m - w / 2) + v[1] * sb];
+        const q = plan ? placed(plan.ring, F, u, v, w, d) : rect(F, u, v, w, d);
+        if (within(q, ring)) [house, houseDepth] = [q, d];
         else if (tries > 0) {
           sb *= 0.6;
           dd *= 0.85;
@@ -383,7 +415,6 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       if (!house) return [];
       const roof = pitched(14056) ? undefined : 'flat';
       const s = Math.min(st, 2);
-      if (house.length === 8) house = shapedPlan(house, l.label, roof, r);
       if (c.guides) house = c.guides.detached(house, (p) => within(p, ring) && c.ground.clear(p) && !laid.clash(p));
       plans.push({ ring: house, h: s * style.floor + (roof ? 0 : allowance(Math.min(ww, dd), style)), building: 'house', roof });
       if (r(14730) < 0.16) {
@@ -392,7 +423,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
         if (pointInRing(cx, cy, ring) && toRing(cx, cy, ring) > poolClearance(pool, cx, cy)) plans[0].pool = pool;
       }
       if (r(14057) < 0.25) {
-        const back = sb + dd + (wing ? ex : 0) + 3;
+        const back = sb + houseDepth + 3;
         const off = right ? m - ww / 2 : m + ww / 2 - 3;
         const q = rect([A[0] + u[0] * off + v[0] * back, A[1] + u[1] * off + v[1] * back], u, v, 3, 3.5);
         if (within(q, ring)) plans.push({ ring: q, h: 2.6, building: 'shed' });
@@ -409,7 +440,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       const q = rect([A[0] + u[0] * gap + v[0] * sb, A[1] + u[1] * gap + v[1] * sb], u, v, ww, dd);
       if (!within(q, ring)) return [];
       const roof = r(14062) < l.warmth ? 'sawtooth' : 'flat';
-      return [{ ring: shapedPlan(q, l.label, roof, r), h: 6 + 2.5 * st, building: r(14061) < 0.4 ? 'warehouse' : 'industrial', roof }];
+      return [{ ring: shapedPlan(q, l.label, roof, r, c.mmPerMetre), h: 6 + 2.5 * st, building: r(14061) < 0.4 ? 'warehouse' : 'industrial', roof }];
     }
     if (l.label === 'towers') {
       const slab = r(14063) < 0.4;
@@ -422,7 +453,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
         const rad = Math.max(a, b) / 2;
         if (within(q, ring) && towers.every(([x, y, r2]) => Math.hypot(x - cx, y - cy) >= r2 + rad + 20)) {
           towers.push([cx, cy, rad]);
-          return [{ ring: shapedPlan(q, l.label, 'flat', r), h: st * style.floor, building: 'apartments', roof: 'flat' }];
+          return [{ ring: shapedPlan(q, l.label, 'flat', r, c.mmPerMetre), h: st * style.floor, building: 'apartments', roof: 'flat' }];
         }
         a = b = 18;
       }
@@ -465,7 +496,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       let ring = b.shape[0].pts;
       if (plot && tag.building !== 'shed') {
         const fits = (p: number[]) => simpleFootprint(p) && plot.fits(p) && c.ground.clear(p) && !laid.clash(p, i, i) && !extensions.clash(p);
-        const full = footprintAtDensity(ring, plot.row, c.density, fits);
+        const full = footprintAtDensity(ring, plot.row, c.density, fits, plot.deepen);
         if (full !== ring) {
           // Find the room each plot has at full strength first. A house with little room
           // behind it then deepens gradually over the same slider range as its neighbours.
@@ -743,6 +774,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
   const ways = c.ways;
   const order = ways.map((_, i) => i).sort((a, b) => (RANKS[ways[b].cls] ?? 0) - (RANKS[ways[a].cls] ?? 0) || a - b);
   const workshops: { ring: number[]; zone: number; parent: number }[] = [];
+  const wings: { lot: Pick<Lot, 'o' | 'i' | 'depth'>; plan: number[]; depth: number; parent: number; laid: number; zone: number; record?: FrontageLot }[] = [];
   let index = 0;
   for (const wi of order) {
     const w = ways[wi];
@@ -760,8 +792,10 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
       return [p[seg * 2] + (p[seg * 2 + 2] - p[seg * 2]) * t, p[seg * 2 + 1] + (p[seg * 2 + 3] - p[seg * 2 + 1]) * t];
     };
     for (const sideSign of [1, -1]) {
-      // A row keeps one depth and building line along a street side.
+      // A row keeps one depth and building line along a street side, and often one learnt plan.
       const rowHash = vary(p[0], p[1], sideSign > 0 ? 14020 : 14021);
+      const runPlan = vary(p[0], p[1], sideSign > 0 ? 14765 : 14766);
+      const runPick = vary(p[0], p[1], sideSign > 0 ? 14767 : 14768);
       let s = 4;
       while (s < total - 4 && out.buildings.length < MAX_BUILDINGS) {
         const plot = index++;
@@ -833,10 +867,21 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
           const roof = label === 'works' ? (r(14026) < warm ? 'sawtooth' : 'flat') : label === 'towers' || r(14027) >= warm ? 'flat' : undefined;
           const h = label === 'works' ? 6 + 2.5 * st : st * style.floor + (roof ? 0 : allowance(depth, style));
           const building = label === 'old' && st > 3 ? 'apartments' : label === 'works' && r(14028) < 0.4 ? 'warehouse' : f.building;
-          if (!row) q = shapedPlan(q, label, roof, r);
+          if (!row) q = shapedPlan(q, label, roof, r, c.mmPerMetre);
           if (c.guides && (row || label === 'suburb')) {
             const fits = (p: number[]) => free(p, z.label[probe]) && c.ground.clear(p) && !c.laid.clash(p);
             q = row ? c.guides.row(q, fits) : c.guides.detached(q, fits);
+          }
+          // A plan learnt from real terraces, laid on the plot as on a block's lot once every street front is laid.
+          let wing: { lot: Pick<Lot, 'o' | 'i' | 'depth'>; plan: number[]; depth: number } | undefined;
+          if (row && q.length === 8 && !c.guides) {
+            const run = runPlan < (UNIFORM[label] ?? 0);
+            const plan = learntPlan(label, chord, depth, c.mmPerMetre, true, run ? runPick : r(14763), run ? (plot % 2 ? 0.25 : 0.75) : r(14764));
+            if (plan) {
+              const nx0 = (q[6] - q[0]) / depth, ny0 = (q[7] - q[1]) / depth;
+              const nx1 = (q[4] - q[2]) / depth, ny1 = (q[5] - q[3]) / depth;
+              wing = { lot: { o: q.slice(0, 4), i: [q[0] + nx0 * plan.depth, q[1] + ny0 * plan.depth, q[2] + nx1 * plan.depth, q[3] + ny1 * plan.depth], depth: plan.depth }, plan: plan.ring, depth: plan.depth };
+            }
           }
           const pool = label === 'suburb' && r(14730) < 0.16 ? poolBehind(q, r) : undefined;
           if (add({ ring: q, h, building, roof, pool: pool && free(pool, z.label[probe]) ? pool : undefined })) {
@@ -849,6 +894,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
               workshops.push({ ring: rect(F, [cx0 * sideSign, cy0 * sideSign], [nx, ny], w, 4), zone: z.label[probe], parent: out.buildings.length - 1 });
             }
             const record = options?.record && { ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot };
+            if (wing) wings.push({ ...wing, parent: out.buildings.length - 1, laid: c.laid.count - 1, zone: z.label[probe], record });
             if (c.density && plots) {
               plots[out.buildings.length - 1] = { empty: vacant(Math.abs(c.set.imageDensity) * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
             } else if (record) options?.record?.push(record);
@@ -857,6 +903,22 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
         s += lot;
       }
     }
+  }
+  // Rear wings reach into yards only once every street front is laid, so no row loses a house to the wings of the row behind it.
+  for (const { lot, plan, depth, parent, laid, zone, record } of wings) {
+    const ring = onLot(lot, plan, 0, depth);
+    if (!simpleFootprint(ring) || !free(ring, zone, true) || !c.ground.clear(ring) || c.laid.clash(ring, laid, laid)) continue;
+    const b = out.buildings[parent];
+    const tag = out.tagged[parent];
+    b.shape[0] = { pts: ring, seam: new Uint8Array(ring.length / 2) };
+    [tag.x, tag.y] = centre(ring);
+    if (inBox(tag.x, tag.y, 0)) delete b.context;
+    else b.context = true;
+    c.laid.add(ring);
+    occ.take(ring, SHARED);
+    if (record) record.ring = ring;
+    const plot = plots?.[parent];
+    if (plot) plot.deepen = (more) => onLot(lot, plan, 0, depth * (1 + more));
   }
   for (const { ring, zone, parent } of workshops) {
     if (!free(ring, zone) || !add({ ring, h: 3, building: 'shed', roof: style.id === 'arid' ? 'flat' : 'skillion' })) continue;

@@ -16,7 +16,7 @@ import { compat, MIN_AREA } from '../src/image-zones';
 import { learnCompat, type LearnOptions } from '../src/image-adjacency';
 import { DEFAULT_SETTINGS, type Settings } from '../src/settings';
 import { detectRegion, STYLES } from '../src/styles';
-import { loadTown, type Shape } from '../src/tiles';
+import { loadTown, type Shape, type Town } from '../src/tiles';
 import { CORPUS, type CorpusPlace } from './adjacency-places';
 
 export { CORPUS, LABELS, compat, learnCompat };
@@ -48,6 +48,10 @@ export type PlaceResult = {
   cells: Float64Array;
   /** Built cells' characters, for checking the thresholds. */
   chars: (Character & { label: Label })[];
+  /** The town read, in local metres; the label grid's south-west corner is at (x0, y0). */
+  town: Town;
+  x0: number;
+  y0: number;
   error?: string;
 };
 
@@ -314,7 +318,7 @@ export async function labelPlace(place: CorpusPlace): Promise<PlaceResult> {
         pairs[b * K + a]++;
       }
     }
-  return { id: place.id, W, H, label, pairs, cells, chars };
+  return { id: place.id, W, H, label, pairs, cells, chars, town, x0, y0 };
 }
 
 /** A majority filter, then patches below their label's smallest zone merged into the neighbour they share most edge with. */

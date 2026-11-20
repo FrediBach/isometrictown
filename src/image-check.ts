@@ -280,6 +280,10 @@ export class Ground {
 export class Footprints {
   private rings: number[][] = [];
   private index = new Index();
+  /** How many footprints are laid; each one's number for `clash()` is its place in that count. */
+  get count(): number {
+    return this.rings.length;
+  }
   add(ring: number[]): void {
     this.index.add(this.rings.push(ring) - 1, ring);
   }

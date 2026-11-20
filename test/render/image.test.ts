@@ -6,6 +6,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
+import { plausibility } from '@/image';
 import { predict } from '@/image-tune';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { sheetChecks } from '../support/checks';
@@ -70,6 +71,10 @@ describe.each(CASES)('image $id', ({ id, picture, what, set }) => {
     if (set.style !== 'auto') expect(s.region.style).toBe(set.style);
     expect(s.svg).not.toMatch(/OpenStreetMap/i);
     expect(s.svg).toContain(`<title>${set.imageName}, Isometric Town</title>`);
+  });
+
+  test('lays out a plausible town (§11.4)', () => {
+    expect(plausibility(s.scene.town)).toEqual([]);
   });
 
   test('scores above its likeness floor', () => {
