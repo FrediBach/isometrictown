@@ -425,6 +425,22 @@ describe('the street graph', () => {
     expect(c.edges.some((e) => e.main)).toBe(true);
   });
 
+  test('a dry connection takes precedence over a shorter bridge', () => {
+    const g = planar([line([-30, 0, -30, 150]), line([30, 0, 30, 110])]);
+    clean(g, (x, y) => Math.abs(x) < 20 && y < 90);
+    const link = g.edges.find(e => e.pts[0] * e.pts[e.pts.length - 2] < 0);
+    expect(link?.pts).toEqual([30, 110, -30, 150]);
+  });
+
+  test('a bridge needs dry approaches and a single crossing within reach', () => {
+    const banks = (width: number) => planar([line([-width, 0, -width, 150]), line([width, 0, width, 100])]);
+    const channel = (x: number) => Math.abs(x) < 20;
+    expect(clean(banks(30), channel).edges).toHaveLength(3);
+    expect(clean(banks(130), channel).edges).toHaveLength(1);
+    expect(clean(banks(30), x => channel(x) && Math.abs(x) > 5).edges).toHaveLength(1);
+    expect(clean(banks(30), x => x >= 0).edges).toHaveLength(1);
+  });
+
 });
 
 describe('blocks and lots', () => {

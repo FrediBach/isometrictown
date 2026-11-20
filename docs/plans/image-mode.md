@@ -409,7 +409,7 @@ Tracing stops at another street (snapping to it within 8 m), at the edge of a zo
 
 The graph is planarised (split where streets cross) and cleaned until all of these hold:
 
-- One connected network across the region: separate components are joined by the cheapest added link.
+- One connected network across the region. An isolated neighbourhood takes a dry link to the connected streets if one is within 250 m. Otherwise it can reach them across one stretch of water, with dry approaches and a clear deck. The 250 m budget includes both approaches. Shorter crossings are favoured and these added bridges are spaced at least 150 m apart. The approaches form junctions with the streets they meet on land.
 - No dead end shorter than 25 m. Suburbs may keep cul-de-sacs, which end in a turning circle drawn as a plaza.
 - No edge shorter than 10 m: short edges are collapsed.
 - No junction angle under 35°: the offending edge is removed or merged with its neighbour.

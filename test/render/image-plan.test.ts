@@ -7,6 +7,7 @@ import { Camera } from '@/camera';
 import { classify } from '@/classify';
 import { drawnAs, imageRegion, imageScene, plausibility, type Scene } from '@/image';
 import { centre } from '@/image-check';
+import { fitImage, toImage } from '@/image-fit';
 import { readImage } from '@/image-read';
 import { streetRules } from '@/image-streets';
 import { BUILT, LABELS } from '@/image-tone';
@@ -55,6 +56,39 @@ describe('the town', () => {
     const town = imageScene(pic, { ...base, image: pic.id }).town;
     expect(town.streams.length).toBeGreaterThan(0);
     expect(town.buildings.length).toBeGreaterThan(0);
+    expect(plausibility(town)).toEqual([]);
+  });
+
+  test('a river between dark letters keeps the far-bank letter built and connected by a bridge', () => {
+    const river = (v: number) => 0.66 + 0.10 * (1 - v) + 0.018 * Math.cos(2 * Math.PI * v);
+    const inC = (u: number, v: number) => u > 0.66 && u < 0.90 && v > 0.30 && v < 0.70 && (u <= 0.76 || v <= 0.40 || v >= 0.60);
+    const pic = paint('Letters on two banks', (u, v) => {
+      if (Math.abs(u - river(v)) < 0.03) return [45, 128, 214];
+      const U = u > 0.10 && u < 0.30 && (v > 0.61 || u < 0.16 || u > 0.24);
+      const N = u > 0.34 && u < 0.55 && (u < 0.39 || u > 0.50 || Math.abs((u - 0.34) / 0.21 - (v - 0.30) / 0.40) < 0.20);
+      const I = u > 0.59 && u < 0.65;
+      if ((v > 0.30 && v < 0.70 && (U || N || I)) || inC(u, v)) return [0, 0, 0];
+      return [105 - 45 * u, 105 + 55 * u, 75];
+    });
+    const { cam, town, streets, set } = imageScene(pic, { ...base, sheet: 'a3', scale: 3350, seed: 12163, bearing: 35,
+      imageContrast: 0.95, imageContours: 0.55, imageFloorplans: 0.88, imageNeighbours: 0.8, imageRoundabouts: 0.78, likeness: 0.8 });
+    const fit = fitImage(cam.rect, pic.w, pic.h, set.imageFit, set.imageFocus);
+    const uv = (x: number, y: number): [number, number] => {
+      const [px, py] = toImage(fit, cam.sx(x, y), cam.sy(x, y, 0));
+      return [px / pic.w, py / pic.h];
+    };
+    const bank = (x: number, y: number) => {
+      const [u, v] = uv(x, y);
+      return u - river(v);
+    };
+    expect(town.ways.some(w => {
+      if (!w.bridge) return false;
+      const p = w.pts;
+      const a = bank(p[0], p[1]), b = bank(p[p.length - 2], p[p.length - 1]);
+      return Math.min(a, b) < -0.02 && Math.max(a, b) > 0.02;
+    })).toBe(true);
+    expect(town.buildings.filter(b => inC(...uv(...centre(b.shape[0].pts)))).length).toBeGreaterThan(50);
+    expect(streetRules(streets)).toEqual([]);
     expect(plausibility(town)).toEqual([]);
   });
 

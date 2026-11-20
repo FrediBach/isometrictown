@@ -12,6 +12,7 @@
  */
 import type { Camera } from './camera';
 import { pointInRing } from './geo';
+import { meet } from './image-check';
 import type { Target } from './image-read';
 import { blur, BUILT, LABELS, type Label } from './image-tone';
 import { simplify, streamsOf, traceLines } from './image-water';
@@ -941,7 +942,7 @@ const weaker = (e: GraphEdge, f: GraphEdge) => (e.main !== f.main ? !e.main : RA
 /**
  * Clean the graph until §10.5's rules hold: no edges under 10 m, junctions at least 20 m apart,
  * no dead ends under 25 m, no junction angle under 35°, and one connected network (pieces are
- * joined by the shortest link that doesn't cross water, or dropped).
+ * joined over dry ground or by a short bridge, or dropped).
  */
 export function clean(g: Graph, water: (x: number, y: number) => boolean): Graph {
   const pass = () => {
@@ -1017,7 +1018,7 @@ export function clean(g: Graph, water: (x: number, y: number) => boolean): Graph
   for (let round = 0; round < 16 && pass(); round++);
   join(g, water);
   for (let round = 0; round < 4 && pass(); round++);
-  // Joining can't be undone by cleaning; whatever is still apart is dropped, keeping the largest.
+  // Drop any pieces still beyond reach or cut off when cleaning the new junctions.
   keepLargest(g);
   compact(g);
   return g;
@@ -1045,7 +1046,26 @@ function components(g: Graph): Int32Array {
   return comp;
 }
 
-/** Join each smaller piece to the largest by the shortest straight link that keeps off water, up to 250 m. */
+/** Split a street into contiguous wet and dry runs, sharing the vertex at each bank. */
+function bankRuns(pts: number[], water: (x: number, y: number) => boolean) {
+  const runs = [{ pts: pts.slice(0, 2), wet: water(pts[0], pts[1]) }];
+  for (let i = 2; i < pts.length; i += 2) {
+    const ax = pts[i - 2], ay = pts[i - 1], dx = pts[i] - ax, dy = pts[i + 1] - ay;
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 2));
+    for (let s = 1; s <= steps; s++) {
+      const x = ax + (dx * s) / steps, y = ay + (dy * s) / steps;
+      const wet = water(x, y);
+      const run = runs[runs.length - 1];
+      if (wet !== run.wet) {
+        run.pts.push(x, y);
+        runs.push({ pts: [x, y], wet });
+      } else if (s === steps) run.pts.push(x, y);
+    }
+  }
+  return runs;
+}
+
+/** Join nearby street networks on dry ground where possible, or over a single stretch of water. */
 function join(g: Graph, water: (x: number, y: number) => boolean): void {
   const REACH = 250;
   const comp = components(g);
@@ -1065,28 +1085,77 @@ function join(g: Graph, water: (x: number, y: number) => boolean): void {
   for (let v = 0; v < comp.length; v++) if (comp[v] === main) addNode(v);
   const pieces = new Map<number, number[]>();
   for (let v = 0; v < comp.length; v++) if (comp[v] >= 0 && comp[v] !== main) (pieces.get(comp[v]) ?? pieces.set(comp[v], []).get(comp[v])!).push(v);
-  for (const c of [...pieces.keys()].sort((a, b) => a - b)) {
-    let best: [number, number, number] | null = null;
-    for (const v of pieces.get(c)!) {
-      const [x, y] = [g.nodes[v * 2], g.nodes[v * 2 + 1]];
+  if (!pieces.size) return;
+  let addedBridge = false;
+  const bridgeSpacing = 150;
+  const bridges = new Near(bridgeSpacing);
+  const arms: [number, number][][] = Array.from({ length: comp.length }, () => []);
+  for (const e of g.edges) {
+    for (const v of [e.a, e.b]) arms[v].push(leaving(e, v));
+  }
+  const limit = Math.cos(RULES.angle * Math.PI / 180);
+  const bestLink = (nodes: number[]) => {
+    let best: { v: number; u: number; pts: number[]; span?: number[]; cost: number } | undefined;
+    const consider = (v: number, u: number, x: number, y: number) => {
+      const bx = g.nodes[u * 2], by = g.nodes[u * 2 + 1];
+      const d = Math.hypot(bx - x, by - y);
+      if (d > REACH || (best && d >= best.cost)) return;
+      const pts = [x, y, bx, by];
+      const runs = bankRuns(pts, water);
+      if (runs[0].wet || runs[runs.length - 1].wet) return;
+      if (runs.length === 1) {
+        best = { v, u, pts, cost: d };
+        return;
+      }
+      if (runs.length !== 3) return;
+      const span = runs[1].pts;
+      // Every dry link costs less than a bridge. Prefer a short deck and leave at
+      // least 150 m between crossings so adjacent streets share the same bridge.
+      const cost = REACH + d + lengthOf(span);
+      if (best && cost >= best.cost) return;
+      const ux = (bx - x) / d, uy = (by - y) / d;
+      if (arms[v].some(([dx, dy]) => dx * ux + dy * uy > limit) ||
+          arms[u].some(([dx, dy]) => -dx * ux - dy * uy > limit)) return;
+      if (bridges.any(span[0], span[1], bridgeSpacing) || bridges.any(span[2], span[3], bridgeSpacing)) return;
+      // The approaches may form new junctions on land. Keep the deck clear.
+      if (g.edges.some(e => {
+        const p = e.pts;
+        for (let k = 2; k < p.length; k += 2) {
+          if (meet(span[0], span[1], span[2], span[3], p[k - 2], p[k - 1], p[k], p[k + 1])) return true;
+        }
+        return false;
+      })) return;
+      best = { v, u, pts, span, cost };
+    };
+    for (const v of nodes) {
+      const x = g.nodes[v * 2], y = g.nodes[v * 2 + 1];
       for (let i = -1; i <= 1; i++)
         for (let j = -1; j <= 1; j++)
-          for (const u of cells.get(cellKey(x + i * REACH, y + j * REACH)) ?? []) {
-            const d = Math.hypot(g.nodes[u * 2] - x, g.nodes[u * 2 + 1] - y);
-            if (d > REACH || (best && d >= best[2])) continue;
-            let dry = true;
-            for (let t = 0.1; t < 1 && dry; t += 0.1) if (water(x + (g.nodes[u * 2] - x) * t, y + (g.nodes[u * 2 + 1] - y) * t)) dry = false;
-            if (dry) best = [v, u, d];
-          }
+          for (const u of cells.get(cellKey(x + i * REACH, y + j * REACH)) ?? []) consider(v, u, x, y);
     }
-    if (!best) continue;
-    const [v, u] = best;
-    g.edges.push({ a: v, b: u, pts: [g.nodes[v * 2], g.nodes[v * 2 + 1], g.nodes[u * 2], g.nodes[u * 2 + 1]], cls: 'minor', main: false });
-    for (const w of pieces.get(c)!) {
-      comp[w] = main;
-      addNode(w);
+    return best;
+  };
+  let remaining: number;
+  do {
+    remaining = pieces.size;
+    for (const [piece, nodes] of pieces) {
+      const best = bestLink(nodes);
+      if (!best) continue;
+      const { v, u, pts, span } = best;
+      const edge = { a: v, b: u, pts, cls: 'minor', main: false };
+      g.edges.push(edge);
+      for (const n of [v, u]) arms[n].push(leaving(edge, n));
+      if (span) {
+        bridges.add(span, 0);
+        addedBridge = true;
+      }
+      for (const w of nodes) addNode(w);
+      pieces.delete(piece);
     }
-  }
+    // Once a bridge opens the far bank, an earlier piece may now have a dry route to it.
+  } while (addedBridge && pieces.size && pieces.size < remaining);
+  // Split any streets met by the new approaches at their junctions before cleaning again.
+  if (addedBridge) Object.assign(g, planar(g.edges));
 }
 
 /** Keep only the largest piece of the network. */
@@ -1223,27 +1292,9 @@ function waysOf(g: Graph, water: (x: number, y: number) => boolean, roundabouts:
   });
   const ways: Way[] = roundabouts.map((o) => ({ pts: o.pts, kind: 'road', width: ROAD_WIDTH[o.cls] ?? ROAD_WIDTH.minor, cls: o.cls }));
   for (const c of chains) {
-    // Walk the street in short steps and cut it where it goes on or off the water.
-    const out: number[][] = [[c.pts[0], c.pts[1]]];
-    const wet: boolean[] = [water(c.pts[0], c.pts[1])];
-    for (let i = 2; i < c.pts.length; i += 2) {
-      const [ax, ay, bx, by] = [c.pts[i - 2], c.pts[i - 1], c.pts[i], c.pts[i + 1]];
-      const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 2));
-      for (let s = 1; s <= steps; s++) {
-        const x = ax + ((bx - ax) * s) / steps;
-        const y = ay + ((by - ay) * s) / steps;
-        const w = water(x, y);
-        if (w !== wet[wet.length - 1]) {
-          out[out.length - 1].push(x, y);
-          out.push([x, y]);
-          wet.push(w);
-        } else if (s === steps) out[out.length - 1].push(x, y);
-      }
+    for (const { pts, wet } of bankRuns(c.pts, water)) {
+      if (pts.length >= 4) ways.push({ pts, kind: 'road', width: ROAD_WIDTH[c.cls] ?? ROAD_WIDTH.minor, cls: c.cls, bridge: wet || undefined });
     }
-    out.forEach((pts, k) => {
-      if (pts.length < 4) return;
-      ways.push({ pts, kind: 'road', width: ROAD_WIDTH[c.cls] ?? ROAD_WIDTH.minor, cls: c.cls, bridge: wet[k] || undefined });
-    });
   }
   return ways;
 }

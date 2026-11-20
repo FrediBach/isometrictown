@@ -15,7 +15,7 @@ const SIZE = 50;
 const EDGE = 255;
 
 /** Whether two closed segments meet, including at their ends or along a common line. */
-function meet(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): boolean {
+export function meet(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): boolean {
   if (Math.max(ax, bx) < Math.min(cx, dx) || Math.max(cx, dx) < Math.min(ax, bx) ||
       Math.max(ay, by) < Math.min(cy, dy) || Math.max(cy, dy) < Math.min(ay, by)) return false;
   const c = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
