@@ -16,6 +16,10 @@ const shapeOf = (pts: number[]): Shape => [{ pts, seam: new Uint8Array(pts.lengt
 export function villageRailway(town: Town, cores: [number, number][], z: Zones, cam: Camera, target: Target, occ: Occupancy, streams: Shape[], vary: (x: number, y: number, salt: number) => number, housing?: () => Building[]): void {
   if (!cores.length) return;
   const [left, top, right, bottom] = cam.rect;
+  // Give the station a regional destination of its own. A frontage facing that
+  // direction gets an earlier trial, while the land can still favour another site.
+  const destination = 2 * Math.PI * vary(...cores[0], 14985);
+  const dx = Math.cos(destination), dy = Math.sin(destination);
   const obstacles = new Footprints();
   for (const shape of [...town.water, ...streams, ...town.green, ...town.wood, ...town.plazas, ...town.landuse.filter(a => a.cls === 'parking').map(a => a.shape)])
     obstacles.add(shape[0].pts);
@@ -81,6 +85,7 @@ export function villageRailway(town: Town, cores: [number, number][], z: Zones, 
       }
       return best;
     };
+    f.rank += 85 * (1 - f.ux * dx - f.uy * dy);
     f.rank += f.parallel ? (landCost(1) + landCost(-1)) / 2 : landCost(1);
   }
   if (!fronts.length) return;
@@ -112,10 +117,11 @@ export function villageRailway(town: Town, cores: [number, number][], z: Zones, 
     const heading = Math.atan2(uy, ux);
     const throat = at(platformEnd + 1, 0);
     if (++tried > 80) break;
-    const bearing = (direction: number, salt: number) => {
+    const bearing = (direction: number, aimFor: number, salt: number) => {
       // Serve a neighbouring settlement in the forward sector when there is one.
       const choice = vary(x, y, salt) - 0.5;
-      let nearest = Infinity, aim = direction + Math.sign(choice) * (0.36 + 1.6 * Math.abs(choice));
+      const turn = Math.atan2(Math.sin(aimFor - direction), Math.cos(aimFor - direction));
+      let nearest = Infinity, aim = direction + Math.max(-1.15, Math.min(1.15, turn + 0.5 * choice));
       for (const [cx, cy] of cores) {
         const dx = cx - x, dy = cy - y, dist = Math.hypot(dx, dy);
         if (dist < 220 || dist >= nearest || dx * Math.cos(direction) + dy * Math.sin(direction) < dist * 0.45) continue;
@@ -124,13 +130,13 @@ export function villageRailway(town: Town, cores: [number, number][], z: Zones, 
       }
       return aim;
     };
-    const approach = railApproach(ground, throat[0], throat[1], heading, bearing(heading, 14901));
+    const approach = railApproach(ground, throat[0], throat[1], heading, bearing(heading, destination, 14901));
     if (!approach) continue;
     const track: number[] = [];
     if (parallel) {
       const rear = at(start, 0);
       const other = railApproach(ground, rear[0], rear[1], heading + Math.PI,
-        bearing(heading + Math.PI, 14902));
+        bearing(heading + Math.PI, destination + Math.PI, 14902));
       if (!other) continue;
       for (let i = other.length - 2; i >= 0; i -= 2) track.push(other[i], other[i + 1]);
     } else track.push(...at(start, 0));
@@ -172,6 +178,8 @@ export function villageRailway(town: Town, cores: [number, number][], z: Zones, 
     // Judge them at their projected height, including where a station straddles a tonal edge.
     const stop = [hall, ...[8, 32, 54].map(t => at(start + t, 0))];
     for (const [px, py] of stop) cost += 230 * (toneAt(target, cam.sx(px, py), cam.sy(px, py, 3)) ?? 1);
+    const ex = track.at(-2)! - x, ey = track.at(-1)! - y;
+    cost += 170 * (1 - (ex * dx + ey * dy) / Math.max(1, Math.hypot(ex, ey)));
     found++;
     const platform = [...at(start + 2, 4.3), ...at(platformEnd, 4.3)];
     const access = parallel ? [...at(32, width / 2 + 20), ...at(32, 4.3)] : [x, y, ...at(start + 2, 4.3)];

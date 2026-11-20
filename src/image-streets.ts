@@ -16,7 +16,7 @@ import { meet } from './image-check';
 import type { Target } from './image-read';
 import { blur, BUILT, LABELS, type Label } from './image-tone';
 import { simplify, streamsOf, traceLines } from './image-water';
-import type { Zones } from './image-zones';
+import { labelAt as zoneAt, type Zones } from './image-zones';
 import type { Settings } from './settings';
 import { crossingsOf, controlOf, makeRoundabout, radiusOf, type Roundabout } from './image-junctions';
 import { hash, patch } from './rng';
@@ -340,8 +340,9 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     lines.push({ pts, cls, main });
   };
 
-  // Main roads: the cheapest way across, west to east and south to north.
-  const roads = mainRoads(z, ridge, cores, dirAt);
+  const vary = set.vary ?? ((x: number, y: number, salt: number) => hash(Math.round(x), Math.round(y), set.seed, salt));
+  const [cx, cy] = cores[0] ?? [0, 0];
+  const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt));
   roads.forEach((pts, k) => keep(pts, k ? 'secondary' : 'primary', true));
 
   // Bright lines in the image: streets in town, paths in parks, tracks in the fields.
@@ -551,7 +552,6 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 
   // Junctions as real towns of the style control them: some become roundabouts, some get signals.
-  const vary = set.vary ?? ((x: number, y: number, salt: number) => hash(Math.round(x), Math.round(y), set.seed, salt));
   const roundabouts: Roundabout[] = [];
   const signals: number[] = [];
   {
@@ -661,16 +661,30 @@ function coresOf(z: Zones) {
 }
 
 /** Up to two main roads, each the cheapest way from one side of the plan to the other (§10.2). */
-function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], dirAt: (x: number, y: number, f: number) => [number, number]): number[][] {
+function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number): number[][] {
   // A coarser grid, about 16 m, for the search; the road is smoothed afterwards.
   const f = Math.max(1, Math.round(16 / z.cell));
   const cs = z.cell * f;
   const RW = Math.ceil(z.W / f);
   const RH = Math.ceil(z.H / f);
   const cost = new Float32Array(RW * RH);
+  const rural = new Uint8Array(cost.length), built = new Uint8Array(cost.length);
+  let townCell = -1, nearest = Infinity;
   const COST: Partial<Record<Label, number>> = { water: 25, wood: 4, park: 3, plaza: 3, sand: 3, field: 1.6, meadow: 1.6, allot: 2, works: 1.2 };
   for (let j = 0; j < RH; j++)
     for (let i = 0; i < RW; i++) {
+      const index = j * RW + i;
+      const mx = z.x0 + (i + 0.5) * cs, my = z.y0 + (j + 0.5) * cs;
+      const sx = cam.sx(mx, my), sy = cam.sy(mx, my, 0);
+      if (sx >= cam.rect[0] && sx <= cam.rect[2] && sy >= cam.rect[1] && sy <= cam.rect[3]) {
+        const label = zoneAt(z, mx, my);
+        if (label && BUILT.has(label)) {
+          built[index] = 1;
+          const d = Math.hypot(mx - (cores[0]?.[0] ?? 0), my - (cores[0]?.[1] ?? 0));
+          if (d < nearest) { nearest = d; townCell = index; }
+        }
+        if (label === 'field' || label === 'meadow' || label === 'wood' || label === 'allot') rural[index] = 1;
+      }
       let sum = 0;
       let cnt = 0;
       let bright = 0;
@@ -718,7 +732,7 @@ function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], dirAt:
       if (d > dist[c]) continue;
       if (to.has(c)) {
         const path: number[] = [];
-        for (let k = c; k >= 0; k = prev[k]) path.push(z.x0 + ((k % RW) + 0.5) * cs, z.y0 + (Math.floor(k / RW) + 0.5) * cs);
+        for (let k = c; k >= 0; k = prev[k]) path.push(k);
         return path;
       }
       const i = c % RW;
@@ -741,12 +755,61 @@ function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], dirAt:
     }
     return null;
   };
+  // Space four approaches round the boundary, with independent leeway at each
+  // end. The terrain decides where within that stretch the road actually leaves.
+  const phase = 4 * roll(14980);
+  const gate = (arm: number) => {
+    const centre = (phase + arm + 0.55 * (roll(14981 + arm) - 0.5) + 4) % 4;
+    const cells: number[] = [];
+    const consider = (cell: number, position: number) => {
+      const gap = Math.abs(position - centre);
+      if (Math.min(gap, 4 - gap) <= 0.12) cells.push(cell);
+    };
+    for (let i = 0; i < RW; i++) {
+      const t = i / Math.max(1, RW - 1);
+      consider(i, t);
+      consider((RH - 1) * RW + i, 3 - t);
+    }
+    for (let j = 0; j < RH; j++) {
+      const t = j / Math.max(1, RH - 1);
+      consider(j * RW + RW - 1, 1 + t);
+      consider(j * RW, 4 - t);
+    }
+    return cells;
+  };
+  // Keep image-led streets through continuous built land. A 75 m stretch of
+  // countryside on the sheet gives an overland approach room to change direction.
+  const regionalRoute = (arm: number, original: number[]) => {
+    let open = 0;
+    for (let k = 1; k < original.length; k++) {
+      const a = original[k - 1], b = original[k];
+      open = rural[b] ? open + cs * Math.hypot(a % RW - b % RW, Math.floor(a / RW) - Math.floor(b / RW)) : 0;
+      if (open < 75) continue;
+      const from = gate(arm), to = gate(arm + 2);
+      const path = route(from, new Set(to));
+      if (!path) return original;
+      if (townCell < 0 || path.some(c => built[c])) return path;
+      // A cheap crossing can skirt the whole settlement. Bring both approaches
+      // to built land near its centre, stopping where the two routes join.
+      const centre = new Set([townCell]);
+      const left = route(from, centre), right = route(to, centre);
+      if (!left || !right) return original;
+      let j = 1;
+      while (j < Math.min(left.length, right.length) && left[j] === right[j]) j++;
+      return [...left.slice(j - 1).reverse(), ...right.slice(j)];
+    }
+    return original;
+  };
   const col = (i: number) => Array.from({ length: RH }, (_, j) => j * RW + i);
   const row = (j: number) => Array.from({ length: RW }, (_, i) => j * RW + i);
+  const sides = [col(0), row(0), col(RW - 1), row(RH - 1)];
   const out: number[][] = [];
-  for (const [a, b] of [[col(0), col(RW - 1)], [row(0), row(RH - 1)]]) {
-    const p = route(a, new Set(b));
-    if (p) out.push(p.length >= 6 ? chaikinOpen(p) : p);
+  for (let arm = 0; arm < 2; arm++) {
+    const base = route(sides[arm], new Set(sides[arm + 2]));
+    if (!base) continue;
+    const p: number[] = [];
+    for (const k of regionalRoute(arm, base)) p.push(z.x0 + (k % RW + 0.5) * cs, z.y0 + (Math.floor(k / RW) + 0.5) * cs);
+    out.push(p.length >= 6 ? chaikinOpen(p) : p);
   }
   return out;
 }

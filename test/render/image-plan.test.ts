@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { Camera } from '@/camera';
 import { classify } from '@/classify';
 import { drawnAs, imageRegion, imageScene, plausibility, type Scene } from '@/image';
-import { centre } from '@/image-check';
+import { centre, meet } from '@/image-check';
 import { fitImage, toImage } from '@/image-fit';
 import { readImage } from '@/image-read';
 import { streetRules } from '@/image-streets';
@@ -178,6 +178,33 @@ describe('the town', () => {
     const b = imageScene({ ...pic, id: `copy-${n++}` }, { ...base, seed: 2 });
     expect(b.zones.label).toEqual(a.zones.label);
     expect(b.town.buildings).not.toEqual(a.town.buildings);
+  });
+
+  test('seeds vary the sheet edges reached by the main road and the railway around a lake', () => {
+    const lake = paint('Lake', (u, v) => {
+      const r = Math.hypot((u - 0.5) * 1.55, v - 0.5);
+      return r < 0.16 ? [45, 128, 214] : r < 0.29 ? [86, 76, 73] : [182, 206, 145];
+    });
+    const roads = new Set<string>(), rails = new Set<string>();
+    for (const seed of [1, 2, 3, 5]) {
+      const { cam, town } = imageScene(lake, { ...base, image: lake.id, sheet: 'a3', scale: 2750, bearing: 35, seed });
+      const [l, t, r, b] = cam.rect;
+      const edges: [number, number, number, number][] = [[l, t, r, t], [r, t, r, b], [r, b, l, b], [l, b, l, t]];
+      for (const cls of ['primary', 'rail']) {
+        const ways = town.ways.filter(w => w.cls === cls);
+        const exits = edges.map(edge => ways.some(({ pts }) => {
+          for (let k = 2; k < pts.length; k += 2) {
+            if (meet(cam.sx(pts[k - 2], pts[k - 1]), cam.sy(pts[k - 2], pts[k - 1], 0),
+              cam.sx(pts[k], pts[k + 1]), cam.sy(pts[k], pts[k + 1], 0), ...edge)) return true;
+          }
+          return false;
+        }));
+        expect(exits.filter(Boolean).length).toBeGreaterThanOrEqual(cls === 'primary' ? 2 : 1);
+        (cls === 'primary' ? roads : rails).add(exits.join(','));
+      }
+    }
+    expect(roads.size).toBeGreaterThanOrEqual(3);
+    expect(rails.size).toBeGreaterThanOrEqual(3);
   });
 
   test('rows share their walls, and the town has a church and a town hall', () => {
