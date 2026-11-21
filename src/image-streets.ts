@@ -57,7 +57,8 @@ export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
 export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number; winding?: number;
-  /** Likeness and More roundabouts where masks set them for part of the picture, at a ground position. */
+  /** Street pattern, Likeness and More roundabouts where masks set them for part of the picture, at a ground position. */
+  fabricAt?: (x: number, y: number) => number;
   likenessAt?: (x: number, y: number) => number;
   roundaboutsAt?: (x: number, y: number) => number;
   /** Streets follow image lines where masks set it, one value per target cell. */
@@ -246,8 +247,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   const { W, H, cell } = z;
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
-  const grid = gridFabric(set.fabric, set.style);
-  const organic = 1 - grid;
+  const baseGrid = gridFabric(set.fabric, set.style);
+  const gridAt = set.fabricAt ?? (() => baseGrid);
   const x1 = z.x0 + W * cell;
   const y1 = z.y0 + H * cell;
   const cellOf = (x: number, y: number) => {
@@ -319,6 +320,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
       const c = j * W + i;
       const x = z.x0 + (i + 0.5) * cell;
       const y = z.y0 + (j + 0.5) * cell;
+      const grid = gridAt(x, y);
+      const organic = 1 - grid;
       if (town[c]) {
         if (grid > 0) put(c, 0, grid);
         if (organic > 0 && coherence[c] > ORIENTED) put(c, imgAngle[c], organic);
@@ -366,8 +369,9 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   const vary = set.vary ?? ((x: number, y: number, salt: number) => hash(Math.round(x), Math.round(y), set.seed, salt));
   const [cx, cy] = cores[0] ?? [0, 0];
-  const detour = organic * Math.max(0, 2 * (set.winding ?? 0.5) - 1);
-  const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt), detour, set.seed);
+  const winding = set.winding ?? 0.5;
+  const detour = Math.max(0, 2 * winding - 1);
+  const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt), detour, gridAt, set.seed);
   roads.forEach((pts, k) => keep(pts, k ? 'secondary' : 'primary', true));
 
   // Bright lines in the image: streets in town, paths in parks, tracks in the fields.
@@ -576,7 +580,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     const label = labelAt(x, y);
     return label >= 0 && label !== WATER && !streetable(label);
   };
-  const g = clean(planar(lines), water, openLand, organic * (set.winding ?? 0.5), vary);
+  const g = clean(planar(lines), water, openLand, (x, y) => (1 - gridAt(x, y)) * winding, vary);
   // Plan lanes where their true width meets the road rule at reference detail and pen width.
   rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 
@@ -690,7 +694,7 @@ function coresOf(z: Zones) {
 }
 
 /** Up to two main roads, each the cheapest way from one side of the plan to the other (§10.2). */
-function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number, detour: number, seed: number): number[][] {
+function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number, detour: number, gridAt: (x: number, y: number) => number, seed: number): number[][] {
   // A coarser grid, about 16 m, for the search; the road is smoothed afterwards.
   const f = Math.max(1, Math.round(16 / z.cell));
   const cs = z.cell * f;
@@ -739,7 +743,7 @@ function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: C
       const label = zoneAt(z, mx, my);
       if (detour > 0 && label && !BUILT.has(label) && label !== 'water' && label !== 'plaza' && sum / cnt <= 4) {
         const roughness = Math.abs(patch(mx / 90, my / 90, seed, 14990) - 0.5);
-        cost[index] *= 1 + detour * (8 * Math.min(0.45, roughness) - 0.78);
+        cost[index] *= 1 + (1 - gridAt(mx, my)) * detour * (8 * Math.min(0.45, roughness) - 0.78);
       }
     }
   const moves = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1], [1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
@@ -1043,7 +1047,7 @@ const weaker = (e: GraphEdge, f: GraphEdge) => (e.main !== f.main ? !e.main : RA
  * no dead ends under 25 m, no junction angle under 35°, and one connected network (pieces are
  * joined over dry ground or by a short bridge, or dropped).
  */
-export function clean(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean, winding = 0.5, vary: NonNullable<StreetSettings['vary']> = hash): Graph {
+export function clean(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean, winding: number | ((x: number, y: number) => number) = 0.5, vary: NonNullable<StreetSettings['vary']> = hash): Graph {
   const pass = () => {
     let changed = false;
     // Parallel duplicates and loops.
@@ -1115,7 +1119,7 @@ export function clean(g: Graph, water: (x: number, y: number) => boolean, openLa
     return changed;
   };
   for (let round = 0; round < 16 && pass(); round++);
-  join(g, water, openLand, winding, vary);
+  join(g, water, openLand, typeof winding === 'number' ? () => winding : winding, vary);
   for (let round = 0; round < 4 && pass(); round++);
   // Drop any pieces still beyond reach or cut off when cleaning the new junctions.
   keepLargest(g);
@@ -1219,8 +1223,7 @@ function countryLane(x: number, y: number, bx: number, by: number, from: [number
 }
 
 /** Join nearby street networks on dry ground where possible, or over a single stretch of water. */
-function join(g: Graph, water: (x: number, y: number) => boolean, openLand: ((x: number, y: number) => boolean) | undefined, winding: number, vary: NonNullable<StreetSettings['vary']>): void {
-  const extra = Math.max(0, winding * 2 - 1);
+function join(g: Graph, water: (x: number, y: number) => boolean, openLand: ((x: number, y: number) => boolean) | undefined, windingAt: (x: number, y: number) => number, vary: NonNullable<StreetSettings['vary']>): void {
   const REACH = 250;
   const comp = components(g);
   const size = new Map<number, number>();
@@ -1258,6 +1261,8 @@ function join(g: Graph, water: (x: number, y: number) => boolean, openLand: ((x:
       const runs = bankRuns(pts, water);
       if (runs[0].wet || runs[runs.length - 1].wet) return;
       if (runs.length === 1) {
+        const winding = windingAt((x + bx) / 2, (y + by) / 2);
+        const extra = Math.max(0, winding * 2 - 1);
         // A gap through several blocks of open land has room for a sweeping approach.
         if (openLand && winding > 0 && d >= 75 - 40 * extra && openLand((x + bx) / 2, (y + by) / 2) &&
             (extra > 0.5 || [0.25, 0.75].every(t => openLand(x + t * (bx - x), y + t * (by - y))))) {

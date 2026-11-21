@@ -299,6 +299,9 @@ export type BoolKey = 'imageCoordinates' | 'imagePreserveSpace' | 'windows' | 'r
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
 
+/** Street pattern readout shared by the drawing and its masks. */
+export const patternLabel = (grid: number) => grid === 0 ? 'Organic' : grid === 1 ? 'Grid' : `${percent(grid)} grid`;
+
 export const FORMAT: Record<NumberKey, (v: number) => string> = {
   imageLight: (v) => (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)),
   imageContrast: (v) => `${v.toFixed(2)}×`,

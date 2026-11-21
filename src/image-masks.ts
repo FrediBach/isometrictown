@@ -10,13 +10,14 @@
  */
 import { toSheet, type Placed } from './image-fit';
 import type { Grid } from './image-tone';
-import type { Settings } from './settings';
+import { gridFabric, type Settings } from './settings';
+import { IMAGE_STYLE } from './styles';
 
 /** Settings a mask can set for its part of the picture, in the order the panel lists them. */
 export const MASK_KEYS = [
   'imageLight', 'imageContrast', 'likeness', 'imageNeighbours',
   'imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight',
-  'imageContours', 'imageRoundabouts',
+  'fabric', 'imageContours', 'imageRoundabouts',
   'heightScale', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls',
   'pitched', 'trees', 'cars', 'abandon', 'humanize',
 ] as const;
@@ -66,7 +67,7 @@ export const MASKS_MAX = 24;
 /** Settings image mode's mask stages are keyed on: the image is read again only for these. */
 export const READ_KEYS: readonly MaskKey[] = ['imageLight', 'imageContrast'];
 /** Laid out again only for these. */
-export const LAYOUT_KEYS: readonly MaskKey[] = ['likeness', 'imageNeighbours', 'imageContours', 'imageRoundabouts'];
+export const LAYOUT_KEYS: readonly MaskKey[] = ['likeness', 'imageNeighbours', 'fabric', 'imageContours', 'imageRoundabouts'];
 /** Built again only for these; the rest only change how the town is drawn. */
 export const BUILD_KEYS: readonly MaskKey[] = ['imageDensity', 'imageFloorplans'];
 
@@ -81,6 +82,7 @@ export const MASK_RANGE: Record<MaskKey, [number, number]> = {
   imageHatching: [0, 1],
   imageFloorplans: [0, 1],
   imageHighlight: [0, 1],
+  fabric: [0, 1],
   imageContours: [0, 1],
   imageRoundabouts: [0, 2],
   heightScale: [0.5, 3],
@@ -101,6 +103,7 @@ export const NO_SPACE = 2;
 
 /** The value a key has outside every mask. Preserve empty space off is a cutoff nothing reaches. */
 export function mainValue(set: Settings, key: MaskKey): number {
+  if (key === 'fabric') return gridFabric(set.fabric, set.style === 'auto' ? IMAGE_STYLE : set.style);
   if (key === 'imageHighlight') return set.imagePreserveSpace ? set.imageHighlight : NO_SPACE;
   const v = set[key];
   return typeof v === 'boolean' ? Number(v) : v;

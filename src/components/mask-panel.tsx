@@ -4,7 +4,7 @@ import { Segmented } from '@/components/ui/segmented';
 import { Slider } from '@/components/ui/slider';
 import { ToggleKey } from '@/components/ui/toggle-key';
 import { cn } from '@/lib/utils';
-import { FORMAT } from '../app/model';
+import { FORMAT, patternLabel } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { duplicateMask, FEATHER_MAX, mainValue, mirrorMask, MASK_SWITCHES, MASKS_MAX, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape, type MaskSwitch } from '../image-masks';
 import { Caption, Hint, KeyGrid } from './fields';
@@ -24,6 +24,7 @@ const FIELDS: Record<DialKey, { label: string; min: number; max: number; step: n
   imageContrast: { label: 'Contrast', min: 0.5, max: 2, step: 0.05 },
   likeness: { label: 'Likeness', min: 0, max: 1, step: 0.01 },
   imageNeighbours: { label: 'Neighbourhoods as in real towns', min: 0, max: 1, step: 0.01 },
+  fabric: { label: 'Street pattern', min: 0, max: 1, step: 0.01 },
   imageContours: { label: 'Streets follow image lines', min: 0, max: 1, step: 0.01 },
   imageRoundabouts: { label: 'More roundabouts', min: 0, max: 2, step: 0.01 },
   imageRelief: { label: 'Height from image', min: 0, max: 1, step: 0.01 },
@@ -46,14 +47,14 @@ const SWITCHES: Record<MaskSwitch, string> = { windows: 'Windows', roofHatch: 'R
 /** The groups the mask's settings are listed in. */
 const GROUPS: { caption: string; keys: MaskKey[] }[] = [
   { caption: 'Image', keys: ['imageLight', 'imageContrast', 'likeness', 'imageNeighbours'] },
-  { caption: 'Streets', keys: ['imageContours', 'imageRoundabouts'] },
+  { caption: 'Streets', keys: ['fabric', 'imageContours', 'imageRoundabouts'] },
   { caption: 'Town from the image', keys: ['imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight'] },
   { caption: 'Buildings', keys: ['heightScale', 'pitched', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls'] },
   { caption: 'Town', keys: ['trees', 'cars', 'abandon', 'humanize'] },
 ];
 
 const isSwitch = (k: MaskKey): k is MaskSwitch => (MASK_SWITCHES as readonly MaskKey[]).includes(k);
-const showValue = (key: DialKey, v: number) => (key === 'imageHighlight' && v > 1 ? 'Off' : FORMAT[key](v));
+const showValue = (key: DialKey, v: number) => (key === 'fabric' ? patternLabel(v) : key === 'imageHighlight' && v > 1 ? 'Off' : FORMAT[key](v));
 
 const TEXT_BUTTON = 'rounded-sm text-[12px] underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40';
 const ICON_BUTTON = 'grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-3.5';
@@ -257,7 +258,7 @@ function MaskSettings({ mask, index, count, update, shift, onDuplicate, onDone }
           })}
         </div>
       ))}
-      <Hint className="mt-2">Settings shown in grey follow the drawing’s own. Scale, view, colour, street pattern, style, light and pens are the drawing’s everywhere.</Hint>
+      <Hint className="mt-2">Settings shown in grey follow the drawing’s own. Scale, view, colour, style, light and pens are the drawing’s everywhere.</Hint>
     </div>
   );
 }

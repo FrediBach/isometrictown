@@ -116,7 +116,7 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const target = read.target;
   const townKey = keyOf(pic, drawn, STRUCTURE) + layoutMasks;
   if (laid?.key !== townKey) {
-    const zoneKey = keyOf(pic, drawn, ZONING) + layoutMasks;
+    const zoneKey = keyOf(pic, drawn, ZONING) + readMasks + masksKey(drawn.imageMasks, ['likeness', 'imageNeighbours']);
     let zones = laid?.zones;
     if (!zones || laid?.zoneKey !== zoneKey) {
       note('Zoning the ground');
@@ -180,7 +180,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
-  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts, winding: set.imageRoadWinding, likenessAt: localOf(masks, cam, 'likeness'), roundaboutsAt: localOf(masks, cam, 'imageRoundabouts'), contours: masks?.field('imageContours') ?? undefined }, parks);
+  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts, winding: set.imageRoadWinding, fabricAt: localOf(masks, cam, 'fabric'), likenessAt: localOf(masks, cam, 'likeness'), roundaboutsAt: localOf(masks, cam, 'imageRoundabouts'), contours: masks?.field('imageContours') ?? undefined }, parks);
   town.controls = st.controls;
   // Roundabout islands: nothing is laid on them, and the renderer plants them.
   const islands: Shape[] = st.roundabouts.map((o) => [{ pts: o.pts.slice(0, -2), seam: new Uint8Array(o.pts.length / 2 - 1) }]);

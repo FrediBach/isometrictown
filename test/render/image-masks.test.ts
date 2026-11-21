@@ -4,6 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { imageScene, plausibility } from '@/image';
+import { streetRules } from '@/image-streets';
 import { newMask, type ImageMask } from '@/image-masks';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { drawImage } from '../support/draw';
@@ -31,6 +32,32 @@ describe('masks', () => {
     const plain = drawImage(base, pic).svg;
     expect(drawImage({ ...base, imageMasks: [left({})] }, pic).svg).toBe(plain);
     expect(drawImage({ ...base, imageMasks: [left({ trees: 0, abandon: 1, imageLight: 1 }, { off: true })] }, pic).svg).toBe(plain);
+  });
+
+  test('a street pattern mask can put the grid on either side of the picture', () => {
+    const picture = fresh();
+    for (const fabric of [0, 1]) {
+      const mask = left({ fabric: 1 - fabric }, { feather: 0.08 });
+      const { streets, cam } = imageScene(picture, { ...base, fabric, imageMasks: [mask] });
+      expect(streetRules(streets)).toEqual([]);
+      const [x0, y0, x1, y1] = cam.rect;
+      const mid = (x0 + x1) / 2;
+      const aligned = [0, 0], length = [0, 0];
+      for (const { pts } of streets.edges) {
+        for (let i = 2; i < pts.length; i += 2) {
+          const sx = cam.sx(pts[i], pts[i + 1]), sy = cam.sy(pts[i], pts[i + 1], 0);
+          if (sx < x0 || sx > x1 || sy < y0 || sy > y1 || Math.abs(sx - mid) < 12) continue;
+          const side = sx < mid ? 0 : 1;
+          const dx = pts[i] - pts[i - 2], dy = pts[i + 1] - pts[i - 1];
+          const metres = Math.hypot(dx, dy);
+          // Both grid axes score 1. Diagonal streets in this gradient picture score −1.
+          aligned[side] += metres * Math.cos(4 * Math.atan2(dy, dx));
+          length[side] += metres;
+        }
+      }
+      expect(aligned[fabric] / length[fabric]).toBeGreaterThan(0.3);
+      expect(aligned[1 - fabric] / length[1 - fabric]).toBeLessThan(-0.3);
+    }
   });
 
   test('height from image rises only inside the mask', () => {

@@ -8,17 +8,18 @@ import type { Locator } from '../locator';
 import type { RenderResult } from '../app/renderer';
 import type { PictureState } from '../app/use-picture';
 import { Camera } from '../camera';
-import { FORMAT, isDefault, MONO_INK, PRESETS, type BoolKey } from '../app/model';
+import { FORMAT, patternLabel, isDefault, MONO_INK, PRESETS, type BoolKey } from '../app/model';
 import { useSettings } from '../app/settings-context';
 import { useNativeChange } from '../app/use-native-change';
 import { imageUnlocked } from '../app/invite';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, gridFabric, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
+import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
 import { IMAGE_STYLE, STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, SliderField } from './fields';
 import { ImageWell } from './image-well';
+import { activeMasks, mainValue } from '../image-masks';
 import { MaskPanel } from './mask-panel';
 import { InviteDialog } from './invite-dialog';
 import { LocatorMap } from './locator-map';
@@ -108,9 +109,9 @@ function ImageSource({ picture, onFile }: Pick<SourceSectionProps, 'picture' | '
 function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'picture' | 'mask' | 'onMask'>) {
   const { set, change } = useSettings();
   const count = set.imageMasks.length;
-  const grid = gridFabric(set.fabric, set.style === 'auto' ? IMAGE_STYLE : set.style);
-  const pattern = grid === 0 ? 'Organic' : grid === 1 ? 'Grid' : `${Math.round(grid * 100)}% grid`;
-  const patternLabel = set.fabric === 'auto' ? `${pattern} (auto)` : pattern;
+  const grid = mainValue(set, 'fabric');
+  const pattern = patternLabel(grid);
+  const display = set.fabric === 'auto' ? `${pattern} (auto)` : pattern;
   return (
     <>
       <FoldingSection index={2} title="Masks" summary={`${count} ${count === 1 ? 'mask' : 'masks'}`}>
@@ -131,12 +132,12 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
         <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
         <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
       </FoldingSection>
-      <FoldingSection index={5} title="Streets" summary={patternLabel}>
-        <SliderField label="Street pattern" value={grid} display={patternLabel} min={0} max={1} step={0.01}
+      <FoldingSection index={5} title="Streets" summary={display}>
+        <SliderField label="Street pattern" value={grid} display={display} min={0} max={1} step={0.01}
           onChange={(v) => change('fabric', v, true)}
           hint={<>Move from organic lanes on the left to a regular grid on the right. {set.fabric !== 'auto' && <button type="button" className="underline" onClick={() => change('fabric', 'auto')}>Use style default</button>}</>}
         />
-        {grid < 1 && (
+        {(grid < 1 || activeMasks(set.imageMasks).some(m => (m.values.fabric ?? 1) < 1)) && (
           <NumberSetting name="imageRoadWinding" label="Country road winding" min={0} max={1} step={0.01} hint="Shape the lanes between settlements and shore roads. At 0% they take a direct line, at 50% they ease into junctions, and at 100% they wind across open ground." />
         )}
         <NumberSetting name="imageRoundabouts" label="More roundabouts" min={0} max={2} step={0.01} hint="At 0%, junctions become roundabouts as often as in real towns of the style. Raise it for more, still most often where busy roads meet; at 200% nearly every junction with room is one." />
