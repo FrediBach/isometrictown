@@ -31,7 +31,7 @@ type Drag =
   | { kind: 'move'; from: [number, number]; start: ImageMask }
   | { kind: 'vertex'; index: number; start: ImageMask }
   | { kind: 'size'; u: number; v: number; start: ImageMask }
-  | { kind: 'turn'; start: ImageMask };
+  | { kind: 'turn'; start: ImageMask; side: number };
 
 const points = (p: readonly number[]) => p.reduce((s, v, i) => s + (i % 2 ? `,${v.toFixed(2)} ` : v.toFixed(2)), '');
 
@@ -53,7 +53,8 @@ function dragged(d: Drag, px: number, py: number, w: number, h: number, snap: bo
   const [cx, cy, rx, ry] = s.pts;
   const dx = px - cx * w, dy = py - cy * h;
   if (d.kind === 'turn') {
-    const turned = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+    // The handle stands on `side` of the shape, at that angle from its own axis.
+    const turned = (Math.atan2(dy, dx) * 180) / Math.PI - STEMS[d.side][2];
     const angle = snap ? Math.round(turned / 15) * 15 : turned;
     return { ...s, angle: ((angle + 540) % 360) - 180 };
   }
@@ -89,8 +90,15 @@ function polygonHandles(mask: ImageMask, at: (px: number, py: number) => [number
   return out;
 }
 
-/** An ellipse's or rectangle's handles: one on each side (and corner) to size it, and one on a stem `off` picture pixels above it to turn it. */
-function boxHandles(mask: ImageMask, at: (px: number, py: number) => [number, number], w: number, h: number, off: number): { handles: Handle[]; stem: number[] } {
+/** Where the turning handle's stem can stand, in the shape's own axes, with its angle from them: above it first, then below, right and left. */
+const STEMS: [number, number, number][] = [[0, -1, -90], [0, 1, 90], [1, 0, 0], [-1, 0, 180]];
+
+/**
+ * An ellipse's or rectangle's handles: one on each side (and corner) to size it, and one on a stem
+ * `off` picture pixels beyond it to turn it. The stem stands above the shape unless that is off the
+ * sheet (`shows`), and keeps to `side` while a turn is being dragged.
+ */
+function boxHandles(mask: ImageMask, at: (px: number, py: number) => [number, number], w: number, h: number, off: number, shows: (x: number, y: number) => boolean, side?: number): { handles: Handle[]; stem: number[] } {
   const [cx, cy, rx, ry] = mask.pts;
   const a = (mask.angle * Math.PI) / 180, cos = Math.cos(a), sin = Math.sin(a);
   const X = cx * w, Y = cy * h, RX = rx * w, RY = ry * h;
@@ -101,9 +109,11 @@ function boxHandles(mask: ImageMask, at: (px: number, py: number) => [number, nu
     const [x, y] = local(u * RX, v * RY);
     return { x, y, title: 'Drag to resize', cursor: u && v ? 'nwse-resize' : u ? 'ew-resize' : 'ns-resize', drag: { kind: 'size', u: Math.abs(u), v: Math.abs(v), start: mask } };
   });
-  const [ox, oy] = local(0, -RY - off);
-  handles.push({ x: ox, y: oy, title: 'Drag to turn; hold Shift to turn in steps of 15°', cursor: 'grab', drag: { kind: 'turn', start: mask } });
-  return { handles, stem: [...local(0, -RY), ox, oy] };
+  const tip = (k: number) => local(STEMS[k][0] * (RX + off), STEMS[k][1] * (RY + off));
+  const k = side ?? Math.max(0, STEMS.findIndex((_, i) => shows(...tip(i))));
+  const [ox, oy] = tip(k);
+  handles.push({ x: ox, y: oy, title: 'Drag to turn; hold Shift to turn in steps of 15°', cursor: 'grab', drag: { kind: 'turn', start: mask, side: k } });
+  return { handles, stem: [...local(STEMS[k][0] * RX, STEMS[k][1] * RY), ox, oy] };
 }
 
 /**
@@ -117,6 +127,8 @@ export function MaskEditor({ masks, selected, placed, picture, rect, onChange, o
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | null>(null);
   const [draft, setDraft] = useState<ImageMask | null>(null);
+  // While a turn is dragged, the side its stem stands on, so the handle doesn't jump under the pointer.
+  const [turning, setTurning] = useState<number | undefined>(undefined);
   const [mmPx, setMmPx] = useState(0.25);
   const saved = masks.find((m) => m.id === selected);
   const mask = draft ?? saved;
@@ -151,6 +163,7 @@ export function MaskEditor({ masks, selected, placed, picture, rect, onChange, o
     svg.current!.setPointerCapture(e.pointerId);
     drag.current = d;
     setDraft(d.start);
+    setTurning(d.kind === 'turn' ? d.side : undefined);
   };
   const move = (e: PointerEvent<SVGSVGElement>) => {
     if (drag.current) setDraft(dragged(drag.current, ...at(e), w, h, e.shiftKey));
@@ -161,6 +174,7 @@ export function MaskEditor({ masks, selected, placed, picture, rect, onChange, o
     drag.current = null;
     if (draft && draft !== d.start) commit(draft);
     setDraft(null);
+    setTurning(undefined);
   };
 
   const key = (e: KeyboardEvent<SVGSVGElement>) => {
@@ -180,7 +194,7 @@ export function MaskEditor({ masks, selected, placed, picture, rect, onChange, o
   const r = HANDLE * mmPx;
   const { handles, stem } = mask.shape === 'polygon'
     ? { handles: polygonHandles(mask, sheetAt, w, h), stem: null }
-    : boxHandles(mask, sheetAt, w, h, TURN_OFF * mmPx * placed.ppm);
+    : boxHandles(mask, sheetAt, w, h, TURN_OFF * mmPx * placed.ppm, (x, y) => x > r && y > r && x < sheet[0] - r && y < sheet[1] - r, turning);
 
   const [x0, y0, x1, y1] = rect;
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;

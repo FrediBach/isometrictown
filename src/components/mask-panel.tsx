@@ -191,9 +191,10 @@ function MaskSettings({ mask, index, count, update, shift, onDone }: MaskSetting
       <Hint className="mt-0">
         {mask.shape === 'polygon'
           ? 'Drag the shape on the preview to move it and its corners to reshape it. Pull the dot in a side to add a corner; double-click a corner to remove it.'
-          : 'Drag the shape on the preview to move it, its handles to size it, and the handle on the stem to turn it.'}
+          : 'Drag the shape on the preview to move it, its handles to size it, and the handle on the stem to turn it (Shift for steps of 15°), or set Turn below.'}
       </Hint>
       <Dial label="Feather" value={mask.feather} min={0} max={FEATHER_MAX} step={0.005} display={`${Math.round((mask.feather / FEATHER_MAX) * 100)}%`} onChange={(feather) => update({ ...mask, feather }, true)} />
+      {mask.shape !== 'polygon' && <Dial label="Turn" value={mask.angle} min={-180} max={180} step={1} display={`${Math.round(mask.angle)}°`} onChange={(angle) => update({ ...mask, angle }, true)} />}
       {mask.shape !== 'ellipse' && <Dial label="Round corners" value={mask.round} min={0} max={1} step={0.01} display={`${Math.round(mask.round * 100)}%`} onChange={(round) => update({ ...mask, round }, true)} />}
       <Dial label="Amount" value={mask.amount} min={0} max={1} step={0.01} display={`${Math.round(mask.amount * 100)}%`} onChange={(amount) => update({ ...mask, amount }, true)} />
       <KeyGrid className="mt-1 mb-3">
