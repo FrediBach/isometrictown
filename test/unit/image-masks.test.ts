@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { fitImage } from '@/image-fit';
-import { activeMasks, MaskField, masksKey, maskWeights, newMask, NO_SPACE, roundCorners, sheetOutline, validMasks, type ImageMask } from '@/image-masks';
+import { activeMasks, duplicateMask, MaskField, mirrorMask, masksKey, maskWeights, newMask, NO_SPACE, roundCorners, sheetOutline, validMasks, type ImageMask } from '@/image-masks';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 
 const rect = [0, 0, 100, 50];
@@ -130,3 +130,39 @@ describe('masks from storage or a link', () => {
     expect(validMasks(JSON.parse(JSON.stringify(masks)))).toEqual(masks);
   });
 });
+
+describe('duplicating and mirroring', () => {
+  test('a copy has its own id and values, and sits a little down and right', () => {
+    const m = left({ id: 'a', values: { trees: 0.2 } });
+    const copy = duplicateMask(m, [m], pic.w, pic.h);
+    expect(copy.id).not.toBe(m.id);
+    expect(copy.values).toEqual(m.values);
+    expect(copy.values).not.toBe(m.values);
+    expect(copy.pts[0]).toBeGreaterThan(m.pts[0]);
+    expect(copy.pts[1]).toBeGreaterThan(m.pts[1]);
+    expect(copy.pts.slice(2)).toEqual(m.pts.slice(2));
+  });
+
+  test('mirroring left to right puts the mask over the other half, turned the other way', () => {
+    const m = left({ angle: 20, values: { trees: 0.1 } });
+    const mirrored = mirrorMask(m, 'x');
+    expect(mirrored.pts).toEqual([0.75, 0.5, 0.25, 0.5]);
+    expect(mirrored.angle).toBe(-20);
+    const f = new MaskField([{ ...mirrored, angle: 0 }], set, grid, placed, pic);
+    expect(f.at('trees', 80, 25)).toBeCloseTo(0.1, 6);
+    expect(f.at('trees', 20, 25)).toBeCloseTo(0.7, 6);
+    expect(mirrorMask(mirrored, 'x')).toEqual(m);
+  });
+
+  test('mirroring a polygon top to bottom flips its corners and keeps its weights', () => {
+    const p = { ...newMask('polygon', [], pic.w, pic.h), feather: 0, values: { trees: 0 } };
+    const flipped = mirrorMask(p, 'y');
+    expect(flipped.pts.filter((_, i) => i % 2 === 0)).toEqual(p.pts.filter((_, i) => i % 2 === 0));
+    expect(flipped.pts.filter((_, i) => i % 2 === 1)).toEqual(p.pts.filter((_, i) => i % 2 === 1).map((v) => 1 - v));
+    const a = maskWeights(p, sheetOutline(p, placed, pic.w, pic.h), 0, grid);
+    const b = maskWeights(flipped, sheetOutline(flipped, placed, pic.w, pic.h), 0, grid);
+    const sum = (w: Float32Array) => w.reduce((t, v) => t + v, 0);
+    expect(sum(b)).toBeCloseTo(sum(a), -1);
+  });
+});
+

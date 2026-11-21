@@ -1,12 +1,12 @@
 import { useId } from 'react';
-import { ArrowDownIcon, ArrowUpIcon, CircleIcon, EyeIcon, EyeOffIcon, PentagonIcon, RectangleHorizontalIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react';
+import { ArrowDownIcon, ArrowUpIcon, CircleIcon, CopyIcon, FlipHorizontal2Icon, FlipVertical2Icon, EyeIcon, EyeOffIcon, PentagonIcon, RectangleHorizontalIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react';
 import { Segmented } from '@/components/ui/segmented';
 import { Slider } from '@/components/ui/slider';
 import { ToggleKey } from '@/components/ui/toggle-key';
 import { cn } from '@/lib/utils';
 import { FORMAT } from '../app/model';
 import { useSettings } from '../app/settings-context';
-import { FEATHER_MAX, mainValue, MASK_SWITCHES, MASKS_MAX, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape, type MaskSwitch } from '../image-masks';
+import { duplicateMask, FEATHER_MAX, mainValue, mirrorMask, MASK_SWITCHES, MASKS_MAX, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape, type MaskSwitch } from '../image-masks';
 import { Caption, Hint, KeyGrid } from './fields';
 
 const SHAPES: { shape: MaskShape; label: string; Icon: typeof CircleIcon }[] = [
@@ -89,6 +89,15 @@ export function MaskPanel({ picture, selected, onSelect }: Props) {
     if (id === selected) onSelect(null);
   }
 
+  /** A copy just after the original, selected. */
+  function duplicate(m: ImageMask): void {
+    if (!picture || masks.length >= MASKS_MAX) return;
+    const copy = duplicateMask(m, masks, picture.w, picture.h);
+    const i = masks.indexOf(m);
+    change('imageMasks', [...masks.slice(0, i + 1), copy, ...masks.slice(i + 1)]);
+    onSelect(copy.id);
+  }
+
   function shift(id: string, by: number): void {
     const i = masks.findIndex((m) => m.id === id);
     const j = i + by;
@@ -152,7 +161,7 @@ export function MaskPanel({ picture, selected, onSelect }: Props) {
             : 'Add a mask to set some of these settings differently in part of the picture. Inside it the mask’s settings apply, outside the drawing’s, and across its soft edge they mix.'}
         </Hint>
       )}
-      {mask && <MaskSettings key={mask.id} mask={mask} index={masks.indexOf(mask)} count={masks.length} update={update} shift={(by) => shift(mask.id, by)} onDone={() => onSelect(null)} />}
+      {mask && <MaskSettings key={mask.id} mask={mask} index={masks.indexOf(mask)} count={masks.length} update={update} shift={(by) => shift(mask.id, by)} onDuplicate={picture && masks.length < MASKS_MAX ? () => duplicate(mask) : undefined} onDone={() => onSelect(null)} />}
     </div>
   );
 }
@@ -163,11 +172,13 @@ type MaskSettingsProps = {
   count: number;
   update: (m: ImageMask, fromSlider?: boolean) => void;
   shift: (by: number) => void;
+  /** Copies the mask; missing when no more masks fit. */
+  onDuplicate?: () => void;
   onDone: () => void;
 };
 
 /** The edge, strength and settings of the mask being edited. */
-function MaskSettings({ mask, index, count, update, shift, onDone }: MaskSettingsProps) {
+function MaskSettings({ mask, index, count, update, shift, onDuplicate, onDone }: MaskSettingsProps) {
   const { set } = useSettings();
   const short = 'min-w-0 flex-1';
   return (
@@ -182,6 +193,15 @@ function MaskSettings({ mask, index, count, update, shift, onDone }: MaskSetting
           </button>
           <button type="button" className={cn(TEXT_BUTTON, 'no-underline')} disabled={index === count - 1} onClick={() => shift(1)} aria-label="Move down, over the masks before it" title="Later: it mixes over the masks before it">
             <ArrowDownIcon aria-hidden className="inline size-3.5" />
+          </button>
+          <button type="button" className={cn(TEXT_BUTTON, 'no-underline')} disabled={!onDuplicate} onClick={onDuplicate} aria-label="Duplicate" title="Duplicate: a copy just after this one, to move or mirror">
+            <CopyIcon aria-hidden className="inline size-3.5" />
+          </button>
+          <button type="button" className={cn(TEXT_BUTTON, 'no-underline')} onClick={() => update(mirrorMask(mask, 'x'))} aria-label="Mirror left to right" title="Mirror left to right across the picture">
+            <FlipHorizontal2Icon aria-hidden className="inline size-3.5" />
+          </button>
+          <button type="button" className={cn(TEXT_BUTTON, 'no-underline')} onClick={() => update(mirrorMask(mask, 'y'))} aria-label="Mirror top to bottom" title="Mirror top to bottom across the picture">
+            <FlipVertical2Icon aria-hidden className="inline size-3.5" />
           </button>
           <button type="button" className={cn(TEXT_BUTTON, 'text-foreground')} onClick={onDone}>
             Done

@@ -333,6 +333,24 @@ export function newMask(shape: MaskShape, masks: readonly ImageMask[], w: number
   return { id: newMaskId(masks), shape, pts, angle: 0, round: 0, feather: 0.08, amount: 1, invert: false, off: false, values: {} };
 }
 
+/** How far a copy is nudged from its original, as a share of the picture's shorter side, so it shows. */
+const COPY_NUDGE = 0.03;
+
+/** A copy of a mask with an id of its own, nudged down and right on a picture `w` × `h` pixels. */
+export function duplicateMask(m: ImageMask, masks: readonly ImageMask[], w: number, h: number): ImageMask {
+  const dx = (COPY_NUDGE * Math.min(w, h)) / w, dy = (COPY_NUDGE * Math.min(w, h)) / h;
+  const pts = m.shape === 'polygon' ? m.pts.map((v, i) => v + (i % 2 ? dy : dx)) : [m.pts[0] + dx, m.pts[1] + dy, m.pts[2], m.pts[3]];
+  return { ...m, id: newMaskId(masks), pts, values: { ...m.values } };
+}
+
+/** A mask mirrored across the picture's middle: left for right (`x`) or top for bottom (`y`). */
+export function mirrorMask(m: ImageMask, axis: 'x' | 'y'): ImageMask {
+  const flip = axis === 'x' ? 0 : 1;
+  const pts = m.shape === 'polygon' ? m.pts.map((v, i) => (i % 2 === flip ? 1 - v : v)) : m.pts.map((v, i) => (i === flip ? 1 - v : v));
+  // A mirror turns the other way; −0 is kept out of storage.
+  return { ...m, pts, angle: m.angle ? -m.angle : 0 };
+}
+
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const clamp = (v: unknown, lo: number, hi: number, def: number) => (finite(v) ? Math.max(lo, Math.min(hi, v)) : def);
 
