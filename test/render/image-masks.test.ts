@@ -99,10 +99,30 @@ describe('masks', () => {
   });
 
   test('every setting a mask can change, in feathered, turned and rounded shapes, keeps a plausible town', () => {
-    const ellipse = { ...newMask('ellipse', [], pic.w, pic.h), angle: 30, feather: 0.2, values: { likeness: 1, imageDensity: -1, imageFloorplans: 1, imageHatching: 1, cars: 0 } };
-    const polygon = { ...newMask('polygon', [ellipse], pic.w, pic.h), round: 0.6, feather: 0.1, invert: true, values: { imageContrast: 1.6, imageRelief: 0.7, imageDensity: 1, imageHighlight: 0.6, pitched: 0, trees: 1, abandon: 0.4 } };
+    const ellipse = { ...newMask('ellipse', [], pic.w, pic.h), angle: 30, feather: 0.2, values: { likeness: 1, imageNeighbours: 1, imageContours: 1, imageRoundabouts: 2, imageDensity: -1, imageFloorplans: 1, imageHatching: 1, cars: 0, heightScale: 2.5, windows: 0, details: 0 } };
+    const polygon = { ...newMask('polygon', [ellipse], pic.w, pic.h), round: 0.6, feather: 0.1, invert: true, values: { imageContrast: 1.6, imageRelief: 0.7, imageDensity: 1, imageHighlight: 0.6, pitched: 0, trees: 1, abandon: 0.4, humanize: 0.6, rooftops: 0, shadeWalls: 0 } };
     const s = drawImage({ ...base, imageMasks: [ellipse, polygon] }, fresh());
     expect(plausibility(s.scene.town)).toEqual([]);
     expect(s.counts.buildings).toBeGreaterThan(0);
+  });
+
+  test('windows and roof hatching switched off in a mask go only there', () => {
+    const near = { ...base, scale: 1500 };
+    const s = drawImage({ ...near, imageMasks: [left({ windows: 0, roofHatch: 0 })] }, fresh());
+    const mid = (s.cam.rect[0] + s.cam.rect[2]) / 2;
+    for (const layer of ['windows', 'roofHatch']) {
+      const lines = [...s.tally].filter(([k]) => k.split(/[:/]/)[0] === layer).flatMap(([, ls]) => ls);
+      expect(lines.some((l) => l[0] > mid + 15), `${layer} on the right`).toBe(true);
+      expect(lines.filter((l) => l[0] < mid - 15), `${layer} on the left`).toEqual([]);
+    }
+  });
+
+  test('a mask that humanizes leaves the strokes outside it precise', () => {
+    const plain = drawImage(base, fresh());
+    const loose = drawImage({ ...base, imageMasks: [left({ humanize: 1 })] }, fresh());
+    const mid = (plain.cam.rect[0] + plain.cam.rect[2]) / 2;
+    const right = (s: typeof plain) => new Set(s.raw.flatMap((pen) => pen.filter((l) => l[0] > mid + 1).map((l) => l.map((v) => v.toFixed(3)).join(','))));
+    expect(right(loose)).toEqual(right(plain));
+    expect(loose.svg).not.toBe(plain.svg);
   });
 });

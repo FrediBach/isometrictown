@@ -23,7 +23,7 @@ import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { imageHeights } from './image-heights';
 import { tune, type Prediction, type Seen } from './image-tune';
 import { fitImage } from './image-fit';
-import { activeMasks, BUILD_KEYS, groundValue, LAYOUT_KEYS, MaskField, masksKey, READ_KEYS } from './image-masks';
+import { activeMasks, BUILD_KEYS, groundValue, LAYOUT_KEYS, MaskField, masksKey, READ_KEYS, type MaskKey } from './image-masks';
 import { readImage, remapTarget, targetGrid, type Target } from './image-read';
 import { streets, tramRoute, type Graph } from './image-streets';
 import { zone, type Zones } from './image-zones';
@@ -120,7 +120,7 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     let zones = laid?.zones;
     if (!zones || laid?.zoneKey !== zoneKey) {
       note('Zoning the ground');
-      zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN], likenessOf(masks, cam));
+      zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN], { likeness: localOf(masks, cam, 'likeness'), neighbours: localOf(masks, cam, 'imageNeighbours') });
     }
     note('Laying out streets');
     laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note, masks) };
@@ -139,9 +139,9 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   return { ...scene, blocks: laid.layout.blocks, town };
 }
 
-/** Likeness at a ground position where masks set it for part of the picture. */
-function likenessOf(masks: MaskField | undefined, cam: Camera): ((x: number, y: number) => number) | undefined {
-  return masks?.varies('likeness') ? (x, y) => groundValue(masks, cam, 'likeness', x, y) : undefined;
+/** A setting at a ground position where masks set it for part of the picture. */
+function localOf(masks: MaskField | undefined, cam: Camera, key: MaskKey): ((x: number, y: number) => number) | undefined {
+  return masks?.varies(key) ? (x, y) => groundValue(masks, cam, key, x, y) : undefined;
 }
 
 /** The land plan reaches this far beyond the ground that can show, m, so streets run off the sheet and buildings at its edge have neighbours. */
@@ -180,7 +180,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
-  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts, likenessAt: likenessOf(masks, cam) }, parks);
+  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts, likenessAt: localOf(masks, cam, 'likeness'), roundaboutsAt: localOf(masks, cam, 'imageRoundabouts'), contours: masks?.field('imageContours') ?? undefined }, parks);
   town.controls = st.controls;
   // Roundabout islands: nothing is laid on them, and the renderer plants them.
   const islands: Shape[] = st.roundabouts.map((o) => [{ pts: o.pts.slice(0, -2), seam: new Uint8Array(o.pts.length / 2 - 1) }]);

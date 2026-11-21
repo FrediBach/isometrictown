@@ -1,4 +1,4 @@
-import { car, newSolid, prism, type Build, type Solid } from './buildings';
+import { car, heightScaleAt, newSolid, prism, type Build, type Solid } from './buildings';
 import { pointInRing, ringArea } from './geo';
 import { onMask, place, rect, slab, type Extra } from './infra';
 import type { Masks } from './nature';
@@ -526,7 +526,7 @@ export function farmyards(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       const y = r.cy + r.uy * a + r.ux * d;
       if (![0, 1, 2, 3, 4, 5].every((q) => free(paper, M, x + Math.cos(q) * (R + 0.3), y + Math.sin(q) * (R + 0.3)))) break;
       const s = newSolid();
-      const H = Math.max(b.h * B.set.heightScale + 3, 9 + h(5 + k) * 6);
+      const H = Math.max(b.h * heightScaleAt(B, r.cx, r.cy) + 3, 9 + h(5 + k) * 6);
       const ring = cylinder(B, s, x, y, R, 0, H, false);
       dome(B, x, y, R, H, s);
       s.casts.push({ ring, h: H + R * 0.6 });

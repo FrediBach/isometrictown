@@ -119,6 +119,12 @@ describe('masks from storage or a link', () => {
     expect(b.id).not.toBe(a.id);
   });
 
+  test('keep on/off settings as on or off', () => {
+    const [m] = validMasks([{ ...left(), values: { windows: 0.7, roofHatch: 0.2, heightScale: 9 } }]);
+    expect(m.values).toEqual({ windows: 1, roofHatch: 0, heightScale: 3 });
+    expect(new MaskField([left({ values: { windows: 0 } })], set, grid, placed, pic).at('windows', 80, 25)).toBe(1);
+  });
+
   test('survive a round trip through JSON', () => {
     const masks = [left({ values: { abandon: 0.8 } }), { ...newMask('polygon', [], pic.w, pic.h), id: 'p2', round: 0.4, values: { likeness: 1 } }];
     expect(validMasks(JSON.parse(JSON.stringify(masks)))).toEqual(masks);

@@ -140,7 +140,10 @@ export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'image
  * Zone the ground in `box` (local metres) to look like the target through `cam`. The pens shape
  * the materials' colours, so they count here; the tone of what is drawn does not depend on them.
  */
-export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[], likenessAt?: (x: number, y: number) => number): Zones {
+/** Settings masks set for parts of the picture, at a ground position. */
+export type ZoneLocal = { likeness?: (x: number, y: number) => number; neighbours?: (x: number, y: number) => number };
+
+export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[], local: ZoneLocal = {}): Zones {
   const cell = zoneCell(set.scale);
   const [bx0, by0, bx1, by1] = box;
   const W = Math.max(1, Math.ceil((bx1 - bx0) / cell));
@@ -148,7 +151,10 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
   // Masks can set Likeness for part of the picture; each superpixel takes the mean of its cells.
-  const likeAt = likenessAt ? (x: number, y: number) => Math.max(0, Math.min(1, likenessAt(x, y))) : undefined;
+  const clamp01 = (f?: (x: number, y: number) => number) => f && ((x: number, y: number) => Math.max(0, Math.min(1, f(x, y))));
+  const likeAt = clamp01(local.likeness);
+  // So can Neighbourhoods as in real towns: each pair of superpixels mixes the two tables by their mean.
+  const nbAt = clamp01(local.neighbours);
   const pairCost = compatTable(set.imageNeighbours);
   const across = Math.max(SUPERPIXEL, SUPERPIXEL_MM / cam.s, 2 * cell);
   const colour = colourCounts(set);
@@ -208,6 +214,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const spWeight = new Float32Array(count);
   const spUrban = new Float32Array(count);
   const spLike = new Float32Array(count);
+  const spNb = new Float32Array(count);
   // Only ground colours decide the superpixels. Sample the other heights directly into
   // those superpixels so each height needs three sums per patch instead of per cell.
   for (let j = 0; j < H; j++) {
@@ -219,6 +226,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       spWeight[s] += weight[c];
       spUrban[s] += urban[c];
       spLike[s] += likeAt ? likeAt(x, y) : likeness;
+      if (nbAt) spNb[s] += nbAt(x, y);
       for (let ch = 0; ch < 3; ch++) spLab[0][s * 3 + ch] += lab[c * 3 + ch];
       const cx = column(x, y);
       for (let k = 1; k < lifts.length; k++) {
@@ -236,6 +244,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     spWeight[s] /= area[s];
     spUrban[s] /= area[s];
     spLike[s] /= area[s];
+    spNb[s] /= area[s];
     for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] /= area[s];
   }
   const sides = new Map<number, [number, number]>();
@@ -256,14 +265,15 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   /** A superpixel's side, in cells. */
   const sideCells = across / cell;
   const lambda = (a: number, b: number) => SMOOTH * (1.2 - (likeAt ? (spLike[a] + spLike[b]) / 2 : likeness));
-  /** Per superpixel: [neighbour, weight of the shared side (already cheapened by the edge along it), mean edge strength along it]. */
-  const nbrs: [number, number, number][][] = Array.from({ length: count }, () => []);
+  /** Per superpixel: [neighbour, weight of the shared side (already cheapened by the edge along it), mean edge strength along it, the pair's Neighbourhoods where masks set it]. */
+  const nbrs: [number, number, number, number][][] = Array.from({ length: count }, () => []);
   for (const [key, [len, e]] of sides) {
     const a = Math.floor(key / count);
     const b = key % count;
     const w = lambda(a, b) * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
-    nbrs[a].push([b, w, e / len]);
-    nbrs[b].push([a, w, e / len]);
+    const t = (spNb[a] + spNb[b]) / 2;
+    nbrs[a].push([b, w, e / len, t]);
+    nbrs[b].push([a, w, e / len, t]);
   }
 
   // Data cost: the closest the label's material comes to the image, plus the priors.
@@ -322,7 +332,12 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const cost = (s: number, k: number) => {
     if (k === SAND) return Infinity;
     let c = data[s * K + k];
-    for (const [t, w] of nbrs[s]) c += w * pairCost[k * K + label[t]];
+    if (nbAt) {
+      for (const [t, w, , mix] of nbrs[s]) {
+        const i = k * K + label[t];
+        c += w * (COMPAT[i] + mix * (LEARNT[i] - COMPAT[i]));
+      }
+    } else for (const [t, w] of nbrs[s]) c += w * pairCost[k * K + label[t]];
     return c;
   };
   const settle = (no?: Set<number>) => {
@@ -720,7 +735,7 @@ export function labelAt(z: Zones, x: number, y: number): Label | null {
 }
 
 /** Middles of the largest masses of dense built superpixels (old town, blocks, towers) of at least `min` cells, in cells. */
-function coresOf(label: Uint8Array, nbrs: [number, number, number][][], area: Float32Array, sp: Int32Array, W: number, min: number): [number, number][] {
+function coresOf(label: Uint8Array, nbrs: readonly (readonly number[])[][], area: Float32Array, sp: Int32Array, W: number, min: number): [number, number][] {
   const dense = new Set([L('old'), L('blocks'), L('towers')]);
   const count = label.length;
   const comp = new Int32Array(count).fill(-1);

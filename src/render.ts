@@ -16,7 +16,7 @@ import { Paper } from './raster';
 import { humanize } from './humanize';
 import { ImageHatching } from './image-hatching';
 import { ImageSpace } from './image-space';
-import { groundValue, type MaskField } from './image-masks';
+import { BUILDING_KEYS, groundValue, type MaskField } from './image-masks';
 import { hash } from './rng';
 import type { Target } from './image-read';
 import { finishRoofEdges } from './roofs';
@@ -169,6 +169,25 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
 
   // Buildings, only those that can show inside the drawing area
   const [rx0, ry0, rx1, ry1] = cam.rect;
+  // Masks can draw buildings taller, or with windows, roof hatching and details on or off, where they stand.
+  const own = masks ? BUILDING_KEYS.filter((k) => masks.varies(k)) : [];
+  const tallest = masks?.varies('heightScale') ? masks.peak('heightScale') : set.heightScale;
+  const drawnAt = (b: Town['buildings'][number]): Settings => {
+    if (!own.length) return set;
+    const p = b.shape[0].pts;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < p.length; i += 2) {
+      x0 = Math.min(x0, p[i]); x1 = Math.max(x1, p[i]);
+      y0 = Math.min(y0, p[i + 1]); y1 = Math.max(y1, p[i + 1]);
+    }
+    const local: Settings = { ...set };
+    for (const k of own) {
+      const v = groundValue(masks!, cam, k, (x0 + x1) / 2, (y0 + y1) / 2);
+      if (k === 'heightScale') local.heightScale = v;
+      else (local as Record<string, unknown>)[k] = v >= 0.5;
+    }
+    return local;
+  };
   const solids: Solid[] = [];
   const pickKeys: string[] = [];
   const candidates = town.buildings.length;
@@ -181,7 +200,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     let sx1 = -Infinity;
     let syTop = Infinity;
     let syBot = -Infinity;
-    const H = b.h * set.heightScale + 8;
+    const H = b.h * tallest + 8;
     for (let i = 0; i < p.length; i += 2) {
       const sx = cam.sx(p[i], p[i + 1]);
       sx0 = Math.min(sx0, sx);
@@ -195,7 +214,13 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       continue;
     }
     paper.fillMask(M.foot, b.shape.map((r) => r.pts));
-    const made = at('buildings', () => (legible(B, b) ? building(B, b) : null));
+    B.set = drawnAt(b);
+    let made: Solid[] | null;
+    try {
+      made = at('buildings', () => (legible(B, b) ? building(B, b) : null));
+    } finally {
+      B.set = set;
+    }
     if (!made) continue;
     // A roofless ruin's floor is open to the sky: growth may stand in it, clear of the walls.
     const fate = B.fates?.get(b);
@@ -419,11 +444,15 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   paper.layer = '';
   withPen('trees', () => { sprites.forEach((sp, i) => paper.facet(treeFacets[i], sp.draw)); });
 
-  if (set.humanize > 0) {
+  // Masks can loosen or tighten the hand where each stroke starts.
+  const hands = masks?.varies('humanize') ? masks : undefined;
+  if (hands ? hands.peak('humanize') > 0 : set.humanize > 0) {
     for (const pen of paper.pens) for (const line of pen) {
+      const amount = hands ? Math.min(1, hands.at('humanize', line[0], line[1])) : set.humanize;
+      if (!(amount > 0)) continue;
       const a = cam.ground(line[0], line[1]);
       const b = cam.ground(line[line.length - 2], line[line.length - 1]);
-      humanize(line, set.humanize, [...B.key(...a), ...B.key(...b)], set.seed, cam.rect);
+      humanize(line, amount, [...B.key(...a), ...B.key(...b)], set.seed, cam.rect);
     }
   }
 

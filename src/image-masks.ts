@@ -13,8 +13,19 @@ import type { Grid } from './image-tone';
 import type { Settings } from './settings';
 
 /** Settings a mask can set for its part of the picture, in the order the panel lists them. */
-export const MASK_KEYS = ['imageLight', 'imageContrast', 'likeness', 'imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight', 'pitched', 'trees', 'cars', 'abandon'] as const;
+export const MASK_KEYS = [
+  'imageLight', 'imageContrast', 'likeness', 'imageNeighbours',
+  'imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight',
+  'imageContours', 'imageRoundabouts',
+  'heightScale', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls',
+  'pitched', 'trees', 'cars', 'abandon', 'humanize',
+] as const;
 export type MaskKey = (typeof MASK_KEYS)[number];
+/** On/off settings a mask can turn on or off: 1 is on, 0 off. Across the feather the nearer side wins. */
+export const MASK_SWITCHES = ['windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls'] as const satisfies readonly MaskKey[];
+export type MaskSwitch = (typeof MASK_SWITCHES)[number];
+/** Settings each building is drawn with on its own, from where it stands. */
+export const BUILDING_KEYS: readonly MaskKey[] = ['heightScale', ...MASK_SWITCHES];
 
 /** The shapes a mask can take. */
 export type MaskShape = 'ellipse' | 'rect' | 'polygon';
@@ -55,7 +66,7 @@ export const MASKS_MAX = 24;
 /** Settings image mode's mask stages are keyed on: the image is read again only for these. */
 export const READ_KEYS: readonly MaskKey[] = ['imageLight', 'imageContrast'];
 /** Laid out again only for these. */
-export const LAYOUT_KEYS: readonly MaskKey[] = ['likeness'];
+export const LAYOUT_KEYS: readonly MaskKey[] = ['likeness', 'imageNeighbours', 'imageContours', 'imageRoundabouts'];
 /** Built again only for these; the rest only change how the town is drawn. */
 export const BUILD_KEYS: readonly MaskKey[] = ['imageDensity', 'imageFloorplans'];
 
@@ -64,15 +75,25 @@ export const MASK_RANGE: Record<MaskKey, [number, number]> = {
   imageLight: [-1, 1],
   imageContrast: [0.5, 2],
   likeness: [0, 1],
+  imageNeighbours: [0, 1],
   imageRelief: [0, 1],
   imageDensity: [-1, 1],
   imageHatching: [0, 1],
   imageFloorplans: [0, 1],
   imageHighlight: [0, 1],
+  imageContours: [0, 1],
+  imageRoundabouts: [0, 2],
+  heightScale: [0.5, 3],
+  windows: [0, 1],
+  roofHatch: [0, 1],
+  rooftops: [0, 1],
+  details: [0, 1],
+  shadeWalls: [0, 1],
   pitched: [0, 1],
   trees: [0, 1],
   cars: [0, 1],
   abandon: [0, 1],
+  humanize: [0, 1],
 };
 
 /** Highlight cutoff the drawing stands for where Preserve empty space is off: nothing kept blank. */
@@ -81,7 +102,8 @@ export const NO_SPACE = 2;
 /** The value a key has outside every mask. Preserve empty space off is a cutoff nothing reaches. */
 export function mainValue(set: Settings, key: MaskKey): number {
   if (key === 'imageHighlight') return set.imagePreserveSpace ? set.imageHighlight : NO_SPACE;
-  return set[key];
+  const v = set[key];
+  return typeof v === 'boolean' ? Number(v) : v;
 }
 
 /** Masks that take part in the drawing. */
@@ -333,7 +355,8 @@ export function validMasks(raw: unknown): ImageMask[] {
     if (r.values && typeof r.values === 'object') {
       for (const k of MASK_KEYS) {
         const v = (r.values as Record<string, unknown>)[k];
-        if (finite(v)) values[k] = Math.max(MASK_RANGE[k][0], Math.min(MASK_RANGE[k][1], v));
+        if (!finite(v)) continue;
+        values[k] = (MASK_SWITCHES as readonly MaskKey[]).includes(k) ? Number(v >= 0.5) : Math.max(MASK_RANGE[k][0], Math.min(MASK_RANGE[k][1], v));
       }
     }
     const id = typeof r.id === 'string' && /^[a-z0-9]{1,12}$/.test(r.id) && !out.some((o) => o.id === r.id) ? r.id : newMaskId(out);

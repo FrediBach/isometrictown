@@ -1,11 +1,12 @@
 import { useId } from 'react';
 import { ArrowDownIcon, ArrowUpIcon, CircleIcon, EyeIcon, EyeOffIcon, PentagonIcon, RectangleHorizontalIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react';
+import { Segmented } from '@/components/ui/segmented';
 import { Slider } from '@/components/ui/slider';
 import { ToggleKey } from '@/components/ui/toggle-key';
 import { cn } from '@/lib/utils';
 import { FORMAT } from '../app/model';
 import { useSettings } from '../app/settings-context';
-import { FEATHER_MAX, mainValue, MASKS_MAX, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape } from '../image-masks';
+import { FEATHER_MAX, mainValue, MASK_SWITCHES, MASKS_MAX, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape, type MaskSwitch } from '../image-masks';
 import { Caption, Hint, KeyGrid } from './fields';
 
 const SHAPES: { shape: MaskShape; label: string; Icon: typeof CircleIcon }[] = [
@@ -15,31 +16,44 @@ const SHAPES: { shape: MaskShape; label: string; Icon: typeof CircleIcon }[] = [
 ];
 const SHAPE_NAME: Record<MaskShape, string> = { ellipse: 'Ellipse', rect: 'Rectangle', polygon: 'Polygon' };
 
+type DialKey = Exclude<MaskKey, MaskSwitch>;
+
 /** How each setting a mask can change shows in the panel, in the words of its own control. */
-const FIELDS: Record<MaskKey, { label: string; min: number; max: number; step: number }> = {
+const FIELDS: Record<DialKey, { label: string; min: number; max: number; step: number }> = {
   imageLight: { label: 'Brightness', min: -1, max: 1, step: 0.05 },
   imageContrast: { label: 'Contrast', min: 0.5, max: 2, step: 0.05 },
   likeness: { label: 'Likeness', min: 0, max: 1, step: 0.01 },
+  imageNeighbours: { label: 'Neighbourhoods as in real towns', min: 0, max: 1, step: 0.01 },
+  imageContours: { label: 'Streets follow image lines', min: 0, max: 1, step: 0.01 },
+  imageRoundabouts: { label: 'More roundabouts', min: 0, max: 2, step: 0.01 },
   imageRelief: { label: 'Height from image', min: 0, max: 1, step: 0.01 },
   imageDensity: { label: 'Building density from image', min: -1, max: 1, step: 0.01 },
   imageHatching: { label: 'Hatching from image', min: 0, max: 1, step: 0.01 },
   imageFloorplans: { label: 'House floorplans follow image lines', min: 0, max: 1, step: 0.01 },
   // Beyond 100% on this dial is off: nothing is kept blank.
   imageHighlight: { label: 'Preserve empty space', min: 0, max: 1.05, step: 0.01 },
+  heightScale: { label: 'Building height', min: 0.5, max: 3, step: 0.05 },
   pitched: { label: 'Pitched roofs', min: 0, max: 1, step: 0.01 },
   trees: { label: 'Trees', min: 0, max: 1, step: 0.01 },
   cars: { label: 'Traffic', min: 0, max: 1, step: 0.01 },
   abandon: { label: 'Abandonment', min: 0, max: 1, step: 0.01 },
+  humanize: { label: 'Humanize', min: 0, max: 1, step: 0.01 },
 };
+
+/** The on/off settings a mask can set, in the words of their keys. */
+const SWITCHES: Record<MaskSwitch, string> = { windows: 'Windows', roofHatch: 'Roof hatching', rooftops: 'Rooftop boxes', details: 'Roof details', shadeWalls: 'Shade walls' };
 
 /** The groups the mask's settings are listed in. */
 const GROUPS: { caption: string; keys: MaskKey[] }[] = [
-  { caption: 'Image', keys: ['imageLight', 'imageContrast', 'likeness'] },
+  { caption: 'Image', keys: ['imageLight', 'imageContrast', 'likeness', 'imageNeighbours'] },
+  { caption: 'Streets', keys: ['imageContours', 'imageRoundabouts'] },
   { caption: 'Town from the image', keys: ['imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight'] },
-  { caption: 'Town', keys: ['pitched', 'trees', 'cars', 'abandon'] },
+  { caption: 'Buildings', keys: ['heightScale', 'pitched', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls'] },
+  { caption: 'Town', keys: ['trees', 'cars', 'abandon', 'humanize'] },
 ];
 
-const showValue = (key: MaskKey, v: number) => (key === 'imageHighlight' && v > 1 ? 'Off' : FORMAT[key](v));
+const isSwitch = (k: MaskKey): k is MaskSwitch => (MASK_SWITCHES as readonly MaskKey[]).includes(k);
+const showValue = (key: DialKey, v: number) => (key === 'imageHighlight' && v > 1 ? 'Off' : FORMAT[key](v));
 
 const TEXT_BUTTON = 'rounded-sm text-[12px] underline underline-offset-4 outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40';
 const ICON_BUTTON = 'grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-3.5';
@@ -196,13 +210,16 @@ function MaskSettings({ mask, index, count, update, shift, onDone }: MaskSetting
           {keys.map((key) => {
             const own = mask.values[key];
             const main = mainValue(set, key);
-            const f = FIELDS[key];
-            const value = own ?? main;
             const reset = () => {
               const values = { ...mask.values };
               delete values[key];
               update({ ...mask, values });
             };
+            if (isSwitch(key)) {
+              return <Switch key={key} label={SWITCHES[key]} own={own} main={main >= 0.5} onReset={reset} onChange={(on) => update({ ...mask, values: { ...mask.values, [key]: Number(on) } })} />;
+            }
+            const f = FIELDS[key];
+            const value = own ?? main;
             return (
               <Dial
                 key={key}
@@ -220,7 +237,30 @@ function MaskSettings({ mask, index, count, update, shift, onDone }: MaskSetting
           })}
         </div>
       ))}
-      <Hint className="mt-2">Settings shown in grey follow the drawing’s own. Scale, view, style and pens are the drawing’s everywhere.</Hint>
+      <Hint className="mt-2">Settings shown in grey follow the drawing’s own. Scale, view, colour, street pattern, style, light and pens are the drawing’s everywhere.</Hint>
+    </div>
+  );
+}
+
+type SwitchProps = { label: string; own: number | undefined; main: boolean; onReset: () => void; onChange: (on: boolean) => void };
+
+/** An on/off setting inside a mask: following the drawing's, or on or off whatever the drawing has. */
+function Switch({ label, own, main, onReset, onChange }: SwitchProps) {
+  const value = own === undefined ? 'follow' : own >= 0.5 ? 'on' : 'off';
+  return (
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <span className={cn('min-w-0 truncate text-[13px]', own === undefined && 'text-muted-foreground')}>{label}</span>
+      <Segmented
+        aria-label={label}
+        value={value}
+        onValueChange={(v) => (v === 'follow' ? onReset() : onChange(v === 'on'))}
+        className="h-7 shrink-0"
+        items={[
+          { value: 'follow', label: main ? 'As on' : 'As off', title: `Follow the drawing, which has it ${main ? 'on' : 'off'}` },
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' },
+        ]}
+      />
     </div>
   );
 }

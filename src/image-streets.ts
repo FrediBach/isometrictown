@@ -56,7 +56,13 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number; /** Likeness where masks set it for part of the picture, at a ground position. */ likenessAt?: (x: number, y: number) => number };
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number;
+  /** Likeness and More roundabouts where masks set them for part of the picture, at a ground position. */
+  likenessAt?: (x: number, y: number) => number;
+  roundaboutsAt?: (x: number, y: number) => number;
+  /** Streets follow image lines where masks set it, one value per target cell. */
+  contours?: Float32Array;
+};
 
 const L = (l: Label) => LABELS.indexOf(l);
 const WATER = L('water');
@@ -164,13 +170,18 @@ const lengthOf = (p: number[]) => {
 
 /** Long strokes and single contrast boundaries on the sheet. Leave the two banks of a bright
  * stroke to its centreline, so one white curve does not become three parallel streets. */
-function contourGuides(t: Target, strength: number): number[][] {
+function contourGuides(t: Target, strength: number | Float32Array): number[][] {
   const { W, H, cell, edge, dir, ridge, tone } = t;
   const outline = new Uint8Array(W * H);
   const sample = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H ? y * W + x : -1;
-  const threshold = 0.55 - 0.32 * strength;
+  // Masks can set the strength cell by cell; a line then takes the mean along it.
+  const at = (i: number) => Math.min(1, typeof strength === 'number' ? strength : strength[i]);
+  let top = 0;
+  if (typeof strength === 'number') top = Math.min(1, strength);
+  else for (let i = 0; i < strength.length; i++) top = Math.max(top, Math.min(1, strength[i]));
   for (let i = 0; i < outline.length; i++) {
-    if (edge[i] < threshold || t.coherence[i] < 0.55 || t.weight[i] < 0.5) continue;
+    const s = at(i);
+    if (s <= 0 || edge[i] < 0.55 - 0.32 * s || t.coherence[i] < 0.55 || t.weight[i] < 0.5) continue;
     const x = i % W, y = Math.floor(i / W);
     let nx = -Math.sin(dir[i]), ny = Math.cos(dir[i]);
     const up = sample(x + Math.round(2 * nx), y + Math.round(2 * ny));
@@ -186,16 +197,28 @@ function contourGuides(t: Target, strength: number): number[][] {
       if (ridge[k] > 0) { outline[i] = 0; break; }
     }
   }
-  const min = 12 + 24 * (1 - strength);
-  const lines = [...traceLines((i) => ridge[i] > 0, t, min), ...traceLines((i) => !!outline[i], t, min)];
-  const ranked = lines.map((pts) => ({ pts, length: lengthOf(pts) })).sort((a, b) => b.length - a.length);
+  const shortest = 12 + 24 * (1 - top);
+  const lines = [...traceLines((i) => ridge[i] > 0 && at(i) > 0, t, shortest), ...traceLines((i) => !!outline[i], t, shortest)];
+  /** The strength along a line, sampled at its points. */
+  const along = (pts: number[]) => {
+    if (typeof strength === 'number') return top;
+    let sum = 0;
+    for (let k = 0; k < pts.length; k += 2) {
+      const i = sample(Math.floor((pts[k] - t.x0) / cell), Math.floor((pts[k + 1] - t.y0) / cell));
+      sum += i < 0 ? 0 : at(i);
+    }
+    return sum / (pts.length / 2);
+  };
+  const ranked = lines.map((pts) => ({ pts, length: lengthOf(pts), s: along(pts) })).sort((a, b) => b.length - a.length);
   // Give the strongest shapes a route first. As the dial rises, follow more of each shape
   // out from its middle. The sheet-sized budget keeps photographic texture from filling the town.
-  let budget = (W + H) * cell * 2 * strength;
+  let budget = (W + H) * cell * 2 * top;
   const routes: number[][] = [];
-  for (const { pts, length } of ranked) {
-    const take = Math.min(length * strength, budget);
-    if (take < min) break;
+  for (const { pts, length, s } of ranked) {
+    const min = 12 + 24 * (1 - s);
+    const take = Math.min(length * s, budget);
+    if (budget < shortest) break;
+    if (take < min) continue;
     const start = (length - take) / 2, stop = start + take;
     const run: number[] = [];
     let travelled = 0;
@@ -414,8 +437,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     finish();
   };
   for (const sheet of traceLines((i) => target.ridge[i] === 2, target, minLine * cam.s * cam.sa)) layRoute(sheet);
-  if (set.imageContours > 0) {
-    const guides = contourGuides(target, Math.min(1, set.imageContours));
+  if (set.contours || set.imageContours > 0) {
+    const guides = contourGuides(target, set.contours ?? Math.min(1, set.imageContours));
     if (guides.length) {
       const existing = new Near();
       for (const { pts } of [...lines, ...paths]) existing.add(pts, 0);
@@ -563,7 +586,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
       if (x < z.x0 + 40 || y < z.y0 + 40 || x > x1 - 40 || y > y1 - 40) continue;
       const arms = g.edges.filter((e) => (e.a === v) !== (e.b === v)).map((e) => e.cls);
       const at = labelAt(x, y);
-      const control = controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950), set.roundabouts ?? 0);
+      const control = controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950), set.roundaboutsAt ? set.roundaboutsAt(x, y) : set.roundabouts ?? 0);
       if (control === 'signals') signals.push(x, y);
       if (control !== 'roundabout') continue;
       const top = arms.reduce((a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a));

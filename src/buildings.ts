@@ -1,7 +1,7 @@
 import { helicopter } from './aircraft';
 import type { Camera } from './camera';
 import type { ImageHatching } from './image-hatching';
-import type { MaskField } from './image-masks';
+import { groundValue, type MaskField } from './image-masks';
 import type { Info } from './classify';
 import { facadeLines, PLAIN, type Facade, type Wall } from './facades';
 import { pointInRing, ringArea } from './geo';
@@ -73,6 +73,11 @@ const CREASE = Math.cos((24 * Math.PI) / 180);
 const SHADE_MM = 0.85;
 /** Height of a shop's ground floor; the upper floors' windows start above it. */
 const SHOP_H = 3.6;
+
+/** Building height at a ground position: the drawing's, or as masks set it there in image mode. */
+export function heightScaleAt(B: Build, x: number, y: number): number {
+  return B.local?.varies('heightScale') ? groundValue(B.local, B.cam, 'heightScale', x, y) : B.set.heightScale;
+}
 
 export function newSolid(): Solid {
   return { faces: [], lines: [], casts: [] };
