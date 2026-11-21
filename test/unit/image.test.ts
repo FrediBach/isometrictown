@@ -425,6 +425,21 @@ describe('the street graph', () => {
     expect(c.edges.some((e) => e.main)).toBe(true);
   });
 
+  test('a country lane carries two staggered street ends into a bend and keeps to dry land', () => {
+    const town = () => planar([line([-300, 0, 0, 0]), line([100, 100, 400, 100])]);
+    const lane = (wet: (x: number, y: number) => boolean) => {
+      const g = clean(town(), wet, () => true);
+      expect(streetRules(g)).toEqual([]);
+      expect(g.edges).toHaveLength(3);
+      return g.edges.find(e => e.pts.length > 4)!.pts;
+    };
+    const open = lane(() => false);
+    const shore = (x: number, y: number) => x > 0 && x < 100 && x - y > 7;
+    expect(open.some((x, i) => i % 2 === 0 && shore(x, open[i + 1]))).toBe(true);
+    const bank = lane(shore);
+    expect(bank.some((x, i) => i % 2 === 0 && shore(x, bank[i + 1]))).toBe(false);
+  });
+
   test('a dry connection takes precedence over a shorter bridge', () => {
     const g = planar([line([-30, 0, -30, 150]), line([30, 0, 30, 110])]);
     clean(g, (x, y) => Math.abs(x) < 20 && y < 90);

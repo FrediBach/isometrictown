@@ -1,11 +1,11 @@
 {
   "likeness": {"score":0.505,"dE":[0.058,0.049],"ssim":0.664},
   "region": {"country":"Image","code":"","style":"central","left":false},
-  "counts": {"buildings":581,"houses":500,"trees":1659,"cars":253,"lamps":156},
+  "counts": {"buildings":581,"houses":500,"trees":1731,"cars":253,"lamps":156},
   "census": {
     "blank-windows": 23,
-    "broadleaf": 1360,
-    "bush": 286,
+    "broadleaf": 1431,
+    "bush": 287,
     "chimneys": 223,
     "church-roof": 1,
     "civic": 1,
@@ -30,7 +30,7 @@
     "shop-front": 56,
     "shutters": 186,
     "sparse-windows": 5,
-    "street-trees": 1260,
+    "street-trees": 1332,
     "tall-windows": 2,
     "terrace": 551,
     "wild-trees": 8,

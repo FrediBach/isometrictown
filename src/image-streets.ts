@@ -570,7 +570,11 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   // A planar graph, cleaned until the hard rules hold, joined into one network, and ranked.
   const water = (x: number, y: number) => labelAt(x, y) === WATER;
-  const g = clean(planar(lines), water);
+  const openLand = (x: number, y: number) => {
+    const label = labelAt(x, y);
+    return label >= 0 && label !== WATER && !streetable(label);
+  };
+  const g = clean(planar(lines), water, grid ? undefined : openLand);
   // Plan lanes where their true width meets the road rule at reference detail and pen width.
   rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 
@@ -1030,7 +1034,7 @@ const weaker = (e: GraphEdge, f: GraphEdge) => (e.main !== f.main ? !e.main : RA
  * no dead ends under 25 m, no junction angle under 35°, and one connected network (pieces are
  * joined over dry ground or by a short bridge, or dropped).
  */
-export function clean(g: Graph, water: (x: number, y: number) => boolean): Graph {
+export function clean(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean): Graph {
   const pass = () => {
     let changed = false;
     // Parallel duplicates and loops.
@@ -1102,7 +1106,7 @@ export function clean(g: Graph, water: (x: number, y: number) => boolean): Graph
     return changed;
   };
   for (let round = 0; round < 16 && pass(); round++);
-  join(g, water);
+  join(g, water, openLand);
   for (let round = 0; round < 4 && pass(); round++);
   // Drop any pieces still beyond reach or cut off when cleaning the new junctions.
   keepLargest(g);
@@ -1151,8 +1155,43 @@ function bankRuns(pts: number[], water: (x: number, y: number) => boolean) {
   return runs;
 }
 
+/** Continue a lane out of a dead end, or turn off a through street at a junction.
+ * Limit the turn towards the destination so a short approach never doubles back. */
+function approachAngle(arms: [number, number][], heading: number): number {
+  let best = Infinity;
+  for (const [dx, dy] of arms) {
+    const angle = Math.atan2(dy, dx) - heading;
+    for (const turn of arms.length === 1 ? [Math.PI] : [Math.PI / 2, -Math.PI / 2, Math.PI]) {
+      const offset = Math.atan2(Math.sin(angle + turn), Math.cos(angle + turn));
+      if (Math.abs(offset) < Math.abs(best)) best = offset;
+    }
+  }
+  return Math.max(-Math.PI / 2, Math.min(Math.PI / 2, best));
+}
+
+/** Lay a country lane between the bearings of the streets it meets, sampled in ground metres. */
+function countryLane(x: number, y: number, bx: number, by: number, from: [number, number][], to: [number, number][]): number[] {
+  const dx = bx - x, dy = by - y, distance = Math.hypot(dx, dy);
+  const heading = Math.atan2(dy, dx);
+  const a = heading + approachAngle(from, heading);
+  const b = heading + Math.PI + approachAngle(to, heading + Math.PI);
+  const reach = distance * 0.4;
+  const ax = reach * Math.cos(a), ay = reach * Math.sin(a);
+  const ex = reach * Math.cos(b), ey = reach * Math.sin(b);
+  const steps = Math.ceil(distance / 8);
+  const pts = [x, y];
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps, u = 1 - t;
+    const advance = t * t * (3 - 2 * t);
+    pts.push(x + advance * dx + 3 * t * u * (u * ax + t * ex),
+      y + advance * dy + 3 * t * u * (u * ay + t * ey));
+  }
+  pts.push(bx, by);
+  return pts;
+}
+
 /** Join nearby street networks on dry ground where possible, or over a single stretch of water. */
-function join(g: Graph, water: (x: number, y: number) => boolean): void {
+function join(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean): void {
   const REACH = 250;
   const comp = components(g);
   const size = new Map<number, number>();
@@ -1172,7 +1211,7 @@ function join(g: Graph, water: (x: number, y: number) => boolean): void {
   const pieces = new Map<number, number[]>();
   for (let v = 0; v < comp.length; v++) if (comp[v] >= 0 && comp[v] !== main) (pieces.get(comp[v]) ?? pieces.set(comp[v], []).get(comp[v])!).push(v);
   if (!pieces.size) return;
-  let addedBridge = false;
+  let addedBridge = false, crossedStreet = false;
   const bridgeSpacing = 150;
   const bridges = new Near(bridgeSpacing);
   const arms: [number, number][][] = Array.from({ length: comp.length }, () => []);
@@ -1190,6 +1229,23 @@ function join(g: Graph, water: (x: number, y: number) => boolean): void {
       const runs = bankRuns(pts, water);
       if (runs[0].wet || runs[runs.length - 1].wet) return;
       if (runs.length === 1) {
+        // A gap through several blocks of open land has room for a sweeping approach.
+        if (openLand && d >= 75 && [0.25, 0.5, 0.75].every(t => openLand(x + t * (bx - x), y + t * (by - y)))) {
+          const lane = countryLane(x, y, bx, by, arms[v], arms[u]);
+          // Tighten the bend beside water. The straight alignment is already known to be dry.
+          for (let attempt = 0; attempt < 3; attempt++) {
+            if (bankRuns(lane, water).length === 1) {
+              const cost = lengthOf(lane);
+              if (!best || cost < best.cost) best = { v, u, pts: lane, cost };
+              return;
+            }
+            for (let i = 2; i < lane.length - 2; i += 2) {
+              const t = i / (lane.length - 2);
+              lane[i] = (lane[i] + x + t * (bx - x)) / 2;
+              lane[i + 1] = (lane[i + 1] + y + t * (by - y)) / 2;
+            }
+          }
+        }
         best = { v, u, pts, cost: d };
         return;
       }
@@ -1229,6 +1285,19 @@ function join(g: Graph, water: (x: number, y: number) => boolean): void {
       if (!best) continue;
       const { v, u, pts, span } = best;
       const edge = { a: v, b: u, pts, cls: 'minor', main: false };
+      // Most approaches share only their end nodes. Rebuild junctions if a bend meets
+      // another street on its way across the gap.
+      if (pts.length > 4 && !crossedStreet) crossedStreet = g.edges.some(e => {
+        for (let i = 2; i < pts.length; i += 2) {
+          const p = e.pts;
+          for (let j = 2; j < p.length; j += 2) {
+            if (i === 2 && ((j === 2 && e.a === v) || (j === p.length - 2 && e.b === v))) continue;
+            if (i === pts.length - 2 && ((j === 2 && e.a === u) || (j === p.length - 2 && e.b === u))) continue;
+            if (meet(pts[i - 2], pts[i - 1], pts[i], pts[i + 1], p[j - 2], p[j - 1], p[j], p[j + 1])) return true;
+          }
+        }
+        return false;
+      });
       g.edges.push(edge);
       for (const n of [v, u]) arms[n].push(leaving(edge, n));
       if (span) {
@@ -1241,7 +1310,7 @@ function join(g: Graph, water: (x: number, y: number) => boolean): void {
     // Once a bridge opens the far bank, an earlier piece may now have a dry route to it.
   } while (addedBridge && pieces.size && pieces.size < remaining);
   // Split any streets met by the new approaches at their junctions before cleaning again.
-  if (addedBridge) Object.assign(g, planar(g.edges));
+  if (addedBridge || crossedStreet) Object.assign(g, planar(g.edges));
 }
 
 /** Keep only the largest piece of the network. */
