@@ -4,6 +4,7 @@ import { PALETTES } from '../palettes';
 import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_COUNT, SHEETS, type LayerId, type Settings } from '../settings';
 import { STYLES } from '../styles';
 import { phaseName } from '../decay';
+import { validMasks } from '../image-masks';
 
 const STORE = 'isometrictown:settings';
 
@@ -123,6 +124,7 @@ function validateImage(s: Settings): void {
   s.imageRoundabouts = within(s.imageRoundabouts, 0, 2, d.imageRoundabouts);
   s.imagePreserveSpace = s.imagePreserveSpace === true;
   s.likeness = within(s.likeness, 0, 1, d.likeness);
+  s.imageMasks = validMasks(s.imageMasks);
 }
 
 /**
@@ -211,6 +213,7 @@ function encodeValue(k: keyof Settings, v: Settings[keyof Settings]): string {
   if (k === 'imageFocus') return (v as number[]).map((n) => Number(n.toFixed(4))).join(',');
   if (k === 'background') return (v as string).replace('#', '');
   if (k === 'layerPens' || k === 'layerDetail') return Object.entries(v as object).map(([l, p]) => `${l}:${p}`).join(',');
+  if (k === 'imageMasks') return (v as unknown[]).length ? esc(JSON.stringify(v, (_, x) => (typeof x === 'number' ? Number(x.toFixed(4)) : x))) : '';
   if (k === 'seedLocks') return Object.entries(v as object).map(([key, seed]) => `${key}:${seed}`).join(';');
   if (typeof v === 'boolean') return v ? '1' : '0';
   if (typeof v === 'number') return String(Number(v.toFixed(4)));
@@ -247,6 +250,13 @@ function fromQuery(query: string): Partial<Settings> {
       const pens = text.split(',').map((c) => `#${c}`);
       if (pens.length === PEN_COUNT && pens.every((c) => /^#[0-9a-f]{6}$/i.test(c))) out.pens = pens;
     } else if (k === 'background') out.background = `#${text}`;
+    else if (k === 'imageMasks') {
+      try {
+        out.imageMasks = text ? JSON.parse(text) : [];
+      } catch {
+        /* a link cut short: no masks */
+      }
+    }
     else if (k === 'imageFocus') {
       const f = text.split(',').map(Number);
       if (f.length === 2 && f.every(Number.isFinite)) out.imageFocus = f;

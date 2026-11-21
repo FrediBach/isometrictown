@@ -20,6 +20,7 @@ Search for a place, drag the little map to frame it, and turn the view. Isometri
 - **Height from image** in the Image panel lets a picture shape the skyline. At 0% each neighbourhood keeps its usual building heights. Turn it up for low buildings in pale areas, rising through mid-rise blocks to towers in the darkest patches.
 - **Building density from image** below zero thins buildings across the picture, especially in pale areas. Above zero it fills more of each dark block with buildings and leaves gardens and gaps in pale areas. **Hatching from image** changes the spacing of lines on roofs, walls, fields, parks and cast shadows. Use the two independently to shape the town or change how much ink it lays down.
 - **Streets follow image lines** draws roads and paths along long, connected edges in the picture. **House floorplans follow image lines** turns detached houses and draws the backs of terraces towards nearby sustained contours. **Preserve empty space** leaves transparent areas as bare paper, including holes inside a logo. Lower its **Highlight cutoff** to leave the lightest parts of an opaque picture blank too.
+- **Masks** in the Image panel set some settings differently in part of the picture, as adjustment masks do in a photo editor. A mask is an ellipse, a rectangle or a polygon drawn over the preview: drag it, size and turn it by its handles, pull new corners out of a polygon's sides and round its corners. Inside it the mask's own Brightness, Contrast, Likeness, Height from image, Building density, Hatching, House floorplans, Preserve empty space, Pitched roofs, Trees, Traffic and Abandonment apply, outside the drawing's, and across its feathered edge the two mix. Masks can be inverted, weakened, hidden and reordered; later ones mix over earlier ones. Scale, view, style and pens stay the drawing's everywhere.
 
 - **Humanize** in View loosens the drawing from precise linework to a hand sketch, with uneven strokes and early or late starts and stops. Zero keeps the original drawing. The frame and map notes stay precise.
 
@@ -122,7 +123,7 @@ The **Catalogue** in the toolbar lists everything detected, inferred or made up:
 | `src/humanize.ts` | Deterministic stroke wobble and endpoint variation in sheet millimetres |
 | `src/plot.ts` | Stroke joining, ordering, plot stats, SVG output |
 | `src/gcode.ts`, `src/app/grbl.ts` | G-code for GRBL pen plotters, and plotting over USB with Web Serial |
-| `src/image.ts`, `src/image-*.ts` | Image mode (in progress): reads a picture, zones the ground to match it, lays out a town on the zones, and scores how like the picture the drawing is. Open by invitation for now: `src/app/invite.ts` holds the key |
+| `src/image.ts`, `src/image-*.ts` | Image mode (in progress): reads a picture, zones the ground to match it, lays out a town on the zones, and scores how like the picture the drawing is. `src/image-masks.ts` holds the masks that set settings for parts of the picture. Open by invitation for now: `src/app/invite.ts` holds the key |
 | `src/worker.ts` | Runs all of the above off the main thread |
 | `src/App.tsx`, `src/components/` | The interface, built with React and shadcn/ui (see [DESIGN.md](DESIGN.md)) |
 

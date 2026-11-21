@@ -16,6 +16,8 @@ import { Paper } from './raster';
 import { humanize } from './humanize';
 import { ImageHatching } from './image-hatching';
 import { ImageSpace } from './image-space';
+import { groundValue, type MaskField } from './image-masks';
+import { hash } from './rng';
 import type { Target } from './image-read';
 import { finishRoofEdges } from './roofs';
 import { waves } from './water';
@@ -68,10 +70,14 @@ export function reachHeight(set: Settings): number {
 export type OnStage = (p: StageProgress) => void;
 
 /** `tally`, when given, collects every stroke by the feature that drew it (see `Paper.tally`). */
-export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null, target?: Target): Drawing {
+export function render(town: Town, set: Settings, frame: Frame, style: Style, onStage: OnStage = () => {}, left = false, tally: Map<string, number[][]> | null = null, target?: Target, masks?: MaskField): Drawing {
+  // Where masks raise trees, traffic or abandonment for part of the picture, everything is made
+  // for the most anywhere and thinned back, or asks the masks, where they want less.
+  if (masks) set = { ...set, trees: masks.peak('trees'), cars: masks.peak('cars'), abandon: masks.peak('abandon') };
   const cam = new Camera(set);
   const paper = new Paper(cam);
-  const hatching = set.source === 'image' && set.imageHatching > 0 && target ? new ImageHatching(target, set.imageHatching, cam.nib) : undefined;
+  const hatches = target && masks?.field('imageHatching');
+  const hatching = set.source === 'image' && target && (hatches ? masks!.peak('imageHatching') > 0 : set.imageHatching > 0) ? new ImageHatching(target, hatches || set.imageHatching, cam.nib) : undefined;
   paper.tally = tally;
   /** File solids under a layer, and optionally a facet the catalogue can single them out by. */
   const tag = <T extends Solid[]>(layer: LayerId, solids: T, facet?: string): T => {
@@ -115,6 +121,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     equator,
     left,
     seed: set.seed,
+    local: masks,
     toAbs,
     cell: (x, y, size) => {
       const [X, Y] = toAbs(x, y);
@@ -131,7 +138,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const ruinCore = paper.mask();
 
   onStage({ stage: 'ground' });
-  classify(town, style, set, B.key);
+  classify(town, style, set, B.key, masks?.varies('pitched') ? (x, y) => groundValue(masks, cam, 'pitched', x, y) : undefined);
   // An abandoned town: every building's fate, and party walls left bare where a neighbour has fallen.
   if (set.abandon > 0) B.fates = settle(B, town.buildings);
   // Buildings loaded only so their neighbours are classified the same from any view go now.
@@ -256,6 +263,7 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
       const trackbed = town.landuse.filter(a => a.cls === 'railway');
       if (trackbed.length) list = list.filter(t => !trackbed.some(a => pointInRing(t.x, t.y, a.shape[0].pts)));
     }
+    if (masks?.varies('trees')) list = list.filter((t) => kept(B, masks, 'trees', t.x, t.y, 14600));
     // Palms are planted in town; out in the woods and the open country they don't belong.
     list = regionalTrees(B, list, (t) => {
       const sx = cam.sx(t.x, t.y);
@@ -271,8 +279,16 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     if (t.from) tick(t.from);
     return t.from ? `${t.from}/${kind}` : kind;
   });
-  const cars = tag('cars', at('cars', () => traffic(B, paper, town, M)));
+  let cars = tag('cars', at('cars', () => traffic(B, paper, town, M)));
   const bays = extra('markings', 'parking', () => parking(B, paper, town.ways, M));
+  if (masks?.varies('cars')) {
+    const keep = (s: Solid) => {
+      const p = s.faces[0]?.[0] ?? s.lines[0]?.pts;
+      return !p || kept(B, masks, 'cars', p[0], p[1], 14601);
+    };
+    cars = cars.filter(keep);
+    bays.solids = bays.solids.filter(keep);
+  }
   tag('cars', bays.solids);
   // Cars left behind in an abandoned town are wrecks, not traffic.
   const wrecks = [...cars, ...bays.solids].filter((s) => s.facet === 'wreck').length;
@@ -411,12 +427,25 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
     }
   }
 
-  const space = set.source === 'image' && set.imagePreserveSpace && target ? new ImageSpace(target, set.imageHighlight, set.penWidth) : undefined;
+  const cutoffs = target && masks?.field('imageHighlight');
+  const space = set.source === 'image' && target && (cutoffs || set.imagePreserveSpace) ? new ImageSpace(target, cutoffs || set.imageHighlight, set.penWidth) : undefined;
   space?.trim(paper.pens, tally);
   if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
   if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
   const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys, space };
   return { pens: paper.pens, counts, census, picks };
+}
+
+/**
+ * Whether a tree or car at (x, y), made for the most of `key` anywhere on the sheet, stays where
+ * masks want less of it: by a fixed rank, so lowering a mask's value thins out the same ones.
+ */
+function kept(B: Build, masks: MaskField, key: 'trees' | 'cars', x: number, y: number, salt: number): boolean {
+  const top = B.set[key];
+  const local = groundValue(masks, B.cam, key, x, y);
+  if (local >= top) return true;
+  const [k0, k1] = B.key(x, y);
+  return hash(k0, k1, B.set.seed, salt) < local / top;
 }
 
 /** What the catalogue can single a building out as: what it is, its roof and windows, and the details it was given. */

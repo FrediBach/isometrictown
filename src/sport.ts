@@ -222,7 +222,7 @@ export function racing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
     const [X, Y] = B.key(w.pts[0], w.pts[1]);
     const c0 = Math.round(X / 1500);
     const c1 = Math.round(Y / 1500);
-    if (hash(c0, c1, set.seed, 2300) > 0.65 || (set.abandon > 0 && past(B, 'people', hash(c0, c1, set.seed, 9815)))) continue;
+    if (hash(c0, c1, set.seed, 2300) > 0.65 || (set.abandon > 0 && past(B, 'people', hash(c0, c1, set.seed, 9815), w.pts[0], w.pts[1]))) continue;
     const kind: Racer = kart ? 'kart' : hash(c0, c1, set.seed, 2301) < 0.5 ? 'formula' : 'gt';
     const len = racerLength(kind);
     const p = w.pts;

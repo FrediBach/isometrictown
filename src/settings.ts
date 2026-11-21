@@ -1,4 +1,5 @@
 import type { LngLat } from './geo';
+import type { ImageMask } from './image-masks';
 import { PALETTES } from './palettes';
 import type { StyleId } from './styles';
 
@@ -45,6 +46,8 @@ export type Settings = {
   imageHighlight: number;
   /** How far the image may bend the rules that keep the town ordinary, 0 to 1. */
   likeness: number;
+  /** Shapes on the picture that set some of the settings differently there, in order; see `src/image-masks.ts`. */
+  imageMasks: ImageMask[];
   /** Street pattern in image mode; auto picks grid for the North American and Australian styles. */
   fabric: 'auto' | 'organic' | 'grid';
   /** Compass direction that points up the sheet, in degrees. */
@@ -206,6 +209,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imagePreserveSpace: false,
   imageHighlight: 1,
   likeness: 0.6,
+  imageMasks: [],
   fabric: 'auto',
   bearing: 35,
   tilt: 32,

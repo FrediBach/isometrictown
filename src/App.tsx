@@ -6,12 +6,13 @@ import { cn } from '@/lib/utils';
 import { defaultsAt, loadSettings, persist, REFIT_KEYS, selectPicture, slug, toImageMode, VIEW_KEYS } from './app/model';
 import { Renderer, scoreLook, type RenderResult, type RenderStatus } from './app/renderer';
 import { SettingsContext, type Change } from './app/settings-context';
-import { usePicture } from './app/use-picture';
+import { usePicture, type PictureState } from './app/use-picture';
 import { AboutDialog } from './components/about-dialog';
 import { LightSection, PensSection, ResetSettings, SeedSection, SheetSection, SourceSection, TitleSection, TownSection, ViewSection } from './components/sections';
 import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
-import { fitImage } from './image-fit';
+import { fitImage, type Placed } from './image-fit';
+import type { MaskEditing } from './components/mask-editor';
 import { recolor } from './plot';
 import { sheetSize, type Settings } from './settings';
 
@@ -24,6 +25,21 @@ const norm = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
 
 /** What the drawing is called: the place, or in image mode the image. */
 const drawingName = (set: Settings) => (set.source === 'image' ? set.imageName || 'Image' : set.place);
+
+/**
+ * Image mode's views over the preview: the picture laid over it when asked, and the mask being
+ * edited, if one is selected.
+ */
+function imageViews(set: Settings, picture: PictureState, rect: [number, number, number, number], overlay: boolean, id: string | null, change: Change, select: (id: string | null) => void): { imageOverlay: { url: string; placed: Placed; rect: typeof rect } | null; masking: MaskEditing | null } {
+  const pic = picture.picture;
+  if (set.source !== 'image' || !pic) return { imageOverlay: null, masking: null };
+  const placed = fitImage(rect, pic.w, pic.h, set.imageFit, set.imageFocus);
+  const editing = !!id && set.imageMasks.some((m) => m.id === id);
+  return {
+    imageOverlay: overlay && picture.url ? { url: picture.url, placed, rect } : null,
+    masking: editing ? { masks: set.imageMasks, selected: id, placed, picture: pic, rect, onChange: (masks) => change('imageMasks', masks), onDone: () => select(null) } : null,
+  };
+}
 
 export function App() {
   const [set, setSet] = useState(loadSettings);
@@ -44,6 +60,8 @@ export function App() {
   // Image mode's views of the preview: the image laid over it, and the drawing blurred to its tone.
   const [overlay, setOverlay] = useState(false);
   const [squint, setSquint] = useState(false);
+  // The image-mode mask being edited over the preview.
+  const [maskId, setMaskId] = useState<string | null>(null);
   // Bumped by a reset, so sections that keep their own drafts and undo history start afresh.
   const [resets, setResets] = useState(0);
 
@@ -241,9 +259,7 @@ export function App() {
 
   const image = set.source === 'image';
   const rect = new Camera(set).rect;
-  const imageOverlay = image && overlay && picture.picture && picture.url
-    ? { url: picture.url, placed: fitImage(rect, picture.picture.w, picture.picture.h, set.imageFit, set.imageFocus), rect }
-    : null;
+  const { imageOverlay, masking } = imageViews(set, picture, rect, overlay, maskId, change, setMaskId);
 
   return (
     <div className={cn('grid h-screen', full ? 'grid-cols-1' : 'grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1')}>
@@ -251,7 +267,7 @@ export function App() {
       <aside hidden={full} className="relative overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
         <SettingsContext value={settings}>
           <TitleBlock onPalette={setPens} />
-          <SourceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} onSource={setSource} picture={picture} onFile={(f) => void chooseImage(f)} />
+          <SourceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} onSource={setSource} picture={picture} onFile={(f) => void chooseImage(f)} mask={maskId} onMask={setMaskId} />
           <ViewSection />
           <TownSection region={result?.region} />
           <LightSection />
@@ -276,7 +292,7 @@ export function App() {
           onCatalogue={openCatalogue}
           look={image ? { overlay, squint, onOverlay: setOverlay, onSquint: setSquint } : undefined}
         />
-        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} />
+        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} masking={masking} />
         {!full && <Stats result={result} look={scoreLook(set)} onPlot={openPlot} />}
       </main>
 

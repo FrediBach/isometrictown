@@ -3,6 +3,7 @@ import type { Camera } from './camera';
 import { pointInRing } from './geo';
 import type { BuildContext } from './image-buildings';
 import { centre, Footprints, simpleFootprint } from './image-check';
+import type { MaskField } from './image-masks';
 import type { Target } from './image-read';
 import { simplify } from './image-water';
 import { reachHeight } from './render';
@@ -33,8 +34,10 @@ function join(a: number[], b: number[]): number[] | null {
 }
 
 /** Shape the heights of a freshly built image town, using its existing streets, sites and landmarks. */
-export function imageHeights(town: Town, target: Target, cam: Camera, set: Settings, { vary, ground, style }: Pick<BuildContext, 'vary' | 'ground' | 'style'>): void {
-  const strength = Math.min(1, set.imageRelief);
+export function imageHeights(town: Town, target: Target, cam: Camera, set: Settings, { vary, ground, style }: Pick<BuildContext, 'vary' | 'ground' | 'style'>, masks?: MaskField): void {
+  // Masks can set the strength for parts of the picture; it is read where each building stands.
+  const reliefs = masks?.field('imageRelief');
+  const strength = Math.min(1, reliefs ? masks!.peak('imageRelief') : set.imageRelief);
   if (!(strength > 0)) return;
   const { buildings, tagged } = town;
   const sites = new Footprints();
@@ -70,6 +73,8 @@ export function imageHeights(town: Town, target: Target, cam: Camera, set: Setti
     const sx = cam.sx(tag.x, tag.y), sy = cam.sy(tag.x, tag.y, 0);
     const sample = at(sx, sy);
     if (sample < 0 || !weight[sample]) continue;
+    const local = reliefs ? Math.min(1, reliefs[sample]) : strength;
+    if (!(local > 0)) continue;
     const rank = vary(tag.x, tag.y, 14140);
     const landmark = rank > 0.9 && darkness(sample) > 0.45;
     let ring = b.shape[0].pts;
@@ -111,7 +116,7 @@ export function imageHeights(town: Town, target: Target, cam: Camera, set: Setti
     }
     // Opacity both lightens the photograph against paper and fades its influence on the
     // town. A fully transparent pixel therefore keeps the original building.
-    const mix = strength * weight[sample];
+    const mix = local * weight[sample];
     const height = (h: number) => h + mix * (goal - h);
     const raise = (j: number) => {
       const house = buildings[j], use = tagged[j];

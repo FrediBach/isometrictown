@@ -22,7 +22,9 @@ import { densityOf } from './image-density';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { imageHeights } from './image-heights';
 import { tune, type Prediction, type Seen } from './image-tune';
-import { readImage, remapTarget, type Target } from './image-read';
+import { fitImage } from './image-fit';
+import { activeMasks, BUILD_KEYS, groundValue, LAYOUT_KEYS, MaskField, masksKey, READ_KEYS } from './image-masks';
+import { readImage, remapTarget, targetGrid, type Target } from './image-read';
 import { streets, tramRoute, type Graph } from './image-streets';
 import { zone, type Zones } from './image-zones';
 import { reachHeight, streamShapes } from './render';
@@ -73,7 +75,7 @@ export function imageRegion(set: Settings): Region {
 }
 
 /** Everything a drawing from an image needs: the drawn-as settings, the camera, the target, the land plan and the town. */
-export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction };
+export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction; /** The settings masks change over parts of the picture, on the target's grid. */ masks?: MaskField };
 
 /**
  * Settings the layout depends on. Colour zoning uses the Classic pens on white paper.
@@ -88,7 +90,7 @@ const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[]) => JSON.st
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
 let laid: { key: string; zoneKey: string; zones: Zones; layout: Layout } | null = null;
-let built: { key: string; density: number; floorplans: number; town: Town } | null = null;
+let built: { key: string; density: number; floorplans: number; masks: string; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture, reusing the last layout. The lab can request a tuned build of its own. */
@@ -100,34 +102,46 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const region = imageRegion(drawn);
   const style = STYLES[region.style];
   const reference = { ...drawn, pens: DEFAULT_SETTINGS.pens, customBackground: false };
-  const lookKey = keyOf(pic, drawn, LOOK);
+  // Masks are drawn on the picture, so they follow it wherever the crop puts it on the sheet.
+  const masks = activeMasks(drawn.imageMasks).length
+    ? new MaskField(drawn.imageMasks, drawn, targetGrid(cam.rect), fitImage(cam.rect, pic.w, pic.h, drawn.imageFit, drawn.imageFocus), pic)
+    : undefined;
+  const readMasks = masksKey(drawn.imageMasks, READ_KEYS);
+  const layoutMasks = masksKey(drawn.imageMasks, [...READ_KEYS, ...LAYOUT_KEYS]);
+  const lookKey = keyOf(pic, drawn, LOOK) + readMasks;
   if (read?.key !== lookKey) {
     note('Reading the image');
-    read = { key: lookKey, target: readImage(pic, reference, cam.rect) };
+    read = { key: lookKey, target: readImage(pic, reference, cam.rect, masks) };
   }
   const target = read.target;
-  const townKey = keyOf(pic, drawn, STRUCTURE);
+  const townKey = keyOf(pic, drawn, STRUCTURE) + layoutMasks;
   if (laid?.key !== townKey) {
-    const zoneKey = keyOf(pic, drawn, ZONING);
+    const zoneKey = keyOf(pic, drawn, ZONING) + layoutMasks;
     let zones = laid?.zones;
     if (!zones || laid?.zoneKey !== zoneKey) {
       note('Zoning the ground');
-      zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
+      zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN], likenessOf(masks, cam));
     }
     note('Laying out streets');
-    laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note) };
+    laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note, masks) };
   }
-  const scene = { set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style };
+  const scene = { set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style, masks };
   if (tuned) {
-    const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true);
+    const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true, undefined, masks);
     return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
   }
-  if (built?.key !== townKey || built.density !== drawn.imageDensity || built.floorplans !== drawn.imageFloorplans) {
-    built = { key: townKey, density: drawn.imageDensity, floorplans: drawn.imageFloorplans, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note).town };
+  const buildMasks = masksKey(drawn.imageMasks, BUILD_KEYS);
+  if (built?.key !== townKey || built.density !== drawn.imageDensity || built.floorplans !== drawn.imageFloorplans || built.masks !== buildMasks) {
+    built = { key: townKey, density: drawn.imageDensity, floorplans: drawn.imageFloorplans, masks: buildMasks, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note, false, undefined, masks).town };
   }
   const town = structuredClone(built.town);
-  imageHeights(town, target, cam, drawn, laid.layout.context);
+  imageHeights(town, target, cam, drawn, laid.layout.context, masks);
   return { ...scene, blocks: laid.layout.blocks, town };
+}
+
+/** Likeness at a ground position where masks set it for part of the picture. */
+function likenessOf(masks: MaskField | undefined, cam: Camera): ((x: number, y: number) => number) | undefined {
+  return masks?.varies('likeness') ? (x, y) => groundValue(masks, cam, 'likeness', x, y) : undefined;
 }
 
 /** The land plan reaches this far beyond the ground that can show, m, so streets run off the sheet and buildings at its edge have neighbours. */
@@ -144,7 +158,7 @@ const OCCUPY = 0.75;
 export type Layout = { town: Town; streets: Graph; blocks: Block[]; context: BuildContext };
 
 /** Lay out a town's structure on a land plan: everything but the buildings and the trees tuning plants. */
-export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}): Layout {
+export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}, masks?: MaskField): Layout {
   const town = empty();
   // Map-fixed keys, as `B.key` gives them, from the fictional frame.
   const key = (x: number, y: number): [number, number] => [Math.round(frame.mx0 + x / frame.k), Math.round(frame.my0 + y / frame.k)];
@@ -166,7 +180,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   town.cover = [...land.cover, ...fields.cover, ...allots.cover];
 
   // Streets, paths and streams.
-  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts }, parks);
+  const st = streets(zones, target, cam, { likeness: set.likeness, imageContours: set.imageContours, fabric: set.fabric, seed: set.seed, style: style.id, vary, roundabouts: set.imageRoundabouts, likenessAt: likenessOf(masks, cam) }, parks);
   town.controls = st.controls;
   // Roundabout islands: nothing is laid on them, and the renderer plants them.
   const islands: Shape[] = st.roundabouts.map((o) => [{ pts: o.pts.slice(0, -2), seam: new Uint8Array(o.pts.length / 2 - 1) }]);
@@ -208,13 +222,27 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
  * out when `seenBefore` says so (§14.3). Tuning gains no likeness yet (see the plan's notes from
  * M5), so drawings are built untuned.
  */
-export function imageBuild(layout: Layout, target: Target, set: Settings, cam: Camera, note: (text: string) => void = () => {}, tuned = false, seenBefore?: Seen): { town: Town; blocks: Block[]; prediction: Prediction | null } {
+export function imageBuild(layout: Layout, target: Target, set: Settings, cam: Camera, note: (text: string) => void = () => {}, tuned = false, seenBefore?: Seen, masks?: MaskField): { town: Town; blocks: Block[]; prediction: Prediction | null } {
   // Buildings add land use, and rendering can put roundabout islands in the parks.
   const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
-  const density = set.imageDensity !== 0 ? densityOf(target, cam, set.imageDensity < 0) : undefined;
-  const guides = set.imageFloorplans > 0 ? new FloorplanGuides(target, cam, set.imageFloorplans) : undefined;
-  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, guides, occ: layout.context.occ.clone(), laid: new Footprints() });
+  let density = set.imageDensity !== 0 ? densityOf(target, cam, set.imageDensity < 0) : undefined;
+  let densityAmount: ((x: number, y: number) => number) | undefined;
+  if (masks?.varies('imageDensity')) {
+    // Where masks set it, the sign picks thinning or filling and the size how far it goes.
+    const fill = densityOf(target, cam), thin = densityOf(target, cam, true);
+    const strength = (x: number, y: number) => groundValue(masks, cam, 'imageDensity', x, y);
+    density = (x, y) => {
+      const s = strength(x, y);
+      return s > 0 ? fill(x, y) : s < 0 ? thin(x, y) : 0;
+    };
+    densityAmount = (x, y) => Math.min(1, Math.abs(strength(x, y)));
+  }
+  const floorplans = masks?.varies('imageFloorplans') ? masks : undefined;
+  const guides = floorplans
+    ? floorplans.peak('imageFloorplans') > 0 ? new FloorplanGuides(target, cam, (sx, sy) => floorplans.at('imageFloorplans', sx, sy)) : undefined
+    : set.imageFloorplans > 0 ? new FloorplanGuides(target, cam, set.imageFloorplans) : undefined;
+  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, densityAmount, guides, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
   let tunedFronts: Map<number, FrontageLot> | undefined;
   if (tuned) {
@@ -249,7 +277,8 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
     town.density.built.push(cx, cy, Math.abs(ringArea(p)));
   }
   town.nearby = { landuse: town.landuse, pois: town.pois, numbers: [], helipads: [], ways: town.ways };
-  imageHeights(town, target, cam, set, ctx);
+  // Drawings shape heights afterwards, on a copy, with the masks' own strengths.
+  imageHeights(town, target, cam, set, ctx, set.imageRelief > 0 ? masks : undefined);
   return { town, blocks, prediction };
 }
 

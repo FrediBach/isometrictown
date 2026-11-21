@@ -50,7 +50,7 @@ const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
 export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[]; pools: Shape[] };
-export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density; guides?: FloorplanGuides };
+export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: Density; /** How fully `density` applies at a ground position, where masks set it for part of the picture; else Building density's own strength. */ densityAmount?: Density; guides?: FloorplanGuides };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
@@ -267,7 +267,7 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
     if (c.density && plots && plans.length && !l.use) {
       const lot = lotRing(l);
       const [x, y] = centre(lot);
-      const densityPlot = { empty: vacant(Math.abs(set.imageDensity) * c.density(x, y), x, y, vary), row: ROWS.has(l.label), fits: (ring: number[]) => within(ring, lot) };
+      const densityPlot = { empty: vacant((c.densityAmount ? c.densityAmount(x, y) : Math.abs(set.imageDensity)) * c.density(x, y), x, y, vary), row: ROWS.has(l.label), fits: (ring: number[]) => within(ring, lot) };
       for (const p of plans) if (add(p)) plots[out.buildings.length - 1] = p.deepen ? { ...densityPlot, deepen: p.deepen } : densityPlot;
     } else for (const p of plans) add(p);
   }
@@ -500,9 +500,10 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
         if (full !== ring) {
           // Find the room each plot has at full strength first. A house with little room
           // behind it then deepens gradually over the same slider range as its neighbours.
-          if (Math.abs(set.imageDensity) === 1) ring = full;
+          const amount = c.densityAmount ? c.densityAmount(...centre(ring)) : Math.abs(set.imageDensity);
+          if (amount === 1) ring = full;
           else {
-            const blended = ring.map((v, k) => v + (full[k] - v) * Math.abs(set.imageDensity));
+            const blended = ring.map((v, k) => v + (full[k] - v) * amount);
             if (fits(blended)) {
               ring = blended;
               extensions.add(ring);
@@ -896,7 +897,7 @@ function frontages(c: BuildContext, out: Built, add: (p: Plan) => boolean, optio
             const record = options?.record && { ring: q, label, level, warmth: roof === 'flat' ? 0 : 1, way: wi, side: sideSign, index: plot };
             if (wing) wings.push({ ...wing, parent: out.buildings.length - 1, laid: c.laid.count - 1, zone: z.label[probe], record });
             if (c.density && plots) {
-              plots[out.buildings.length - 1] = { empty: vacant(Math.abs(c.set.imageDensity) * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
+              plots[out.buildings.length - 1] = { empty: vacant((c.densityAmount ? c.densityAmount(qx, qy) : Math.abs(c.set.imageDensity)) * c.density(qx, qy), qx, qy, vary), row, fits: (p) => free(p, z.label[probe], true), record };
             } else if (record) options?.record?.push(record);
           }
         }

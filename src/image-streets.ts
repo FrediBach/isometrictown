@@ -56,7 +56,7 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number };
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number; /** Likeness where masks set it for part of the picture, at a ground position. */ likenessAt?: (x: number, y: number) => number };
 
 const L = (l: Label) => LABELS.indexOf(l);
 const WATER = L('water');
@@ -310,7 +310,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
           }
         }
       } else put(c, 0, 0.1);
-      put(c, imgAngle[c], coherence[c] * likeness * (grid ? 0.6 : 1.2));
+      put(c, imgAngle[c], coherence[c] * (set.likenessAt ? Math.max(0, Math.min(1, set.likenessAt(x, y))) : likeness) * (grid ? 0.6 : 1.2));
       // Along the edges of zones: shores, parks, woods and fields.
       const gx = ((i + 1 < W ? edgeOf[c + 1] : edgeOf[c]) - (i > 0 ? edgeOf[c - 1] : edgeOf[c])) / 2;
       const gy = ((j + 1 < H ? edgeOf[c + W] : edgeOf[c]) - (j > 0 ? edgeOf[c - W] : edgeOf[c])) / 2;

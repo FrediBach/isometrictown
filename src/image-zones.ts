@@ -140,13 +140,15 @@ export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'image
  * Zone the ground in `box` (local metres) to look like the target through `cam`. The pens shape
  * the materials' colours, so they count here; the tone of what is drawn does not depend on them.
  */
-export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[]): Zones {
+export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[], likenessAt?: (x: number, y: number) => number): Zones {
   const cell = zoneCell(set.scale);
   const [bx0, by0, bx1, by1] = box;
   const W = Math.max(1, Math.ceil((bx1 - bx0) / cell));
   const H = Math.max(1, Math.ceil((by1 - by0) / cell));
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
+  // Masks can set Likeness for part of the picture; each superpixel takes the mean of its cells.
+  const likeAt = likenessAt ? (x: number, y: number) => Math.max(0, Math.min(1, likenessAt(x, y))) : undefined;
   const pairCost = compatTable(set.imageNeighbours);
   const across = Math.max(SUPERPIXEL, SUPERPIXEL_MM / cam.s, 2 * cell);
   const colour = colourCounts(set);
@@ -205,6 +207,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const spLab = lifts.map(() => new Float32Array(count * 3));
   const spWeight = new Float32Array(count);
   const spUrban = new Float32Array(count);
+  const spLike = new Float32Array(count);
   // Only ground colours decide the superpixels. Sample the other heights directly into
   // those superpixels so each height needs three sums per patch instead of per cell.
   for (let j = 0; j < H; j++) {
@@ -215,6 +218,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       area[s]++;
       spWeight[s] += weight[c];
       spUrban[s] += urban[c];
+      spLike[s] += likeAt ? likeAt(x, y) : likeness;
       for (let ch = 0; ch < 3; ch++) spLab[0][s * 3 + ch] += lab[c * 3 + ch];
       const cx = column(x, y);
       for (let k = 1; k < lifts.length; k++) {
@@ -231,6 +235,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   for (let s = 0; s < count; s++) {
     spWeight[s] /= area[s];
     spUrban[s] /= area[s];
+    spLike[s] /= area[s];
     for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] /= area[s];
   }
   const sides = new Map<number, [number, number]>();
@@ -250,13 +255,13 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
   /** A superpixel's side, in cells. */
   const sideCells = across / cell;
-  const lambda = SMOOTH * (1.2 - likeness);
+  const lambda = (a: number, b: number) => SMOOTH * (1.2 - (likeAt ? (spLike[a] + spLike[b]) / 2 : likeness));
   /** Per superpixel: [neighbour, weight of the shared side (already cheapened by the edge along it), mean edge strength along it]. */
   const nbrs: [number, number, number][][] = Array.from({ length: count }, () => []);
   for (const [key, [len, e]] of sides) {
     const a = Math.floor(key / count);
     const b = key % count;
-    const w = lambda * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
+    const w = lambda(a, b) * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
     nbrs[a].push([b, w, e / len]);
     nbrs[b].push([a, w, e / len]);
   }
@@ -264,7 +269,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   // Data cost: the closest the label's material comes to the image, plus the priors.
   const K = LABELS.length;
   const colours = LABELS.map((l) => LEVELS.map((v) => (BUILT.has(l) ? [0, 1] : [1]).map((w) => materialColour(l, v, w, seen))));
-  const prior = 1 - 0.75 * likeness;
+  const priorOf = (s: number) => 1 - 0.75 * (likeAt ? spLike[s] : likeness);
   const data = new Float32Array(count * K);
   const bestLevel = new Float32Array(count * K);
   const bestWarmth = new Float32Array(count * K);
@@ -300,7 +305,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       });
       const u = URBAN[l] ?? 0;
       const urb = u > 0 ? u * (1 - spUrban[s]) : -u * spUrban[s];
-      data[s * K + k] = spWeight[s] * best + prior * (BASE[l] + urb);
+      data[s * K + k] = spWeight[s] * best + priorOf(s) * (BASE[l] + urb);
     }
   }
 
@@ -351,7 +356,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   settle();
   // Read the first land plan over a few blocks. Only break close material matches within
   // open green land or built land, and fade this preference out at full likeness.
-  if (likeness < 1) {
+  if (likeAt ? spLike.some((v) => v < 1) : likeness < 1) {
     const works = L('works'), park = L('park');
     const homes = new Float32Array(n), yards = new Float32Array(n);
     for (let c = 0; c < n; c++) {
@@ -368,7 +373,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
     for (let s = 0; s < count; s++) {
       const housing = residential[s] / area[s], industry = industrial[s] / area[s];
-      const strength = 0.018 * (1 - likeness) * spWeight[s];
+      const strength = 0.018 * (1 - (likeAt ? spLike[s] : likeness)) * spWeight[s];
       const land = LABELS[label[s]];
       if (land === 'meadow' || land === 'field' || land === 'park')
         data[s * K + park] -= strength * housing;
@@ -389,7 +394,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     for (let s = 0; s < count; s++) {
       let d = Infinity;
       for (const [x, y] of cores) d = Math.min(d, Math.hypot(cx[s] / area[s] - x, cy[s] / area[s] - y) * cell);
-      for (const [l, [c, free]] of Object.entries(CORE_COST) as [Label, [number, number]][]) data[s * K + L(l)] += prior * c * Math.max(0, Math.min(1, (d - free) / CORE_FADE));
+      for (const [l, [c, free]] of Object.entries(CORE_COST) as [Label, [number, number]][]) data[s * K + L(l)] += priorOf(s) * c * Math.max(0, Math.min(1, (d - free) / CORE_FADE));
     }
     settle();
   }
@@ -416,7 +421,8 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
         const list = comps[ci];
         const k = label[list[0]];
         const real = MIN_AREA[LABELS[k]];
-        const min = (real + (Math.min(real, MIN_LIKE) - real) * likeness) * 10000;
+        const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / list.reduce((a, s) => a + area[s], 0) : likeness;
+        const min = (real + (Math.min(real, MIN_LIKE) - real) * like) * 10000;
         if (list.reduce((a, s) => a + area[s], 0) * cell * cell >= min) continue;
         const around = new Set<number>();
         for (const s of list) for (const [t] of nbrs[s]) if (label[t] !== k) around.add(label[t]);
@@ -455,7 +461,8 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
             seen[t] = 1;
             list.push(t);
           }
-      const max = real * (LABELS[k] === 'allot' ? 1 + 2 * likeness : 1) * 10000;
+      const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / list.reduce((a, s) => a + area[s], 0) : likeness;
+      const max = real * (LABELS[k] === 'allot' ? 1 + 2 * like : 1) * 10000;
       if (list.reduce((a, s) => a + area[s], 0) * cell * cell <= max) continue;
       let seed = list[0];
       for (const s of list) if (data[s * K + k] < data[seed * K + k]) seed = s;

@@ -1147,7 +1147,7 @@ export function livestock(B: Build, paper: Paper, G: Ground, M: Masks, box: [num
       const h = (k: number) => hash(i, j, set.seed, 180 + k);
       if (h(0) > 0.25) continue;
       // Herds are taken away as the farms are left.
-      if (set.abandon > 0 && past(B, 'farms', hash(i, j, set.seed, 9818))) continue;
+      if (set.abandon > 0 && past(B, 'farms', hash(i, j, set.seed, 9818), ...fromAbs((i + 0.5) * step, (j + 0.5) * step))) continue;
       const [hx, hy] = fromAbs((i + 0.5) * step, (j + 0.5) * step);
       const count = 3 + Math.floor(h(1) * 5);
       for (let a = 0; a < count; a++) {

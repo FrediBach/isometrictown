@@ -11,7 +11,11 @@ export class ImageSpace {
   private readonly radius: number;
   private readonly grid: Grid;
 
-  constructor(t: Pick<Target, keyof Grid | 'tone' | 'weight'>, cutoff: number, nib: number) {
+  /**
+   * `cutoff` is the tone from which paper is kept, one for transparency alone; or one per cell where
+   * masks set it, where above one keeps nothing blank at all.
+   */
+  constructor(t: Pick<Target, keyof Grid | 'tone' | 'weight'>, cutoff: number | Float32Array, nib: number) {
     this.grid = { W: t.W, H: t.H, cell: t.cell, x0: t.x0, y0: t.y0 };
     // Allow for endpoint joining (0.03 mm per axis), SVG rounding and plotter simplification.
     this.radius = nib / 2 + 0.08;
@@ -21,7 +25,8 @@ export class ImageSpace {
       let row = 0;
       for (let x = 0; x < t.W; x++) {
         const i = y * t.W + x;
-        if (t.weight[i] <= 0 || (cutoff < 1 && t.tone[i] >= cutoff)) row++;
+        const c = typeof cutoff === 'number' ? cutoff : cutoff[i];
+        if ((t.weight[i] <= 0 && c <= 1) || (c < 1 && t.tone[i] >= c)) row++;
         const above = y * this.stride + x + 1;
         this.sum[above + this.stride] = this.sum[above] + row;
       }

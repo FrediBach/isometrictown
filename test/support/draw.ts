@@ -54,7 +54,7 @@ export function drawImage(set: Settings, picture: Picture): ImageSheet {
   const t0 = performance.now();
   const scene = imageScene(picture, set);
   const tally = new Map<string, number[][]>();
-  const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally, scene.target);
+  const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally, scene.target, scene.masks);
   const planned = plan(drawing.pens, scene.set);
   const svg = toSvg(planned.pens, scene.set, scene.cam.sheet);
   const t = scene.target;

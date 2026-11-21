@@ -9,6 +9,7 @@ import { usePlotActivity } from '../app/plot-activity';
 import type { RenderResult, RenderStatus } from '../app/renderer';
 import type { Placed } from '../image-fit';
 import { DrawingProgress } from './drawing-progress';
+import { MaskEditor, type MaskEditing } from './mask-editor';
 import { PenDot } from './title-block';
 
 export type Zoom = 'fit' | '0.5' | '1' | '2';
@@ -108,12 +109,14 @@ type PreviewProps = {
   overlay?: { url: string; placed: Placed; rect: [number, number, number, number] } | null;
   /** Blur the drawing to its tone, as seen from a step away. */
   squint?: boolean;
+  /** In image mode, the mask being edited over the drawing; clicks then edit it instead of picking buildings. */
+  masking?: MaskEditing | null;
 };
 
 /** How far Squint blurs, mm on the sheet: about what arm's length does to a pen line. */
 const SQUINT_MM = 1.5;
 
-export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overlay, squint = false }: PreviewProps) {
+export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overlay, squint = false, masking }: PreviewProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
   const ink = useRef<HTMLDivElement>(null);
@@ -160,7 +163,7 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
   // Picking is by pointing only, a shortcut on top of the Seed section, which stays usable by keyboard.
   const pick = useRef(onPick);
   useLayoutEffect(() => {
-    pick.current = onPick;
+    pick.current = masking ? () => {} : onPick;
   });
   useEffect(() => {
     const el = paper.current!;
@@ -180,7 +183,7 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
       <div ref={viewport} className={cn('perforated absolute inset-0', zoom === 'fit' ? 'grid place-items-center overflow-hidden' : 'grid place-items-start overflow-auto p-6')}>
         <div
           ref={paper}
-          title={result ? 'Click a building to try another look for it' : undefined}
+          title={result && !masking ? 'Click a building to try another look for it' : undefined}
           className={cn(
             'sheet relative cursor-crosshair overflow-hidden rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
             // Fade the old drawing only once the progress card shows, so quick redraws don't flicker.
@@ -189,6 +192,7 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
         >
           <div ref={ink} className="size-full" style={squint ? { filter: `blur(calc(var(--mm) * ${SQUINT_MM}))` } : undefined} />
           {overlay && <ImageOverlay {...overlay} sheet={sheet} />}
+          {masking && <MaskEditor {...masking} sheet={sheet} />}
         </div>
       </div>
       <DrawingProgress status={status} />

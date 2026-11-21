@@ -1,5 +1,5 @@
 import type { Build, Solid } from './buildings';
-import { DECAY, stretch } from './decay';
+import { abandonAt, DECAY, stretch } from './decay';
 import { FIELD, GARDEN, MEADOW, ORCHARD, SCRUB, TUFT, TUFT_MM, VINEYARD, WILD, WILD_DEFAULT, type Ground } from './ground';
 import { REF_NIB } from './camera';
 import { LOD, shows, thin } from './lod';
@@ -94,7 +94,8 @@ export function wildGrowth(B: Build, paper: Paper, G: Ground | null, M: Masks, r
         kind = land === GARDEN ? 'garden' : land === FIELD || land === MEADOW || land === ORCHARD || land === VINEYARD ? 'field' : land === SCRUB || land ? 'open' : G?.inTown(x, y, sx, sy) ? 'town' : 'open';
       }
       const w = WILDING[kind];
-      const s = stretch(d, w.from, w.to);
+      // Masks can leave parts of an image-mode town further gone than others.
+      const s = stretch(B.local ? abandonAt(B, x, y) : d, w.from, w.to);
       // It comes up once the ground has gone far enough wild for it, and grows from there.
       const come = h(0) / (w.cover * amount * sparse);
       if (s <= come) continue;
@@ -180,10 +181,11 @@ export function wildGrass(B: Build, paper: Paper, G: Ground | null, M: Masks, ru
       const r = (q: number) => hash(i, j, set.seed, 10060 + q);
       const X = (i + 0.1 + 0.8 * r(1)) * step;
       const Y = (j + 0.1 + 0.8 * r(2)) * step;
-      // In patches: thick in some places long before others.
-      const cover = Math.min(1, Math.max(0, (patch(X / (step * 6), Y / (step * 6), set.seed, 10068) - 0.2) * 1.6 + s * 0.9 - 0.3)) * s;
-      if (r(0) >= cover) continue;
       const [x, y] = fromAbs(X, Y);
+      const here = B.local ? stretch(abandonAt(B, x, y), 0.15, 0.95) : s;
+      // In patches: thick in some places long before others.
+      const cover = Math.min(1, Math.max(0, (patch(X / (step * 6), Y / (step * 6), set.seed, 10068) - 0.2) * 1.6 + here * 0.9 - 0.3)) * here;
+      if (r(0) >= cover) continue;
       const sx = cam.sx(x, y);
       const sy = cam.sy(x, y, 0);
       if (paper.on(M.water, sx, sy) || paper.on(M.wood, sx, sy) || paper.on(M.green, sx, sy) || paper.on(M.pool, sx, sy) || paper.on(M.title, sx, sy)) continue;

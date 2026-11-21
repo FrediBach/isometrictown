@@ -409,7 +409,7 @@ export function campsites(B: Build, paper: Paper, town: Town, M: Masks): Extra {
       if (showsAt(cam, LOD.car, 4.4, [k0, k1], set.seed, 7420)) solids.push(car(B, cx, cy, p.ux, p.uy, h(salt + 1)));
     };
     const van = p.vans ? (roll < 0.6 ? 'motorhome' : roll < 0.75 ? 'caravan' : null) : roll < 0.28 ? null : roll < 0.62 ? 'tents' : roll < 0.84 ? 'caravan' : 'motorhome';
-    if (!van || (gone && (van !== 'caravan' || past(B, 'wrecks', h(15))))) continue;
+    if (!van || (gone && (van !== 'caravan' || past(B, 'wrecks', h(15), p.x, p.y)))) continue;
     if (van === 'tents') {
       const count = h(1) < 0.35 ? 2 : 1;
       for (let t = 0; t < count; t++) {

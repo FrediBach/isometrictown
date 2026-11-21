@@ -5,7 +5,8 @@
  */
 import type { Picture } from './image';
 import { fitImage, toImage } from './image-fit';
-import { blur, hexToLinear, lightnessAt, oklab, paperOf, toLinear, type Look } from './image-tone';
+import type { MaskField } from './image-masks';
+import { blur, hexToLinear, lightnessAt, oklab, paperOf, toLinear, type Grid, type Look } from './image-tone';
 import { LINEWORK, type Settings } from './settings';
 
 /** What the drawing should look like, and the range of lightness the drawing can reach. */
@@ -80,12 +81,18 @@ export function remapTarget(t: Target, set: InkSettings): Target {
   return { ...t, L, a, b, dark, paper, paperColour };
 }
 
-/** Sample the picture over the drawing area `rect` (sheet mm) and map it into the drawing's range of tone. */
-export function readImage(pic: Picture, set: ReadSettings, rect: readonly number[]): Target {
+/** The grid of target cells over the drawing area `rect` (sheet mm). */
+export function targetGrid(rect: readonly number[]): Grid {
   const [x0, y0, x1, y1] = rect;
-  const cell = TARGET_CELL;
-  const W = Math.max(1, Math.ceil((x1 - x0) / cell));
-  const H = Math.max(1, Math.ceil((y1 - y0) / cell));
+  return { x0, y0, cell: TARGET_CELL, W: Math.max(1, Math.ceil((x1 - x0) / TARGET_CELL)), H: Math.max(1, Math.ceil((y1 - y0) / TARGET_CELL)) };
+}
+
+/**
+ * Sample the picture over the drawing area `rect` (sheet mm) and map it into the drawing's range of
+ * tone. `masks`, on the target's grid, can set brightness and contrast for parts of the picture.
+ */
+export function readImage(pic: Picture, set: ReadSettings, rect: readonly number[], masks?: MaskField): Target {
+  const { x0, y0, cell, W, H } = targetGrid(rect);
   const n = W * H;
   const placed = fitImage(rect, pic.w, pic.h, set.imageFit, set.imageFocus);
 
@@ -171,6 +178,8 @@ export function readImage(pic: Picture, set: ReadSettings, rect: readonly number
   const spread = p99 - p1 + extra;
   const median = total ? (percentile(hist, total, 0.5) - lo) / spread : 0.5;
   const gamma = 2 ** -set.imageLight;
+  const lights = masks?.field('imageLight');
+  const contrasts = masks?.field('imageContrast');
 
   // Into the drawing's range: from bare paper down to the darkest a believable town gets.
   const paperHex = paperOf(set);
@@ -190,7 +199,7 @@ export function readImage(pic: Picture, set: ReadSettings, rect: readonly number
       B[i] = tint[2];
       continue;
     }
-    tone[i] = soft(median + ((L[i] - lo) / spread - median) * set.imageContrast) ** gamma;
+    tone[i] = soft(median + ((L[i] - lo) / spread - median) * (contrasts ? contrasts[i] : set.imageContrast)) ** (lights ? 2 ** -lights[i] : gamma);
     L[i] = dark + (paper - dark) * tone[i];
     A[i] *= chroma;
     B[i] *= chroma;

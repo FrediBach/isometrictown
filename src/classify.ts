@@ -210,7 +210,7 @@ const OSM_RELIGION: Record<string, string> = { church: 'christian', cathedral: '
  * Work out what each building is and what roof it gets. Everything random is keyed to
  * map position and the seed, so it doesn't change as the view moves.
  */
-export function classify(town: Town, style: Style, set: Settings, key: Key): void {
+export function classify(town: Town, style: Style, set: Settings, key: Key, pitchedAt?: (x: number, y: number) => number): void {
   const bs = town.buildings;
   const N = bs.length;
   const boxes = bs.map((b) => bbox(b.shape[0].pts));
@@ -388,11 +388,14 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     if (!cur || k[0] < cur[0] || (k[0] === cur[0] && k[1] < cur[1])) groupSeed.set(g, k);
   }
 
-  const share = Math.min(1, (style.pitchedShare * set.pitched) / 0.7);
+  const shareOf = (pitched: number) => Math.min(1, (style.pitchedShare * Math.max(0, pitched)) / 0.7);
+  const everywhere = shareOf(set.pitched);
   for (let i = 0; i < N; i++) {
     const b = bs[i];
     const p = b.shape[0].pts;
     const area = areas[i];
+    // In image mode masks can set Pitched roofs for part of the picture.
+    const share = pitchedAt ? shareOf(pitchedAt(...centre[i])) : everywhere;
     let H = b.h;
     const guess = !!b.guess;
     const k = keys[i];

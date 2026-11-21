@@ -19,6 +19,7 @@ import { IMAGE_STYLE, STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
 import { ImageWell } from './image-well';
+import { MaskPanel } from './mask-panel';
 import { InviteDialog } from './invite-dialog';
 import { LocatorMap } from './locator-map';
 import { PalettePicker } from './palette-picker';
@@ -37,10 +38,13 @@ type SourceSectionProps = {
   onSource: (source: Settings['source']) => void;
   picture: PictureState;
   onFile: (file: File) => void;
+  /** The image-mode mask being edited, if any. */
+  mask: string | null;
+  onMask: (id: string | null) => void;
 };
 
 /** Where the town comes from: a place on the map, or an image it is laid out to look like. */
-export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture, onFile }: SourceSectionProps) {
+export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture, onFile, mask, onMask }: SourceSectionProps) {
   const { set } = useSettings();
   const image = set.source === 'image';
   const [unlocked, setUnlocked] = useState(imageUnlocked);
@@ -71,13 +75,13 @@ export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture
         }}
       />
       {image
-        ? <ImageSource picture={picture} onFile={onFile} />
+        ? <ImageSource picture={picture} onFile={onFile} mask={mask} onMask={onMask} />
         : <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />}
     </Section>
   );
 }
 
-function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file: File) => void }) {
+function ImageSource({ picture, onFile, mask, onMask }: Pick<SourceSectionProps, 'picture' | 'onFile' | 'mask' | 'onMask'>) {
   const { set, change } = useSettings();
   const rect = new Camera(set).rect;
   return (
@@ -119,12 +123,13 @@ function ImageSource({ picture, onFile }: { picture: PictureState; onFile: (file
       <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
       <BoolSetting name="imagePreserveSpace" label="Preserve empty space" />
       {set.imagePreserveSpace && <NumberSetting name="imageHighlight" label="Highlight cutoff" min={0} max={1} step={0.01} hint="Transparent areas stay blank. Lower the cutoff to clear light parts of the picture too." />}
+      <MaskPanel picture={picture.picture} selected={mask} onSelect={onMask} />
       <Hint className="mt-2 mb-0">The town is laid out so that, seen from a step away, it looks like the image. The image stays in this browser: links carry its settings, but not the image itself.</Hint>
     </>
   );
 }
 
-function PlaceSection({ onGoTo, onMapMove, onMapReady }: Omit<SourceSectionProps, 'onSource' | 'picture' | 'onFile'>) {
+function PlaceSection({ onGoTo, onMapMove, onMapReady }: Pick<SourceSectionProps, 'onGoTo' | 'onMapMove' | 'onMapReady'>) {
   const { set } = useSettings();
   return (
     <>

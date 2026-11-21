@@ -1,6 +1,7 @@
 import { helicopter } from './aircraft';
 import type { Camera } from './camera';
 import type { ImageHatching } from './image-hatching';
+import type { MaskField } from './image-masks';
 import type { Info } from './classify';
 import { facadeLines, PLAIN, type Facade, type Wall } from './facades';
 import { pointInRing, ringArea } from './geo';
@@ -61,6 +62,8 @@ export type Build = {
   fate?: Fate;
   /** Every building's fate, as `settle()` worked them out. */
   fates?: Map<Building, Fate>;
+  /** In image mode, the settings masks change over parts of the picture. */
+  local?: MaskField;
 };
 
 /** A wall ring, optionally with the neighbour's height on each party-wall edge. */
@@ -758,7 +761,7 @@ function helipadLines(B: Build, b: Building, z: number, out: Solid): boolean {
   out.lines.push({ pen: ROOFS, pts: [...P(-h, -h * 0.7), ...P(h, -h * 0.7)] }, { pen: ROOFS, pts: [...P(-h, h * 0.7), ...P(h, h * 0.7)] }, { pen: ROOFS, pts: [...P(0, -h * 0.7), ...P(0, h * 0.7)] });
   // Now and then the air ambulance is in.
   const [k0, k1] = B.key(rect.cx, rect.cy);
-  if (B.set.life && R >= 4.5 && hash(k0, k1, B.seed, 443) < 0.35 && !(B.set.abandon > 0 && past(B, 'aircraft', hash(k0, k1, B.seed, 9836)))) {
+  if (B.set.life && R >= 4.5 && hash(k0, k1, B.seed, 443) < 0.35 && !(B.set.abandon > 0 && past(B, 'aircraft', hash(k0, k1, B.seed, 9836), rect.cx, rect.cy))) {
     const t = hash(k0, k1, B.seed, 444) * Math.PI * 2;
     const heli = helicopter(B, rect.cx, rect.cy, z, Math.cos(t), Math.sin(t), hash(k0, k1, B.seed, 445));
     out.faces.push(...heli.faces);

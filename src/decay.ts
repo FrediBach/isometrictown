@@ -1,6 +1,7 @@
 import type { Build } from './buildings';
 import type { Kind } from './classify';
 import { pointInRing } from './geo';
+import { groundValue } from './image-masks';
 import { hash, patch } from './rng';
 import { seedFor } from './settings';
 import type { StyleId } from './styles';
@@ -30,6 +31,14 @@ export function phaseName(d: number): string {
 /** Side of the neighbourhoods that empty together, in Web Mercator metres. */
 const NEIGHBOURHOOD = 150;
 
+/**
+ * How far the town has been left at (x, y): the slider's, or in image mode as masks set it there.
+ * Masks make `B.set.abandon` the most anywhere, so the town-wide checks against it still let things decay.
+ */
+export function abandonAt(B: Build, x: number, y: number): number {
+  return B.local?.varies('abandon') ? groundValue(B.local, B.cam, 'abandon', x, y) : B.set.abandon;
+}
+
 /** How far the slider has gone from `start` to `end`, as 0 to 1. */
 export function stretch(d: number, start: number, end: number): number {
   return d <= start ? 0 : d >= end ? 1 : (d - start) / (end - start);
@@ -52,7 +61,7 @@ export function resistance(B: Build, x: number, y: number, salt: number, own = 0
  * slider, and once gone stays gone. Uses salts `salt` and `salt + 1`.
  */
 export function gone(B: Build, x: number, y: number, start: number, end: number, salt: number, own = 0.4): boolean {
-  const d = B.set.abandon;
+  const d = abandonAt(B, x, y);
   if (d <= start) return false;
   if (d >= end) return true;
   return stretch(d, start, end) > resistance(B, x, y, salt, own);
@@ -116,10 +125,11 @@ export const WRECKED = 0.3;
 /** Share of moored boats left at their moorings. */
 export const LEFT_MOORED = 0.5;
 
-/** Whether a kind of life with resistance `r` in [0, 1) has left by now, for things keyed on their own cells. */
-export function past(B: Build, kind: keyof typeof LEAVES, r: number): boolean {
+/** Whether a kind of life with resistance `r` in [0, 1) has left by now, for things keyed on their own cells, standing at (x, y) if given. */
+export function past(B: Build, kind: keyof typeof LEAVES, r: number, x?: number, y?: number): boolean {
   const [start, end] = LEAVES[kind];
-  return B.set.abandon > start && stretch(B.set.abandon, start, end) > r;
+  const d = x === undefined || y === undefined ? B.set.abandon : abandonAt(B, x, y);
+  return d > start && stretch(d, start, end) > r;
 }
 
 /**
@@ -128,7 +138,7 @@ export function past(B: Build, kind: keyof typeof LEAVES, r: number): boolean {
  */
 export function stepsGone(B: Build, kind: keyof typeof LEAVES, x: number, y: number, steps: number, salt: number): number {
   const [start, end] = LEAVES[kind];
-  const s = stretch(B.set.abandon, start, end);
+  const s = stretch(abandonAt(B, x, y), start, end);
   if (s <= 0) return 0;
   const r = resistance(B, x, y, salt, 0.6) * 0.6;
   let n = 0;
@@ -282,8 +292,7 @@ export function settle(B: Build, bs: Building[]): Map<Building, Fate> {
 
 /** A building's fate, or undefined when the town is lived in. */
 export function fateOf(B: Build, b: Building): Fate | undefined {
-  const d = B.set.abandon;
-  if (d <= 0) return undefined;
+  if (B.set.abandon <= 0) return undefined;
   const p = b.shape[0].pts;
   let x0 = Infinity;
   let y0 = Infinity;
@@ -297,6 +306,8 @@ export function fateOf(B: Build, b: Building): Fate | undefined {
   }
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;
+  const d = abandonAt(B, cx, cy);
+  if (d <= 0) return undefined;
   const key = B.key(cx, cy);
   const seed = seedFor(B.set, b.info?.seed);
   // A terraced row mostly goes together: half of each house's own part is the row's.
