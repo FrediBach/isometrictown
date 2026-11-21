@@ -108,8 +108,7 @@ export function MaskPanel({ picture, selected, onSelect }: Props) {
   }
 
   return (
-    <div className="mt-4">
-      <Caption>Masks</Caption>
+    <div>
       {masks.length > 0 && (
         <ul className="m-0 mb-2 list-none border-t p-0">
           {masks.map((m, i) => {

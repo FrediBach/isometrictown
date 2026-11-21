@@ -17,7 +17,7 @@ import { currentPalette } from '../palettes';
 import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, gridFabric, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
 import { IMAGE_STYLE, STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
-import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
+import { Caption, FoldingSection, Hint, KeyGrid } from './fields';
 import { ImageWell } from './image-well';
 import { MaskPanel } from './mask-panel';
 import { InviteDialog } from './invite-dialog';
@@ -50,38 +50,41 @@ export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture
   const [unlocked, setUnlocked] = useState(imageUnlocked);
   const [inviting, setInviting] = useState(false);
   return (
-    <Section index={1} title={image ? 'Image' : 'Place'}>
-      <Segmented
-        aria-label="Draw from"
-        value={set.source}
-        onValueChange={(v) => (v === 'image' && !unlocked ? setInviting(true) : onSource(v))}
-        className="mb-3.5 flex w-full"
-        items={[
-          { value: 'map', label: 'Map' },
-          {
-            value: 'image',
-            label: unlocked ? 'Image' : <>Image<LockIcon aria-hidden /></>,
-            title: unlocked ? undefined : 'Image (by invitation)',
-          },
-        ]}
-      />
-      <InviteDialog
-        open={inviting}
-        onOpenChange={setInviting}
-        onUnlock={() => {
-          setUnlocked(true);
-          setInviting(false);
-          onSource('image');
-        }}
-      />
-      {image
-        ? <ImageSource picture={picture} onFile={onFile} mask={mask} onMask={onMask} />
-        : <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />}
-    </Section>
+    <>
+      <FoldingSection key={set.source} defaultOpen keepMounted={!image} summary={image ? set.imageName : set.place} index={1} title={image ? 'Image' : 'Place'}>
+        <Segmented
+          aria-label="Draw from"
+          value={set.source}
+          onValueChange={(v) => (v === 'image' && !unlocked ? setInviting(true) : onSource(v))}
+          className="mb-3.5 flex w-full"
+          items={[
+            { value: 'map', label: 'Map' },
+            {
+              value: 'image',
+              label: unlocked ? 'Image' : <>Image<LockIcon aria-hidden /></>,
+              title: unlocked ? undefined : 'Image (by invitation)',
+            },
+          ]}
+        />
+        <InviteDialog
+          open={inviting}
+          onOpenChange={setInviting}
+          onUnlock={() => {
+            setUnlocked(true);
+            setInviting(false);
+            onSource('image');
+          }}
+        />
+        {image
+          ? <ImageSource picture={picture} onFile={onFile} />
+          : <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />}
+      </FoldingSection>
+      {image && <ImageSections picture={picture} mask={mask} onMask={onMask} />}
+    </>
   );
 }
 
-function ImageSource({ picture, onFile, mask, onMask }: Pick<SourceSectionProps, 'picture' | 'onFile' | 'mask' | 'onMask'>) {
+function ImageSource({ picture, onFile }: Pick<SourceSectionProps, 'picture' | 'onFile'>) {
   const { set, change } = useSettings();
   const rect = new Camera(set).rect;
   return (
@@ -97,37 +100,54 @@ function ImageSource({ picture, onFile, mask, onMask }: Pick<SourceSectionProps,
           { value: 'fit', label: 'Fit' },
         ]}
       />
-      <NumberSetting name="imageLight" label="Brightness" min={-1} max={1} step={0.05} />
-      <NumberSetting name="imageContrast" label="Contrast" min={0.5} max={2} step={0.05} />
-      <NumberSetting name="imageColour" label="Colour" min={0} max={1} step={0.01} hint="How much the image’s colours count against its light and dark." />
-      <NumberSetting name="likeness" label="Likeness" min={0} max={1} step={0.01} hint="Closer to the image, or more like an ordinary town." />
-      <NumberSetting name="imageNeighbours" label="Neighbourhoods as in real towns" min={0} max={1} step={0.01} hint="Place districts beside each other as they lie in real towns: works on the water, suburbs out by the fields, towers among blocks and squares." />
-      <NumberSetting name="imageRelief" label="Height from image" min={0} max={1} step={0.01} hint="At 0%, buildings keep their usual heights. At 100%, the darkest areas rise into towers and light areas stay low." />
-      <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
-      <NumberSetting name="imageHatching" label="Hatching from image" min={0} max={1} step={0.01} hint="Use closer hatch lines in dark areas and wider spacing in light areas." />
-      <Caption className="mt-4">Street pattern</Caption>
-      <Segmented
-        aria-label="Street pattern"
-        value={set.fabric}
-        onValueChange={(v) => change('fabric', v)}
-        className="mb-1 flex w-full"
-        items={[
-          { value: 'auto', label: 'Auto' },
-          { value: 'organic', label: 'Organic' },
-          { value: 'grid', label: 'Grid' },
-        ]}
-      />
-      <Hint>Organic streets follow the image and wander; a grid keeps to two directions. Auto is a grid for the North American and Australian styles.</Hint>
-      {!gridFabric(set.fabric, set.style === 'auto' ? IMAGE_STYLE : set.style) && (
-        <NumberSetting name="imageRoadWinding" label="Country road winding" min={0} max={1} step={0.01} hint="Shape the lanes between settlements and shore roads. At 0% they take a direct line, at 50% they ease into junctions, and at 100% they wind across open ground." />
-      )}
-      <NumberSetting name="imageRoundabouts" label="More roundabouts" min={0} max={2} step={0.01} hint="At 0%, junctions become roundabouts as often as in real towns of the style. Raise it for more, still most often where busy roads meet; at 200% nearly every junction with room is one." />
-      <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Lead streets and paths along long, connected edges in the picture." />
-      <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
-      <BoolSetting name="imagePreserveSpace" label="Preserve empty space" />
-      {set.imagePreserveSpace && <NumberSetting name="imageHighlight" label="Highlight cutoff" min={0} max={1} step={0.01} hint="Transparent areas stay blank. Lower the cutoff to clear light parts of the picture too." />}
-      <MaskPanel picture={picture.picture} selected={mask} onSelect={onMask} />
       <Hint className="mt-2 mb-0">The town is laid out so that, seen from a step away, it looks like the image. The image stays in this browser: links carry its settings, but not the image itself.</Hint>
+    </>
+  );
+}
+
+function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'picture' | 'mask' | 'onMask'>) {
+  const { set, change } = useSettings();
+  const count = set.imageMasks.length;
+  return (
+    <>
+      <FoldingSection index={2} title="Masks" summary={`${count} ${count === 1 ? 'mask' : 'masks'}`}>
+        <MaskPanel picture={picture.picture} selected={mask} onSelect={onMask} />
+      </FoldingSection>
+      <FoldingSection index={3} title="Image tone" summary={`${FORMAT.likeness(set.likeness)} likeness`}>
+        <NumberSetting name="imageLight" label="Brightness" min={-1} max={1} step={0.05} />
+        <NumberSetting name="imageContrast" label="Contrast" min={0.5} max={2} step={0.05} />
+        <NumberSetting name="imageColour" label="Colour" min={0} max={1} step={0.01} hint="How much the image’s colours count against its light and dark." />
+        <NumberSetting name="likeness" label="Likeness" min={0} max={1} step={0.01} hint="Closer to the image, or more like an ordinary town." />
+        <NumberSetting name="imageHatching" label="Hatching from image" min={0} max={1} step={0.01} hint="Use closer hatch lines in dark areas and wider spacing in light areas." />
+        <BoolSetting name="imagePreserveSpace" label="Preserve empty space" />
+        {set.imagePreserveSpace && <NumberSetting name="imageHighlight" label="Highlight cutoff" min={0} max={1} step={0.01} hint="Transparent areas stay blank. Lower the cutoff to clear light parts of the picture too." />}
+      </FoldingSection>
+      <FoldingSection index={4} title="Neighbourhoods and buildings" summary={`${FORMAT.imageRelief(set.imageRelief)} height from image`}>
+        <NumberSetting name="imageNeighbours" label="Neighbourhoods as in real towns" min={0} max={1} step={0.01} hint="Place districts beside each other as they lie in real towns: works on the water, suburbs out by the fields, towers among blocks and squares." />
+        <NumberSetting name="imageRelief" label="Height from image" min={0} max={1} step={0.01} hint="At 0%, buildings keep their usual heights. At 100%, the darkest areas rise into towers and light areas stay low." />
+        <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
+        <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
+      </FoldingSection>
+      <FoldingSection index={5} title="Streets" summary={set.fabric === 'auto' ? 'Auto pattern' : set.fabric === 'grid' ? 'Grid' : 'Organic'}>
+        <Caption className="mt-0">Street pattern</Caption>
+        <Segmented
+          aria-label="Street pattern"
+          value={set.fabric}
+          onValueChange={(v) => change('fabric', v)}
+          className="mb-1 flex w-full"
+          items={[
+            { value: 'auto', label: 'Auto' },
+            { value: 'organic', label: 'Organic' },
+            { value: 'grid', label: 'Grid' },
+          ]}
+        />
+        <Hint>Organic streets follow the image and wander; a grid keeps to two directions. Auto is a grid for the North American and Australian styles.</Hint>
+        {!gridFabric(set.fabric, set.style === 'auto' ? IMAGE_STYLE : set.style) && (
+          <NumberSetting name="imageRoadWinding" label="Country road winding" min={0} max={1} step={0.01} hint="Shape the lanes between settlements and shore roads. At 0% they take a direct line, at 50% they ease into junctions, and at 100% they wind across open ground." />
+        )}
+        <NumberSetting name="imageRoundabouts" label="More roundabouts" min={0} max={2} step={0.01} hint="At 0%, junctions become roundabouts as often as in real towns of the style. Raise it for more, still most often where busy roads meet; at 200% nearly every junction with room is one." />
+        <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Lead streets and paths along long, connected edges in the picture." />
+      </FoldingSection>
     </>
   );
 }
@@ -172,15 +192,30 @@ export function ViewSection() {
   const { set } = useSettings();
   const image = set.source === 'image';
   return (
-    <FoldingSection index={2} title="View" defaultOpen summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale), ...(set.humanize ? [`${FORMAT.humanize(set.humanize)} humanized`] : [])].join(SEP)}>
-      <NumberSetting name="bearing" label="Rotation" min={0} max={359} step={1} hint={image ? 'Turns the town under the image.' : undefined} />
-      <NumberSetting name="tilt" label="Tilt" min={20} max={60} step={1} hint="How high you look from. 30° is the classic isometric look." />
-      <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint={image ? `About ${housesAcross(set)} houses across. A smaller scale follows finer detail in the image.` : 'Bigger towns need a smaller scale. Small scales skip windows.'} />
-      <NumberSetting name="heightScale" label="Building height" min={0.5} max={3} step={0.05} />
+    <>
+      <FoldingSection index={set.source === 'image' ? 6 : 2} title="View" key={set.source} summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale), ...(image && set.humanize ? [`${FORMAT.humanize(set.humanize)} humanized`] : [])].join(SEP)}>
+        <NumberSetting name="bearing" label="Rotation" min={0} max={359} step={1} hint={image ? 'Turns the town under the image.' : undefined} />
+        <NumberSetting name="tilt" label="Tilt" min={20} max={60} step={1} hint="How high you look from. 30° is the classic isometric look." />
+        <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint={image ? `About ${housesAcross(set)} houses across. A smaller scale follows finer detail in the image.` : 'Bigger towns need a smaller scale. Small scales skip windows.'} />
+        <NumberSetting name="heightScale" label="Building height" min={0.5} max={3} step={0.05} />
+        {image && <DrawingDetail />}
+      </FoldingSection>
+      {!image && (
+        <FoldingSection index={3} title="Drawing detail" summary={`${FORMAT.detail(set.detail)} detail${set.humanize ? SEP + FORMAT.humanize(set.humanize) + ' humanized' : ''}`}>
+          <DrawingDetail />
+        </FoldingSection>
+      )}
+    </>
+  );
+}
+
+function DrawingDetail() {
+  return (
+    <>
       <NumberSetting name="detail" label="Detail" min={0.25} max={2} step={0.05} hint="How close the hatching and textures are, and how small a thing can be before it is left out." />
       <LayerDetail />
       <NumberSetting name="humanize" label="Humanize" min={0} max={1} step={0.01} hint="From precise linework to a loose hand sketch, with wobbly lines and imperfect starts and stops." />
-    </FoldingSection>
+    </>
   );
 }
 
@@ -208,7 +243,7 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
   const keys = image ? TOWN_KEYS.filter(([k]) => k !== 'osmTags') : TOWN_KEYS;
   const autoStyle = image ? `Auto: ${STYLES[IMAGE_STYLE].label}` : region ? `Auto: ${STYLES[region.style].label} (${region.country})` : 'Auto, from the country';
   return (
-    <FoldingSection index={3} title="Town" defaultOpen summary={`${keys.filter(([k]) => set[k]).length} of ${keys.length} layers`}>
+    <FoldingSection index={set.source === 'image' ? 7 : 4} title="Town" key={set.source} summary={`${keys.filter(([k]) => set[k]).length} of ${keys.length} layers`}>
       <Caption className="mt-0">Building style</Caption>
       <Select value={set.style} onValueChange={(v) => change('style', v as Settings['style'])}>
         <SelectTrigger aria-label="Building style" className="mb-1 h-9 w-full rounded-md bg-card">
@@ -243,7 +278,7 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
 export function LightSection() {
   const { set } = useSettings();
   return (
-    <FoldingSection index={4} title="Light" defaultOpen summary={set.shadows ? `Sun ${FORMAT.sunAngle(sunBearing(set))} at ${FORMAT.sunHeight(set.sunHeight)}` : 'No shadows'}>
+    <FoldingSection index={set.source === 'image' ? 8 : 5} title="Light" key={set.source} summary={set.shadows ? `Sun ${FORMAT.sunAngle(sunBearing(set))} at ${FORMAT.sunHeight(set.sunHeight)}` : 'No shadows'}>
       <KeyGrid className="mt-0 mb-4">
         <BoolSetting name="shadows" label="Shadows" />
         <BoolSetting name="shadeWalls" label="Shade walls" />
@@ -285,7 +320,7 @@ export function TitleSection() {
   const { set } = useSettings();
   const shown = (set.titleText || set.place).toUpperCase();
   return (
-    <FoldingSection index={5} title="Title" summary={set.title ? `${shown}${SEP}${FORMAT.titleStreet(set.titleStreet).toLowerCase()} street` : 'Off'}>
+    <FoldingSection index={set.source === 'image' ? 9 : 6} title="Title" key={set.source} summary={set.title ? `${shown}${SEP}${FORMAT.titleStreet(set.titleStreet).toLowerCase()} street` : 'Off'}>
       <KeyGrid className="mt-0 mb-2">
         <BoolSetting name="title" label="Cinematic title" />
       </KeyGrid>
@@ -319,7 +354,7 @@ export function TitleSection() {
 export function SheetSection() {
   const { set, change } = useSettings();
   return (
-    <FoldingSection index={6} title="Sheet" summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
+    <FoldingSection index={set.source === 'image' ? 10 : 7} title="Sheet" key={set.source} summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
       <div className="mb-4 flex gap-2">
         <Select value={set.sheet} onValueChange={(v) => change('sheet', v as SheetId)}>
           <SelectTrigger aria-label="Sheet size" className="h-9 min-w-0 flex-1 rounded-md bg-card">
@@ -454,7 +489,8 @@ export function PensSection({ onPalette, onPen, onPenCommit }: PensSectionProps)
 
   return (
     <FoldingSection
-      index={7}
+      index={set.source === 'image' ? 11 : 8}
+      key={set.source}
       title="Pens"
       summary={
         <span className="inline-flex items-center gap-2">
@@ -598,7 +634,18 @@ function PenSwatch({ color, label, onInput, onCommit }: { color: string; label: 
 }
 
 /** The seed field keeps its own draft so typing doesn't redraw until the edit is committed. */
-export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => void; onUnlock: () => void }) {
+type SeedProps = { onSeed: (seed: number) => void; onUnlock: () => void };
+
+export function SeedSection(props: SeedProps) {
+  const { set } = useSettings();
+  return (
+    <FoldingSection key={set.source} index={set.source === 'image' ? 12 : 9} title="Seed" summary={String(set.seed)}>
+      <SeedControls {...props} />
+    </FoldingSection>
+  );
+}
+
+function SeedControls({ onSeed, onUnlock }: SeedProps) {
   const { set } = useSettings();
   const locked = Object.keys(set.seedLocks).length;
   const [draft, setDraft] = useState(String(set.seed));
@@ -614,7 +661,7 @@ export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => vo
   });
 
   return (
-    <Section index={8} title="Seed">
+    <>
       <div className="flex h-10 items-stretch overflow-hidden rounded-md border border-input bg-card focus-within:border-foreground/40 focus-within:ring-3 focus-within:ring-ring/30">
         <span className="micro self-center pl-3">No.</span>
         <input
@@ -645,7 +692,7 @@ export function SeedSection({ onSeed, onUnlock }: { onSeed: (seed: number) => vo
           <button type="button" className="underline underline-offset-4" onClick={onUnlock}>Unlock all</button>
         </p>
       )}
-    </Section>
+    </>
   );
 }
 

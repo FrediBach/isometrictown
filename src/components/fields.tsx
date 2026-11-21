@@ -13,23 +13,11 @@ function Heading({ index, title }: { index: number; title: string }) {
   );
 }
 
-/** A numbered block of controls, like a numbered field on a drawing. */
-export function Section({ index, title, children }: { index: number; title: string; children: ReactNode }) {
-  return (
-    <section className="border-t">
-      <h2 className="m-0 flex h-12 items-center font-normal">
-        <Heading index={index} title={title} />
-      </h2>
-      <div className="pb-5">{children}</div>
-    </section>
-  );
-}
-
 /**
  * A numbered section that folds away. Folded, it shows a one-line summary of its
  * settings, so the panel still reads as a complete record of the drawing.
  */
-export function FoldingSection({ index, title, summary, defaultOpen = false, children }: { index: number; title: string; summary?: ReactNode; defaultOpen?: boolean; children: ReactNode }) {
+export function FoldingSection({ index, title, summary, defaultOpen = false, keepMounted = false, children }: { index: number; title: string; summary?: ReactNode; defaultOpen?: boolean; keepMounted?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-t">
@@ -43,7 +31,8 @@ export function FoldingSection({ index, title, summary, defaultOpen = false, chi
           <span className="size-1.5 rounded-full bg-input transition-colors group-data-[state=open]:bg-primary-foreground" />
         </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pb-5">{children}</CollapsibleContent>
+      {/* Keep the locator at its working width so it can refit while Place is closed. */}
+      <CollapsibleContent forceMount={keepMounted || undefined} inert={!open} className="pb-5 data-[state=closed]:invisible data-[state=closed]:h-0 data-[state=closed]:overflow-hidden data-[state=closed]:pb-0">{children}</CollapsibleContent>
     </Collapsible>
   );
 }
