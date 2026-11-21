@@ -57,17 +57,37 @@ export function ringArea(pts: ArrayLike<number>): number {
   return a / 2;
 }
 
+function crossesRay(x: number, y: number, pts: ArrayLike<number>, i: number, j: number): boolean {
+  const yi = pts[i + 1], yj = pts[j + 1];
+  return yi > y !== yj > y && x < ((pts[j] - pts[i]) * (y - yi)) / (yj - yi) + pts[i];
+}
+
+/** Whether a point is inside a ring, using the even-odd rule. */
 export function pointInRing(x: number, y: number, pts: ArrayLike<number>): boolean {
   let inside = false;
-  const n = pts.length;
-  for (let i = 0, j = n - 2; i < n; j = i, i += 2) {
-    const xi = pts[i];
-    const yi = pts[i + 1];
-    const xj = pts[j];
-    const yj = pts[j + 1];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
-  }
+  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2)
+    if (crossesRay(x, y, pts, i, j)) inside = !inside;
   return inside;
+}
+
+/** Test many points against a fixed ring. For long outlines, file the edges by their northing. */
+export function ringTest(pts: number[], y0: number, y1: number): (x: number, y: number) => boolean {
+  if (pts.length < 64 || y0 === y1) return (x, y) => pointInRing(x, y, pts);
+  const count = Math.min(64, Math.ceil(pts.length / 16));
+  const bands: number[][] = Array.from({ length: count }, () => []);
+  const band = (y: number) => Math.min(count - 1, Math.floor(((y - y0) / (y1 - y0)) * count));
+  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
+    const a = pts[i + 1], b = pts[j + 1];
+    if (a === b) continue;
+    const last = band(Math.max(a, b));
+    for (let k = band(Math.min(a, b)); k <= last; k++) bands[k].push(i);
+  }
+  return (x, y) => {
+    if (y < y0 || y >= y1) return false;
+    let inside = false;
+    for (const i of bands[band(y)]) if (crossesRay(x, y, pts, i, i ? i - 2 : pts.length - 2)) inside = !inside;
+    return inside;
+  };
 }
 
 /** How far a point is from a ring's outline, m. */

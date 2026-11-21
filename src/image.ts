@@ -80,14 +80,14 @@ export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, nu
  * Detail, pen width, pen colours, sun, shadows and the layer switches only change how it
  * is drawn, so they never move a street.
  */
-const STRUCTURE: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'likeness', 'imageNeighbours', 'imageRoundabouts', 'imageContours', 'fabric', 'style', 'seed', 'sheet', 'landscape', 'margin', 'marginalia', 'scale', 'bearing', 'tilt', 'heightScale'];
-/** And the target, on what decides how the drawing should look. */
 const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia'];
+const ZONING: (keyof Settings)[] = [...LOOK, 'likeness', 'imageNeighbours', 'scale', 'bearing', 'tilt', 'heightScale'];
+const STRUCTURE: (keyof Settings)[] = [...ZONING, 'imageRoundabouts', 'imageContours', 'fabric', 'style', 'seed'];
 
 const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[]) => JSON.stringify([pic.id, ...keys.map((k) => set[k])]);
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
-let laid: { key: string; zones: Zones; layout: Layout } | null = null;
+let laid: { key: string; zoneKey: string; zones: Zones; layout: Layout } | null = null;
 let built: { key: string; density: number; floorplans: number; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
@@ -108,10 +108,14 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const target = read.target;
   const townKey = keyOf(pic, drawn, STRUCTURE);
   if (laid?.key !== townKey) {
-    note('Zoning the ground');
-    const zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
+    const zoneKey = keyOf(pic, drawn, ZONING);
+    let zones = laid?.zones;
+    if (!zones || laid?.zoneKey !== zoneKey) {
+      note('Zoning the ground');
+      zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN]);
+    }
     note('Laying out streets');
-    laid = { key: townKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note) };
+    laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note) };
   }
   const scene = { set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style };
   if (tuned) {

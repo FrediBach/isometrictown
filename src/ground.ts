@@ -1,6 +1,6 @@
 import { newSolid, prism, type Build, type Solid } from './buildings';
 import { REF_NIB } from './camera';
-import { pointInRing, ringArea } from './geo';
+import { pointInRing, ringArea, ringTest } from './geo';
 import type { Masks, Tree } from './nature';
 import type { Paper, Test } from './raster';
 import type { ImageHatching } from './image-hatching';
@@ -104,8 +104,9 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
   if (B.style.id !== 'arid') G.gardens = paintGardens(paper, town, G.land);
   for (const a of town.cover) {
     const farmed = CODES[a.cls];
+    if (!farmed) continue;
     const { rect } = bestRect(a.shape[0].pts);
-    if (!farmed || !rect) continue;
+    if (!rect) continue;
     // A field no one ploughs any more lies fallow as meadow; its hedges stay.
     const code = farmed === FIELD && B.set.abandon > 0 && left(B, 'fields', rect.cx, rect.cy, 9950, 0.6) ? MEADOW : farmed;
     const rings = a.shape.map((r) => r.pts);
@@ -119,10 +120,12 @@ export function planGround(B: Build, paper: Paper, town: Town): Ground {
   const sporty = town.landuse.filter((a) => a.cls === 'pitch' || a.cls === 'track');
   const centres = sporty.map((a) => bestRect(a.shape[0].pts).rect);
   for (const a of town.landuse) {
+    const yard = a.cls === 'parking' || a.cls === 'farmyard' || (B.set.source === 'image' && a.cls === 'railway');
+    if (!yard && a.cls !== 'cemetery' && a.cls !== 'pitch' && a.cls !== 'track') continue;
     const { rect, fill } = bestRect(a.shape[0].pts);
     if (!rect) continue;
     const rings = a.shape.map((r) => r.pts);
-    if (a.cls === 'parking' || a.cls === 'farmyard' || (B.set.source === 'image' && a.cls === 'railway')) {
+    if (yard) {
       // Keep the working yard clear of the surrounding garden or field texture.
       paper.fillMask(G.land, rings, 0);
       paper.fillMask(G.farms, rings, 0);
@@ -329,8 +332,9 @@ function paintGardens(paper: Paper, town: Town, land: Uint8Array): boolean {
       y0 = Math.min(y0, outer[i + 1]);
       y1 = Math.max(y1, outer[i + 1]);
     }
+    const contains = ringTest(outer, y0, y1);
     let built = 0;
-    for (const [x, y, ba] of centres) if (x >= x0 && x <= x1 && y >= y0 && y <= y1 && pointInRing(x, y, outer)) built += ba;
+    for (const [x, y, ba] of centres) if (x >= x0 && x <= x1 && y >= y0 && y <= y1 && contains(x, y)) built += ba;
     if (built / area >= GARDEN_COVERAGE) continue;
     paper.fillMask(land, a.shape.map((r) => r.pts), GARDEN);
     any = true;

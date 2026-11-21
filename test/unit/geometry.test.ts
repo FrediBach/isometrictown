@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { Camera } from '@/camera';
-import { Frame, latOf, lngOf, mercX, mercY, pointInRing, ringArea } from '@/geo';
+import { Frame, latOf, lngOf, mercX, mercY, pointInRing, ringArea, ringTest } from '@/geo';
 import { hash, sequence } from '@/rng';
 import { DEFAULT_SETTINGS } from '@/settings';
 import { bestRect, corners, offsetRing, turn } from '@/shape';
@@ -77,6 +77,14 @@ describe('geo', () => {
     expect(pointInRing(5, 5, sq)).toBe(true);
     expect(pointInRing(15, 5, sq)).toBe(false);
     expect(pointInRing(-1, -1, sq)).toBe(false);
+  });
+
+  test('indexed containment agrees at vertices, horizontal edges and across bands of a concave ring', () => {
+    const p = [-24, -16, 24, -16];
+    for (let x = 24; x >= -24; x -= 3) p.push(x, 16, x - 1, 16, x - 1, 0);
+    const contains = ringTest(p, -16, 16);
+    for (let y = -17; y <= 17; y += 0.5)
+      for (let x = -26; x <= 25; x++) expect(contains(x, y)).toBe(pointInRing(x, y, p));
   });
 });
 

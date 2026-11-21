@@ -124,8 +124,9 @@ export function runCase(name: string, scale: number, o: LikenessOptions = {}): L
   const scene = imageScene(pic, set, (note) => marks.push([note, performance.now()]), o.tuned);
   const t1 = performance.now();
   const at = (note: string) => marks.find(([n]) => n === note)?.[1];
-  const read = (at('Zoning the ground') ?? t1) - (at('Reading the image') ?? t0);
-  const zoned = (at('Laying out streets') ?? t1) - (at('Zoning the ground') ?? t1);
+  const reading = at('Reading the image'), zoning = at('Zoning the ground'), streets = at('Laying out streets');
+  const read = reading === undefined ? 0 : (zoning ?? streets ?? t1) - reading;
+  const zoned = zoning === undefined ? 0 : (streets ?? t1) - zoning;
   const tally = new Map<string, number[][]>();
   const drawing = render(scene.town, scene.set, scene.frame, scene.style, undefined, scene.region.left, tally, scene.target);
   const t2 = performance.now();

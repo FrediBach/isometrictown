@@ -689,7 +689,7 @@ The new modules stay flat in `src/`, with an `image-` prefix as the `power-*.ts`
 
 | File | Role |
 | --- | --- |
-| `image.ts` | `imageTown()`, shared types, `drawnAs()`, `STYLE_PLACE`, the two cache keys, `plausibility()` |
+| `image.ts` | `imageTown()`, shared types, `drawnAs()`, `STYLE_PLACE`, the target, zoning and layout cache keys, `plausibility()` |
 | `image-fit.ts` | `fitImage()`, the sheet ↔ image mapping; no drawing imports, so the UI can use it |
 | `image-read.ts` | `readImage()` → `Target` (§6) |
 | `image-tone.ts` | colour mixing, the predictor and likeness (§7) |

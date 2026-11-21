@@ -44,7 +44,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | Module | Role |
 | --- | --- |
 | `tiles.ts` | OpenFreeMap z14 vector tiles → a `Town` in local metres; road widths, POI sets |
-| `image.ts` | Image mode: a `Town` laid out from a picture, the fictional place it stands in (`drawnAs()`), and the cached layout |
+| `image.ts` | Image mode: a `Town` laid out from a picture and the fictional place it stands in (`drawnAs()`). Changing the seed, style, street fabric, contours or roundabouts reuses the cached zones and rebuilds the streets and lots. |
 | `image-fit.ts`, `image-read.ts`, `image-tone.ts` | Where the image lies on the sheet; the picture read into a target (OKLab, tone, edges, orientation, thin lines); the materials, pen mixing and the likeness score |
 | `image-adjacency.ts`, `image-adjacency-data.ts` | Neighbour costs for zoning learnt from which zones border which in real towns. The data file is written by the adjacency lab (`npm run adjacency -- --write`). |
 | `image-floorplans.ts`, `image-floorplan-data.ts` | Footprint plans learnt from real towns: the L, T, U and stepped plans each built zone builds, and the rear wings of terraces, picked by how often the zone builds them and how near their usual proportions are, and left out where their shortest wall would not show at the drawing's scale. The data file is written by the floorplan lab (`npm run floorplans -- --write`). Also the guides that turn houses and the backs of terraces towards the picture's contours. |

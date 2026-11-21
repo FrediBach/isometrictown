@@ -159,57 +159,45 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   // The target where each ground cell shows on the sheet, at the heights the labels are read at.
   const lifts = [0, ...new Set(Object.values(HEIGHT).map((h) => h / 2))];
   const liftOf = (l: Label) => lifts.indexOf((HEIGHT[l] ?? 0) / 2);
-  const lab = lifts.map(() => new Float32Array(n * 3));
+  const lab = new Float32Array(n * 3);
   const weight = new Float32Array(n);
-  const tone = new Float32Array(n);
+  const dark = new Float32Array(n);
   const edge = new Float32Array(n);
   const reach = Math.max(0, Math.ceil((cell * cam.s) / target.cell / 2));
-  const tcell = (sx: number, sy: number) => {
-    const cx = Math.max(0, Math.min(target.W - 1, Math.floor((sx - target.x0) / target.cell)));
-    const cy = Math.max(0, Math.min(target.H - 1, Math.floor((sy - target.y0) / target.cell)));
-    return [cx, cy];
-  };
+  const column = (x: number, y: number) => Math.max(0, Math.min(target.W - 1, Math.floor((cam.sx(x, y) - target.x0) / target.cell)));
+  const row = (x: number, y: number, z: number) => Math.max(0, Math.min(target.H - 1, Math.floor((cam.sy(x, y, z) - target.y0) / target.cell)));
+  // Keep each sample at the same precision as the ground colours used by SLIC.
+  const lightness = (t: number) => colour ? target.L[t] : Math.fround(refDark + (refPaper - refDark) * target.tone[t]);
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
       const c = j * W + i;
       const x = bx0 + (i + 0.5) * cell;
       const y = by0 + (j + 0.5) * cell;
-      const sx = cam.sx(x, y);
-      lifts.forEach((z, k) => {
-        const [cx, cy] = tcell(sx, cam.sy(x, y, z));
-        const t = cy * target.W + cx;
-        lab[k][c * 3] = colour ? target.L[t] : refDark + (refPaper - refDark) * target.tone[t];
-        lab[k][c * 3 + 1] = colour ? target.a[t] : 0;
-        lab[k][c * 3 + 2] = colour ? target.b[t] : 0;
-        if (k) return;
-        weight[c] = target.weight[t];
-        tone[c] = target.tone[t];
-        // An edge anywhere under the cell counts: edges are thin and cells aren't.
-        let e = 0;
-        for (let dy = -reach; dy <= reach; dy++)
-          for (let dx = -reach; dx <= reach; dx++) {
-            const ex = cx + dx;
-            const ey = cy + dy;
-            if (ex >= 0 && ey >= 0 && ex < target.W && ey < target.H) e = Math.max(e, target.edge[ey * target.W + ex]);
-          }
-        edge[c] = e;
-      });
+      const cx = column(x, y), cy = row(x, y, 0);
+      const t = cy * target.W + cx;
+      lab[c * 3] = lightness(t);
+      if (colour) {
+        lab[c * 3 + 1] = target.a[t];
+        lab[c * 3 + 2] = target.b[t];
+      }
+      weight[c] = target.weight[t];
+      dark[c] = weight[c] * (1 - target.tone[t]);
+      // An edge anywhere under the cell counts: edges are thin and cells aren't.
+      let e = 0;
+      for (let ey = Math.max(0, cy - reach); ey <= Math.min(target.H - 1, cy + reach); ey++)
+        for (let ex = Math.max(0, cx - reach); ex <= Math.min(target.W - 1, cx + reach); ex++) e = Math.max(e, target.edge[ey * target.W + ex]);
+      edge[c] = e;
     }
   }
 
   // How much like town the land round each cell is, from how dark the image is there; no image counts as middling.
-  const dark = new Float32Array(n);
-  const has = new Float32Array(n);
-  for (let c = 0; c < n; c++) {
-    dark[c] = weight[c] * (1 - tone[c]);
-    has[c] = weight[c];
-  }
+  const has = weight.slice();
   blur(dark, W, H, URBAN_RADIUS / cell);
   blur(has, W, H, URBAN_RADIUS / cell);
   const urban = new Float32Array(n);
   for (let c = 0; c < n; c++) urban[c] = Math.max(0, Math.min(1, ((has[c] > 0.05 ? dark[c] / has[c] : 0.45) - 0.15) / 0.6));
 
-  const sp = slic(lab[0], W, H, Math.round(across / cell));
+  const sp = slic(lab, W, H, Math.round(across / cell));
   const count = sp.reduce((m, v) => Math.max(m, v + 1), 0);
 
   // What each superpixel looks like, and which superpixels touch, with how strong an edge runs between them.
@@ -217,12 +205,28 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const spLab = lifts.map(() => new Float32Array(count * 3));
   const spWeight = new Float32Array(count);
   const spUrban = new Float32Array(count);
-  for (let c = 0; c < n; c++) {
-    const s = sp[c];
-    area[s]++;
-    spWeight[s] += weight[c];
-    spUrban[s] += urban[c];
-    for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] += lab[k][c * 3 + ch];
+  // Only ground colours decide the superpixels. Sample the other heights directly into
+  // those superpixels so each height needs three sums per patch instead of per cell.
+  for (let j = 0; j < H; j++) {
+    const y = by0 + (j + 0.5) * cell;
+    for (let i = 0; i < W; i++) {
+      const x = bx0 + (i + 0.5) * cell;
+      const c = j * W + i, s = sp[c];
+      area[s]++;
+      spWeight[s] += weight[c];
+      spUrban[s] += urban[c];
+      for (let ch = 0; ch < 3; ch++) spLab[0][s * 3 + ch] += lab[c * 3 + ch];
+      const cx = column(x, y);
+      for (let k = 1; k < lifts.length; k++) {
+        const t = row(x, y, lifts[k]) * target.W + cx;
+        const sum = spLab[k];
+        sum[s * 3] += lightness(t);
+        if (colour) {
+          sum[s * 3 + 1] += target.a[t];
+          sum[s * 3 + 2] += target.b[t];
+        }
+      }
+    }
   }
   for (let s = 0; s < count; s++) {
     spWeight[s] /= area[s];
@@ -316,13 +320,19 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     for (const [t, w] of nbrs[s]) c += w * pairCost[k * K + label[t]];
     return c;
   };
-  const settle = () => {
+  const settle = (no?: Set<number>) => {
+    // After the first sweep a cost can change only where a neighbour changed its label.
+    const dirty = new Uint8Array(count).fill(1);
     for (let round = 0; round < 12; round++) {
       let changed = 0;
       for (let s = 0; s < count; s++) {
+        if (!dirty[s]) continue;
+        dirty[s] = 0;
         let best = label[s];
         let bc = cost(s, best);
         for (let k = 0; k < K; k++) {
+          // Neighbours only add cost, so the data cost alone can rule a label out.
+          if (k === label[s] || data[s * K + k] >= bc - 1e-9 || no?.has(k)) continue;
           const c = cost(s, k);
           if (c < bc - 1e-9) {
             bc = c;
@@ -331,6 +341,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
         }
         if (best !== label[s]) {
           label[s] = best;
+          for (const [t] of nbrs[s]) dirty[t] = 1;
           changed++;
         }
       }
@@ -338,35 +349,16 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
   };
   settle();
-  /** Settle again without growing the labels named back. */
-  const settleExcept = (no: Set<number>) => {
-    for (let round = 0; round < 12; round++) {
-      let changed = 0;
-      for (let s = 0; s < count; s++) {
-        let best = label[s];
-        let bc = cost(s, best);
-        for (let k = 0; k < K; k++) {
-          if (no.has(k) && k !== label[s]) continue;
-          const c = cost(s, k);
-          if (c < bc - 1e-9) {
-            bc = c;
-            best = k;
-          }
-        }
-        if (best !== label[s]) {
-          label[s] = best;
-          changed++;
-        }
-      }
-      if (!changed) break;
-    }
-  };
   // Read the first land plan over a few blocks. Only break close material matches within
   // open green land or built land, and fade this preference out at full likeness.
   if (likeness < 1) {
     const works = L('works'), park = L('park');
-    const homes = Float32Array.from(sp, s => Number(label[s] !== works && BUILT.has(LABELS[label[s]])));
-    const yards = Float32Array.from(sp, s => Number(label[s] === works));
+    const homes = new Float32Array(n), yards = new Float32Array(n);
+    for (let c = 0; c < n; c++) {
+      const k = label[sp[c]];
+      if (k === works) yards[c] = 1;
+      else if (BUILT.has(LABELS[k])) homes[c] = 1;
+    }
     blur(homes, W, H, 80 / cell);
     blur(yards, W, H, 80 / cell);
     const residential = new Float32Array(count), industrial = new Float32Array(count);
@@ -487,7 +479,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       }
     }
     if (cut) {
-      settleExcept(new Set(Object.keys(MAX_AREA).map((l) => L(l as Label))));
+      settle(new Set(Object.keys(MAX_AREA).map((l) => L(l as Label))));
       mergeSmall();
     }
   }
@@ -501,10 +493,9 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     for (const [l, width] of Object.entries(MIN_WIDTH) as [Label, number][]) {
       const k = L(l);
       const r = width / 2 / cell;
-      if (r < 1) continue;
-      const inside = distanceIn(cellLabel, k, W, H);
-      const core = new Float32Array(n);
-      for (let c = 0; c < n; c++) core[c] = inside[c] >= r ? 0 : Infinity;
+      if (r < 1 || !label.includes(k)) continue;
+      const core = distanceIn(cellLabel, k, W, H);
+      for (let c = 0; c < n; c++) core[c] = core[c] >= r ? 0 : Infinity;
       chamferDistance(core, W, H);
       for (let c = 0; c < n; c++) if (cellLabel[c] === k && core[c] <= r) keep[c] = 1;
     }

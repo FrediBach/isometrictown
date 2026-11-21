@@ -1,5 +1,5 @@
 import { chooseFacade, type Facade } from './facades';
-import { pointInRing, ringArea } from './geo';
+import { pointInRing, ringArea, ringTest } from './geo';
 import { hash } from './rng';
 import { GREENERY, ROOFS } from './settings';
 import { bestRect } from './shape';
@@ -271,6 +271,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
 
   // Land use under each building, smallest area wins.
   const landBoxes = near.landuse.map((a) => bbox(a.shape[0].pts));
+  const landContains = near.landuse.map((a, k) => ringTest(a.shape[0].pts, landBoxes[k][1], landBoxes[k][3]));
   const landArea = near.landuse.map((a) => Math.abs(ringArea(a.shape[0].pts)));
   const land: (string | undefined)[] = new Array(N);
   const centre: [number, number][] = boxes.map((b) => [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]);
@@ -282,7 +283,7 @@ export function classify(town: Town, style: Style, set: Settings, key: Key): voi
     landGrid.near(x, y, x, y, (k) => {
       const b = landBoxes[k];
       if (x < b[0] || x > b[2] || y < b[1] || y > b[3] || landArea[k] >= best) return;
-      if (pointInRing(x, y, near.landuse[k].shape[0].pts)) {
+      if (landContains[k](x, y)) {
         best = landArea[k];
         land[i] = near.landuse[k].cls;
       }

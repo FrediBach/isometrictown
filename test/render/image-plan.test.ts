@@ -174,10 +174,14 @@ describe('the town', () => {
   });
 
   test('a new seed keeps the land plan but lays out another town on it', () => {
-    const a = imageScene({ ...pic, id: `copy-${n++}` }, base);
-    const b = imageScene({ ...pic, id: `copy-${n++}` }, { ...base, seed: 2 });
-    expect(b.zones.label).toEqual(a.zones.label);
+    const a = imageScene(pic, base);
+    const next = { ...base, seed: 2 };
+    const b = imageScene(pic, next);
+    expect(b.zones).toBe(a.zones);
     expect(b.town.buildings).not.toEqual(a.town.buildings);
+    const cold = imageScene({ ...pic, id: `copy-${n++}` }, next);
+    expect(cold.zones.label).toEqual(a.zones.label);
+    expect(cold.town).toEqual(b.town);
   });
 
   test('seeds vary the sheet edges reached by the main road and the railway around a lake', () => {

@@ -120,26 +120,29 @@ function boxes(sigma: number): number[] {
   return Array.from({ length: n }, (_, i) => (i < m ? lo : lo + 2));
 }
 
-/** One box pass along rows or columns, the edges held, from `src` into `dst`. */
-function boxPass(src: Float32Array, dst: Float32Array, W: number, H: number, r: number, along: boolean): void {
-  const lines = along ? H : W;
-  const len = along ? W : H;
-  const stride = along ? 1 : W;
+/** Blur each row into scratch space, then each column back into the grid, holding the edges. */
+function boxBlur(v: Float32Array, tmp: Float32Array, W: number, H: number, r: number): void {
   const inv = 1 / (2 * r + 1);
-  // Each line adds and drops samples at the same offsets, including at the held edges.
-  const enter = new Int32Array(len);
-  const leave = new Int32Array(len);
-  for (let k = 0; k < len; k++) {
-    enter[k] = Math.min(len - 1, k + r + 1) * stride;
-    leave[k] = Math.max(0, k - r) * stride;
-  }
-  for (let j = 0; j < lines; j++) {
-    const base = along ? j * W : j;
+  for (let y = 0; y < H; y++) {
+    const base = y * W;
     let sum = 0;
-    for (let k = -r; k <= r; k++) sum += src[base + Math.max(0, Math.min(len - 1, k)) * stride];
-    for (let k = 0; k < len; k++) {
-      dst[base + k * stride] = sum * inv;
-      sum += src[base + enter[k]] - src[base + leave[k]];
+    for (let k = -r; k <= r; k++) sum += v[base + Math.max(0, Math.min(W - 1, k))];
+    for (let x = 0; x < W; x++) {
+      tmp[base + x] = sum * inv;
+      sum += v[base + Math.min(W - 1, x + r + 1)] - v[base + Math.max(0, x - r)];
+    }
+  }
+  // Advance all columns together so the reads and writes stay contiguous.
+  const sums = new Float64Array(W);
+  for (let k = -r; k <= r; k++) {
+    const base = Math.max(0, Math.min(H - 1, k)) * W;
+    for (let x = 0; x < W; x++) sums[x] += tmp[base + x];
+  }
+  for (let y = 0; y < H; y++) {
+    const base = y * W, enter = Math.min(H - 1, y + r + 1) * W, leave = Math.max(0, y - r) * W;
+    for (let x = 0; x < W; x++) {
+      v[base + x] = sums[x] * inv;
+      sums[x] += tmp[enter + x] - tmp[leave + x];
     }
   }
 }
@@ -151,8 +154,7 @@ export function blur(v: Float32Array, W: number, H: number, sigma: number): void
   for (const b of boxes(sigma)) {
     const r = (b - 1) / 2;
     if (r < 1) continue;
-    boxPass(v, tmp, W, H, r, true);
-    boxPass(tmp, v, W, H, r, false);
+    boxBlur(v, tmp, W, H, r);
   }
 }
 
