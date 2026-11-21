@@ -37,12 +37,12 @@
     "worship": 1
   },
   "plan": {
-    "lifts": 13119,
-    "rawLifts": 21398,
-    "inkMm": 58157.3,
-    "travelMm": 14601.8,
-    "minutes": 92.9,
-    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",13119,58157.3]]
+    "lifts": 13107,
+    "rawLifts": 21386,
+    "inkMm": 58116.6,
+    "travelMm": 14549.4,
+    "minutes": 92.8,
+    "pens": [["Shadows",0,0],["Water",0,0],["Greenery",0,0],["Roofs",0,0],["Linework",13107,58116.6]]
   },
   "features": {
     "buildings": [3364,9059.6],
@@ -190,5 +190,5 @@
     "windows/tall-windows": [1,6.4],
     "windows/terrace": [198,641.3]
   },
-  "svg": {"bytes":631567,"sha1":"cd5afe2023c6c340"}
+  "svg": {"bytes":631174,"sha1":"4e247eaa9cf8c9cf"}
 }

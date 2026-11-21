@@ -11,6 +11,10 @@ export type Settings = {
   image: string;
   /** Name of the image for the title and margin, from its file name. */
   imageName: string;
+  imageCreator: string;
+  imageCoordinates: boolean;
+  imageLatitude: number;
+  imageLongitude: number;
   /** Fill crops the image to the drawing area; Fit shows all of it, with free ground beside it. */
   imageFit: 'fill' | 'fit';
   /** Middle of the crop in Fill, as fractions of the image's width and height. */
@@ -183,6 +187,10 @@ export const DEFAULT_SETTINGS: Settings = {
   place: 'Mollis',
   image: '',
   imageName: '',
+  imageCreator: '',
+  imageCoordinates: false,
+  imageLatitude: 0,
+  imageLongitude: 0,
   imageFit: 'fill',
   imageFocus: [0.5, 0.5],
   imageLight: 0,

@@ -1,5 +1,5 @@
 import type { Camera } from './camera';
-import type { Frame } from './geo';
+import { Frame } from './geo';
 import { letter, letterable, measure } from './lettering';
 import type { Settings } from './settings';
 
@@ -209,11 +209,13 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const coordinateHeight = Math.max(t, 4.8 * cam.nib);
   const coordinatesFit = g + 0.9 + coordinateHeight + cam.nib / 2 <= m;
 
-  // A town made from an image stands nowhere: no graticule, coordinates or map credit.
   const image = set.source === 'image';
   if (set.frame && m >= 6) {
     out.push(rect(x0 - g, y0 - g, x1 + g, y1 + g));
-    if (coordinatesFit && !image) out.push(...graticule(cam, frame, g, coordinateHeight));
+    if (coordinatesFit && (!image || set.imageCoordinates)) {
+      const origin = image ? new Frame([set.imageLongitude, set.imageLatitude]) : frame;
+      out.push(...graticule(cam, origin, g, coordinateHeight));
+    }
   }
 
   // The bottom margin carries the title on the left and the scale and north arrow on the right.
@@ -225,7 +227,10 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const normalSize = clamp(room * 0.13, 1.2, 2.3);
   const compact = 4.8 * cam.nib > normalSize;
   const s = Math.max(normalSize, 4.8 * cam.nib);
-  const credit = image ? 'DRAWN WITH ISOMETRICTOWN.COM' : '© OPENSTREETMAP CONTRIBUTORS';
+  const date = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  const by = set.imageCreator.trim();
+  const imageCredit = `DRAWN WITH ISOMETRICTOWN.COM${by ? ` BY ${by.toUpperCase()}` : ''} · ${date}`;
+  const credit = image ? imageCredit : '© OPENSTREETMAP CONTRIBUTORS';
   const textWidth = compact ? measure(credit, s, 0.3) : 40;
   // Room for the N above or below the needle, whichever way north points.
   const r = Math.min(8, (room - 2.8 * s) / 2);
@@ -252,9 +257,9 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const place = letterable(set.place) ? set.place : image ? 'IMAGE' : `${lat(clat)} ${lng(clng)}`;
   if (compact) {
     // Keep the credit readable first, then fit the title and optional viewing note above it.
-    const credits = measure(credit, s, 0.3) <= width ? [credit] : image ? ['ISOMETRICTOWN.COM'] : ['© OPENSTREETMAP', 'CONTRIBUTORS'];
+    const credits = measure(credit, s, 0.3) <= width ? [credit] : image ? [by ? `BY ${by.toUpperCase()}` : 'ISOMETRICTOWN.COM', date] : ['© OPENSTREETMAP', 'CONTRIBUTORS'];
     if (credits.some((line) => measure(line, s, 0.3) > width) || room < credits.length * 1.9 * s) return out;
-    const view = `${image ? 'AFTER AN IMAGE · ' : ''}LOOKING ${compassWord(set.bearing)} · TILT ${Math.round(set.tilt)}°`;
+    const view = `${image ? `SEED ${set.seed} · ` : ''}LOOKING ${compassWord(set.bearing)} · TILT ${Math.round(set.tilt)}°`;
     const showView = credits.length === 1 && room >= 4.1 * s + 1.4 * s * 1.5 && measure(view, s, 0.3) <= width;
     const notes = showView ? [view, ...credits] : credits;
     const noteRoom = (0.3 + 1.9 * notes.length) * s;
@@ -269,11 +274,11 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const base = top + T * 1.4;
   out.push(...letter(place, x0, base, { h: T, track: 1.4 }));
 
-  const where = `${image ? 'AFTER AN IMAGE' : `${lat(clat)} ${lng(clng)}`} · LOOKING ${compassWord(set.bearing)} (${Math.round(set.bearing)}°) · TILT ${Math.round(set.tilt)}°`;
-  const imprint = `${image ? '' : 'MAP DATA © OPENSTREETMAP CONTRIBUTORS · '}DRAWN WITH ISOMETRICTOWN.COM · ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+  const where = `${image ? `SEED ${set.seed}` : `${lat(clat)} ${lng(clng)}`} · LOOKING ${compassWord(set.bearing)} (${Math.round(set.bearing)}°) · TILT ${Math.round(set.tilt)}°`;
+  const imprint = image ? imageCredit : `MAP DATA © OPENSTREETMAP CONTRIBUTORS · DRAWN WITH ISOMETRICTOWN.COM · ${date}`;
   const line1 = base + s * 2.2;
   const line2 = line1 + s * 1.9;
   out.push(...letter(where, x0, line1, { h: fit(where, s, width, 0.3), track: 0.3 }));
-  out.push(...letter(imprint, x0, line2, { h: fit(imprint, s, width, 0.3), track: 0.3 }));
+  out.push(...letter(imprint, x0, line2, { h: fit(imprint, s, width, 0.3, image ? 0 : 0.9), track: 0.3 }));
   return out;
 }

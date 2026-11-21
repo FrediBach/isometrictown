@@ -353,6 +353,34 @@ export function SheetSection() {
         <BoolSetting name="frame" label="Frame line" />
         <BoolSetting name="marginalia" label="Map notes" />
       </KeyGrid>
+      {set.source === 'image' && set.marginalia && (
+        <div className="mt-3 grid gap-2">
+          <label className="grid gap-1 text-sm">
+            Creator credit
+            <input key={set.imageCreator} className="rounded-md border border-input bg-card px-2 py-1" maxLength={60}
+              defaultValue={set.imageCreator} onBlur={(e) => change('imageCreator', e.currentTarget.value.trim())}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+          </label>
+          {set.frame && <BoolSetting name="imageCoordinates" label="Frame coordinates" />}
+          {set.frame && set.imageCoordinates && (['imageLatitude', 'imageLongitude'] as const).map((key) => {
+            const latitude = key === 'imageLatitude';
+            const limit = latitude ? 85 : 180;
+            return (
+              <label key={key} className="grid gap-1 text-sm">
+                {latitude ? 'Centre latitude' : 'Centre longitude'} (°)
+                <input key={set[key]} type="number" step="any" min={-limit} max={limit} required defaultValue={set[key]}
+                  className="rounded-md border border-input bg-card px-2 py-1"
+                  onBlur={(e) => {
+                    const field = e.currentTarget;
+                    if (field.validity.valid) change(key, field.valueAsNumber);
+                    else field.value = String(set[key]);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+              </label>
+            );
+          })}
+        </div>
+      )}
       <Hint className="mt-2 mb-0">
         Map notes letter the margin like a printed town map: title, coordinates, scale bar and north arrow. With the frame line on, a second border carries latitude and longitude ticks. A wider
         margin gives them more room.

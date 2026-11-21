@@ -107,6 +107,31 @@ describe('palettes', () => {
   });
 });
 
+test('image notes give the seed and byline, with optional ticks around the chosen centre', () => {
+  const set = { ...DEFAULT_SETTINGS, source: 'image' as const, seed: 673, imageCreator: 'Fredi Bach', imageLatitude: -32, imageLongitude: -68 };
+  const cam = new Camera(set);
+  const frame = new Frame(set.center);
+  const letters = vi.spyOn(lettering, 'letter');
+  try {
+    const date = new Date(2026, 10, 15);
+    marginalia(set, cam, frame, date);
+    const notes = letters.mock.calls.map(([line]) => line.toUpperCase());
+    expect(notes.some((line) => line.startsWith('SEED 673 ·'))).toBe(true);
+    expect(notes).toContain('DRAWN WITH ISOMETRICTOWN.COM BY FREDI BACH · NOVEMBER 2026');
+    const ticks = () => letters.mock.calls.filter((call) => call[3].dir);
+    expect(ticks()).toHaveLength(0);
+    letters.mockClear();
+    marginalia({ ...set, imageCoordinates: true }, cam, frame, date);
+    const imageTicks = ticks();
+    expect(imageTicks.length).toBeGreaterThan(0);
+    letters.mockClear();
+    marginalia({ ...set, source: 'map' }, cam, new Frame([set.imageLongitude, set.imageLatitude]), date);
+    expect(ticks()).toEqual(imageTicks);
+  } finally {
+    letters.mockRestore();
+  }
+});
+
 test.each([true, false])('frame coordinates stay readable with a broad pen (landscape %s)', (landscape) => {
   const draw = (penWidth: number, margin = 20) => {
     const set = { ...DEFAULT_SETTINGS, sheet: 'a4' as const, penWidth, margin, landscape };

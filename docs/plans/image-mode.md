@@ -659,7 +659,7 @@ Both work on the main thread only and cost nothing.
 
 ### 16.4 Margin and SVG
 
-- The margin keeps its border, scale bar and north arrow, which hold true for the fictional town. It leaves out the graticule ticks, which would claim a real place. The title is the image name. The view line reads `AFTER AN IMAGE · LOOKING NE (35°) · TILT 40°`, and the imprint keeps its date but drops the map credit.
+- The margin keeps its border, scale bar and north arrow, which hold true for the fictional town. Optional frame coordinates use the supplied centre and the drawing camera. The title is the image name. The view line gives the generation seed, and the dated imprint can include a creator byline.
 - The SVG `<desc>` drops the coordinates and the OpenStreetMap credit, since no map data is used. §20 asks you to confirm this.
 
 ---

@@ -102,6 +102,10 @@ function validateImage(s: Settings): void {
   s.source = oneOf(s.source, ['map', 'image'], d.source);
   // Image mode is by invitation: a stored setting or a link doesn't open it in a browser that hasn't been let in.
   if (s.source === 'image' && !imageUnlocked()) s.source = 'map';
+  s.imageCreator = typeof s.imageCreator === 'string' ? s.imageCreator.trim().slice(0, 60) : '';
+  s.imageCoordinates = s.imageCoordinates === true;
+  s.imageLatitude = within(s.imageLatitude, -85, 85, d.imageLatitude);
+  s.imageLongitude = within(s.imageLongitude, -180, 180, d.imageLongitude);
   s.imageFit = oneOf(s.imageFit, ['fill', 'fit'], d.imageFit);
   s.fabric = oneOf(s.fabric, ['auto', 'organic', 'grid'], d.fabric);
   if (typeof s.image !== 'string' || !/^([0-9a-f]{16})?$/.test(s.image)) s.image = '';
@@ -276,7 +280,7 @@ export const fromSlider = (v: number) => {
 };
 
 export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
-export type BoolKey = 'imagePreserveSpace' | 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
+export type BoolKey = 'imageCoordinates' | 'imagePreserveSpace' | 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
 
