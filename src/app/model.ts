@@ -118,7 +118,7 @@ function validateImage(s: Settings): void {
   s.imageContrast = within(s.imageContrast, 0.5, 2, d.imageContrast);
   s.imageColour = within(s.imageColour, 0, 1, d.imageColour);
   s.imageDensity = within(s.imageDensity, -1, 1, d.imageDensity);
-  for (const key of ['imageRelief', 'imageHatching', 'imageContours', 'imageFloorplans', 'imageNeighbours', 'imageHighlight'] as const) {
+  for (const key of ['imageRelief', 'imageHatching', 'imageContours', 'imageRoadWinding', 'imageFloorplans', 'imageNeighbours', 'imageHighlight'] as const) {
     s[key] = within(s[key], 0, 1, d[key]);
   }
   s.imageRoundabouts = within(s.imageRoundabouts, 0, 2, d.imageRoundabouts);
@@ -289,7 +289,7 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageRoadWinding' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'imageCoordinates' | 'imagePreserveSpace' | 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
@@ -304,6 +304,7 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   imageContours: percent,
   imageFloorplans: percent,
   imageNeighbours: percent,
+  imageRoadWinding: percent,
   imageRoundabouts: percent,
   imageHighlight: (v) => v === 1 ? 'Transparency only' : percent(v),
   likeness: (v) => `${Math.round(v * 100)}%`,

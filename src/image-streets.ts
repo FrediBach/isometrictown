@@ -17,7 +17,7 @@ import type { Target } from './image-read';
 import { blur, BUILT, LABELS, type Label } from './image-tone';
 import { simplify, streamsOf, traceLines } from './image-water';
 import { labelAt as zoneAt, type Zones } from './image-zones';
-import type { Settings } from './settings';
+import { gridFabric, type Settings } from './settings';
 import { crossingsOf, controlOf, makeRoundabout, radiusOf, type Roundabout } from './image-junctions';
 import { hash, patch } from './rng';
 import { LOD } from './lod';
@@ -56,7 +56,7 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number;
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number; winding?: number;
   /** Likeness and More roundabouts where masks set them for part of the picture, at a ground position. */
   likenessAt?: (x: number, y: number) => number;
   roundaboutsAt?: (x: number, y: number) => number;
@@ -246,7 +246,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   const { W, H, cell } = z;
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
-  const grid = set.fabric === 'grid' || (set.fabric === 'auto' && (set.style === 'american' || set.style === 'antipodean'));
+  const grid = gridFabric(set.fabric, set.style);
   const x1 = z.x0 + W * cell;
   const y1 = z.y0 + H * cell;
   const cellOf = (x: number, y: number) => {
@@ -365,7 +365,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   const vary = set.vary ?? ((x: number, y: number, salt: number) => hash(Math.round(x), Math.round(y), set.seed, salt));
   const [cx, cy] = cores[0] ?? [0, 0];
-  const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt));
+  const detour = grid ? 0 : Math.max(0, 2 * (set.winding ?? 0.5) - 1);
+  const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt), detour, set.seed);
   roads.forEach((pts, k) => keep(pts, k ? 'secondary' : 'primary', true));
 
   // Bright lines in the image: streets in town, paths in parks, tracks in the fields.
@@ -574,7 +575,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     const label = labelAt(x, y);
     return label >= 0 && label !== WATER && !streetable(label);
   };
-  const g = clean(planar(lines), water, grid ? undefined : openLand);
+  const g = clean(planar(lines), water, grid ? undefined : openLand, set.winding, vary);
   // Plan lanes where their true width meets the road rule at reference detail and pen width.
   rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 
@@ -688,7 +689,7 @@ function coresOf(z: Zones) {
 }
 
 /** Up to two main roads, each the cheapest way from one side of the plan to the other (§10.2). */
-function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number): number[][] {
+function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number, detour: number, seed: number): number[][] {
   // A coarser grid, about 16 m, for the search; the road is smoothed afterwards.
   const f = Math.max(1, Math.round(16 / z.cell));
   const cs = z.cell * f;
@@ -731,7 +732,14 @@ function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: C
           cnt++;
           if (ridge[c] > 0) bright = 1;
         }
-      cost[j * RW + i] = (sum / cnt) * (bright ? 0.4 : 1);
+      cost[index] = (sum / cnt) * (bright ? 0.4 : 1);
+      // A narrow, winding band between patches of rough ground gives a through road
+      // an easier way across country. Water and built-up cells keep their own costs.
+      const label = zoneAt(z, mx, my);
+      if (detour > 0 && label && !BUILT.has(label) && label !== 'water' && label !== 'plaza' && sum / cnt <= 4) {
+        const roughness = Math.abs(patch(mx / 90, my / 90, seed, 14990) - 0.5);
+        cost[index] *= 1 + detour * (8 * Math.min(0.45, roughness) - 0.78);
+      }
     }
   const moves = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1], [1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
   // The field's doubled angle at each cell, and each move's, so how well a move follows the
@@ -1034,7 +1042,7 @@ const weaker = (e: GraphEdge, f: GraphEdge) => (e.main !== f.main ? !e.main : RA
  * no dead ends under 25 m, no junction angle under 35°, and one connected network (pieces are
  * joined over dry ground or by a short bridge, or dropped).
  */
-export function clean(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean): Graph {
+export function clean(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean, winding = 0.5, vary: NonNullable<StreetSettings['vary']> = hash): Graph {
   const pass = () => {
     let changed = false;
     // Parallel duplicates and loops.
@@ -1106,7 +1114,7 @@ export function clean(g: Graph, water: (x: number, y: number) => boolean, openLa
     return changed;
   };
   for (let round = 0; round < 16 && pass(); round++);
-  join(g, water, openLand);
+  join(g, water, openLand, winding, vary);
   for (let round = 0; round < 4 && pass(); round++);
   // Drop any pieces still beyond reach or cut off when cleaning the new junctions.
   keepLargest(g);
@@ -1170,7 +1178,7 @@ function approachAngle(arms: [number, number][], heading: number): number {
 }
 
 /** Lay a country lane between the bearings of the streets it meets, sampled in ground metres. */
-function countryLane(x: number, y: number, bx: number, by: number, from: [number, number][], to: [number, number][]): number[] {
+function countryLane(x: number, y: number, bx: number, by: number, from: [number, number][], to: [number, number][], winding: number, vary: NonNullable<StreetSettings['vary']>, bendSide = 1): number[] {
   const dx = bx - x, dy = by - y, distance = Math.hypot(dx, dy);
   const heading = Math.atan2(dy, dx);
   const a = heading + approachAngle(from, heading);
@@ -1178,20 +1186,40 @@ function countryLane(x: number, y: number, bx: number, by: number, from: [number
   const reach = distance * 0.4;
   const ax = reach * Math.cos(a), ay = reach * Math.sin(a);
   const ex = reach * Math.cos(b), ey = reach * Math.sin(b);
-  const steps = Math.ceil(distance / 8);
+  const extra = Math.max(0, winding * 2 - 1);
+  const mx = (x + bx) / 2, my = (y + by) / 2;
+  // A long lane can skirt two obstacles on opposite sides. Their positions and the
+  // side of the first bend belong to the place, so moving the slider grows the same bends.
+  const split = 0.42 + 0.22 * vary(mx, my, 14988);
+  const side = vary(mx, my, 14989) < 0.5 ? -1 : 1;
+  const steps = Math.ceil(distance / (8 - 4 * extra));
   const pts = [x, y];
   for (let i = 1; i < steps; i++) {
     const t = i / steps, u = 1 - t;
     const advance = t * t * (3 - 2 * t);
-    pts.push(x + advance * dx + 3 * t * u * (u * ax + t * ex),
-      y + advance * dy + 3 * t * u * (u * ay + t * ey));
+    let px = x + advance * dx + 3 * t * u * (u * ax + t * ex);
+    let py = y + advance * dy + 3 * t * u * (u * ay + t * ey);
+    if (winding < 0.5) {
+      px += (1 - 2 * winding) * (x + t * dx - px);
+      py += (1 - 2 * winding) * (y + t * dy - py);
+    } else if (extra > 0) {
+      const second = distance > 140 && t > split;
+      const span = distance <= 140 ? 1 : second ? 1 - split : split;
+      const along = (second ? t - split : t) / span;
+      const bulge = Math.sin(Math.PI * along) ** 2;
+      const offset = extra * side * bendSide * (second ? -1 : 1) * Math.min((0.27 + 0.53 * extra * extra) * span, 105 / distance) * bulge;
+      px -= dy * offset;
+      py += dx * offset;
+    }
+    pts.push(px, py);
   }
   pts.push(bx, by);
   return pts;
 }
 
 /** Join nearby street networks on dry ground where possible, or over a single stretch of water. */
-function join(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x: number, y: number) => boolean): void {
+function join(g: Graph, water: (x: number, y: number) => boolean, openLand: ((x: number, y: number) => boolean) | undefined, winding: number, vary: NonNullable<StreetSettings['vary']>): void {
+  const extra = Math.max(0, winding * 2 - 1);
   const REACH = 250;
   const comp = components(g);
   const size = new Map<number, number>();
@@ -1230,12 +1258,20 @@ function join(g: Graph, water: (x: number, y: number) => boolean, openLand?: (x:
       if (runs[0].wet || runs[runs.length - 1].wet) return;
       if (runs.length === 1) {
         // A gap through several blocks of open land has room for a sweeping approach.
-        if (openLand && d >= 75 && [0.25, 0.5, 0.75].every(t => openLand(x + t * (bx - x), y + t * (by - y)))) {
-          const lane = countryLane(x, y, bx, by, arms[v], arms[u]);
+        if (openLand && winding > 0 && d >= 75 - 40 * extra && openLand((x + bx) / 2, (y + by) / 2) &&
+            (extra > 0.5 || [0.25, 0.75].every(t => openLand(x + t * (bx - x), y + t * (by - y))))) {
+          let lane = countryLane(x, y, bx, by, arms[v], arms[u], winding, vary);
+          // Try passing the obstacle on the other side before squeezing the bend against a bank.
+          if (extra > 0 && bankRuns(lane, water).length > 1) {
+            const other = countryLane(x, y, bx, by, arms[v], arms[u], winding, vary, -1);
+            if (bankRuns(other, water).length === 1) lane = other;
+          }
           // Tighten the bend beside water. The straight alignment is already known to be dry.
           for (let attempt = 0; attempt < 3; attempt++) {
             if (bankRuns(lane, water).length === 1) {
-              const cost = lengthOf(lane);
+              // At high winding, choose connections chiefly by the gap they serve. Charging
+              // the full detour would favour a straight shortcut through a neighbouring node.
+              const cost = d + (lengthOf(lane) - d) * (1 - 0.85 * extra);
               if (!best || cost < best.cost) best = { v, u, pts: lane, cost };
               return;
             }

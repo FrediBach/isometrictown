@@ -440,6 +440,22 @@ describe('the street graph', () => {
     expect(bank.some((x, i) => i % 2 === 0 && shore(x, bank[i + 1]))).toBe(false);
   });
 
+  test('winding puts broad bends in an aligned country lane while keeping its ends fixed', () => {
+    const lane = (winding: number) => {
+      const g = planar([line([-300, 0, 0, 0]), line([200, 0, 500, 0])]);
+      clean(g, () => false, () => true, winding, () => 0.4);
+      expect(streetRules(g)).toEqual([]);
+      return g.edges.find(e => Math.min(e.pts[0], e.pts.at(-2)!) === 0 && Math.max(e.pts[0], e.pts.at(-2)!) === 200)!.pts;
+    };
+    expect(lane(0)).toHaveLength(4);
+    const offsets = (w: number) => lane(w).filter((_, i) => i % 2 === 1);
+    expect(Math.max(...offsets(0.5).map(Math.abs))).toBeLessThan(0.01);
+    expect(Math.max(...offsets(1))).toBeGreaterThan(65);
+    expect(Math.min(...offsets(1))).toBeLessThan(-65);
+    expect(Math.max(...offsets(0.75))).toBeLessThan(Math.max(...offsets(1)));
+    expect(lane(1)).toEqual(lane(1));
+  });
+
   test('a dry connection takes precedence over a shorter bridge', () => {
     const g = planar([line([-30, 0, -30, 150]), line([30, 0, 30, 110])]);
     clean(g, (x, y) => Math.abs(x) < 20 && y < 90);

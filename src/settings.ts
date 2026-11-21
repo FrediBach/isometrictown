@@ -38,6 +38,8 @@ export type Settings = {
   imageFloorplans: number;
   /** How far zoning follows which districts border which in real towns, rather than the hand-made rules. */
   imageNeighbours: number;
+  /** Winding of organic lanes across open ground, from straight to broad meanders. */
+  imageRoadWinding: number;
   /** More roundabouts than real towns build, 0 to 2: 0 keeps the learnt rates, 1 makes their odds 100 times higher, 2 makes nearly every junction with room one. */
   imageRoundabouts: number;
   /** Keep transparent areas and any selected highlights free of scene ink. */
@@ -184,6 +186,11 @@ export const ROOFS = 3;
 export const LINEWORK = 4;
 export const PEN_COUNT = PEN_NAMES.length;
 
+/** Whether image streets follow a grid in this street pattern and regional style. */
+export function gridFabric(fabric: Settings['fabric'], style: string): boolean {
+  return fabric === 'grid' || (fabric === 'auto' && (style === 'american' || style === 'antipodean'));
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   source: 'map',
   center: [9.0744, 47.0934],
@@ -205,6 +212,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageContours: 0,
   imageFloorplans: 0,
   imageNeighbours: 0,
+  imageRoadWinding: 0.5,
   imageRoundabouts: 0,
   imagePreserveSpace: false,
   imageHighlight: 1,

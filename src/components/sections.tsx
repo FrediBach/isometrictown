@@ -14,7 +14,7 @@ import { useNativeChange } from '../app/use-native-change';
 import { imageUnlocked } from '../app/invite';
 import { harmonise, paletteSource, type Locks } from '../harmony';
 import { currentPalette } from '../palettes';
-import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
+import { DETAIL_LAYERS, LAYERS, PEN_COUNT, PEN_NAMES, PEN_ROLES, SHEETS, gridFabric, sunBearing, type LayerId, type Settings, type SheetId } from '../settings';
 import { IMAGE_STYLE, STYLE_IDS, STYLES } from '../styles';
 import { BoolSetting, NumberSetting } from './controls';
 import { Caption, FoldingSection, Hint, KeyGrid, Section } from './fields';
@@ -118,6 +118,9 @@ function ImageSource({ picture, onFile, mask, onMask }: Pick<SourceSectionProps,
         ]}
       />
       <Hint>Organic streets follow the image and wander; a grid keeps to two directions. Auto is a grid for the North American and Australian styles.</Hint>
+      {!gridFabric(set.fabric, set.style === 'auto' ? IMAGE_STYLE : set.style) && (
+        <NumberSetting name="imageRoadWinding" label="Country road winding" min={0} max={1} step={0.01} hint="Shape the lanes between settlements and shore roads. At 0% they take a direct line, at 50% they ease into junctions, and at 100% they wind across open ground." />
+      )}
       <NumberSetting name="imageRoundabouts" label="More roundabouts" min={0} max={2} step={0.01} hint="At 0%, junctions become roundabouts as often as in real towns of the style. Raise it for more, still most often where busy roads meet; at 200% nearly every junction with room is one." />
       <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Lead streets and paths along long, connected edges in the picture." />
       <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
