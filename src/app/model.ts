@@ -108,7 +108,12 @@ function validateImage(s: Settings): void {
   s.imageLatitude = within(s.imageLatitude, -85, 85, d.imageLatitude);
   s.imageLongitude = within(s.imageLongitude, -180, 180, d.imageLongitude);
   s.imageFit = oneOf(s.imageFit, ['fill', 'fit'], d.imageFit);
-  s.fabric = oneOf(s.fabric, ['auto', 'organic', 'grid'], d.fabric);
+  // Older links and saved drawings name the endpoints. Links carry numbers as text.
+  const fabric: unknown = s.fabric;
+  const mix = typeof fabric === 'string' && fabric.trim() ? Number(fabric) : fabric;
+  if (fabric === 'organic') s.fabric = 0;
+  else if (fabric === 'grid') s.fabric = 1;
+  else s.fabric = typeof mix === 'number' && Number.isFinite(mix) ? Math.max(0, Math.min(1, mix)) : 'auto';
   if (typeof s.image !== 'string' || !/^([0-9a-f]{16})?$/.test(s.image)) s.image = '';
   if (typeof s.imageName !== 'string') s.imageName = '';
   s.imageName = s.imageName.slice(0, 80);

@@ -78,7 +78,7 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 `components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).
 
-Section 1 starts with the **Map | Image** switch. In Image, drop or choose a picture in the image well (`components/image-well.tsx`). With Fill selected, dragging or using the arrow keys moves the crop. Brightness and Contrast adjust the tones the controls below read. Colour, Likeness and Street pattern (Auto | Organic | Grid) set the overall character of the town.
+Section 1 starts with the **Map | Image** switch. In Image, drop or choose a picture in the image well (`components/image-well.tsx`). With Fill selected, dragging or using the arrow keys moves the crop. Brightness and Contrast adjust the tones the controls below read. Colour, Likeness and Street pattern set the overall character of the town. Street pattern blends from organic lanes to a regular grid in 1% steps. It starts at the regional style’s default, which you can restore after adjusting the slider.
 
 - **Neighbourhoods as in real towns** places districts beside each other as they lie in 60 real places: works on the water, suburbs out by the fields, towers among blocks and squares, old towns away from meadows. At 0% zoning keeps its hand-made rules.
 - **Height from image** raises towers in the darkest parts of the picture and tapers buildings down in lighter areas.

@@ -51,7 +51,7 @@ export type Settings = {
   /** Shapes on the picture that set some of the settings differently there, in order; see `src/image-masks.ts`. */
   imageMasks: ImageMask[];
   /** Street pattern in image mode; auto picks grid for the North American and Australian styles. */
-  fabric: 'auto' | 'organic' | 'grid';
+  fabric: 'auto' | number;
   /** Compass direction that points up the sheet, in degrees. */
   bearing: number;
   /** Camera elevation above the ground, in degrees. */
@@ -186,9 +186,9 @@ export const ROOFS = 3;
 export const LINEWORK = 4;
 export const PEN_COUNT = PEN_NAMES.length;
 
-/** Whether image streets follow a grid in this street pattern and regional style. */
-export function gridFabric(fabric: Settings['fabric'], style: string): boolean {
-  return fabric === 'grid' || (fabric === 'auto' && (style === 'american' || style === 'antipodean'));
+/** Grid influence from 0 (organic) to 1 (grid), using the regional default in auto. */
+export function gridFabric(fabric: Settings['fabric'], style: string): number {
+  return fabric === 'auto' ? Number(style === 'american' || style === 'antipodean') : fabric;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

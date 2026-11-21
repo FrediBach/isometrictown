@@ -212,7 +212,7 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
 | `imageHighlight` | `number`, 0…1 | `1` | Highlight cutoff, used when preserving empty space. At 1 only transparency is cleared. Lower values also clear adjusted lightness at or above the cutoff. |
 | `likeness` | `number`, 0…1 | `0.6` | Likeness against realism (§14.4). |
 | `imageMasks` | `ImageMask[]` | `[]` | Masks: shapes on the picture with their own values for some settings (see *Masks* in the notes above). |
-| `fabric` | `'auto' \| 'organic' \| 'grid'` | `'auto'` | Street pattern. Auto picks grid for the North American and Australian styles and organic elsewhere. |
+| `fabric` | `'auto' \| number` | `'auto'` | Grid influence from 0 (organic) to 1 (grid). Auto picks grid for the North American and Australian styles and organic elsewhere. |
 
 - Add the numbers to `NumberKey`, with `FORMAT` entries. Handle `source`, `fabric` and `imageFit` in `shared()`/`fromQuery()` the way `style` is handled, and encode `imageFocus` the way `center` is. Validate all of them in `loadSettings()`.
 - None of them goes in `VIEW_KEYS`, because image mode has no locator map. Street guidance changes the network and its blocks. Density relays the buildings on those blocks. Height, hatching and empty-space changes can reuse the building layout.
@@ -645,7 +645,7 @@ Visual rules are in [DESIGN.md](../../DESIGN.md). The mode adds no new kinds of 
   - an **image well**: a hairline frame in the drawing area's proportions, with *Drop an image, or choose one* in muted text and a Choose key. Once it holds an image, it shows it with the crop frame, and dragging moves `imageFocus` in Fill. A mono readout gives the pixel size and the name.
   - a **Fill | Fit** selector switch;
   - sliders for **Brightness**, **Contrast**, **Colour** and **Likeness**. Likeness has the hint *Closer to the image, or more like an ordinary town.*;
-  - **Street pattern**: Auto | Organic | Grid;
+  - **Street pattern**: slider from Organic to Grid, with a regional default;
   - a **Refine** key, once M8 is built.
 - In image mode the **View** section's Rotation hint reads *Turns the town under the image*, and the Scale hint gives the tone resolution, as in *About 40 houses across.*
 - The **title block** shows the image name, editable like a place name.

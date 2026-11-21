@@ -151,11 +151,19 @@ describe('share links', () => {
 });
 
 describe('image mode', () => {
-  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, imageDensity: -0.4, imageHatching: 0.25, imageContours: 0.8, imageFloorplans: 0.6, imageNeighbours: 0.4, imageRoundabouts: 1.6, imagePreserveSpace: true, imageHighlight: 0.87, likeness: 0.9, fabric: 'grid' });
+  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, imageDensity: -0.4, imageHatching: 0.25, imageContours: 0.8, imageFloorplans: 0.6, imageNeighbours: 0.4, imageRoundabouts: 1.6, imagePreserveSpace: true, imageHighlight: 0.87, likeness: 0.9, fabric: 0.43 });
 
   test('every image setting survives a share link, and the map place stays', () => {
     const set = { ...image(), center: [4.89, 52.37] as [number, number], place: 'Amsterdam' };
     expect(share(set)).toEqual(set);
+  });
+
+  test.each([['organic', 0], ['grid', 1], ['auto', 'auto']])('restores the old %s street pattern from storage and links', (fabric, expected) => {
+    store.set('isometrictown:settings', JSON.stringify({ fabric }));
+    expect(loadSettings().fabric).toBe(expected);
+    store.delete('isometrictown:settings');
+    loc.hash = `#47/9/35/2500/1/Mollis/fabric=${fabric}`;
+    expect(loadSettings().fabric).toBe(expected);
   });
 
   test('supplying the file for a shared image keeps its title and crop', () => {

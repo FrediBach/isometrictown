@@ -247,6 +247,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   const n = W * H;
   const likeness = Math.max(0, Math.min(1, set.likeness));
   const grid = gridFabric(set.fabric, set.style);
+  const organic = 1 - grid;
   const x1 = z.x0 + W * cell;
   const y1 = z.y0 + H * cell;
   const cellOf = (x: number, y: number) => {
@@ -319,21 +320,21 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
       const x = z.x0 + (i + 0.5) * cell;
       const y = z.y0 + (j + 0.5) * cell;
       if (town[c]) {
-        if (grid) put(c, 0, 1);
-        else if (coherence[c] > ORIENTED) put(c, imgAngle[c], 1);
-        else {
+        if (grid > 0) put(c, 0, grid);
+        if (organic > 0 && coherence[c] > ORIENTED) put(c, imgAngle[c], organic);
+        else if (organic > 0) {
           // A slowly wandering orientation, fixed to the ground, and away from a core a pull
           // towards its radials and rings (never at the core itself, where they would meet in a star).
-          put(c, patch(x / WANDER, y / WANDER, set.seed, 14030) * Math.PI * 2, 1);
+          put(c, patch(x / WANDER, y / WANDER, set.seed, 14030) * Math.PI * 2, organic);
           if (cores.length) {
             let best = cores[0];
             for (const k of cores) if (Math.hypot(k[0] - x, k[1] - y) < Math.hypot(best[0] - x, best[1] - y)) best = k;
             const d = Math.hypot(x - best[0], y - best[1]);
-            put(c, Math.atan2(y - best[1], x - best[0]), 0.8 * Math.max(0, Math.min(1, (d - RADIAL_FROM) / RADIAL_OVER)));
+            put(c, Math.atan2(y - best[1], x - best[0]), organic * 0.8 * Math.max(0, Math.min(1, (d - RADIAL_FROM) / RADIAL_OVER)));
           }
         }
       } else put(c, 0, 0.1);
-      put(c, imgAngle[c], coherence[c] * (set.likenessAt ? Math.max(0, Math.min(1, set.likenessAt(x, y))) : likeness) * (grid ? 0.6 : 1.2));
+      put(c, imgAngle[c], coherence[c] * (set.likenessAt ? Math.max(0, Math.min(1, set.likenessAt(x, y))) : likeness) * (1.2 - 0.6 * grid));
       // Along the edges of zones: shores, parks, woods and fields.
       const gx = ((i + 1 < W ? edgeOf[c + 1] : edgeOf[c]) - (i > 0 ? edgeOf[c - 1] : edgeOf[c])) / 2;
       const gy = ((j + 1 < H ? edgeOf[c + W] : edgeOf[c]) - (j > 0 ? edgeOf[c - W] : edgeOf[c])) / 2;
@@ -365,7 +366,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
 
   const vary = set.vary ?? ((x: number, y: number, salt: number) => hash(Math.round(x), Math.round(y), set.seed, salt));
   const [cx, cy] = cores[0] ?? [0, 0];
-  const detour = grid ? 0 : Math.max(0, 2 * (set.winding ?? 0.5) - 1);
+  const detour = organic * Math.max(0, 2 * (set.winding ?? 0.5) - 1);
   const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt), detour, set.seed);
   roads.forEach((pts, k) => keep(pts, k ? 'secondary' : 'primary', true));
 
@@ -575,7 +576,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     const label = labelAt(x, y);
     return label >= 0 && label !== WATER && !streetable(label);
   };
-  const g = clean(planar(lines), water, grid ? undefined : openLand, set.winding, vary);
+  const g = clean(planar(lines), water, openLand, organic * (set.winding ?? 0.5), vary);
   // Plan lanes where their true width meets the road rule at reference detail and pen width.
   rank(g, z, ROAD_WIDTH.service * cam.s >= LOD.road.mm);
 

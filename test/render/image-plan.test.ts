@@ -28,6 +28,15 @@ describe('the town', () => {
     expect(lay(base)).toEqual(lay(base));
   });
 
+  test('intermediate street patterns produce distinct networks that keep the street rules', () => {
+    const layouts = [0, 0.25, 0.5, 0.75, 1].map(fabric => {
+      const { streets } = imageScene(pic, { ...base, fabric });
+      expect(streetRules(streets)).toEqual([]);
+      return JSON.stringify(streets.edges);
+    });
+    expect(new Set(layouts).size).toBe(layouts.length);
+  });
+
   test('what only changes how it is drawn never moves a street or a house', () => {
     const town = lay(base);
     for (const more of [{ detail: 1.8 }, { penWidth: 0.7 }, { trees: 0.1 }, { shadows: false }, { sunHeight: 20 }]) {
@@ -318,7 +327,7 @@ describe('the street graph', () => {
   const pics = ['gradient', 'disc', 'stripes', 'cross', 'landscape'] as const;
   // Each picture with one street pattern, the two taking turns.
   for (const [k, name] of pics.entries())
-    for (const fabric of [k % 2 ? 'grid' : 'organic'] as const)
+    for (const fabric of [k % 2] as const)
       test(`${name}, ${fabric}: the streets keep every rule, and the town is plausible`, () => {
         const pic = PICTURES[name]();
         const sc = imageScene(pic, { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, scale: 2500, tilt: 40, sheet: 'a4', fabric });

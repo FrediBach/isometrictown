@@ -7,7 +7,7 @@ import { paint } from '../support/pictures';
 
 const lay = (pic: Picture, imageContours: number, imageFit: 'fill' | 'fit' = 'fill') => imageScene(pic, {
   ...DEFAULT_SETTINGS, source: 'image', image: pic.id, imageName: pic.name, sheet: 'a4', scale: 2500,
-  tilt: 40, likeness: 0.4, fabric: 'grid', imageContours, imageFit,
+  tilt: 40, likeness: 0.4, fabric: 1, imageContours, imageFit,
 });
 const curveY = (u: number) => 0.5 + 0.18 * Math.sin((u - 0.1) * 2 * Math.PI);
 
