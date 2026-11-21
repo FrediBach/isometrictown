@@ -1,5 +1,6 @@
 import { car, newSolid, prism, wreck, type Build, type Solid } from './buildings';
 import { kept, LEFT_MOORED, left, parkedCar, stepsGone, wreckTwist } from './decay';
+import { Index, inShape } from './image-check';
 import { ringArea } from './geo';
 import type { Masks } from './nature';
 import type { Paper, Test } from './raster';
@@ -250,7 +251,8 @@ export function moorings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const harbours = town.pois.filter((p) => p.cls === 'harbor');
   const solids: Solid[] = [];
   const water = (x: number, y: number) => onMask(paper, M.water, x, y) && !onMask(paper, M.pool, x, y);
-  for (const shape of town.water)
+  for (const [i, shape] of town.water.entries()) {
+    if (town.lakeBoats?.has(i)) continue;
     for (const ring of shape) {
       const p = ring.pts;
       const n = p.length / 2;
@@ -293,6 +295,7 @@ export function moorings(B: Build, paper: Paper, town: Town, M: Masks): Extra {
         }
       }
     }
+  }
   return { solids, draw: () => {} };
 }
 
@@ -513,35 +516,58 @@ export function sailing(B: Build, paper: Paper, town: Town, M: Masks): Extra {
   const wind = hash(set.seed, 7, 0, 470) * Math.PI * 2;
   const [x0, y0, x1, y1] = cam.region(0);
   const step = 70;
+  const lakes = new Index();
+  type Spot = { x: number; y: number; h: (k: number) => number };
+  const spots: Spot[] = [];
+  const groups = new Map<number, Spot[]>();
+  for (const i of town.lakeBoats?.keys() ?? []) lakes.add(i, town.water[i][0].pts);
   for (let i = Math.floor(x0 / step); i <= Math.ceil(x1 / step); i++)
     for (let j = Math.floor(y0 / step); j <= Math.ceil(y1 / step); j++) {
       const [k0, k1] = B.key(i * step, j * step);
       const h = (k: number) => hash(k0, k1, set.seed, 480 + k);
-      if (h(0) > 0.2) continue;
+      const sparse = h(0) > 0.2;
+      if (sparse && !town.lakeBoats?.size) continue;
       const x = (i + 0.2 + 0.6 * h(1)) * step;
       const y = (j + 0.2 + 0.6 * h(2)) * step;
+      const lake = lakes.at(x, y).find(k => inShape(town.water[k], x, y));
+      if (lake === undefined ? sparse : !town.lakeBoats?.get(lake)) continue;
       // Open water all round.
       if (![0, 1, 2, 3, 4, 5, 6, 7].every((q) => water(x + Math.cos(q) * 22, y + Math.sin(q) * 22)) || !water(x, y)) continue;
-      if (set.abandon > 0 && left(B, 'ships', x, y, 9831)) continue;
-      // Heading across the wind, either way.
-      const head = wind + (h(3) < 0.5 ? 1 : -1) * (Math.PI / 2 + (h(4) - 0.5) * 0.8);
-      const ux = Math.cos(head);
-      const uy = Math.sin(head);
-      const len = 6 + h(5) * 4;
-      const s = boat(B, x, y, ux, uy, len, len * 0.33);
-      // Mast, mainsail and jib, all bellied out to leeward.
-      const lee = Math.sign(Math.sin(wind - head)) || 1;
-      const mx = x + ux * len * 0.1;
-      const my = y + uy * len * 0.1;
-      const top = len * 1.3;
-      const sx = -uy * lee * len * 0.12;
-      const sy = ux * lee * len * 0.12;
-      const main = [mx, my, top, mx, my, 1.4, mx - ux * len * 0.45 + sx, my - uy * len * 0.45 + sy, 1.4];
-      const jib = [mx, my, top * 0.85, mx + ux * len * 0.45, my + uy * len * 0.45, 0.9, mx + sx * 0.6, my + sy * 0.6, 1.2];
-      s.faces.push([main], [jib]);
-      s.lines.push({ pen: LINEWORK, pts: main, closed: true }, { pen: LINEWORK, pts: jib, closed: true });
-      solids.push(s);
+      const spot = { x, y, h };
+      if (lake === undefined) spots.push(spot);
+      else {
+        const group = groups.get(lake) ?? [];
+        group.push(spot);
+        groups.set(lake, group);
+      }
     }
+  for (const [lake, group] of groups) {
+    // A narrow pocket without room for a second boat stays quiet.
+    if (group.length < 2) continue;
+    group.sort((a, b) => a.h(0) - b.h(0));
+    spots.push(...group.slice(0, town.lakeBoats?.get(lake)));
+  }
+  for (const { x, y, h } of spots) {
+    if (set.abandon > 0 && left(B, 'ships', x, y, 9831)) continue;
+    // Heading across the wind, either way.
+    const head = wind + (h(3) < 0.5 ? 1 : -1) * (Math.PI / 2 + (h(4) - 0.5) * 0.8);
+    const ux = Math.cos(head);
+    const uy = Math.sin(head);
+    const len = 6 + h(5) * 4;
+    const s = boat(B, x, y, ux, uy, len, len * 0.33);
+    // Mast, mainsail and jib, all bellied out to leeward.
+    const lee = Math.sign(Math.sin(wind - head)) || 1;
+    const mx = x + ux * len * 0.1;
+    const my = y + uy * len * 0.1;
+    const top = len * 1.3;
+    const sx = -uy * lee * len * 0.12;
+    const sy = ux * lee * len * 0.12;
+    const main = [mx, my, top, mx, my, 1.4, mx - ux * len * 0.45 + sx, my - uy * len * 0.45 + sy, 1.4];
+    const jib = [mx, my, top * 0.85, mx + ux * len * 0.45, my + uy * len * 0.45, 0.9, mx + sx * 0.6, my + sy * 0.6, 1.2];
+    s.faces.push([main], [jib]);
+    s.lines.push({ pen: LINEWORK, pts: main, closed: true }, { pen: LINEWORK, pts: jib, closed: true });
+    solids.push(s);
+  }
   return { solids, draw: () => {} };
 }
 

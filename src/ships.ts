@@ -67,7 +67,7 @@ export function ships(B: Build, paper: Paper, town: Town, M: Masks, toAbs: (x: n
       y0 = Math.min(y0, p[k + 1]);
       y1 = Math.max(y1, p[k + 1]);
     }
-    return { shape, cls: town.waterCls[i] ?? '', box: [x0, y0, x1, y1] };
+    return { shape, cls: town.lakeBoats?.has(i) ? '' : town.waterCls[i] ?? '', box: [x0, y0, x1, y1] };
   });
   const classAt = (x: number, y: number) => {
     for (const b of bodies) {

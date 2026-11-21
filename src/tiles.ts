@@ -52,6 +52,8 @@ export type Town = {
   water: Shape[];
   /** The OpenMapTiles class of each water shape, in step with `water`: ocean, lake, river, pond and so on. */
   waterCls: string[];
+  /** Small image lakes and the number of sailing boats their open water can host, keyed by water index. */
+  lakeBoats?: Map<number, number>;
   green: Shape[];
   wood: Shape[];
   plazas: Shape[];

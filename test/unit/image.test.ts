@@ -348,15 +348,17 @@ describe('outlines and water', () => {
 
   test('ferries link reachable facing piers and keep the whole crossing clear of islands and bridges', () => {
     const cam = new Camera({ ...DEFAULT_SETTINGS, scale: 2500 });
-    const build = (obstacle?: 'island' | 'bridge' | 'no access') => {
+    const build = (obstacle?: 'island' | 'bridge' | 'no access' | 'paths' | 'one road') => {
       const town = empty(), occ = new Occupancy(-300, -200, 2, 600, 400);
       const shore = { pts: [-140, -80, 140, -80, 140, 80, -140, 80], seam: new Uint8Array(4) };
       town.water.push([shore]);
+      town.waterCls.push('lake');
       if (obstacle === 'island') town.water[0].push({ pts: [-3,-74,-3,74,3,74,3,-74], seam: new Uint8Array(4) });
       if (obstacle === 'bridge') town.ways.push({ kind: 'road', cls: 'minor', width: 6, bridge: true, pts: [0,-90,0,90] });
-      if (obstacle !== 'no access') for (const x of [-150, 150])
-        town.ways.push({ kind: 'path', cls: 'footway', width: 0, pts: [x,-25,x,25] });
-      const paths = ferryLandings(town, cam, occ, () => 0.5);
+      if (obstacle === 'one road') town.ways.push({ kind: 'road', cls: 'minor', width: 6, pts: [-150,0,-150,110,150,110,150,0] });
+      else if (obstacle !== 'no access') for (const x of [-150, 150])
+        town.ways.push({ kind: obstacle === 'paths' ? 'path' : 'road', cls: obstacle === 'paths' ? 'footway' : 'minor', width: 6, pts: [x,-25,x,25] });
+      const paths = ferryLandings(town, cam, occ, () => 0.2);
       for (const w of paths) {
         const [x, y, ex, ey] = w.pts;
         expect(occ.taken[occ.cellOf((x + ex) / 2, (y + ey) / 2)]).toBe(1);
@@ -367,11 +369,32 @@ describe('outlines and water', () => {
     expect(clear.piers).toHaveLength(2);
     expect(clear.ferries).toEqual([clear.piers.flatMap(w => w.pts.slice(2))]);
     expect(build()).toEqual(clear);
-    for (const obstacle of ['island', 'bridge'] as const) {
+    for (const obstacle of ['island', 'bridge', 'paths', 'one road'] as const) {
       expect(build(obstacle).ferries).toHaveLength(0);
-      expect(build(obstacle).piers).toHaveLength(1);
+      expect(build(obstacle).piers).toHaveLength(0);
     }
     expect(build('no access')).toEqual({ ferries: [], piers: [] });
+  });
+
+  test('six equally accessible lakes share at most one ferry and have separate sailing allowances', () => {
+    const town = empty();
+    const cam = new Camera({ ...DEFAULT_SETTINGS, scale: 4000, bearing: 0 });
+    const occ = new Occupancy(-650, -500, 2, 1300, 1000);
+    for (const y of [-210, 210]) for (const x of [-350, 0, 350]) {
+      const pts: number[] = [];
+      for (let i = 0; i < 64; i++) pts.push(x + 105 * Math.cos(i * Math.PI / 32), y + 105 * Math.sin(i * Math.PI / 32));
+      town.water.push([{ pts, seam: new Uint8Array(64) }]);
+      town.waterCls.push('lake');
+      for (const side of [-1, 1]) town.ways.push({ kind: 'road', cls: 'minor', width: 6,
+        pts: [x + side * 110, y, x + side * 160, y] });
+    }
+    const paths = ferryLandings(town, cam, occ, (x, _y, salt) => {
+      if (salt === 14772) return x < 0 ? 0.1 : x < 200 ? 0.6 : 0.9;
+      return 0.1;
+    });
+    expect(town.ferries).toHaveLength(1);
+    expect(paths.filter(w => w.sub === 'pier')).toHaveLength(2);
+    expect([...town.lakeBoats!.values()]).toEqual([0, 2, 3, 0, 2, 3]);
   });
 
   test('water is a river when thin, the sea when it runs off the plan, else a lake', () => {
