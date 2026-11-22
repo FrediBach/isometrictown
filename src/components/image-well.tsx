@@ -1,5 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from 'react';
-import { ImageIcon } from 'lucide-react';
+import { CircleHelpIcon, ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { PictureState, PictureStatus } from '../app/use-picture';
 import { dragFocus, fitImage, type Placed } from '../image-fit';
@@ -84,6 +86,31 @@ function Prompt({ status, onChoose }: { status: PictureStatus; onChoose: () => v
   );
 }
 
+/** Explain the image cues beside the upload and crop controls. */
+function ImageGuide() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button type="button" size="icon-sm" variant="outline" className="absolute top-1.5 right-1.5" aria-label="How an image becomes a town">
+          <CircleHelpIcon aria-hidden />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto">
+        <DialogHeader className="pr-6">
+          <DialogTitle>How an image becomes a town</DialogTitle>
+          <DialogDescription>The town follows your picture’s light, colour and outlines. Nearby streets and buildings also influence what fits.</DialogDescription>
+        </DialogHeader>
+        <dl className="grid gap-3 text-sm leading-relaxed [&_dt]:font-medium [&_dd]:text-muted-foreground">
+          <div><dt>Light and dark</dt><dd>Pale areas tend to become open ground or scattered houses. Dark areas favour denser blocks. Height from image can turn a dark silhouette into a skyline.</dd></div>
+          <div><dt>Colour</dt><dd>Bright blue patches can become ponds and long blue bands can become rivers. Greens favour meadows, parks and woods. Warm reds favour pitched roofs.</dd></div>
+          <div><dt>Lines and edges</dt><dd>A stripe can guide a street through houses or a path across a field. Strong outlines can also guide the direction of streets and buildings.</dd></div>
+          <div><dt>Blank paper</dt><dd>Turn on Preserve empty space to leave transparent areas blank. Lower the highlight cutoff to leave light areas clear too.</dd></div>
+        </dl>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /** The picture placed in the well as it lies on the sheet. */
 function Placement({ url, placed, rect }: { url: string; placed: Placed; rect: Rect }) {
   const [x0, y0, x1, y1] = rect;
@@ -120,30 +147,33 @@ export function ImageWell({ picture, rect, fit, focus, onFile, onFocus }: Props)
 
   return (
     <div className="mb-3">
-      <div
-        ref={frame}
-        role="group"
-        aria-label={pic ? `${pic.name || 'Image'}${crop.movable ? '. Drag or use the arrow keys to move the crop.' : ''}` : 'Image well'}
-        tabIndex={crop.movable ? 0 : undefined}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={drop}
-        onPointerDown={crop.onPointerDown}
-        onPointerMove={crop.onPointerMove}
-        onPointerUp={crop.onPointerUp}
-        onPointerCancel={crop.onPointerUp}
-        onKeyDown={crop.onKeyDown}
-        className={cn(
-          'relative w-full touch-none overflow-hidden rounded-md border border-input bg-card outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50',
-          over && 'border-foreground/50 bg-muted',
-          crop.movable && (crop.dragging ? 'cursor-grabbing' : 'cursor-grab'),
-        )}
-        style={{ aspectRatio: `${rect[2] - rect[0]} / ${rect[3] - rect[1]}` }}
-      >
-        {crop.placed && url ? <Placement url={url} placed={crop.placed} rect={rect} /> : <Prompt status={status} onChoose={choose} />}
+      <div className="relative">
+        <div
+          ref={frame}
+          role="group"
+          aria-label={pic ? `${pic.name || 'Image'}${crop.movable ? '. Drag or use the arrow keys to move the crop.' : ''}` : 'Image well'}
+          tabIndex={crop.movable ? 0 : undefined}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={drop}
+          onPointerDown={crop.onPointerDown}
+          onPointerMove={crop.onPointerMove}
+          onPointerUp={crop.onPointerUp}
+          onPointerCancel={crop.onPointerUp}
+          onKeyDown={crop.onKeyDown}
+          className={cn(
+            'relative w-full touch-none overflow-hidden rounded-md border border-input bg-card outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50',
+            over && 'border-foreground/50 bg-muted',
+            crop.movable && (crop.dragging ? 'cursor-grabbing' : 'cursor-grab'),
+          )}
+          style={{ aspectRatio: `${rect[2] - rect[0]} / ${rect[3] - rect[1]}` }}
+        >
+          {crop.placed && url ? <Placement url={url} placed={crop.placed} rect={rect} /> : <Prompt status={status} onChoose={choose} />}
+        </div>
+        <ImageGuide />
       </div>
       <input
         ref={input}
