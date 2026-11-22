@@ -32,6 +32,7 @@ const FIELDS: Record<DialKey, { label: string; min: number; max: number; step: n
   imageContours: { label: 'Streets follow image lines', min: 0, max: 1, step: 0.01 },
   imageRoundabouts: { label: 'More roundabouts', min: 0, max: 2, step: 0.01 },
   imageRelief: { label: 'Height from image', min: 0, max: 1, step: 0.01 },
+  buildingDensity: { label: 'Building density', min: -1, max: 1, step: 0.01 },
   imageDensity: { label: 'Building density from image', min: -1, max: 1, step: 0.01 },
   imageHatching: { label: 'Hatching from image', min: 0, max: 1, step: 0.01 },
   imageFloorplans: { label: 'House floorplans follow image lines', min: 0, max: 1, step: 0.01 },
@@ -53,7 +54,7 @@ const GROUPS: { caption: string; keys: MaskKey[] }[] = [
   { caption: 'Image', keys: ['imageLight', 'imageContrast', 'likeness', 'imageNeighbours', 'imageTownBias', 'imageDistrictSize', 'imageWater'] },
   { caption: 'Streets', keys: ['fabric', 'imageStreetSpacing', 'imageContours', 'imageRoundabouts'] },
   { caption: 'Town from the image', keys: ['imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight'] },
-  { caption: 'Buildings', keys: ['heightScale', 'pitched', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls'] },
+  { caption: 'Buildings', keys: ['buildingDensity', 'heightScale', 'pitched', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls'] },
   { caption: 'Town', keys: ['trees', 'cars', 'abandon', 'humanize'] },
 ];
 

@@ -132,6 +132,7 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
         <NumberSetting name="imageWater" label="Water preference" min={-1} max={1} step={0.01} hint="Lower it to favour dry land. Raise it to give ponds and channels a better chance." />
         <NumberSetting name="imageNeighbours" label="Neighbourhoods as in real towns" min={0} max={1} step={0.01} hint="Place districts beside each other as they lie in real towns: works on the water, suburbs out by the fields, towers among blocks and squares." />
         <NumberSetting name="imageRelief" label="Height from image" min={0} max={1} step={0.01} hint="At 0%, buildings keep their usual heights. At 100%, the darkest areas rise into towers and light areas stay low." />
+        <NumberSetting name="buildingDensity" label="Building density" min={-1} max={1} step={0.01} hint="Lower it to leave more plots open. Raise it for buildings to fill more of each plot across the town." />
         <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
         <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
       </FoldingSection>

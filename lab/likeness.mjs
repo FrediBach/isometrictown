@@ -46,6 +46,7 @@ const options = {
   tuned: flag('tuned'),
   likeness: numberOption('likeness'),
   relief: numberOption('relief'),
+  buildingDensity: numberOption('building-density'),
   density: numberOption('density'),
   hatching: numberOption('hatching'),
   contours: numberOption('contours'),

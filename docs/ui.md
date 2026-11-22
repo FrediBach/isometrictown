@@ -84,6 +84,7 @@ Section 1 starts with the **Map | Image** switch. In Image, drop or choose a pic
 - **Countryside ↔ town** tips close matches between open land and built neighbourhoods. **Water preference** separately favours wetter or drier land. Both start at *Balanced*.
 - **District size** sets how readily neighbouring patches become one district. **Street spacing** sets the distance between local streets within each built district. Both range from 0.5× to 2× and start at 1×. All four controls can be set inside masks.
 - **Height from image** raises towers in the darkest parts of the picture and tapers buildings down in lighter areas.
+- **Building density** sets the overall coverage on ordinary plots. Below *Normal*, more plots stand empty and buildings take less ground. Above it, buildings extend into available space. Masks can set this baseline locally.
 - **Building density from image** below zero opens plots across the picture, especially in pale areas. Above zero it gives buildings more ground in dark blocks and opens space for gardens in pale blocks.
 - **Hatching from image** changes how closely roofs, walls, fields, parks and cast shadows are hatched. It follows the tone where the strokes land on the sheet.
 - **House floorplans follow image lines** turns detached houses and shapes the rear walls of terraces along sustained contours. Raising it increases the distance a contour can influence and how far the walls move. Terraces retain their street fronts and the direction of their shared walls.

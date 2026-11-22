@@ -151,7 +151,7 @@ describe('share links', () => {
 });
 
 describe('image mode', () => {
-  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, imageDensity: -0.4, imageHatching: 0.25, imageContours: 0.8, imageFloorplans: 0.6, imageNeighbours: 0.4, imageTownBias: -0.6, imageDistrictSize: 1.3, imageWater: 0.7, imageStreetSpacing: 0.8, imageRoundabouts: 1.6, imagePreserveSpace: true, imageHighlight: 0.87, likeness: 0.9, fabric: 0.43 });
+  const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, buildingDensity: 0.6, imageDensity: -0.4, imageHatching: 0.25, imageContours: 0.8, imageFloorplans: 0.6, imageNeighbours: 0.4, imageTownBias: -0.6, imageDistrictSize: 1.3, imageWater: 0.7, imageStreetSpacing: 0.8, imageRoundabouts: 1.6, imagePreserveSpace: true, imageHighlight: 0.87, likeness: 0.9, fabric: 0.43 });
 
   test('every image setting survives a share link, and the map place stays', () => {
     const set = { ...image(), center: [4.89, 52.37] as [number, number], place: 'Amsterdam' };
@@ -175,15 +175,15 @@ describe('image mode', () => {
   });
 
   test('bad image settings in a link are dropped or mended', () => {
-    loc.hash = '#47/9/35/1000/1/Mollis/source=photo&image=../../etc&imageFit=stretch&fabric=maze&imageFocus=2,-1&imageLight=9&imageContrast=0&imageColour=x&imageRelief=1.8&imageDensity=-2&imageHatching=none&imageContours=2&imageFloorplans=3&imageNeighbours=7&imageRoundabouts=5&imageHighlight=-3&likeness=-3';
+    loc.hash = '#47/9/35/1000/1/Mollis/source=photo&image=../../etc&imageFit=stretch&fabric=maze&imageFocus=2,-1&imageLight=9&imageContrast=0&imageColour=x&imageRelief=1.8&buildingDensity=1.7&imageDensity=-2&imageHatching=none&imageContours=2&imageFloorplans=3&imageNeighbours=7&imageRoundabouts=5&imageHighlight=-3&likeness=-3';
     const s = loadSettings();
-    expect(s).toMatchObject({ source: 'map', image: '', imageFit: 'fill', fabric: 'auto', imageFocus: [1, 0], imageLight: 1, imageContrast: 0.5, imageColour: 0.7, imageRelief: 1, imageDensity: -1, imageHatching: 0, imageContours: 1, imageFloorplans: 1, imageNeighbours: 1, imageRoundabouts: 2, imageHighlight: 0, likeness: 0 });
+    expect(s).toMatchObject({ source: 'map', image: '', imageFit: 'fill', fabric: 'auto', imageFocus: [1, 0], imageLight: 1, imageContrast: 0.5, imageColour: 0.7, imageRelief: 1, buildingDensity: 1, imageDensity: -1, imageHatching: 0, imageContours: 1, imageFloorplans: 1, imageNeighbours: 1, imageRoundabouts: 2, imageHighlight: 0, likeness: 0 });
   });
 
   test('opening an older image link restores the original image controls', () => {
     persist(image());
     loc.hash = '#47/9/35/2500/1/Mollis/source=image&image=0123456789abcdef';
-    expect(loadSettings()).toMatchObject({ imageRelief: 0, imageDensity: 0, imageHatching: 0, imageContours: 0, imageFloorplans: 0, imageNeighbours: 0, imageRoundabouts: 0, imagePreserveSpace: false, imageHighlight: 1 });
+    expect(loadSettings()).toMatchObject({ imageRelief: 0, buildingDensity: 0, imageDensity: 0, imageHatching: 0, imageContours: 0, imageFloorplans: 0, imageNeighbours: 0, imageRoundabouts: 0, imagePreserveSpace: false, imageHighlight: 1 });
   });
 
   test('image mode is by invitation: a link opens on the map until the key is given', () => {

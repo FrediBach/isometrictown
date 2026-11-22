@@ -3,6 +3,7 @@ import type { Camera } from './camera';
 import { centre } from './image-check';
 import type { Vary } from './image-blocks';
 import type { Target } from './image-read';
+import type { Settings } from './settings';
 
 /** Signed change in coverage, from open ground in the lights to deeper buildings in the darks. */
 export type Density = (x: number, y: number) => number;
@@ -21,7 +22,30 @@ export function densityOf(target: Target, cam: Camera, thin = false): Density {
   };
 }
 
-/** Pale lots gradually drop out using a fixed rank, so raising the control opens up the same gardens. */
+/** The requested coverage change and the full-strength footprint to blend towards on a plot. */
+export type PlotDensity = { change: Density; full: Density; amount: Density };
+
+/** Add the overall coverage to the tone adjustment, including local values from masks. */
+export function plotDensity(target: Target, cam: Camera, set: Pick<Settings, 'buildingDensity' | 'imageDensity'>, baseAt?: Density, imageAt?: Density): PlotDensity | undefined {
+  if (!set.buildingDensity && !set.imageDensity && !baseAt && !imageAt) return undefined;
+  const base = baseAt ?? (() => set.buildingDensity);
+  const image = imageAt ?? (() => set.imageDensity);
+  const fill = densityOf(target, cam), thin = densityOf(target, cam, true);
+  const tone = (x: number, y: number, strength: number) => strength > 0 ? fill(x, y) : strength < 0 ? thin(x, y) : 0;
+  const combined = (x: number, y: number, baseline: number, strength: number) =>
+    Math.max(-1, Math.min(1, baseline + Math.abs(strength) * tone(x, y, strength)));
+  const change = (x: number, y: number) => combined(x, y, base(x, y), image(x, y));
+  const amount = (x: number, y: number) => Math.min(1, Math.abs(base(x, y)) + Math.abs(image(x, y)));
+  // Fit the largest requested footprint first so even a crowded plot grows gradually.
+  const full = (x: number, y: number) => {
+    const baseline = base(x, y), strength = image(x, y);
+    if (!baseline) return tone(x, y, strength);
+    return combined(x, y, baseline, strength) / Math.min(1, Math.abs(baseline) + Math.abs(strength));
+  };
+  return { change, full, amount };
+}
+
+/** Each plot has a fixed rank so lowering its coverage progressively opens gardens. */
 export function vacant(density: number, x: number, y: number, vary: Vary): boolean {
   return density < 0 && vary(x, y, 14142) < -density * 0.95;
 }

@@ -201,6 +201,7 @@ file ─► decode, orient, downscale (≤ 1024 px)     Job { draw, set, picture
 | `imageContrast` | `number`, 0.5…2 | `1` | Contrast round the middle tone. |
 | `imageColour` | `number`, 0…1 | `0.7` | How much colour counts against tone. At 0 only lightness is matched, as in one-pen output. |
 | `imageRelief` | `number`, 0…1 | `0` | Height from image. Blends the town's usual heights with a skyline that rises in dark areas (§12.2). |
+| `buildingDensity` | `number`, −1…1 | `0` | Overall plot coverage. Negative values open plots and shrink footprints. Positive values expand buildings into available ground. Added to the local change from image tone. |
 | `imageDensity` | `number`, −1…1 | `0` | Building density from image. Negative values thin buildings across the picture, especially in pale areas. At positive values dark plots gain larger footprints and pale plots shrink or open into gardens. |
 | `imageHatching` | `number`, 0…1 | `0` | Hatching from image. Changes the spacing of existing roof, wall, field, park and shadow marks according to the projected tone. |
 | `imageFloorplans` | `number`, 0…1 | `0` | Turn detached houses and fit the rear walls of terraced rows to nearby sustained contours. |

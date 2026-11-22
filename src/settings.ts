@@ -28,6 +28,8 @@ export type Settings = {
   imageColour: number;
   /** How much image tone sets building heights, from the usual town (0) to towers in its darkest areas (1). */
   imageRelief: number;
+  /** Overall change in building coverage on ordinary plots, from sparse (−1) to dense (1). */
+  buildingDensity: number;
   /** How much tone sets the ground occupied by buildings. */
   imageDensity: number;
   /** How much tone changes the spacing of roof, wall and ground hatching. */
@@ -215,6 +217,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageContrast: 1,
   imageColour: 0.7,
   imageRelief: 0,
+  buildingDensity: 0,
   imageDensity: 0,
   imageHatching: 0,
   imageContours: 0,

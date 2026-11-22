@@ -30,7 +30,7 @@ function fixture(name: string): Picture {
 export const PICTURES: Record<string, () => Picture> = { ...synthetic, astronaut: () => fixture('astronaut'), logo: () => fixture('logo') };
 export const SCALES = [1000, 2500, 5000, 8000];
 
-export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; density?: number; hatching?: number; contours?: number; floorplans?: number; townBias?: number; water?: number; districtSize?: number; streetSpacing?: number; neighbours?: number; roundabouts?: number; preserveSpace?: boolean; highlight?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
+export type LikenessOptions = { tuned?: boolean; likeness?: number; relief?: number; buildingDensity?: number; density?: number; hatching?: number; contours?: number; floorplans?: number; townBias?: number; water?: number; districtSize?: number; streetSpacing?: number; neighbours?: number; roundabouts?: number; preserveSpace?: boolean; highlight?: number; pens?: string; sheet?: Settings['sheet']; detail?: number; penWidth?: number };
 /** An RGB image, 8 bits a channel, for writing out. */
 export type Rgb = { w: number; h: number; data: Uint8Array };
 export type LikenessResult = {
@@ -94,6 +94,7 @@ export function caseSettings(pic: Picture, scale: number, o: LikenessOptions = {
     sheet: o.sheet ?? 'a3',
     likeness: o.likeness ?? DEFAULT_SETTINGS.likeness,
     imageRelief: o.relief ?? DEFAULT_SETTINGS.imageRelief,
+    buildingDensity: o.buildingDensity ?? DEFAULT_SETTINGS.buildingDensity,
     imageDensity: o.density ?? DEFAULT_SETTINGS.imageDensity,
     imageHatching: o.hatching ?? DEFAULT_SETTINGS.imageHatching,
     imageFloorplans: o.floorplans ?? DEFAULT_SETTINGS.imageFloorplans,

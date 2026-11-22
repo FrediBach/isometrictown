@@ -18,7 +18,7 @@ import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { FloorplanGuides } from './image-floorplans';
 import { buildingsOf, fieldBarns, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
-import { densityOf } from './image-density';
+import { plotDensity } from './image-density';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { imageHeights } from './image-heights';
 import { tune, type Prediction, type Seen } from './image-tune';
@@ -86,11 +86,11 @@ const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'image
 const ZONING: (keyof Settings)[] = [...LOOK, ...ZONE_KEYS, 'scale', 'bearing', 'tilt', 'heightScale'];
 const STRUCTURE: (keyof Settings)[] = [...ZONING, 'imageRoundabouts', 'imageRoadWinding', 'imageStreetSpacing', 'imageContours', 'fabric', 'style', 'seed'];
 
-const keyOf = (pic: Picture, set: Settings, keys: (keyof Settings)[]) => JSON.stringify([pic.id, ...keys.map((k) => set[k])]);
+const keyOf = (pic: Picture, set: Settings, keys: readonly (keyof Settings)[]) => JSON.stringify([pic.id, ...keys.map((k) => set[k])]);
 
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
 let laid: { key: string; zoneKey: string; zones: Zones; layout: Layout } | null = null;
-let built: { key: string; density: number; floorplans: number; masks: string; town: Town } | null = null;
+let built: { key: string; town: Town } | null = null;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture, reusing the last layout. The lab can request a tuned build of its own. */
@@ -133,9 +133,9 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true, undefined, masks);
     return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
   }
-  const buildMasks = masksKey(drawn.imageMasks, BUILD_KEYS);
-  if (built?.key !== townKey || built.density !== drawn.imageDensity || built.floorplans !== drawn.imageFloorplans || built.masks !== buildMasks) {
-    built = { key: townKey, density: drawn.imageDensity, floorplans: drawn.imageFloorplans, masks: buildMasks, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note, false, undefined, masks).town };
+  const buildKey = townKey + keyOf(pic, drawn, BUILD_KEYS) + masksKey(drawn.imageMasks, BUILD_KEYS);
+  if (built?.key !== buildKey) {
+    built = { key: buildKey, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note, false, undefined, masks).town };
   }
   const town = structuredClone(built.town);
   imageHeights(town, target, cam, drawn, laid.layout.context, masks);
@@ -235,23 +235,12 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   // Buildings add land use, and rendering can put roundabout islands in the parks.
   const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
-  let density = set.imageDensity !== 0 ? densityOf(target, cam, set.imageDensity < 0) : undefined;
-  let densityAmount: ((x: number, y: number) => number) | undefined;
-  if (masks?.varies('imageDensity')) {
-    // Where masks set it, the sign picks thinning or filling and the size how far it goes.
-    const fill = densityOf(target, cam), thin = densityOf(target, cam, true);
-    const strength = (x: number, y: number) => groundValue(masks, cam, 'imageDensity', x, y);
-    density = (x, y) => {
-      const s = strength(x, y);
-      return s > 0 ? fill(x, y) : s < 0 ? thin(x, y) : 0;
-    };
-    densityAmount = (x, y) => Math.min(1, Math.abs(strength(x, y)));
-  }
+  const density = plotDensity(target, cam, set, localOf(masks, cam, 'buildingDensity'), localOf(masks, cam, 'imageDensity'));
   const floorplans = masks?.varies('imageFloorplans') ? masks : undefined;
   const guides = floorplans
     ? floorplans.peak('imageFloorplans') > 0 ? new FloorplanGuides(target, cam, (sx, sy) => floorplans.at('imageFloorplans', sx, sy)) : undefined
     : set.imageFloorplans > 0 ? new FloorplanGuides(target, cam, set.imageFloorplans) : undefined;
-  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, densityAmount, guides, occ: layout.context.occ.clone(), laid: new Footprints() });
+  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, guides, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
   let tunedFronts: Map<number, FrontageLot> | undefined;
   if (tuned) {

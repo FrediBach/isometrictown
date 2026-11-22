@@ -3,6 +3,7 @@ import { pointInRing, ringArea } from '@/geo';
 import { imageScene, plausibility, type Scene } from '@/image';
 import { centre, Footprints, Ground } from '@/image-check';
 import { densityOf } from '@/image-density';
+import { newMask } from '@/image-masks';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
 import { PICTURES } from '../support/pictures';
 
@@ -36,6 +37,37 @@ test('density deepens dark plots and opens light ones while retaining streets, c
   expect(civic(full)).toEqual(civic(plain));
   expect(plausibility(full.town)).toEqual([]);
   expect(at(0).town).toEqual(plain.town);
+});
+
+test('overall density adjusts coverage in both light and dark areas on the same streets', () => {
+  const pic = PICTURES.gradient();
+  const at = (buildingDensity: number, imageDensity = 0) => imageScene(pic, { ...settings, buildingDensity, imageDensity });
+  const normal = at(0), sparse = at(-0.65), dense = at(0.65), mixed = at(0.65, 0.5);
+  const ordinary = coverage(normal), less = coverage(sparse), more = coverage(dense), toned = coverage(mixed);
+  for (const i of [0, 1]) {
+    expect(less[i]).toBeLessThan(ordinary[i]);
+    expect(more[i]).toBeGreaterThan(ordinary[i]);
+  }
+  expect(toned[0]).toBeGreaterThan(more[0]);
+  expect(toned[1]).toBeLessThan(more[1]);
+  expect(sparse.town.buildings.length).toBeLessThan(normal.town.buildings.length);
+  for (const scene of [sparse, dense, mixed]) {
+    expect(scene.streets).toBe(normal.streets);
+    expect(plausibility(scene.town)).toEqual([]);
+  }
+  expect(at(0).town).toEqual(normal.town);
+});
+
+test('a density mask opens ordinary plots on its side of the drawing', () => {
+  const pic = PICTURES.gradient();
+  const normal = imageScene(pic, settings);
+  const mask = { ...newMask('rect', [], pic.w, pic.h), pts: [0.75, 0.5, 0.25, 0.5], feather: 0, values: { buildingDensity: -1 } };
+  const sparse = imageScene(pic, { ...settings, imageMasks: [mask] });
+  const [dark, light] = coverage(normal);
+  const [darkMasked, lightMasked] = coverage(sparse);
+  expect(darkMasked).toBeLessThan(dark / 2);
+  expect(lightMasked).toBe(light);
+  expect(sparse.streets).toBe(normal.streets);
 });
 
 test('negative density progressively opens plots in both dark and light areas', () => {

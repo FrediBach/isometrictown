@@ -16,7 +16,7 @@ import { IMAGE_STYLE } from './styles';
 /** Settings a mask can set for its part of the picture, in the order the panel lists them. */
 export const MASK_KEYS = [
   'imageLight', 'imageContrast', 'likeness', 'imageNeighbours', 'imageTownBias', 'imageDistrictSize', 'imageWater',
-  'imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight',
+  'imageRelief', 'buildingDensity', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight',
   'fabric', 'imageStreetSpacing', 'imageContours', 'imageRoundabouts',
   'heightScale', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls',
   'pitched', 'trees', 'cars', 'abandon', 'humanize',
@@ -71,7 +71,7 @@ export const ZONE_KEYS = ['likeness', 'imageNeighbours', 'imageTownBias', 'image
 /** Laid out again only for these. */
 export const LAYOUT_KEYS: readonly MaskKey[] = [...ZONE_KEYS, 'fabric', 'imageStreetSpacing', 'imageContours', 'imageRoundabouts'];
 /** Built again only for these; the rest only change how the town is drawn. */
-export const BUILD_KEYS: readonly MaskKey[] = ['imageDensity', 'imageFloorplans'];
+export const BUILD_KEYS: readonly MaskKey[] = ['buildingDensity', 'imageDensity', 'imageFloorplans'];
 
 /** The range of each mask key, as the panel's sliders have them. */
 export const MASK_RANGE: Record<MaskKey, [number, number]> = {
@@ -84,6 +84,7 @@ export const MASK_RANGE: Record<MaskKey, [number, number]> = {
   imageWater: [-1, 1],
   imageStreetSpacing: [0.5, 2],
   imageRelief: [0, 1],
+  buildingDensity: [-1, 1],
   imageDensity: [-1, 1],
   imageHatching: [0, 1],
   imageFloorplans: [0, 1],
