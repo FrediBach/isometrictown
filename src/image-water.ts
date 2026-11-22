@@ -209,7 +209,10 @@ export function waterOf(z: Zones): { shapes: Shape[]; cls: string[] } {
       if (y1 - my < near) edge[3] += l;
     }
     const area = s.reduce((a, r) => a + ringArea(r.pts), 0);
-    if (area / perimeter < RIVER_THIN) return 'river';
+    // A small pond also has little area per metre of bank. Its outer shore must be
+    // elongated as well: a four-to-one rectangular reach has a compactness near 0.5.
+    const compactness = 4 * Math.PI * ringArea(p) / (perimeter * perimeter);
+    if (area / perimeter < RIVER_THIN && compactness < 0.55) return 'river';
     const sides = [z.H, z.H, z.W, z.W].map((v) => v * z.cell);
     return edge.some((e, k) => e > SEA_EDGE * sides[k]) ? 'ocean' : 'lake';
   });

@@ -406,6 +406,7 @@ describe('outlines and water', () => {
       return { x0: 0, y0: 0, cell: 4, W, H, label, level: new Float32Array(W * H), warmth: new Float32Array(W * H), sp: new Int32Array(W * H) };
     };
     expect(waterOf(z((i, j) => Math.hypot(i - 50, j - 50) < 20)).cls).toEqual(['lake']);
+    expect(waterOf(z((i, j) => Math.hypot(i - 50, j - 50) < 8)).cls).toEqual(['lake']);
     expect(waterOf(z((i) => Math.abs(i - 50) < 3)).cls).toEqual(['river']);
     expect(waterOf(z((_, j) => j < 30)).cls).toEqual(['ocean']);
   });
@@ -477,6 +478,13 @@ describe('the street graph', () => {
     expect(Math.min(...offsets(1))).toBeLessThan(-65);
     expect(Math.max(...offsets(0.75))).toBeLessThan(Math.max(...offsets(1)));
     expect(lane(1)).toEqual(lane(1));
+  });
+
+  test('a new dry approach brings a previously unreachable far bank within bridge range', () => {
+    const g = planar([line([0, 0, 0, 200]), line([400, 0, 400, 100]), line([200, 0, 200, 100])]);
+    clean(g, x => x > 280 && x < 320);
+    expect(streetRules(g)).toEqual([]);
+    expect(g.edges).toHaveLength(5);
   });
 
   test('a dry connection takes precedence over a shorter bridge', () => {

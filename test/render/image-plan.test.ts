@@ -57,6 +57,15 @@ describe('the town', () => {
     expect(cold.buildings).toEqual(warm.buildings);
   });
 
+  test('small blue ponds remain separate lakes at street scale', () => {
+    const pic = paint('Ponds', (u, v) => {
+      if ([0.25, 0.5, 0.75].some(x => Math.hypot((u - x) * 1.5, v - 0.5) < 0.09)) return [0, 158, 255];
+      return v < 0.2 ? [0, 0, 0] : [98, 169, 68];
+    });
+    const scene = imageScene(pic, { ...base, image: pic.id, scale: 1200 });
+    expect(scene.town.waterCls).toEqual(['lake', 'lake', 'lake']);
+  });
+
   test('a narrow blue stream through built land keeps its banks clear', () => {
     const pic = paint('Stream', (u, v) => {
       const g = 90 + 80 * u;

@@ -1349,8 +1349,8 @@ function join(g: Graph, water: (x: number, y: number) => boolean, openLand: ((x:
       for (const w of nodes) addNode(w);
       pieces.delete(piece);
     }
-    // Once a bridge opens the far bank, an earlier piece may now have a dry route to it.
-  } while (addedBridge && pieces.size && pieces.size < remaining);
+    // Each new approach can put another street within reach, on either bank.
+  } while (pieces.size && pieces.size < remaining);
   // Split any streets met by the new approaches at their junctions before cleaning again.
   if (addedBridge || crossedStreet) Object.assign(g, planar(g.edges));
 }

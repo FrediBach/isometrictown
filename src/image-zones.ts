@@ -68,6 +68,10 @@ const CORE_MIN = 2;
 const CORES = 3;
 /** Mean edge strength along a superpixel's shore that says the image draws a bank there. */
 const BANK_EDGE = 0.3;
+/** Blue-water advantage in ΔE that can retain a pond or a narrow channel through clean-up. */
+const CLEAR_WATER = 0.02;
+/** Smallest clearly coloured pond, m². */
+const POND_AREA = 400;
 /** Water a beach may lie beside: a body of at least this much, m². */
 const BEACH_WATER = 5000;
 /** Smoothness between differing neighbours, at full realism, in ΔE per superpixel side. */
@@ -280,10 +284,17 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const K = LABELS.length;
   const colours = LABELS.map((l) => LEVELS.map((v) => (BUILT.has(l) ? [0, 1] : [1]).map((w) => materialColour(l, v, w, seen))));
   const priorOf = (s: number) => 1 - 0.75 * (likeAt ? spLike[s] : likeness);
+  const blueWater = new Float32Array(count);
   const data = new Float32Array(count * K);
   const bestLevel = new Float32Array(count * K);
   const bestWarmth = new Float32Array(count * K);
   for (let s = 0; s < count; s++) {
+    // Blue ink covers only a small part of a water swatch. On saturated blue ground its
+    // lightness can lose to grass even in the middle of a pond. Give the hue a say there.
+    // Dark blues can be better matched by slate roofs and shadows than by sparse ripples.
+    const a = spLab[0][s * 3 + 1], b = spLab[0][s * 3 + 2];
+    const tone = (spLab[0][s * 3] - target.dark) / (target.paper - target.dark || 1);
+    blueWater[s] = chroma * Math.max(0, -b - Math.max(0, a) - 0.025) * Math.max(0, Math.min(1, 3 * (tone - 0.5)));
     for (let k = 0; k < K; k++) {
       const l = LABELS[k];
       const t = spLab[liftOf(l)];
@@ -315,7 +326,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       });
       const u = URBAN[l] ?? 0;
       const urb = u > 0 ? u * (1 - spUrban[s]) : -u * spUrban[s];
-      data[s * K + k] = spWeight[s] * best + priorOf(s) * (BASE[l] + urb);
+      data[s * K + k] = spWeight[s] * (l === 'water' ? best - blueWater[s] : best) + priorOf(s) * (BASE[l] + urb);
     }
   }
 
@@ -437,7 +448,9 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
         const k = label[list[0]];
         const real = MIN_AREA[LABELS[k]];
         const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / list.reduce((a, s) => a + area[s], 0) : likeness;
-        const min = (real + (Math.min(real, MIN_LIKE) - real) * like) * 10000;
+        // A distinctly blue pond can be smaller than an inferred patch of open water.
+        const pond = k === WATER && list.some(s => blueWater[s] > CLEAR_WATER);
+        const min = pond ? POND_AREA : (real + (Math.min(real, MIN_LIKE) - real) * like) * 10000;
         if (list.reduce((a, s) => a + area[s], 0) * cell * cell >= min) continue;
         const around = new Set<number>();
         for (const s of list) for (const [t] of nbrs[s]) if (label[t] !== k) around.add(label[t]);
@@ -541,7 +554,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   for (let s = 0; s < count; s++) {
     if (label[s] !== WATER) continue;
     const shore = nbrs[s].filter(([t]) => label[t] !== WATER);
-    if (shore.length <= 0.25 * nbrs[s].length || shore.reduce((a, [, , e]) => a + e, 0) / shore.length >= BANK_EDGE) inner[s] = 1;
+    if (blueWater[s] > CLEAR_WATER || shore.length <= 0.25 * nbrs[s].length || shore.reduce((a, [, , e]) => a + e, 0) / shore.length >= BANK_EDGE) inner[s] = 1;
   }
   for (let s = 0; s < count; s++) {
     if (label[s] !== WATER || inner[s] || nbrs[s].some(([t]) => inner[t])) continue;
