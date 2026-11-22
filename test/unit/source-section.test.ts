@@ -12,7 +12,7 @@ test('each mode opens only its source chooser and orders the folded groups below
   const section = (source: Settings['source']) => renderToStaticMarkup(createElement(
     SettingsContext, { value: { set: { ...DEFAULT_SETTINGS, source }, change: noop } },
     createElement(Fragment, null,
-      createElement(SourceSection, { picture, onFile: noop, onSource: noop, onGoTo: noop, onMapReady: noop, onMapMove: noop, mask: null, onMask: noop }),
+      createElement(SourceSection, { picture, onFile: noop, onSource: noop, onGoTo: noop, onMapReady: noop, onMapMove: noop, mask: null, onMask: noop, pin: null, onPin: noop }),
       createElement(ViewSection), createElement(TownSection, {}), createElement(LightSection),
       createElement(TitleSection), createElement(SheetSection),
       createElement(PensSection, { onPalette: noop, onPen: noop, onPenCommit: noop }),
@@ -30,7 +30,7 @@ test('each mode opens only its source chooser and orders the folded groups below
     ['Place', 'true'], ...['View', 'Drawing detail', 'Town', 'Light', 'Title', 'Sheet', 'Pens', 'Seed'].map((title) => [title, 'false']),
   ]);
   expect(groups(image)).toEqual([
-    ['Image', 'true'], ...['Masks', 'Image tone', 'Neighbourhoods and buildings', 'Streets', 'View', 'Town', 'Light', 'Title', 'Sheet', 'Pens', 'Seed']
+    ['Image', 'true'], ...['Masks', 'Pins', 'Image tone', 'Neighbourhoods and buildings', 'Streets', 'View', 'Town', 'Light', 'Title', 'Sheet', 'Pens', 'Seed']
       .map((title) => [title, 'false']),
   ]);
   expect(map).not.toContain('Neighbourhoods and buildings');

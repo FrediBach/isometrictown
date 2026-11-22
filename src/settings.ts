@@ -1,5 +1,6 @@
 import type { LngLat } from './geo';
 import type { ImageMask } from './image-masks';
+import type { ImagePin } from './image-pins';
 import { PALETTES } from './palettes';
 import type { StyleId } from './styles';
 
@@ -60,6 +61,8 @@ export type Settings = {
   likeness: number;
   /** Shapes on the picture that set some of the settings differently there, in order; see `src/image-masks.ts`. */
   imageMasks: ImageMask[];
+  /** Things from the catalogue placed by hand on the picture, which the town is laid out round; see `src/image-pins.ts`. */
+  imagePins: ImagePin[];
   /** Street pattern in image mode; auto picks grid for the North American and Australian styles. */
   fabric: 'auto' | number;
   /** Compass direction that points up the sheet, in degrees. */
@@ -233,6 +236,7 @@ export const DEFAULT_SETTINGS: Settings = {
   imageHighlight: 1,
   likeness: 0.6,
   imageMasks: [],
+  imagePins: [],
   fabric: 'auto',
   bearing: 35,
   tilt: 32,

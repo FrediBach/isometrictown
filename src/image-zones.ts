@@ -147,7 +147,14 @@ export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'image
 /** Settings masks set for parts of the picture, at a ground position. */
 export type ZoneLocal = Partial<Record<'likeness' | 'neighbours' | 'townBias' | 'water' | 'districtSize', (x: number, y: number) => number>>;
 
-export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[], local: ZoneLocal = {}): Zones {
+/** Ground pinned by hand to a label: a circle on the sheet with a soft edge `sf` wide across it (mm), and the ground point under its middle (local metres). */
+export type ZonePin = { sx: number; sy: number; sr: number; sf: number; x: number; y: number; label: Label };
+/** What pinned ground adds to every other label, ΔE: far beyond anything the image or the priors can make up. */
+const PIN_COST = 1;
+/** What a pin's soft edge adds to every other label at its strongest, ΔE: about what the image says, so there the two weigh up the edge between them. */
+const PIN_PULL = 0.05;
+
+export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[], local: ZoneLocal = {}, pins: readonly ZonePin[] = []): Zones {
   const cell = zoneCell(set.scale);
   const [bx0, by0, bx1, by1] = box;
   const W = Math.max(1, Math.ceil((bx1 - bx0) / cell));
@@ -260,6 +267,38 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     districtSize[s] = local.districtSize ? districtSize[s] / area[s] : set.imageDistrictSize;
     for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] /= area[s];
   }
+  // Superpixels pinned to a label: those whose middle shows inside a pin's circle, and the one under its centre. Later pins win.
+  const pinned = new Int8Array(count).fill(-1);
+  // Superpixels in a pin's soft edge lean towards its label, by how far in they lie (0 to 1).
+  const leans = new Int8Array(count).fill(-1);
+  const lean = new Float32Array(count);
+  if (pins.length) {
+    const mx = new Float64Array(count), my = new Float64Array(count);
+    for (let c = 0; c < n; c++) {
+      mx[sp[c]] += bx0 + ((c % W) + 0.5) * cell;
+      my[sp[c]] += by0 + (Math.floor(c / W) + 0.5) * cell;
+    }
+    for (let s = 0; s < count; s++) {
+      const x = mx[s] / area[s], y = my[s] / area[s];
+      const sx = cam.sx(x, y), sy = cam.sy(x, y, 0);
+      for (const p of pins) {
+        // Signed distance in from the circle, as masks measure their feather: held from half the soft edge in.
+        const sd = p.sr - Math.hypot(sx - p.sx, sy - p.sy);
+        if (sd >= p.sf / 2) {
+          pinned[s] = L(p.label);
+          leans[s] = -1;
+        } else if (sd > -p.sf / 2) {
+          const t = 0.5 + sd / p.sf;
+          leans[s] = L(p.label);
+          lean[s] = t * t * (3 - 2 * t);
+        }
+      }
+    }
+    for (const p of pins) {
+      const i = Math.floor((p.x - bx0) / cell), j = Math.floor((p.y - by0) / cell);
+      if (i >= 0 && j >= 0 && i < W && j < H) pinned[sp[j * W + i]] = L(p.label);
+    }
+  }
   const sides = new Map<number, [number, number]>();
   const side = (a: number, b: number, e: number) => {
     const key = a < b ? a * count + b : b * count + a;
@@ -342,6 +381,8 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       else if (GREEN.has(l)) preference = -0.035 * townBias[s];
       else if (l === 'water') preference = blueWater[s] + 0.045 * waterBias[s];
       data[s * K + k] = spWeight[s] * (best - preference) + priorOf(s) * (BASE[l] + urb);
+      if (pinned[s] >= 0 && pinned[s] !== k) data[s * K + k] += PIN_COST;
+      else if (pinned[s] < 0 && leans[s] >= 0 && leans[s] !== k) data[s * K + k] += PIN_PULL * lean[s];
     }
   }
 
@@ -461,6 +502,8 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       for (const ci of order) {
         const list = comps[ci];
         const k = label[list[0]];
+        // Pinned ground stays, however small.
+        if (list.some((s) => pinned[s] === k)) continue;
         const real = MIN_AREA[LABELS[k]];
         const cells = list.reduce((a, s) => a + area[s], 0);
         const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / cells : likeness;
@@ -506,6 +549,8 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
             seen[t] = 1;
             list.push(t);
           }
+      // Pinned ground may be as large as its pin asks.
+      if (list.some((s) => pinned[s] === k)) continue;
       const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / list.reduce((a, s) => a + area[s], 0) : likeness;
       const max = real * (LABELS[k] === 'allot' ? 1 + 2 * like : 1) * 10000;
       if (list.reduce((a, s) => a + area[s], 0) * cell * cell <= max) continue;
@@ -571,7 +616,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   for (let s = 0; s < count; s++) {
     if (label[s] !== WATER) continue;
     const shore = nbrs[s].filter(([t]) => label[t] !== WATER);
-    if (blueWater[s] > CLEAR_WATER || shore.length <= 0.25 * nbrs[s].length || shore.reduce((a, [, , e]) => a + e, 0) / shore.length >= BANK_EDGE) inner[s] = 1;
+    if (pinned[s] === WATER || blueWater[s] > CLEAR_WATER || shore.length <= 0.25 * nbrs[s].length || shore.reduce((a, [, , e]) => a + e, 0) / shore.length >= BANK_EDGE) inner[s] = 1;
   }
   for (let s = 0; s < count; s++) {
     if (label[s] !== WATER || inner[s] || nbrs[s].some(([t]) => inner[t])) continue;
@@ -599,7 +644,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     }
   }
   for (let s = 0; s < count; s++)
-    if (BEACHY.has(label[s]) && nbrs[s].some(([t]) => lake[t]) && data[s * K + SAND] < data[s * K + label[s]]) label[s] = SAND;
+    if (pinned[s] < 0 && BEACHY.has(label[s]) && nbrs[s].some(([t]) => lake[t]) && data[s * K + SAND] < data[s * K + label[s]]) label[s] = SAND;
 
   // The clean-up passes can merge paved areas or remove the housing that enclosed them.
   // Read the finished plan before assigning materials to its squares.
@@ -609,9 +654,12 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     const open = [L('meadow'), L('park'), L('field')];
     rejectSquares(ground, W, H, cell, c => {
       const s = sp[c];
-      if (label[s] === plaza) label[s] = open.reduce((a, b) => data[s * K + a] <= data[s * K + b] ? a : b);
+      if (label[s] === plaza && pinned[s] !== plaza) label[s] = open.reduce((a, b) => data[s * K + a] <= data[s * K + b] ? a : b);
     });
   }
+
+  // Pinned ground has its label whatever the clean-up passes made of it.
+  for (let s = 0; s < count; s++) if (pinned[s] >= 0) label[s] = pinned[s];
 
   // Levels and warmth from each superpixel's label, calmed within each zone.
   const lv = new Float32Array(count);

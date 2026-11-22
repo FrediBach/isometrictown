@@ -369,7 +369,7 @@ export const MIN_FILL = 0.4;
  * the street sides of the block and `index` the lot's place along it; `depth` is the block's
  * strip depth, the same for every lot in it, so buildings cut at one depth share their corners.
  */
-export type Lot = { o: number[]; i: number[]; label: Label; level: number; warmth: number; depth: number; block: number; side: number; index: number; use?: 'church' | 'school' | 'townhall' };
+export type Lot = { o: number[]; i: number[]; label: Label; level: number; warmth: number; depth: number; block: number; side: number; index: number; use?: 'church' | 'school' | 'townhall' | 'hospital' };
 /** A block: the face of the street graph, the rim inset from the streets, the courtyard inside the strip, and the zone that has most of it. */
 export type Block = { face: number[]; rim: number[]; court: number[] | null; label: Label; level: number; depth: number; lots: Lot[] };
 

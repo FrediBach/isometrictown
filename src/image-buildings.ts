@@ -11,6 +11,7 @@ import { CORNER, frontage, lotDepth, lotRing, merge, Occupancy, onLot, pavementO
 import { centre, Footprints, inShape, simpleFootprint, type Ground } from './image-check';
 import { footprintAtDensity, vacant, type PlotDensity } from './image-density';
 import { learntPlan, planFill, type FloorplanGuides } from './image-floorplans';
+import { pinReach, pinsAt, type PinKindId, type PlacedPin } from './image-pins';
 import { LABELS, type Label } from './image-tone';
 import { labelAt, type Zones } from './image-zones';
 import { hash } from './rng';
@@ -50,7 +51,9 @@ const SCHOOL_SPACING = 700;
 
 /** What the buildings come to: footprints with their evidence, points of interest, and land use for schools and pitches. */
 export type Built = { buildings: Building[]; tagged: Tagged[]; pois: Poi[]; landuse: Area[]; pools: Shape[] };
-export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: PlotDensity; guides?: FloorplanGuides };
+export type BuildContext = { cam: Camera; target: Target; z: Zones; set: Settings; style: Style; box: number[]; vary: Vary; occ: Occupancy; ground: Ground; laid: Footprints; plazas: Shape[]; parks: Shape[]; paths: Way[]; ways: Way[]; cores: [number, number][]; mmPerMetre: number; density?: PlotDensity; guides?: FloorplanGuides;
+  /** Things pinned by hand on the picture. */
+  pins?: PlacedPin[] };
 
 const rect = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number): number[] => [
   F[0], F[1], F[0] + u[0] * w, F[1] + u[1] * w, F[0] + u[0] * w + v[0] * d, F[1] + u[1] * w + v[1] * d, F[0] + v[0] * d, F[1] + v[1] * d,
@@ -293,35 +296,20 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
       }
       return null;
     };
-    if (l.use === 'church') {
-      // A nave into a deep lot, or along a shallow one, or a chapel where only that fits.
-      const nave = 12 + 3 * r(14043);
-      const q = fit([
-        [Math.min(L - 4, nave), Math.min(D - 4, 32), 2],
-        [Math.min(L - 4, 30), Math.min(D - 1.5, 14), 0.5],
-        [10, Math.min(D - 3, 20), 2],
-        [Math.min(L - 3, 20), 10, 1],
-      ]);
-      if (q && (bestRect(q).rect?.L ?? 0) >= 16) {
+    if (l.use === 'church' || l.use === 'school' || l.use === 'hospital') {
+      const q = landmarkRing(l, l.use, r);
+      if (q && l.use === 'church') {
         // A churchyard round it, where the lot has room for one.
-        if (ringArea(ring) > 2.2 * ringArea(q)) out.landuse.push({ shape: [{ pts: ring, seam: new Uint8Array(ring.length / 2) }], cls: 'cemetery' });
-        return [{ ring: q, h: 13 + 4 * r(14044), building: worship }];
+        if (q.yard) out.landuse.push({ shape: [{ pts: ring, seam: new Uint8Array(ring.length / 2) }], cls: 'cemetery' });
+        return [{ ring: q.ring, h: 13 + 4 * r(14044), building: worship }];
       }
-      // In a row on a bend, the church takes the row's own strip.
-      if (ROWS.has(l.label)) return [{ ring: strip(l, 0.05, Math.min(1, 14 / l.depth)), h: 13 + 4 * r(14044), building: worship }];
-    }
-    if (l.use === 'school') {
-      // A hall set back on a deep lot; in a row, the row's own strip, three storeys and flat.
-      const len = Math.min(L - 6, 50);
-      const dep = Math.min(D - 6, 14);
-      const F: [number, number] = [A[0] + u[0] * (L - len) * 0.5 + v[0] * 4, A[1] + u[1] * (L - len) * 0.5 + v[1] * 4];
-      const q = len >= 20 && dep >= 9 ? rect(F, u, v, len, dep) : ROWS.has(l.label) ? strip(l, 0, Math.min(1, 12 / l.depth)) : null;
-      if (q && within(q, ring)) {
+      if (q && l.use === 'school') {
         out.landuse.push({ shape: [{ pts: ring, seam: new Uint8Array(ring.length / 2) }], cls: 'school' });
-        const pitch = pitchBy(q, u, c);
+        const pitch = pitchBy(q.ring, u, c);
         if (pitch) out.landuse.push({ shape: [{ pts: pitch, seam: new Uint8Array(4) }], cls: 'pitch' });
-        return [{ ring: q, h: (2 + Math.round(r(14045))) * style.floor, building: 'school', roof: 'flat' }];
+        return [{ ring: q.ring, h: (2 + Math.round(r(14045))) * style.floor, building: 'school', roof: 'flat' }];
       }
+      if (q) return [{ ring: q.ring, h: (4 + Math.round(2 * r(14091))) * style.floor, building: 'hospital', roof: 'flat', poi: { x: 0, y: 0, cls: 'hospital', sub: 'hospital' } }];
     }
     const hall = l.use === 'townhall' ? { building: 'civic', poi: { x: 0, y: 0, cls: 'town_hall', sub: 'townhall' } } : null;
 
@@ -538,13 +526,190 @@ export function buildingsOf(blocks: Block[], c: BuildContext, frontageOptions?: 
 }
 
 /**
- * Lots made over into landmarks: a church beside every square of the old town, rows or blocks,
+ * The footprint a church, school or hospital takes on its lot, or null where none fits; for a
+ * church, whether the lot has room for a churchyard round it. `r` varies at the lot's middle.
+ */
+function landmarkRing(l: Lot, use: 'church' | 'school' | 'hospital', r: (salt: number) => number): { ring: number[]; yard?: boolean } | null {
+  const ring = lotRing(l);
+  const D = lotDepth(l);
+  const { A, u, v, L } = frontOf(l);
+  /** The first of some rectangles, centred on the front (along it, into the lot, set back, m), that fits on the lot. */
+  const fit = (sizes: [number, number, number][]) => {
+    for (const [along, into, back] of sizes) {
+      if (along < 6 || into < 6) continue;
+      const q = rect([A[0] + u[0] * (L - along) * 0.5 + v[0] * back, A[1] + u[1] * (L - along) * 0.5 + v[1] * back], u, v, along, into);
+      if (within(q, ring)) return q;
+    }
+    return null;
+  };
+  if (use === 'church') {
+    // A nave into a deep lot, or along a shallow one, or a chapel where only that fits.
+    const nave = 12 + 3 * r(14043);
+    const q = fit([
+      [Math.min(L - 4, nave), Math.min(D - 4, 32), 2],
+      [Math.min(L - 4, 30), Math.min(D - 1.5, 14), 0.5],
+      [10, Math.min(D - 3, 20), 2],
+      [Math.min(L - 3, 20), 10, 1],
+    ]);
+    if (q && (bestRect(q).rect?.L ?? 0) >= 16) return { ring: q, yard: ringArea(ring) > 2.2 * ringArea(q) };
+    // In a row on a bend, the church takes the row's own strip.
+    return ROWS.has(l.label) ? { ring: strip(l, 0.05, Math.min(1, 14 / l.depth)) } : null;
+  }
+  if (use === 'school') {
+    // A hall set back on a deep lot; in a row, the row's own strip, three storeys and flat.
+    const len = Math.min(L - 6, 50);
+    const dep = Math.min(D - 6, 14);
+    const F: [number, number] = [A[0] + u[0] * (L - len) * 0.5 + v[0] * 4, A[1] + u[1] * (L - len) * 0.5 + v[1] * 4];
+    const q = len >= 20 && dep >= 9 ? rect(F, u, v, len, dep) : ROWS.has(l.label) ? strip(l, 0, Math.min(1, 12 / l.depth)) : null;
+    return q && within(q, ring) ? { ring: q } : null;
+  }
+  // Only pinned: a broad block of four to six storeys set back from the street, flat for the helipad;
+  // in a row, the row's own strip, as deep as the row allows.
+  const q = fit([
+    [Math.min(L - 6, 60), Math.min(D - 6, 30), 4],
+    [Math.min(L - 4, 40), Math.min(D - 4, 22), 2],
+  ]);
+  const h = q && Math.abs(ringArea(q)) >= 400 ? q : ROWS.has(l.label) ? strip(l, 0, 1) : null;
+  return h && within(h, ring) && Math.abs(ringArea(h)) >= 300 ? { ring: h } : null;
+}
+
+/** A pinned landmark's own site: its footprint, the ground cleared round it, the path to its street, and how far it stands from the pin. */
+type Site = { ring: number[]; clear: number[]; yard: number[]; path: number[] | null; d: number };
+/** Footprints a pinned landmark's own site tries, largest first: along the street and into the site, m. */
+const SITE_SIZES: Record<NonNullable<Lot['use']>, [number, number][]> = {
+  church: [[14, 30], [12, 24], [10, 18]],
+  townhall: [[26, 18], [20, 15], [16, 12]],
+  school: [[44, 14], [32, 12], [24, 11]],
+  hospital: [[50, 24], [38, 20], [28, 18]],
+};
+/** Ground kept clear round a site's footprint, m, and the yard a church or school would like round it. */
+const SITE_CLEAR = 2;
+const SITE_YARD = 8;
+/** Steps along the street between the positions a site tries, m. */
+const SITE_STEP = 6;
+/** A lot is taken over a site of its own unless the site stands this much nearer the pin, m. */
+const SITE_SLACK = 25;
+/** Street segments a site looks along, the nearest first. */
+const SITE_STREETS = 4;
+
+/** A rectangle round a footprint's own rectangle, grown by `m` on every side. */
+const grown = (F: [number, number], u: [number, number], v: [number, number], w: number, d: number, m: number) =>
+  rect([F[0] - (u[0] + v[0]) * m, F[1] - (u[1] + v[1]) * m], u, v, w + 2 * m, d + 2 * m);
+/** A ring turned counter-clockwise, as footprints are. */
+const ccw = (q: number[]) => {
+  if (ringArea(q) >= 0) return q;
+  const out: number[] = [];
+  for (let i = q.length - 2; i >= 0; i -= 2) out.push(q[i], q[i + 1]);
+  return out;
+};
+
+/**
+ * A site of its own for a pinned landmark, where the town has no lot for it: a footprint square
+ * to one of the streets nearest the pin, set back from it on free ground, with a path to it where
+ * it stands back, as near the pin as one fits within reach. Null where none fits.
+ */
+function pinnedSite(p: PlacedPin, use: NonNullable<Lot['use']>, c: BuildContext): Site | null {
+  const reach = pinReach(c.set.scale);
+  const [bx0, by0, bx1, by1] = c.box;
+  type Seg = { ax: number; ay: number; u: [number, number]; t: number; d: number; kerb: number };
+  const segs: Seg[] = [];
+  for (const w of c.ways) {
+    if (w.kind !== 'road') continue;
+    for (let k = 2; k < w.pts.length; k += 2) {
+      const ax = w.pts[k - 2], ay = w.pts[k - 1], dx = w.pts[k] - ax, dy = w.pts[k + 1] - ay;
+      const len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      const u: [number, number] = [dx / len, dy / len];
+      const t = Math.max(0, Math.min(len, (p.x - ax) * u[0] + (p.y - ay) * u[1]));
+      const d = Math.hypot(ax + u[0] * t - p.x, ay + u[1] * t - p.y);
+      if (d < reach + 40) segs.push({ ax, ay, u, t, d, kerb: w.width / 2 + pavementOf(w.cls) + 1 });
+    }
+  }
+  segs.sort((a, b) => a.d - b.d);
+  type Try = { F: [number, number]; u: [number, number]; v: [number, number]; W: number; D: number; foot: [number, number]; front: [number, number]; back: number; kerb: number; d: number };
+  const tries: Try[] = [];
+  SITE_SIZES[use].forEach(([W, D], size) => {
+    for (const g of segs.slice(0, SITE_STREETS)) {
+      const n: [number, number] = [-g.u[1], g.u[0]];
+      const toward = Math.sign((p.x - g.ax) * n[0] + (p.y - g.ay) * n[1]) || 1;
+      const out = Math.abs((p.x - g.ax) * n[0] + (p.y - g.ay) * n[1]);
+      for (const side of [toward, -toward]) {
+        const v: [number, number] = [n[0] * side, n[1] * side];
+        // Set back from the kerb, or standing back where the pin is, with a path out to the street.
+        const backs = [g.kerb, g.kerb + 4, g.kerb + 10, Math.max(g.kerb, out - D / 2)];
+        for (const back of new Set(backs))
+          for (let o = -reach; o <= reach; o += SITE_STEP) {
+            const foot: [number, number] = [g.ax + g.u[0] * (g.t + o), g.ay + g.u[1] * (g.t + o)];
+            const front: [number, number] = [foot[0] + v[0] * back, foot[1] + v[1] * back];
+            const mx = front[0] + v[0] * D / 2, my = front[1] + v[1] * D / 2;
+            if (mx < bx0 || mx > bx1 || my < by0 || my > by1) continue;
+            const d = Math.hypot(mx - p.x, my - p.y);
+            // The larger footprints win unless a smaller one stands much nearer.
+            if (d < reach) tries.push({ F: [front[0] - g.u[0] * W / 2, front[1] - g.u[1] * W / 2], u: g.u, v, W, D, foot, front, back, kerb: g.kerb, d: d + size * 10 });
+          }
+      }
+    }
+  });
+  tries.sort((a, b) => a.d - b.d);
+  for (const t of tries) {
+    const ring = ccw(rect(t.F, t.u, t.v, t.W, t.D));
+    const clear = ccw(grown(t.F, t.u, t.v, t.W, t.D, SITE_CLEAR));
+    if (!c.occ.free(clear) || !c.ground.clear(ring) || !simpleFootprint(ring)) continue;
+    // Standing back from the street, it is reached by a path, which must be free too.
+    let path: number[] | null = null;
+    if (t.back - t.kerb > 2) {
+      const lane = ccw(rect([t.front[0] - t.u[0] * 0.75, t.front[1] - t.u[1] * 0.75], t.u, [-t.v[0], -t.v[1]], 1.5, t.back - t.kerb));
+      if (!c.occ.free(lane)) continue;
+      path = [t.front[0], t.front[1], t.foot[0], t.foot[1]];
+    }
+    const yard = ccw(grown(t.F, t.u, t.v, t.W, t.D, SITE_YARD));
+    const [rx, ry] = centre(ring);
+    return { ring, clear, yard, path, d: Math.hypot(rx - p.x, ry - p.y) };
+  }
+  return null;
+}
+
+/** Put up a pinned landmark on its own site, keeping the ground round it clear of lots and houses; where it stands. */
+function buildSite(site: Site, use: NonNullable<Lot['use']>, c: BuildContext, town: Town): [number, number] {
+  const { occ, style } = c;
+  const [cx, cy] = centre(site.ring);
+  const r = (salt: number) => c.vary(cx, cy, salt);
+  const seam = (q: number[]) => new Uint8Array(q.length / 2);
+  // A churchyard or school ground round it where there is room; else just the ground it needs.
+  const yard = (use === 'church' || use === 'school') && occ.free(site.yard) && c.ground.clear(site.yard);
+  occ.take(yard ? site.yard : site.clear);
+  if (yard) town.landuse.push({ shape: [{ pts: site.yard, seam: seam(site.yard) }], cls: use === 'church' ? 'cemetery' : 'school' });
+  if (site.path) {
+    const way: Way = { pts: site.path, kind: 'path', cls: 'footway', width: 0 };
+    town.ways.push(way);
+    occ.way({ ...way, width: 1.5 }, 0.5);
+  }
+  const worship = style.id === 'arid' ? 'mosque' : style.id === 'eastAsian' ? 'temple' : 'church';
+  const plan = {
+    church: { h: 13 + 4 * r(14092), building: worship, roof: undefined, poi: undefined },
+    townhall: { h: (3 + Math.round(r(14095))) * style.floor, building: 'civic', roof: undefined, poi: 'town_hall' },
+    school: { h: (2 + Math.round(r(14094))) * style.floor, building: 'school', roof: 'flat', poi: undefined },
+    hospital: { h: (4 + Math.round(2 * r(14093))) * style.floor, building: 'hospital', roof: 'flat', poi: 'hospital' },
+  }[use];
+  town.buildings.push({ shape: [{ pts: site.ring, seam: seam(site.ring) }], h: plan.h, min: 0 });
+  town.tagged.push({ x: cx, y: cy, building: plan.building, roof: plan.roof, from: 'image' });
+  if (plan.poi) town.pois.push({ x: cx, y: cy, cls: plan.poi, sub: plan.poi === 'town_hall' ? 'townhall' : plan.poi });
+  return [cx, cy];
+}
+
+/** The lot use each kind of pinned landmark takes. */
+const PINNED_USE: Partial<Record<PinKindId, Lot['use']>> = { worship: 'church', townhall: 'townhall', school: 'school', hospital: 'hospital' };
+/** The frontage each pinned landmark needs, m; a school or hospital in a row makes do with less. */
+const PINNED_FRONT: Record<NonNullable<Lot['use']>, [number, number]> = { church: [22, 22], townhall: [18, 18], school: [40, 28], hospital: [44, 30] };
+
+/**
+ * Lots made over into landmarks: pinned ones first, on the lots nearest their pins or on sites of their own (`pinnedSite()`); then a church beside every square of the old town, rows or blocks,
  * and one in every parish of built town that has none near; a town hall on the largest square
  * with lots beside it, or else at the middle of the main core;
  * a school beside each large park in suburbs and rows. A landmark takes a run of neighbouring
  * lots on one side, merged until its frontage is long enough.
  */
-export function landmarks(blocks: Block[], c: BuildContext): void {
+export function landmarks(blocks: Block[], c: BuildContext, town?: Town): void {
   // Every lot once, with where it is, filed by 50 m cell; `live` holds those not yet merged away.
   type Entry = { b: Block; l: Lot; at: [number, number] };
   // Only lots on the ground that shows: a landmark laid out of sight is no landmark.
@@ -589,7 +754,7 @@ export function landmarks(blocks: Block[], c: BuildContext): void {
     return [...dist].filter(([x]) => open(x) && want(x)).map(([x, e]) => ({ ...x, d: e })).sort((p, q) => p.d - q.d);
   };
   /** Merge a lot with its neighbours on the same side until its frontage is at least `need`. */
-  const run = (b: Block, l: Lot, need: number, use: Lot['use']): Lot | null => {
+  const run = (b: Block, l: Lot, need: number, use: Lot['use'], fits?: (m: Lot) => boolean): Lot | null => {
     let m = l;
     const take = [l];
     for (let k = 1; k <= 6 && frontage(m) < need; k++) {
@@ -604,7 +769,7 @@ export function landmarks(blocks: Block[], c: BuildContext): void {
       } else break;
     }
     // Only ground a lot may take: a landmark refused later would leave the town without it.
-    if (frontage(m) < need || !c.occ.free(lotRing(m), LOT)) return null;
+    if (frontage(m) < need || !c.occ.free(lotRing(m), LOT) || (fits && !fits(m))) return null;
     m.index = take[0].index;
     m.use = use;
     for (const t of take) live.delete(t);
@@ -614,12 +779,46 @@ export function landmarks(blocks: Block[], c: BuildContext): void {
     return m;
   };
   const churches: [number, number][] = [];
+  const schools: [number, number][] = [];
+  let halled = false;
   const near = (list: [number, number][], x: number, y: number, d: number) => list.some(([px, py]) => Math.hypot(px - x, py - y) < d);
+
+  // Pinned landmarks first; the town's own then keep clear of them. Each takes the open lot
+  // nearest its pin on which its building fits, or, where no lot will do or a site of its own
+  // would stand much nearer the pin, a site of its own cleared beside the nearest street.
+  const reach = pinReach(c.set.scale);
+  const landmarkFits = (use: NonNullable<Lot['use']>) => (m: Lot) => {
+    if (use === 'townhall') return true;
+    const [mx, my] = centre(lotRing(m));
+    // The tests putting it up will make: a simple ring, clear of open land and streams.
+    const q = landmarkRing(m, use, (salt) => c.vary(mx, my, salt));
+    return !!q && simpleFootprint(q.ring) && c.ground.clear(q.ring);
+  };
+  for (const p of pinsAt(c.pins, 'layout')) {
+    const use = PINNED_USE[p.kind];
+    if (!use) continue;
+    const d = (x: Entry) => Math.hypot(x.at[0] - p.x, x.at[1] - p.y);
+    const site = town ? pinnedSite(p, use, c) : null;
+    // A town hall on a lot is put up as the lot's ordinary building would be, which may not come; it prefers a site of its own.
+    const by = use === 'townhall' && site ? [] : entries.filter((x) => open(x) && d(x) < reach && (!site || d(x) < site.d + SITE_SLACK)).sort((a, b) => d(a) - d(b));
+    let at: [number, number] | null = null;
+    for (const x of by.slice(0, 16)) {
+      if (!open(x)) continue;
+      const m = run(x.b, x.l, PINNED_FRONT[use][ROWS.has(x.l.label) ? 1 : 0], use, landmarkFits(use));
+      if (!m) continue;
+      at = centre(lotRing(m));
+      break;
+    }
+    if (!at && site && town) at = buildSite(site, use, c, town);
+    if (!at) continue;
+    if (use === 'church') churches.push(at);
+    else if (use === 'townhall') halled = true;
+    else if (use === 'school') schools.push(at);
+  }
 
   // Squares, the largest first: a church beside each in town, the town hall beside the largest.
   const squares = c.plazas.map((s) => ({ s, area: ringArea(s[0].pts) })).filter((q) => q.area >= 600);
   squares.sort((a, b) => b.area - a.area);
-  let halled = false;
   for (const { s } of squares) {
     const ring = s[0].pts;
     const by = beside(ring, 40, homely);
@@ -670,7 +869,6 @@ export function landmarks(blocks: Block[], c: BuildContext): void {
   }
 
   // A school beside each park of a hectare or more in suburbs and rows.
-  const schools: [number, number][] = [];
   for (const park of c.parks) {
     const ring = park[0].pts;
     if (ringArea(ring) < 10000) continue;

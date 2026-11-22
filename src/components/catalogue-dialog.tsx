@@ -10,6 +10,8 @@ import { ENTRIES, entryLayer, filed, GATE_LABEL, gateOn, GROUPS, matcher, showsF
 import { LOD } from '../lod';
 import type { LayerId, Settings } from '../settings';
 import type { Strokes } from '../worker';
+import { PIN_KIND_IDS, PIN_KINDS, PINS_MAX, type PinKindId } from '../image-pins';
+import { PIN_ICONS } from './pin-icons';
 
 type Props = {
   open: boolean;
@@ -18,6 +20,8 @@ type Props = {
   set: Settings;
   /** Ask the worker for the strokes the drawing on show filed under some tally names. */
   onStrokes: (names: string[]) => Promise<Strokes | null>;
+  /** In image mode with a picture, pin a kind of thing to it; missing where none can be pinned. */
+  onPin?: (kind: PinKindId) => void;
 };
 
 /** What an entry comes to in the drawing on show. `present` is null when there's no drawing. */
@@ -77,7 +81,7 @@ const idOf = (r: RenderResult) => {
   return n;
 };
 
-export function CatalogueDialog({ open, onOpenChange, result, set, onStrokes }: Props) {
+export function CatalogueDialog({ open, onOpenChange, result, set, onStrokes, onPin }: Props) {
   const [query, setQuery] = useState('');
   const [source, setSource] = useState<'all' | Source>('all');
   const [onlyHere, setOnlyHere] = useState(false);
@@ -196,7 +200,7 @@ export function CatalogueDialog({ open, onOpenChange, result, set, onStrokes }: 
             </div>
           </div>
 
-          <Detail key={entry.id} entry={entry} found={f} result={result} url={url} set={set} open={open} view={view} onView={setView} onStrokes={onStrokes} />
+          <Detail key={entry.id} entry={entry} found={f} result={result} url={url} set={set} open={open} view={view} onView={setView} onStrokes={onStrokes} onPin={onPin} />
         </div>
       </DialogContent>
     </Dialog>
@@ -236,6 +240,7 @@ type DetailProps = {
   view: 'near' | 'sheet';
   onView: (v: 'near' | 'sheet') => void;
   onStrokes: Props['onStrokes'];
+  onPin?: Props['onPin'];
 };
 
 const ROW = 'grid grid-cols-[112px_minmax(0,1fr)] items-baseline gap-4 border-b py-2 max-[640px]:grid-cols-1 max-[640px]:gap-1';
@@ -274,8 +279,11 @@ function Rules({ rules, set, layer }: { rules: NonNullable<Entry['lod']>; set: S
   );
 }
 
-function Detail({ entry: e, found: f, result, url, set, open, view, onView, onStrokes }: DetailProps) {
+function Detail({ entry: e, found: f, result, url, set, open, view, onView, onStrokes, onPin }: DetailProps) {
   const group = GROUPS.find((g) => g.id === e.group)!;
+  // Image mode can be told where to put some things: the kinds of pin that place this one.
+  const pinnable = set.source === 'image' ? PIN_KIND_IDS.filter((k) => PIN_KINDS[k].entry === e.id) : [];
+  const pinned = set.imagePins.filter((p) => pinnable.includes(p.kind)).length;
 
   return (
     <div className="min-h-0 overflow-y-auto px-7 pt-5 pb-8 max-[640px]:px-4">
@@ -299,6 +307,26 @@ function Detail({ entry: e, found: f, result, url, set, open, view, onView, onSt
           <dt className={DT}>How it’s found</dt>
           <dd className="m-0 max-w-[68ch] text-[13.5px] leading-relaxed text-pretty">{e.how}</dd>
         </div>
+        {pinnable.length > 0 && (
+          <div className={ROW}>
+            <dt className={DT}>Pin one</dt>
+            <dd className="m-0 flex flex-col items-start gap-2 text-[13.5px]">
+              <span className="max-w-[68ch] text-pretty">{pinnable.map((k) => PIN_KINDS[k].note).join(' ')} {pinned ? `This drawing has ${plural(pinned, 'pin')} for it.` : ''}</span>
+              <span className="flex flex-wrap gap-1.5">
+                {pinnable.map((k) => {
+                  const Icon = PIN_ICONS[k];
+                  return (
+                    <button key={k} type="button" disabled={!onPin} onClick={() => onPin?.(k)} aria-label={`Pin ${PIN_KINDS[k].label.toLowerCase()} to the picture`} title="Pin it to the middle of the picture, then drag it where you want it" className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[13px] outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:text-muted-foreground">
+                      <Icon aria-hidden />
+                      {PIN_KINDS[k].label}
+                    </button>
+                  );
+                })}
+              </span>
+              {!onPin && <span className="text-[12px] text-muted-foreground">{`Choose an image first. A drawing keeps at most ${PINS_MAX} pins.`}</span>}
+            </dd>
+          </div>
+        )}
         {e.regions && (
           <div className={ROW}>
             <dt className={DT}>By region</dt>

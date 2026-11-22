@@ -21,6 +21,8 @@ import { Caption, FoldingSection, Hint, KeyGrid, SliderField } from './fields';
 import { ImageWell } from './image-well';
 import { activeMasks, mainValue } from '../image-masks';
 import { MaskPanel } from './mask-panel';
+import { PinPanel } from './pin-panel';
+import type { PinOutcomes } from '../image-pins';
 import { InviteDialog } from './invite-dialog';
 import { LocatorMap } from './locator-map';
 import { PalettePicker } from './palette-picker';
@@ -42,10 +44,14 @@ type SourceSectionProps = {
   /** The image-mode mask being edited, if any. */
   mask: string | null;
   onMask: (id: string | null) => void;
+  /** The image-mode pin being edited, if any, and what became of each pin in the drawing on show. */
+  pin: string | null;
+  onPin: (id: string | null) => void;
+  pinOutcomes?: PinOutcomes;
 };
 
 /** Where the town comes from: a place on the map, or an image it is laid out to look like. */
-export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture, onFile, mask, onMask }: SourceSectionProps) {
+export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture, onFile, mask, onMask, pin, onPin, pinOutcomes }: SourceSectionProps) {
   const { set } = useSettings();
   const image = set.source === 'image';
   const [unlocked, setUnlocked] = useState(imageUnlocked);
@@ -80,7 +86,7 @@ export function SourceSection({ onGoTo, onMapMove, onMapReady, onSource, picture
           ? <ImageSource picture={picture} onFile={onFile} />
           : <PlaceSection onGoTo={onGoTo} onMapMove={onMapMove} onMapReady={onMapReady} />}
       </FoldingSection>
-      {image && <ImageSections picture={picture} mask={mask} onMask={onMask} />}
+      {image && <ImageSections picture={picture} mask={mask} onMask={onMask} pin={pin} onPin={onPin} pinOutcomes={pinOutcomes} />}
     </>
   );
 }
@@ -106,9 +112,11 @@ function ImageSource({ picture, onFile }: Pick<SourceSectionProps, 'picture' | '
   );
 }
 
-function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'picture' | 'mask' | 'onMask'>) {
+function ImageSections({ picture, mask, onMask, pin, onPin, pinOutcomes }: Pick<SourceSectionProps, 'picture' | 'mask' | 'onMask' | 'pin' | 'onPin' | 'pinOutcomes'>) {
   const { set, change } = useSettings();
   const count = set.imageMasks.length;
+  const pins = set.imagePins.length;
+  const missed = set.imagePins.filter((p) => !p.off && pinOutcomes?.[p.id] === false).length;
   const grid = mainValue(set, 'fabric');
   const pattern = patternLabel(grid);
   const display = set.fabric === 'auto' ? `${pattern} (auto)` : pattern;
@@ -117,7 +125,10 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
       <FoldingSection index={2} title="Masks" summary={`${count} ${count === 1 ? 'mask' : 'masks'}`}>
         <MaskPanel picture={picture.picture} selected={mask} onSelect={onMask} />
       </FoldingSection>
-      <FoldingSection index={3} title="Image tone" summary={`${FORMAT.likeness(set.likeness)} likeness`}>
+      <FoldingSection index={3} title="Pins" summary={`${pins} ${pins === 1 ? 'pin' : 'pins'}${missed ? `, ${missed} with no room` : ''}`}>
+        <PinPanel picture={picture.picture} selected={pin} onSelect={onPin} outcomes={pinOutcomes} />
+      </FoldingSection>
+      <FoldingSection index={4} title="Image tone" summary={`${FORMAT.likeness(set.likeness)} likeness`}>
         <NumberSetting name="imageLight" label="Brightness" min={-1} max={1} step={0.05} />
         <NumberSetting name="imageContrast" label="Contrast" min={0.5} max={2} step={0.05} />
         <NumberSetting name="imageColour" label="Colour" min={0} max={1} step={0.01} hint="How much the image’s colours count against its light and dark." />
@@ -126,7 +137,7 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
         <BoolSetting name="imagePreserveSpace" label="Preserve empty space" />
         {set.imagePreserveSpace && <NumberSetting name="imageHighlight" label="Highlight cutoff" min={0} max={1} step={0.01} hint="Transparent areas stay blank. Lower the cutoff to clear light parts of the picture too." />}
       </FoldingSection>
-      <FoldingSection index={4} title="Neighbourhoods and buildings" summary={`${FORMAT.imageRelief(set.imageRelief)} height from image`}>
+      <FoldingSection index={5} title="Neighbourhoods and buildings" summary={`${FORMAT.imageRelief(set.imageRelief)} height from image`}>
         <NumberSetting name="imageTownBias" label="Countryside ↔ town" min={-1} max={1} step={0.01} hint="Prefer open land or built neighbourhoods where either could match the image." />
         <NumberSetting name="imageDistrictSize" label="District size" min={0.5} max={2} step={0.01} hint="Smaller districts keep a patchwork of land uses. Larger ones merge small patches into their neighbours." />
         <NumberSetting name="imageWater" label="Water preference" min={-1} max={1} step={0.01} hint="Lower it to favour dry land. Raise it to give ponds and channels a better chance." />
@@ -136,7 +147,7 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
         <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
         <NumberSetting name="imageFloorplans" label="House floorplans follow image lines" min={0} max={1} step={0.01} hint="Turn detached houses and shape the backs of terraced rows along nearby, sustained image edges." />
       </FoldingSection>
-      <FoldingSection index={5} title="Streets" summary={display}>
+      <FoldingSection index={6} title="Streets" summary={display}>
         <SliderField label="Street pattern" value={grid} display={display} min={0} max={1} step={0.01}
           onChange={(v) => change('fabric', v, true)}
           hint={<>Move from organic lanes on the left to a regular grid on the right. {set.fabric !== 'auto' && <button type="button" className="underline" onClick={() => change('fabric', 'auto')}>Use style default</button>}</>}
@@ -193,7 +204,7 @@ export function ViewSection() {
   const image = set.source === 'image';
   return (
     <>
-      <FoldingSection index={set.source === 'image' ? 6 : 2} title="View" key={set.source} summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale), ...(image && set.humanize ? [`${FORMAT.humanize(set.humanize)} humanized`] : [])].join(SEP)}>
+      <FoldingSection index={set.source === 'image' ? 7 : 2} title="View" key={set.source} summary={[FORMAT.bearing(set.bearing), FORMAT.tilt(set.tilt), FORMAT.scale(set.scale), ...(image && set.humanize ? [`${FORMAT.humanize(set.humanize)} humanized`] : [])].join(SEP)}>
         <NumberSetting name="bearing" label="Rotation" min={0} max={359} step={1} hint={image ? 'Turns the town under the image.' : undefined} />
         <NumberSetting name="tilt" label="Tilt" min={20} max={60} step={1} hint="How high you look from. 30° is the classic isometric look." />
         <NumberSetting name="scale" label="Scale" min={0} max={1000} step={1} hint={image ? `About ${housesAcross(set)} houses across. A smaller scale follows finer detail in the image.` : 'Bigger towns need a smaller scale. Small scales skip windows.'} />
@@ -243,7 +254,7 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
   const keys = image ? TOWN_KEYS.filter(([k]) => k !== 'osmTags') : TOWN_KEYS;
   const autoStyle = image ? `Auto: ${STYLES[IMAGE_STYLE].label}` : region ? `Auto: ${STYLES[region.style].label} (${region.country})` : 'Auto, from the country';
   return (
-    <FoldingSection index={set.source === 'image' ? 7 : 4} title="Town" key={set.source} summary={`${keys.filter(([k]) => set[k]).length} of ${keys.length} layers`}>
+    <FoldingSection index={set.source === 'image' ? 8 : 4} title="Town" key={set.source} summary={`${keys.filter(([k]) => set[k]).length} of ${keys.length} layers`}>
       <Caption className="mt-0">Building style</Caption>
       <Select value={set.style} onValueChange={(v) => change('style', v as Settings['style'])}>
         <SelectTrigger aria-label="Building style" className="mb-1 h-9 w-full rounded-md bg-card">
@@ -278,7 +289,7 @@ export function TownSection({ region }: { region?: RenderResult['region'] }) {
 export function LightSection() {
   const { set } = useSettings();
   return (
-    <FoldingSection index={set.source === 'image' ? 8 : 5} title="Light" key={set.source} summary={set.shadows ? `Sun ${FORMAT.sunAngle(sunBearing(set))} at ${FORMAT.sunHeight(set.sunHeight)}` : 'No shadows'}>
+    <FoldingSection index={set.source === 'image' ? 9 : 5} title="Light" key={set.source} summary={set.shadows ? `Sun ${FORMAT.sunAngle(sunBearing(set))} at ${FORMAT.sunHeight(set.sunHeight)}` : 'No shadows'}>
       <KeyGrid className="mt-0 mb-4">
         <BoolSetting name="shadows" label="Shadows" />
         <BoolSetting name="shadeWalls" label="Shade walls" />
@@ -320,7 +331,7 @@ export function TitleSection() {
   const { set } = useSettings();
   const shown = (set.titleText || set.place).toUpperCase();
   return (
-    <FoldingSection index={set.source === 'image' ? 9 : 6} title="Title" key={set.source} summary={set.title ? `${shown}${SEP}${FORMAT.titleStreet(set.titleStreet).toLowerCase()} street` : 'Off'}>
+    <FoldingSection index={set.source === 'image' ? 10 : 6} title="Title" key={set.source} summary={set.title ? `${shown}${SEP}${FORMAT.titleStreet(set.titleStreet).toLowerCase()} street` : 'Off'}>
       <KeyGrid className="mt-0 mb-2">
         <BoolSetting name="title" label="Cinematic title" />
       </KeyGrid>
@@ -354,7 +365,7 @@ export function TitleSection() {
 export function SheetSection() {
   const { set, change } = useSettings();
   return (
-    <FoldingSection index={set.source === 'image' ? 10 : 7} title="Sheet" key={set.source} summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
+    <FoldingSection index={set.source === 'image' ? 11 : 7} title="Sheet" key={set.source} summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
       <div className="mb-4 flex gap-2">
         <Select value={set.sheet} onValueChange={(v) => change('sheet', v as SheetId)}>
           <SelectTrigger aria-label="Sheet size" className="h-9 min-w-0 flex-1 rounded-md bg-card">

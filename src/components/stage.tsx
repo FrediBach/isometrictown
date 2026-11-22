@@ -10,6 +10,7 @@ import type { RenderResult, RenderStatus } from '../app/renderer';
 import type { Placed } from '../image-fit';
 import { DrawingProgress } from './drawing-progress';
 import { MaskEditor, type MaskEditing } from './mask-editor';
+import { PinLayer, type PinEditing } from './pin-layer';
 import { PenDot } from './title-block';
 
 export type Zoom = 'fit' | '0.5' | '1' | '2';
@@ -111,12 +112,14 @@ type PreviewProps = {
   squint?: boolean;
   /** In image mode, the mask being edited over the drawing; clicks then edit it instead of picking buildings. */
   masking?: MaskEditing | null;
+  /** In image mode, the pin being edited over the drawing, to drag. */
+  pinning?: PinEditing | null;
 };
 
 /** How far Squint blurs, mm on the sheet: about what arm's length does to a pen line. */
 const SQUINT_MM = 1.5;
 
-export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overlay, squint = false, masking }: PreviewProps) {
+export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overlay, squint = false, masking, pinning }: PreviewProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
   const ink = useRef<HTMLDivElement>(null);
@@ -168,6 +171,8 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
   useEffect(() => {
     const el = paper.current!;
     const click = (e: MouseEvent) => {
+      // A click on a pin picks the pin, not the building under it.
+      if (e.target instanceof Element && e.target.closest('[data-no-pick]')) return;
       const m = el.querySelector('svg')?.getScreenCTM();
       if (!m) return;
       const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
@@ -192,6 +197,7 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
         >
           <div ref={ink} className="size-full" style={squint ? { filter: `blur(calc(var(--mm) * ${SQUINT_MM}))` } : undefined} />
           {overlay && <ImageOverlay {...overlay} sheet={sheet} />}
+          {pinning && !masking && <PinLayer {...pinning} sheet={sheet} />}
           {masking && <MaskEditor {...masking} sheet={sheet} />}
         </div>
       </div>

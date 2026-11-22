@@ -579,7 +579,7 @@ const ENTRIES_BY_HAND: Entry[] = [
     name: 'Hospital helipads',
     source: ['map', 'inferred'],
     what: 'A circle and an H on the roof of the main hospital building, sometimes with the air ambulance in.',
-    how: 'In image mode a large apartment footprint can house a hospital with a flat roof. A hospital point inside (not a clinic), or half of the buildings over 4,000 m² on hospital land. A helipad mapped on any building puts it on that building’s flat roof.',
+    how: 'In image mode a large apartment footprint can house a hospital with a flat roof, and a pinned hospital gets a lot of its own. A hospital point inside (not a clinic), or half of the buildings over 4,000 m² on hospital land. A helipad mapped on any building puts it on that building’s flat roof.',
     needs: ['details'],
     lod: ['helipad'],
     strokes: ['details/helipad'],

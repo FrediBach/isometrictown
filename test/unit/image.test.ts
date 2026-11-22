@@ -679,10 +679,16 @@ describe('image neighbourhood amenities', () => {
       town.buildings.push({ h: 20, min: 0, shape: [{ pts: [x, 0, x + 40, 0, x + 40, 20, x, 20], seam: new Uint8Array(4) }] });
       town.tagged.push({ x: x + 20, y: 10, building: 'apartments', from: 'image' });
     }
-    civicSites(town, { style: STYLES.central, vary: () => 0 });
+    const pinned = structuredClone(town);
+    civicSites(town, { style: STYLES.central, vary: () => 0, set: { scale: 2500 } });
     expect(town.tagged.map(t => t.building)).toEqual(['hospital', 'apartments']);
     expect(town.tagged[0].roof).toBe('flat');
     expect(town.pois).toEqual([{ x: 20, y: 10, cls: 'hospital', sub: 'hospital' }]);
+    // A pinned fire station takes the building nearest its pin, before the town gives out its own uses.
+    const pin = { id: 'p1', kind: 'fire' as const, sx: 0, sy: 0, sr: 0, sf: 0, x: 105, y: 12 };
+    civicSites(pinned, { style: STYLES.central, vary: () => 0, set: { scale: 2500 }, pins: [pin] });
+    expect(pinned.tagged.map(t => t.building)).toEqual(['hospital', 'civic']);
+    expect(pinned.pois).toEqual([{ x: 110, y: 10, cls: 'fire_station', sub: 'fire_station' }, { x: 20, y: 10, cls: 'hospital', sub: 'hospital' }]);
   });
 
   test('a parking aisle connects to the street and gives way to a crossing footpath', () => {

@@ -5,6 +5,7 @@ import type { Census, Counts } from '../render';
 import { sheetSize, type Settings } from '../settings';
 import type { Region } from '../styles';
 import type { Features, Job, Reply, Strokes } from '../worker';
+import type { PinOutcomes } from '../image-pins';
 import { stageLabel, type StageProgress } from './stages';
 
 export type RenderStatus = { text: string; state: 'idle' | 'working' | 'error'; progress?: StageProgress };
@@ -37,6 +38,8 @@ export type RenderResult = {
   likeness?: DrawingLikeness;
   /** The source picture with the masks used for this drawing, for the well and overlay. */
   tintedPreview?: Blob;
+  /** In image mode, which pins the town made and which it had no room for. */
+  pins?: PinOutcomes;
 };
 
 /** Pictures the worker keeps, as it does: the last two used. */
@@ -107,7 +110,7 @@ export class Renderer {
         this.onStatus({ text: '', state: 'idle' });
         // Pens may have changed while this drawing was on the worker; colour costs no redraw.
         const likeness = r.likeness && { ...r.likeness, look: scoreLook(drawn) };
-        this.onResult(recolor({ tintedPreview: r.tintedPreview, svg: r.svg, sheet: sheetSize(drawn), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: drawn.mono, speed: drawn.speed, likeness }, { ...set, mono: drawn.mono }));
+        this.onResult(recolor({ tintedPreview: r.tintedPreview, svg: r.svg, sheet: sheetSize(drawn), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: drawn.mono, speed: drawn.speed, likeness, pins: r.pins }, { ...set, mono: drawn.mono }));
       }
       this.dispatch();
     };

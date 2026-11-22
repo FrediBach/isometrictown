@@ -1,4 +1,5 @@
 import { newMask } from '@/image-masks';
+import { newPin } from '@/image-pins';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { defaultsAt, fromSlider, IMAGE_DEFAULTS, isDefault, loadSettings, minutes, persist, selectPicture, slug, toImageMode, toSlider } from '@/app/model';
 import { PALETTES } from '@/palettes';
@@ -157,7 +158,8 @@ describe('image mode', () => {
   test('every image setting survives a share link, and the map place stays', () => {
     const mask = newMask('ellipse', [], 100, 100);
     mask.tint = { colour: '#407cdc', mode: 'Overlay', amount: 0.65 };
-    const set: Settings = { ...image(), center: [4.89, 52.37], place: 'Amsterdam', imageMasks: [mask] };
+    const pins = [newPin('worship', [], 0.25, 0.7), { ...newPin('park', [], 0.6, 0.4), id: 'p2', r: 0.12, off: true }];
+    const set: Settings = { ...image(), center: [4.89, 52.37], place: 'Amsterdam', imageMasks: [mask], imagePins: pins };
     expect(share(set)).toEqual(set);
   });
 

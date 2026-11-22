@@ -5,11 +5,14 @@ import type { Occupancy } from './image-blocks';
 import { toneAt, type Target } from './image-read';
 import { centre, containsSite, Footprints, inShape } from './image-check';
 import { labelAt, type Zones } from './image-zones';
+import { pinReach, pinsAt } from './image-pins';
 import { pathLength, walk } from './streets';
 import { bestRect, corners } from './shape';
 import type { Building, Town, Way } from './tiles';
 
 const CIVIC_CANDIDATES = new Set(['apartments', 'terrace', 'industrial', 'warehouse']);
+/** Buildings a pinned fire station may not take over. */
+const KEEP = new Set(['church', 'mosque', 'temple', 'school', 'civic', 'hospital', 'shed', 'garage']);
 
 /** Keep enough ground between sites of the same use. */
 function catchments() {
@@ -24,10 +27,36 @@ function catchments() {
 }
 
 /** Give neighbourhoods civic services on suitable existing plots, before density changes ordinary houses. */
-export function civicSites(town: Built, { vary, style }: Pick<BuildContext, 'vary' | 'style'>): void {
+export function civicSites(town: Built, { vary, style, pins, set }: Pick<BuildContext, 'vary' | 'style' | 'pins'> & { set: Pick<BuildContext['set'], 'scale'> }): void {
   const spaced = catchments();
   const worship = style.id === 'arid' ? 'mosque' : style.id === 'eastAsian' ? 'temple' : 'church';
   for (const tag of town.tagged) if (tag.building === worship) spaced('worship', tag.x, tag.y, 0);
+  // Pinned hospitals have lots of their own (`landmarks()`); the town's own keep clear of them.
+  for (const p of town.pois) if (p.cls === 'hospital') spaced('hospital', p.x, p.y, 0);
+  // A pinned fire station takes the nearest building of a size for one; the town's own keep clear of it.
+  const reach = pinReach(set.scale);
+  for (const p of pinsAt(pins, 'build')) {
+    if (p.kind !== 'fire') continue;
+    let best = -1;
+    let bd = reach;
+    for (let i = 0; i < town.buildings.length; i++) {
+      const b = town.buildings[i], tag = town.tagged[i];
+      if (b.context || KEEP.has(tag.building ?? '')) continue;
+      const area = Math.abs(ringArea(b.shape[0].pts));
+      if (area < 100 || area > 1500) continue;
+      const d = Math.hypot(tag.x - p.x, tag.y - p.y);
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    if (best < 0) continue;
+    const tag = town.tagged[best];
+    tag.building = 'civic';
+    tag.roof = 'flat';
+    spaced('fire_station', tag.x, tag.y, 0);
+    town.pois.push({ x: tag.x, y: tag.y, cls: 'fire_station', sub: 'fire_station' });
+  }
   for (let i = 0; i < town.buildings.length; i++) {
     const b = town.buildings[i], tag = town.tagged[i];
     const { x, y, building } = tag;

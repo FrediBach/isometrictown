@@ -26,8 +26,9 @@ import { tune, type Prediction, type Seen } from './image-tune';
 import { fitImage } from './image-fit';
 import { activeMasks, BUILD_KEYS, groundValue, LAYOUT_KEYS, MaskField, masksKey, READ_KEYS, ZONE_KEYS, type MaskKey } from './image-masks';
 import { readImage, remapTarget, targetGrid, type Target } from './image-read';
+import { PIN_KINDS, pinReach, pinsAt, pinsKey, placePins, type PinOutcomes, type PlacedPin } from './image-pins';
 import { streets, tramRoute, type Graph } from './image-streets';
-import { zone, type Zones } from './image-zones';
+import { labelAt, zone, type Zones } from './image-zones';
 import { reachHeight, streamShapes } from './render';
 import { hash } from './rng';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
@@ -76,7 +77,7 @@ export function imageRegion(set: Settings): Region {
 }
 
 /** Everything a drawing from an image needs: the drawn-as settings, the camera, the target, the land plan and the town. */
-export type Scene = { tintedSource?: Picture; set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction; /** The settings masks change over parts of the picture, on the target's grid. */ masks?: MaskField };
+export type Scene = { tintedSource?: Picture; set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction; /** The settings masks change over parts of the picture, on the target's grid. */ masks?: MaskField; /** What became of each pin. */ pins?: PinOutcomes };
 
 /**
  * Settings the layout depends on. Colour zoning uses the Classic pens on white paper.
@@ -108,11 +109,13 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const masks = activeMasks(drawn.imageMasks).length
     ? new MaskField(drawn.imageMasks, drawn, targetGrid(cam.rect), fitImage(cam.rect, pic.w, pic.h, drawn.imageFit, drawn.imageFocus), pic)
     : undefined;
+  const pins = placePins(drawn.imagePins, cam, fitImage(cam.rect, pic.w, pic.h, drawn.imageFit, drawn.imageFocus), pic.w, pic.h);
   const tint = tintKey(drawn.imageMasks);
   if (!tint) tinted = undefined;
   else if (tinted?.key !== pic.id + tint) tinted = { key: pic.id + tint, picture: tintPicture(pic, drawn.imageMasks) };
   const readMasks = masksKey(drawn.imageMasks, READ_KEYS) + tint;
-  const layoutMasks = readMasks + masksKey(drawn.imageMasks, LAYOUT_KEYS);
+  const zonePins = pinsKey(drawn.imagePins, 'zone');
+  const layoutMasks = readMasks + masksKey(drawn.imageMasks, LAYOUT_KEYS) + zonePins + pinsKey(drawn.imagePins, 'layout');
   const lookKey = keyOf(pic, drawn, LOOK) + readMasks;
   if (read?.key !== lookKey) {
     note('Reading the image');
@@ -121,30 +124,53 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const target = read.target;
   const townKey = keyOf(pic, drawn, STRUCTURE) + layoutMasks;
   if (laid?.key !== townKey) {
-    const zoneKey = keyOf(pic, drawn, ZONING) + readMasks + masksKey(drawn.imageMasks, ZONE_KEYS);
+    const zoneKey = keyOf(pic, drawn, ZONING) + readMasks + masksKey(drawn.imageMasks, ZONE_KEYS) + zonePins;
     let zones = laid?.zones;
     if (!zones || laid?.zoneKey !== zoneKey) {
       note('Zoning the ground');
       zones = zone(target, reference, cam, [box[0] - PLAN_MARGIN, box[1] - PLAN_MARGIN, box[2] + PLAN_MARGIN, box[3] + PLAN_MARGIN], {
         likeness: localOf(masks, cam, 'likeness'), neighbours: localOf(masks, cam, 'imageNeighbours'),
         townBias: localOf(masks, cam, 'imageTownBias'), water: localOf(masks, cam, 'imageWater'), districtSize: localOf(masks, cam, 'imageDistrictSize'),
-      });
+      }, pinsAt(pins, 'zone').map((p) => ({ ...p, label: PIN_KINDS[p.kind].zone! })));
     }
     note('Laying out streets');
-    laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note, masks) };
+    laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note, masks, pins) };
   }
   const scene = { tintedSource: tinted?.picture, set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style, masks };
   if (tuned) {
-    const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true, undefined, masks);
-    return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };
+    const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true, undefined, masks, pins);
+    return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction!, pins: pinOutcomes(pins, experiment.town, laid.layout, drawn.scale) };
   }
-  const buildKey = townKey + keyOf(pic, drawn, BUILD_KEYS) + masksKey(drawn.imageMasks, BUILD_KEYS);
+  const buildKey = townKey + keyOf(pic, drawn, BUILD_KEYS) + masksKey(drawn.imageMasks, BUILD_KEYS) + pinsKey(drawn.imagePins, 'build');
   if (built?.key !== buildKey) {
-    built = { key: buildKey, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note, false, undefined, masks).town };
+    built = { key: buildKey, town: imageBuild(laid.layout, target, { ...drawn, imageRelief: 0 }, cam, note, false, undefined, masks, pins).town };
   }
   const town = structuredClone(built.town);
   imageHeights(town, target, cam, drawn, laid.layout.context, masks);
-  return { ...scene, blocks: laid.layout.blocks, town };
+  return { ...scene, blocks: laid.layout.blocks, town, pins: pins.length ? pinOutcomes(pins, town, laid.layout, drawn.scale) : undefined };
+}
+
+/** Where each kind of landmark pin finds what it asked for in the town. */
+const PIN_FOUND: Partial<Record<PlacedPin['kind'], (town: Town) => [number, number][]>> = {
+  worship: (t) => t.tagged.filter((g) => g.building === 'church' || g.building === 'mosque' || g.building === 'temple').map((g) => [g.x, g.y]),
+  school: (t) => t.tagged.filter((g) => g.building === 'school').map((g) => [g.x, g.y]),
+  townhall: (t) => t.pois.filter((p) => p.cls === 'town_hall').map((p) => [p.x, p.y]),
+  hospital: (t) => t.pois.filter((p) => p.cls === 'hospital').map((p) => [p.x, p.y]),
+  fire: (t) => t.pois.filter((p) => p.cls === 'fire_station').map((p) => [p.x, p.y]),
+};
+
+/** Whether the town made each pin: its kind built within reach, the roundabout laid, the ground under it given its label. */
+function pinOutcomes(pins: readonly PlacedPin[], town: Town, layout: Layout, scale: number): PinOutcomes {
+  const out: PinOutcomes = {};
+  const reach = pinReach(scale);
+  for (const p of pins) {
+    const zoned = PIN_KINDS[p.kind].zone;
+    const found = PIN_FOUND[p.kind];
+    if (zoned) out[p.id] = labelAt(layout.context.z, p.x, p.y) === zoned;
+    else if (p.kind === 'roundabout') out[p.id] = layout.pinsMade.includes(p.id);
+    else if (found) out[p.id] = found(town).some(([x, y]) => Math.hypot(x - p.x, y - p.y) < reach);
+  }
+  return out;
 }
 
 /** A setting at a ground position where masks set it for part of the picture. */
@@ -163,10 +189,10 @@ const OCCUPY = 0.75;
  * through has them.
  */
 /** The structure of a town (§4): its ground, streets, blocks and lots with their landmarks, and what laying buildings out on them needs. */
-export type Layout = { town: Town; streets: Graph; blocks: Block[]; context: BuildContext };
+export type Layout = { town: Town; streets: Graph; blocks: Block[]; context: BuildContext; /** Ids of the pinned roundabouts that were built. */ pinsMade: string[] };
 
 /** Lay out a town's structure on a land plan: everything but the buildings and the trees tuning plants. */
-export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}, masks?: MaskField): Layout {
+export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Camera, frame: Frame, box: [number, number, number, number], style: Style, note: (text: string) => void = () => {}, masks?: MaskField, pins?: PlacedPin[]): Layout {
   const town = empty();
   // Map-fixed keys, as `B.key` gives them, from the fictional frame.
   const key = (x: number, y: number): [number, number] => [Math.round(frame.mx0 + x / frame.k), Math.round(frame.my0 + y / frame.k)];
@@ -194,6 +220,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
     spacingAt: localOf(masks, cam, 'imageStreetSpacing'), fabricAt: localOf(masks, cam, 'fabric'),
     likenessAt: localOf(masks, cam, 'likeness'), roundaboutsAt: localOf(masks, cam, 'imageRoundabouts'),
     contours: masks?.field('imageContours') ?? undefined,
+    pins: pinsAt(pins, 'layout').filter((p) => p.kind === 'roundabout'), reach: pinReach(set.scale),
   }, parks);
   town.controls = st.controls;
   // Roundabout islands: nothing is laid on them, and the renderer plants them.
@@ -219,15 +246,15 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
   const blocks = blocksOf(st.graph, zones, vary, ROW_LOT_MM / mmPerMetre).filter((b) => !st.roundabouts.some((o) => pointInRing(...centre(b.face), o.pts)));
   const plazas = town.plazas.slice(0, town.plazas.length - st.circles.length);
   const ground = new Ground(town);
-  const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: [...st.paths, ...landings], ways: st.ways, cores: st.cores, mmPerMetre };
+  const context: BuildContext = { cam, target, z: zones, set, style, box, vary, occ, ground, laid: new Footprints(), plazas, parks, paths: [...st.paths, ...landings], ways: st.ways, cores: st.cores, mmPerMetre, pins };
   // Compare rail alignments against the homes that would stand here without a railway.
   // Only draw up those footprints if the station search has a usable street frontage.
   villageRailway(town, st.cores, zones, cam, target, occ, streams, vary,
     () => buildingsOf(blocks, { ...context, occ: occ.clone(), laid: new Footprints() }).buildings);
   if (town.buildings.length) context.ground = new Ground(town);
   rockSites(town, land.cover.filter(a => a.cls === 'meadow'), cam, target, context.ground, occ, vary);
-  landmarks(blocks, context);
-  return { town, streets: st.graph, blocks, context };
+  landmarks(blocks, context, town);
+  return { town, streets: st.graph, blocks, context, pinsMade: st.pinsMade };
 }
 
 /**
@@ -236,7 +263,7 @@ export function imageLayout(zones: Zones, target: Target, set: Settings, cam: Ca
  * out when `seenBefore` says so (§14.3). Tuning gains no likeness yet (see the plan's notes from
  * M5), so drawings are built untuned.
  */
-export function imageBuild(layout: Layout, target: Target, set: Settings, cam: Camera, note: (text: string) => void = () => {}, tuned = false, seenBefore?: Seen, masks?: MaskField): { town: Town; blocks: Block[]; prediction: Prediction | null } {
+export function imageBuild(layout: Layout, target: Target, set: Settings, cam: Camera, note: (text: string) => void = () => {}, tuned = false, seenBefore?: Seen, masks?: MaskField, pins?: PlacedPin[]): { town: Town; blocks: Block[]; prediction: Prediction | null } {
   // Buildings add land use, and rendering can put roundabout islands in the parks.
   const town: Town = { ...layout.town, green: [...layout.town.green], landuse: [...layout.town.landuse] };
   const blocks = structuredClone(layout.blocks);
@@ -245,7 +272,7 @@ export function imageBuild(layout: Layout, target: Target, set: Settings, cam: C
   const guides = floorplans
     ? floorplans.peak('imageFloorplans') > 0 ? new FloorplanGuides(target, cam, (sx, sy) => floorplans.at('imageFloorplans', sx, sy)) : undefined
     : set.imageFloorplans > 0 ? new FloorplanGuides(target, cam, set.imageFloorplans) : undefined;
-  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, guides, occ: layout.context.occ.clone(), laid: new Footprints() });
+  const buildingGround = (): BuildContext => ({ ...layout.context, set, density, guides, pins: pins ?? layout.context.pins, occ: layout.context.occ.clone(), laid: new Footprints() });
   let prediction: Prediction | null = null;
   let tunedFronts: Map<number, FrontageLot> | undefined;
   if (tuned) {

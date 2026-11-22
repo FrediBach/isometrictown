@@ -64,6 +64,9 @@ export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'imag
   roundaboutsAt?: (x: number, y: number) => number;
   /** Streets follow image lines where masks set it, one value per target cell. */
   contours?: Float32Array;
+  /** Roundabouts pinned by hand: the junction nearest each, within `reach` m, becomes one. */
+  pins?: readonly { id: string; x: number; y: number }[];
+  reach?: number;
 };
 
 const L = (l: Label) => LABELS.indexOf(l);
@@ -241,7 +244,9 @@ function contourGuides(t: Target, strength: number | Float32Array): number[][] {
 }
 
 /** What the streets come to: roads and paths as ways, the graph the roads form, turning circles, streams, and the town's cores, largest first. */
-export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[]; cores: [number, number][]; roundabouts: Roundabout[]; controls: Controls };
+export type Streets = { ways: Way[]; paths: Way[]; graph: Graph; circles: Shape[]; streams: Stream[]; cores: [number, number][]; roundabouts: Roundabout[]; controls: Controls;
+  /** Ids of the pinned roundabouts that were built. */
+  pinsMade: string[] };
 
 /** Lay out the streets over a land plan, following the target as `cam` sees it. */
 export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettings, parks: Shape[]): Streets {
@@ -575,22 +580,41 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   // Junctions as real towns of the style control them: some become roundabouts, some get signals.
   const roundabouts: Roundabout[] = [];
   const signals: number[] = [];
+  const pinsMade: string[] = [];
   {
     const deg = degrees(g);
     const N = g.nodes.length / 2;
+    const inside = (v: number) => {
+      const x = g.nodes[v * 2], y = g.nodes[v * 2 + 1];
+      return deg[v] >= 3 && x >= z.x0 + 40 && y >= z.y0 + 40 && x <= x1 - 40 && y <= y1 - 40;
+    };
+    // Each pinned roundabout takes the nearest junction within reach that no earlier pin took.
+    const forced = new Map<number, string>();
+    for (const p of set.pins ?? []) {
+      let best = -1;
+      let bd = set.reach ?? 0;
+      for (let v = 0; v < N; v++) {
+        const d = Math.hypot(g.nodes[v * 2] - p.x, g.nodes[v * 2 + 1] - p.y);
+        if (d < bd && !forced.has(v) && inside(v)) {
+          bd = d;
+          best = v;
+        }
+      }
+      if (best >= 0) forced.set(best, p.id);
+    }
     for (let v = 0; v < N; v++) {
-      if (deg[v] < 3) continue;
+      if (!inside(v)) continue;
       const [x, y] = [g.nodes[v * 2], g.nodes[v * 2 + 1]];
-      if (x < z.x0 + 40 || y < z.y0 + 40 || x > x1 - 40 || y > y1 - 40) continue;
       const arms = g.edges.filter((e) => (e.a === v) !== (e.b === v)).map((e) => e.cls);
       const at = labelAt(x, y);
-      const control = controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950), set.roundaboutsAt ? set.roundaboutsAt(x, y) : set.roundabouts ?? 0);
+      const control = forced.has(v) ? 'roundabout' : controlOf(arms, at < 0 ? undefined : LABELS[at], set.style, vary(x, y, 14950), set.roundaboutsAt ? set.roundaboutsAt(x, y) : set.roundabouts ?? 0);
       if (control === 'signals') signals.push(x, y);
       if (control !== 'roundabout') continue;
       const top = arms.reduce((a, b) => ((RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a));
       const r = radiusOf(top, ROAD_WIDTH[top] ?? ROAD_WIDTH.minor, set.style, vary(x, y, 14951));
       const ring = makeRoundabout(g, v, r, top === 'service' ? 'minor' : top, water);
       if (ring) roundabouts.push(ring);
+      if (ring && forced.has(v)) pinsMade.push(forced.get(v)!);
     }
     compact(g);
   }
@@ -627,7 +651,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     return at < 0 ? undefined : LABELS[at];
   };
   const controls: Controls = { signals, crossings: crossingsOf(ways, signals, roundabouts, zoneAt, set.style, vary) };
-  return { ways, paths, graph: g, circles, streams, cores: settlements.map(s => s.centre), roundabouts, controls };
+  return { ways, paths, graph: g, circles, streams, cores: settlements.map(s => s.centre), roundabouts, controls, pinsMade };
 }
 
 const reverse = (p: number[]) => {

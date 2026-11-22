@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, DETAIL_LAYERS, DETAIL_MAX, DETAIL_MIN, LAYERS, PEN_CO
 import { STYLES } from '../styles';
 import { phaseName } from '../decay';
 import { validMasks } from '../image-masks';
+import { validPins } from '../image-pins';
 
 const STORE = 'isometrictown:settings';
 
@@ -131,6 +132,7 @@ function validateImage(s: Settings): void {
   s.imagePreserveSpace = s.imagePreserveSpace === true;
   s.likeness = within(s.likeness, 0, 1, d.likeness);
   s.imageMasks = validMasks(s.imageMasks);
+  s.imagePins = validPins(s.imagePins);
 }
 
 /**
@@ -219,7 +221,7 @@ function encodeValue(k: keyof Settings, v: Settings[keyof Settings]): string {
   if (k === 'imageFocus') return (v as number[]).map((n) => Number(n.toFixed(4))).join(',');
   if (k === 'background') return (v as string).replace('#', '');
   if (k === 'layerPens' || k === 'layerDetail') return Object.entries(v as object).map(([l, p]) => `${l}:${p}`).join(',');
-  if (k === 'imageMasks') return (v as unknown[]).length ? esc(JSON.stringify(v, (_, x) => (typeof x === 'number' ? Number(x.toFixed(4)) : x))) : '';
+  if (k === 'imageMasks' || k === 'imagePins') return (v as unknown[]).length ? esc(JSON.stringify(v, (_, x) => (typeof x === 'number' ? Number(x.toFixed(4)) : x))) : '';
   if (k === 'seedLocks') return Object.entries(v as object).map(([key, seed]) => `${key}:${seed}`).join(';');
   if (typeof v === 'boolean') return v ? '1' : '0';
   if (typeof v === 'number') return String(Number(v.toFixed(4)));
@@ -256,9 +258,9 @@ function fromQuery(query: string): Partial<Settings> {
       const pens = text.split(',').map((c) => `#${c}`);
       if (pens.length === PEN_COUNT && pens.every((c) => /^#[0-9a-f]{6}$/i.test(c))) out.pens = pens;
     } else if (k === 'background') out.background = `#${text}`;
-    else if (k === 'imageMasks') {
+    else if (k === 'imageMasks' || k === 'imagePins') {
       try {
-        out.imageMasks = text ? JSON.parse(text) : [];
+        out[k] = text ? JSON.parse(text) : [];
       } catch {
         /* a link cut short: no masks */
       }

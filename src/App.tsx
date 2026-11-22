@@ -13,6 +13,8 @@ import { Preview, Stats, Toolbar, type Zoom } from './components/stage';
 import { TitleBlock } from './components/title-block';
 import { fitImage, type Placed } from './image-fit';
 import type { MaskEditing } from './components/mask-editor';
+import type { PinEditing } from './components/pin-layer';
+import { newPin, PINS_MAX, type PinKindId, type PinOutcomes } from './image-pins';
 import { recolor } from './plot';
 import { sheetSize, type Settings } from './settings';
 
@@ -26,18 +28,23 @@ const norm = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
 /** What the drawing is called: the place, or in image mode the image. */
 const drawingName = (set: Settings) => (set.source === 'image' ? set.imageName || 'Image' : set.place);
 
+/** The mask and the pin being edited in image mode, and what became of each pin in the drawing on show. */
+type ImageEditing = { mask: string | null; onMask: (id: string | null) => void; pin: string | null; onPin: (id: string | null) => void; outcomes?: PinOutcomes };
+
 /**
- * Image mode's views over the preview: the picture laid over it when asked, and the mask being
- * edited, if one is selected.
+ * Image mode's views over the preview: the picture laid over it when asked, the mask being
+ * edited, if one is selected, and the pin being edited, likewise.
  */
-function imageViews(set: Settings, picture: PictureState, rect: [number, number, number, number], overlay: boolean, id: string | null, change: Change, select: (id: string | null) => void): { imageOverlay: { url: string; placed: Placed; rect: typeof rect } | null; masking: MaskEditing | null } {
+function imageViews(set: Settings, picture: PictureState, rect: [number, number, number, number], overlay: boolean, edit: ImageEditing, change: Change): { imageOverlay: { url: string; placed: Placed; rect: typeof rect } | null; masking: MaskEditing | null; pinning: PinEditing | null } {
   const pic = picture.picture;
-  if (set.source !== 'image' || !pic) return { imageOverlay: null, masking: null };
+  if (set.source !== 'image' || !pic) return { imageOverlay: null, masking: null, pinning: null };
   const placed = fitImage(rect, pic.w, pic.h, set.imageFit, set.imageFocus);
+  const id = edit.mask;
   const editing = !!id && set.imageMasks.some((m) => m.id === id);
   return {
     imageOverlay: overlay && picture.url ? { url: picture.url, placed, rect } : null,
-    masking: editing ? { masks: set.imageMasks, selected: id, placed, picture: pic, rect, onChange: (masks) => change('imageMasks', masks), onDone: () => select(null) } : null,
+    masking: editing ? { masks: set.imageMasks, selected: id, placed, picture: pic, rect, onChange: (masks) => change('imageMasks', masks), onDone: () => edit.onMask(null) } : null,
+    pinning: edit.pin && set.imagePins.some((p) => p.id === edit.pin) ? { pins: set.imagePins, selected: edit.pin, placed, picture: pic, outcomes: edit.outcomes, onChange: (pins) => change('imagePins', pins), onSelect: edit.onPin } : null,
   };
 }
 
@@ -62,6 +69,8 @@ export function App() {
   const [squint, setSquint] = useState(false);
   // The image-mode mask being edited over the preview.
   const [maskId, setMaskId] = useState<string | null>(null);
+  // The image-mode pin being edited, in the panel and over the preview.
+  const [pinId, setPinId] = useState<string | null>(null);
   // Bumped by a reset, so sections that keep their own drafts and undo history start afresh.
   const [resets, setResets] = useState(0);
 
@@ -259,7 +268,26 @@ export function App() {
 
   const image = set.source === 'image';
   const rect = new Camera(set).rect;
-  const { imageOverlay, masking } = imageViews(set, picture, rect, overlay, maskId, change, setMaskId);
+  // One thing is edited over the preview at a time: a mask or a pin.
+  const selectMask = (id: string | null) => {
+    setMaskId(id);
+    if (id) setPinId(null);
+  };
+  const selectPin = (id: string | null) => {
+    setPinId(id);
+    if (id) setMaskId(null);
+  };
+  const pinOutcomes = image ? result?.pins : undefined;
+  const { imageOverlay, masking, pinning } = imageViews(set, picture, rect, overlay, { mask: maskId, onMask: selectMask, pin: pinId, onPin: selectPin, outcomes: pinOutcomes }, change);
+  /** Pins a catalogue entry's kind in the middle of the picture, to drag from there; missing where none can be pinned. */
+  const pinFromCatalogue = image && picture.picture && set.imagePins.length < PINS_MAX
+    ? (kind: PinKindId) => {
+      const pin = newPin(kind, set.imagePins);
+      change('imagePins', [...set.imagePins, pin]);
+      selectPin(pin.id);
+      setCatalogueOpen(false);
+    }
+    : undefined;
 
   return (
     <div className={cn('grid h-screen', full ? 'grid-cols-1' : 'grid-cols-[380px_1fr] max-[900px]:h-auto max-[900px]:grid-cols-1')}>
@@ -267,7 +295,7 @@ export function App() {
       <aside hidden={full} className="relative overflow-y-auto border-r border-black/20 bg-background px-[18px] pt-[18px] pb-10 max-[900px]:overflow-visible max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:p-4">
         <SettingsContext value={settings}>
           <TitleBlock onPalette={setPens} />
-          <SourceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} onSource={setSource} picture={picture} onFile={(f) => void chooseImage(f)} mask={maskId} onMask={setMaskId} />
+          <SourceSection onGoTo={goTo} onMapMove={onMapMove} onMapReady={onMapReady} onSource={setSource} picture={picture} onFile={(f) => void chooseImage(f)} mask={maskId} onMask={selectMask} pin={pinId} onPin={selectPin} pinOutcomes={pinOutcomes} />
           <ViewSection />
           <TownSection region={result?.region} />
           <LightSection />
@@ -292,14 +320,14 @@ export function App() {
           onCatalogue={openCatalogue}
           look={image ? { overlay, squint, onOverlay: setOverlay, onSquint: setSquint } : undefined}
         />
-        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} masking={masking} />
+        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} masking={masking} pinning={pinning} />
         {!full && <Stats result={result} look={scoreLook(set)} onPlot={openPlot} />}
       </main>
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       {catalogueSeen && (
         <Suspense fallback={null}>
-          <CatalogueDialog open={catalogueOpen} onOpenChange={setCatalogueOpen} result={result} set={set} onStrokes={strokes} />
+          <CatalogueDialog open={catalogueOpen} onOpenChange={setCatalogueOpen} result={result} set={set} onStrokes={strokes} onPin={pinFromCatalogue} />
         </Suspense>
       )}
       {plotSeen && (
