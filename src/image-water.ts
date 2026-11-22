@@ -214,7 +214,11 @@ export function waterOf(z: Zones): { shapes: Shape[]; cls: string[] } {
     const compactness = 4 * Math.PI * ringArea(p) / (perimeter * perimeter);
     if (area / perimeter < RIVER_THIN && compactness < 0.55) return 'river';
     const sides = [z.H, z.H, z.W, z.W].map((v) => v * z.cell);
-    return edge.some((e, k) => e > SEA_EDGE * sides[k]) ? 'ocean' : 'lake';
+    if (edge.some((e, k) => e > SEA_EDGE * sides[k])) return 'ocean';
+    // A broad river can exceed the usual channel width. Two opposite open ends and
+    // a long bank relative to its area distinguish it from an enclosed lake.
+    const through = (edge[0] > 0 && edge[1] > 0) || (edge[2] > 0 && edge[3] > 0);
+    return through && compactness < 0.55 ? 'river' : 'lake';
   });
   return { shapes, cls };
 }

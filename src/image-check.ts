@@ -103,6 +103,31 @@ const distance = (x: number, y: number, ax: number, ay: number, bx: number, by: 
   return Math.hypot(x - ax - dx * t, y - ay - dy * t);
 };
 const toSeg = (s: Seg, x: number, y: number) => distance(x, y, s.ax, s.ay, s.bx, s.by);
+/** Limit wider plotted kerbs to the space between the street centre line and the nearest wall. */
+export function streetClearance(buildings: Town['buildings'], gap: number): (w: Way, width: number) => number {
+  const walls = new Index();
+  const rings = buildings.flatMap(b => b.shape);
+  rings.forEach((r, i) => walls.add(i, r.pts, gap));
+  return (w, width) => {
+    let radius = width / 2;
+    for (let k = 2; k < w.pts.length; k += 2) {
+      const ax = w.pts[k - 2], ay = w.pts[k - 1], bx = w.pts[k], by = w.pts[k + 1];
+      const bounds = [Math.min(ax, bx) - radius, Math.min(ay, by) - radius, Math.max(ax, bx) + radius, Math.max(ay, by) + radius];
+      for (const i of walls.around(bounds)) {
+        const p = rings[i].pts;
+        for (let c = 0, d = p.length - 2; c < p.length; d = c, c += 2) {
+          if (meet(ax, ay, bx, by, p[d], p[d + 1], p[c], p[c + 1])) return w.width;
+          const nearest = Math.min(distance(p[c], p[c + 1], ax, ay, bx, by),
+            distance(ax, ay, p[d], p[d + 1], p[c], p[c + 1]), distance(bx, by, p[d], p[d + 1], p[c], p[c + 1]));
+          radius = Math.min(radius, nearest - gap);
+          if (2 * radius <= w.width) return w.width;
+        }
+      }
+    }
+    return 2 * radius;
+  };
+}
+
 /** Whether a point lies in the outer ring and outside all its holes. */
 export const inShape = (s: Shape, x: number, y: number) => pointInRing(x, y, s[0].pts) && !s.slice(1).some((r) => pointInRing(x, y, r.pts));
 

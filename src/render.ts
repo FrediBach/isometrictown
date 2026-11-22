@@ -9,6 +9,7 @@ import { airfields, crossings, motorways, platforms, bridges, pierOutline, ferri
 import { Camera } from './camera';
 import { pointInRing, ringArea, type Frame } from './geo';
 import type { StageProgress } from './app/stages';
+import { streetClearance } from './image-check';
 import { atLeast, LOD, shows, showsAt } from './lod';
 import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
 import { marginalia } from './marginalia';
@@ -144,7 +145,19 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // Buildings loaded only so their neighbours are classified the same from any view go now.
   town = { ...town, buildings: town.buildings.filter((b) => !b.context) };
   // Roads narrower than the pen can keep apart are drawn a little wider, so their kerbs don't run together.
-  at('streets', () => { for (const w of town.ways) if (w.kind === 'road') w.width = atLeast(cam, LOD.road, w.width); });
+  at('streets', () => {
+    let clearance: ReturnType<typeof streetClearance> | undefined;
+    town.ways = town.ways.map(w => {
+      if (w.kind !== 'road') return w;
+      let width = atLeast(cam, LOD.road, w.width);
+      if (width === w.width) return w;
+      if (set.source === 'image') {
+        clearance ??= streetClearance(town.buildings, cam.nib / cam.s);
+        width = clearance(w, width);
+      }
+      return { ...w, width };
+    });
+  });
   // Streams too narrow for two banks are a single line.
   const banked = at('water', () => town.streams.map((s) => shows(cam, LOD.stream, s.width)));
   const brooks = town.streams.filter((_, i) => !banked[i]);

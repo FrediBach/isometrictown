@@ -8,7 +8,7 @@ import { amenitiesOf, civicSites, parishChurch, parkingSites } from '@/image-ame
 import { rockSites } from '@/image-rock';
 import { ferryLandings } from '@/image-ferries';
 import { fieldBarns } from '@/image-buildings';
-import { Footprints, Ground, inShape } from '@/image-check';
+import { Footprints, Ground, inShape, streetClearance } from '@/image-check';
 import { drawnAs, imageRegion, STYLE_PLACE } from '@/image';
 import { dragFocus, fitImage, toImage, toSheet } from '@/image-fit';
 import { readImage, remapTarget, toneAt } from '@/image-read';
@@ -408,6 +408,7 @@ describe('outlines and water', () => {
     expect(waterOf(z((i, j) => Math.hypot(i - 50, j - 50) < 20)).cls).toEqual(['lake']);
     expect(waterOf(z((i, j) => Math.hypot(i - 50, j - 50) < 8)).cls).toEqual(['lake']);
     expect(waterOf(z((i) => Math.abs(i - 50) < 3)).cls).toEqual(['river']);
+    expect(waterOf(z((i) => Math.abs(i - 50) < 10)).cls).toEqual(['river']);
     expect(waterOf(z((_, j) => j < 30)).cls).toEqual(['ocean']);
   });
 });
@@ -485,6 +486,15 @@ describe('the street graph', () => {
     clean(g, x => x > 280 && x < 320);
     expect(streetRules(g)).toEqual([]);
     expect(g.edges).toHaveLength(5);
+  });
+
+  test('a plotted road can widen on open land and keeps ink clear of a long wall', () => {
+    const wall = { pts: [-50, 4, 50, 4, 50, 10, -50, 10], seam: new Uint8Array(4) };
+    const width = streetClearance([{ shape: [wall], h: 8, min: 0 }], 0.5);
+    const w: Way = { pts: [-4, 0, 4, 0], width: 5, cls: 'minor', kind: 'road' };
+    expect(width(w, 10)).toBe(7);
+    expect(width({ ...w, pts: [-4, -20, 4, -20] }, 10)).toBe(10);
+    expect(width({ ...w, pts: [-4, 1.5, 4, 1.5] }, 10)).toBe(5);
   });
 
   test('a dry connection takes precedence over a shorter bridge', () => {
