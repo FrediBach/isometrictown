@@ -15,9 +15,9 @@ import { IMAGE_STYLE } from './styles';
 
 /** Settings a mask can set for its part of the picture, in the order the panel lists them. */
 export const MASK_KEYS = [
-  'imageLight', 'imageContrast', 'likeness', 'imageNeighbours',
+  'imageLight', 'imageContrast', 'likeness', 'imageNeighbours', 'imageTownBias', 'imageDistrictSize', 'imageWater',
   'imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight',
-  'fabric', 'imageContours', 'imageRoundabouts',
+  'fabric', 'imageStreetSpacing', 'imageContours', 'imageRoundabouts',
   'heightScale', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls',
   'pitched', 'trees', 'cars', 'abandon', 'humanize',
 ] as const;
@@ -66,8 +66,10 @@ export const MASKS_MAX = 24;
 
 /** Settings image mode's mask stages are keyed on: the image is read again only for these. */
 export const READ_KEYS: readonly MaskKey[] = ['imageLight', 'imageContrast'];
+/** Zone preferences a mask can change. */
+export const ZONE_KEYS = ['likeness', 'imageNeighbours', 'imageTownBias', 'imageDistrictSize', 'imageWater'] as const satisfies readonly MaskKey[];
 /** Laid out again only for these. */
-export const LAYOUT_KEYS: readonly MaskKey[] = ['likeness', 'imageNeighbours', 'fabric', 'imageContours', 'imageRoundabouts'];
+export const LAYOUT_KEYS: readonly MaskKey[] = [...ZONE_KEYS, 'fabric', 'imageStreetSpacing', 'imageContours', 'imageRoundabouts'];
 /** Built again only for these; the rest only change how the town is drawn. */
 export const BUILD_KEYS: readonly MaskKey[] = ['imageDensity', 'imageFloorplans'];
 
@@ -77,6 +79,10 @@ export const MASK_RANGE: Record<MaskKey, [number, number]> = {
   imageContrast: [0.5, 2],
   likeness: [0, 1],
   imageNeighbours: [0, 1],
+  imageTownBias: [-1, 1],
+  imageDistrictSize: [0.5, 2],
+  imageWater: [-1, 1],
+  imageStreetSpacing: [0.5, 2],
   imageRelief: [0, 1],
   imageDensity: [-1, 1],
   imageHatching: [0, 1],

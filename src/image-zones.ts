@@ -138,14 +138,14 @@ export function compatTable(neighbours: number): Float32Array {
 }
 
 /** What zoning needs from the settings. */
-export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'imageNeighbours' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
+export type ZoneSettings = Pick<Settings, 'scale' | 'tilt' | 'likeness' | 'imageNeighbours' | 'imageTownBias' | 'imageWater' | 'imageDistrictSize' | 'imageColour' | 'mono' | 'pens' | 'customBackground' | 'background'>;
 
 /**
  * Zone the ground in `box` (local metres) to look like the target through `cam`. The pens shape
  * the materials' colours, so they count here; the tone of what is drawn does not depend on them.
  */
 /** Settings masks set for parts of the picture, at a ground position. */
-export type ZoneLocal = { likeness?: (x: number, y: number) => number; neighbours?: (x: number, y: number) => number };
+export type ZoneLocal = Partial<Record<'likeness' | 'neighbours' | 'townBias' | 'water' | 'districtSize', (x: number, y: number) => number>>;
 
 export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readonly number[], local: ZoneLocal = {}): Zones {
   const cell = zoneCell(set.scale);
@@ -219,6 +219,9 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   const spUrban = new Float32Array(count);
   const spLike = new Float32Array(count);
   const spNb = new Float32Array(count);
+  const townBias = new Float32Array(count);
+  const waterBias = new Float32Array(count);
+  const districtSize = new Float32Array(count);
   // Only ground colours decide the superpixels. Sample the other heights directly into
   // those superpixels so each height needs three sums per patch instead of per cell.
   for (let j = 0; j < H; j++) {
@@ -231,6 +234,9 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       spUrban[s] += urban[c];
       spLike[s] += likeAt ? likeAt(x, y) : likeness;
       if (nbAt) spNb[s] += nbAt(x, y);
+      if (local.townBias) townBias[s] += local.townBias(x, y);
+      if (local.water) waterBias[s] += local.water(x, y);
+      if (local.districtSize) districtSize[s] += local.districtSize(x, y);
       for (let ch = 0; ch < 3; ch++) spLab[0][s * 3 + ch] += lab[c * 3 + ch];
       const cx = column(x, y);
       for (let k = 1; k < lifts.length; k++) {
@@ -249,6 +255,9 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     spUrban[s] /= area[s];
     spLike[s] /= area[s];
     spNb[s] /= area[s];
+    townBias[s] = local.townBias ? townBias[s] / area[s] : set.imageTownBias;
+    waterBias[s] = local.water ? waterBias[s] / area[s] : set.imageWater;
+    districtSize[s] = local.districtSize ? districtSize[s] / area[s] : set.imageDistrictSize;
     for (let k = 0; k < lifts.length; k++) for (let ch = 0; ch < 3; ch++) spLab[k][s * 3 + ch] /= area[s];
   }
   const sides = new Map<number, [number, number]>();
@@ -274,7 +283,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
   for (const [key, [len, e]] of sides) {
     const a = Math.floor(key / count);
     const b = key % count;
-    const w = lambda(a, b) * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
+    const w = lambda(a, b) * (districtSize[a] + districtSize[b]) / 2 * Math.exp(-((e / len / 0.35) ** 2)) * Math.min(1.5, len / sideCells);
     const t = (spNb[a] + spNb[b]) / 2;
     nbrs[a].push([b, w, e / len, t]);
     nbrs[b].push([a, w, e / len, t]);
@@ -295,6 +304,7 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
     const a = spLab[0][s * 3 + 1], b = spLab[0][s * 3 + 2];
     const tone = (spLab[0][s * 3] - target.dark) / (target.paper - target.dark || 1);
     blueWater[s] = chroma * Math.max(0, -b - Math.max(0, a) - 0.025) * Math.max(0, Math.min(1, 3 * (tone - 0.5)));
+    blueWater[s] *= 1 + waterBias[s];
     for (let k = 0; k < K; k++) {
       const l = LABELS[k];
       const t = spLab[liftOf(l)];
@@ -326,7 +336,12 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
       });
       const u = URBAN[l] ?? 0;
       const urb = u > 0 ? u * (1 - spUrban[s]) : -u * spUrban[s];
-      data[s * K + k] = spWeight[s] * (l === 'water' ? best - blueWater[s] : best) + priorOf(s) * (BASE[l] + urb);
+      // A preference tips close material matches. Water has its own dial, independent of built and green land.
+      let preference = 0;
+      if (BUILT.has(l)) preference = 0.035 * townBias[s];
+      else if (GREEN.has(l)) preference = -0.035 * townBias[s];
+      else if (l === 'water') preference = blueWater[s] + 0.045 * waterBias[s];
+      data[s * K + k] = spWeight[s] * (best - preference) + priorOf(s) * (BASE[l] + urb);
     }
   }
 
@@ -447,11 +462,13 @@ export function zone(target: Target, set: ZoneSettings, cam: Camera, box: readon
         const list = comps[ci];
         const k = label[list[0]];
         const real = MIN_AREA[LABELS[k]];
-        const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / list.reduce((a, s) => a + area[s], 0) : likeness;
+        const cells = list.reduce((a, s) => a + area[s], 0);
+        const like = likeAt ? list.reduce((a, s) => a + spLike[s] * area[s], 0) / cells : likeness;
+        const size = local.districtSize ? list.reduce((a, s) => a + districtSize[s] * area[s], 0) / cells : set.imageDistrictSize;
         // A distinctly blue pond can be smaller than an inferred patch of open water.
         const pond = k === WATER && list.some(s => blueWater[s] > CLEAR_WATER);
-        const min = pond ? POND_AREA : (real + (Math.min(real, MIN_LIKE) - real) * like) * 10000;
-        if (list.reduce((a, s) => a + area[s], 0) * cell * cell >= min) continue;
+        const min = pond ? POND_AREA : (real + (Math.min(real, MIN_LIKE) - real) * like) * 10000 * size * size;
+        if (cells * cell * cell >= min) continue;
         const around = new Set<number>();
         for (const s of list) for (const [t] of nbrs[s]) if (label[t] !== k) around.add(label[t]);
         if (!around.size) continue;

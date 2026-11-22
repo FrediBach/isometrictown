@@ -23,6 +23,10 @@ const FIELDS: Record<DialKey, { label: string; min: number; max: number; step: n
   imageLight: { label: 'Brightness', min: -1, max: 1, step: 0.05 },
   imageContrast: { label: 'Contrast', min: 0.5, max: 2, step: 0.05 },
   likeness: { label: 'Likeness', min: 0, max: 1, step: 0.01 },
+  imageTownBias: { label: 'Countryside ↔ town', min: -1, max: 1, step: 0.01 },
+  imageDistrictSize: { label: 'District size', min: 0.5, max: 2, step: 0.01 },
+  imageWater: { label: 'Water preference', min: -1, max: 1, step: 0.01 },
+  imageStreetSpacing: { label: 'Street spacing', min: 0.5, max: 2, step: 0.01 },
   imageNeighbours: { label: 'Neighbourhoods as in real towns', min: 0, max: 1, step: 0.01 },
   fabric: { label: 'Street pattern', min: 0, max: 1, step: 0.01 },
   imageContours: { label: 'Streets follow image lines', min: 0, max: 1, step: 0.01 },
@@ -46,8 +50,8 @@ const SWITCHES: Record<MaskSwitch, string> = { windows: 'Windows', roofHatch: 'R
 
 /** The groups the mask's settings are listed in. */
 const GROUPS: { caption: string; keys: MaskKey[] }[] = [
-  { caption: 'Image', keys: ['imageLight', 'imageContrast', 'likeness', 'imageNeighbours'] },
-  { caption: 'Streets', keys: ['fabric', 'imageContours', 'imageRoundabouts'] },
+  { caption: 'Image', keys: ['imageLight', 'imageContrast', 'likeness', 'imageNeighbours', 'imageTownBias', 'imageDistrictSize', 'imageWater'] },
+  { caption: 'Streets', keys: ['fabric', 'imageStreetSpacing', 'imageContours', 'imageRoundabouts'] },
   { caption: 'Town from the image', keys: ['imageRelief', 'imageDensity', 'imageHatching', 'imageFloorplans', 'imageHighlight'] },
   { caption: 'Buildings', keys: ['heightScale', 'pitched', 'windows', 'roofHatch', 'rooftops', 'details', 'shadeWalls'] },
   { caption: 'Town', keys: ['trees', 'cars', 'abandon', 'humanize'] },

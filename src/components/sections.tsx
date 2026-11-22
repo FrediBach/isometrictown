@@ -127,6 +127,9 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
         {set.imagePreserveSpace && <NumberSetting name="imageHighlight" label="Highlight cutoff" min={0} max={1} step={0.01} hint="Transparent areas stay blank. Lower the cutoff to clear light parts of the picture too." />}
       </FoldingSection>
       <FoldingSection index={4} title="Neighbourhoods and buildings" summary={`${FORMAT.imageRelief(set.imageRelief)} height from image`}>
+        <NumberSetting name="imageTownBias" label="Countryside ↔ town" min={-1} max={1} step={0.01} hint="Prefer open land or built neighbourhoods where either could match the image." />
+        <NumberSetting name="imageDistrictSize" label="District size" min={0.5} max={2} step={0.01} hint="Smaller districts keep a patchwork of land uses. Larger ones merge small patches into their neighbours." />
+        <NumberSetting name="imageWater" label="Water preference" min={-1} max={1} step={0.01} hint="Lower it to favour dry land. Raise it to give ponds and channels a better chance." />
         <NumberSetting name="imageNeighbours" label="Neighbourhoods as in real towns" min={0} max={1} step={0.01} hint="Place districts beside each other as they lie in real towns: works on the water, suburbs out by the fields, towers among blocks and squares." />
         <NumberSetting name="imageRelief" label="Height from image" min={0} max={1} step={0.01} hint="At 0%, buildings keep their usual heights. At 100%, the darkest areas rise into towers and light areas stay low." />
         <NumberSetting name="imageDensity" label="Building density from image" min={-1} max={1} step={0.01} hint="Lower density to leave more plots open, especially in light areas. Raise it to fill dark blocks and open gardens in light areas." />
@@ -140,8 +143,9 @@ function ImageSections({ picture, mask, onMask }: Pick<SourceSectionProps, 'pict
         {(grid < 1 || activeMasks(set.imageMasks).some(m => (m.values.fabric ?? 1) < 1)) && (
           <NumberSetting name="imageRoadWinding" label="Country road winding" min={0} max={1} step={0.01} hint="Shape the lanes between settlements and shore roads. At 0% they take a direct line, at 50% they ease into junctions, and at 100% they wind across open ground." />
         )}
+        <NumberSetting name="imageStreetSpacing" label="Street spacing" min={0.5} max={2} step={0.01} hint="Space local streets closer together or farther apart within each type of neighbourhood." />
         <NumberSetting name="imageRoundabouts" label="More roundabouts" min={0} max={2} step={0.01} hint="At 0%, junctions become roundabouts as often as in real towns of the style. Raise it for more, still most often where busy roads meet; at 200% nearly every junction with room is one." />
-        <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Lead streets and paths along long, connected edges in the picture." />
+        <NumberSetting name="imageContours" label="Streets follow image lines" min={0} max={1} step={0.01} hint="Trace bright lines and long outlines as streets and paths. At 0% these lines lay no routes." />
       </FoldingSection>
     </>
   );

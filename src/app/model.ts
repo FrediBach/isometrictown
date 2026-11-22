@@ -122,7 +122,8 @@ function validateImage(s: Settings): void {
   s.imageLight = within(s.imageLight, -1, 1, d.imageLight);
   s.imageContrast = within(s.imageContrast, 0.5, 2, d.imageContrast);
   s.imageColour = within(s.imageColour, 0, 1, d.imageColour);
-  s.imageDensity = within(s.imageDensity, -1, 1, d.imageDensity);
+  for (const key of ['imageDensity', 'imageTownBias', 'imageWater'] as const) s[key] = within(s[key], -1, 1, d[key]);
+  for (const key of ['imageDistrictSize', 'imageStreetSpacing'] as const) s[key] = within(s[key], 0.5, 2, d[key]);
   for (const key of ['imageRelief', 'imageHatching', 'imageContours', 'imageRoadWinding', 'imageFloorplans', 'imageNeighbours', 'imageHighlight'] as const) {
     s[key] = within(s[key], 0, 1, d[key]);
   }
@@ -294,7 +295,7 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageRoadWinding' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageTownBias' | 'imageDistrictSize' | 'imageWater' | 'imageStreetSpacing' | 'imageRoadWinding' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'imageCoordinates' | 'imagePreserveSpace' | 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
@@ -312,6 +313,10 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   imageContours: percent,
   imageFloorplans: percent,
   imageNeighbours: percent,
+  imageTownBias: (v) => v === 0 ? 'Balanced' : `${percent(Math.abs(v))} ${v < 0 ? 'countryside' : 'town'}`,
+  imageDistrictSize: (v) => `${v.toFixed(2)}×`,
+  imageWater: (v) => v === 0 ? 'Balanced' : `${percent(Math.abs(v))} ${v < 0 ? 'drier' : 'wetter'}`,
+  imageStreetSpacing: (v) => `${v.toFixed(2)}×`,
   imageRoadWinding: percent,
   imageRoundabouts: percent,
   imageHighlight: (v) => v === 1 ? 'Transparency only' : percent(v),

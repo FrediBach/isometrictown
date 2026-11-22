@@ -60,6 +60,17 @@ describe('masks', () => {
     }
   });
 
+  test('a zoning mask rebuilds the land plan and a spacing mask reuses it', () => {
+    const plain = imageScene(pic, base);
+    const mask = left({ imageTownBias: 1, imageDistrictSize: 0.5, imageWater: -1 });
+    const zoned = imageScene(pic, { ...base, imageMasks: [mask] });
+    expect(zoned.target).toBe(plain.target);
+    expect(zoned.zones.label).not.toEqual(plain.zones.label);
+    const spaced = imageScene(pic, { ...base, imageMasks: [{ ...mask, values: { ...mask.values, imageStreetSpacing: 0.5 } }] });
+    expect(spaced.zones).toBe(zoned.zones);
+    expect(spaced.streets.edges.length).not.toBe(zoned.streets.edges.length);
+  });
+
   test('height from image rises only inside the mask', () => {
     const flat = imageScene(fresh(), base);
     const masked = imageScene(fresh(), { ...base, imageMasks: [left({ imageRelief: 1 })] });

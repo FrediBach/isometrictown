@@ -314,14 +314,37 @@ describe('zoning', () => {
     expect(plausibility(sc.town)).toEqual([]);
   });
 
+  test('town and water preferences change the land chosen for the same tones', () => {
+    const pic = PICTURES.landscape();
+    const count = (settings: Partial<Settings>, accept: (k: number) => boolean) =>
+      plan(pic, { ...base, ...settings }).zones.label.reduce((n, k) => n + Number(accept(k)), 0);
+    const built = (k: number) => BUILT.has(LABELS[k]);
+    const wet = (k: number) => LABELS[k] === 'water';
+    expect(count({ imageTownBias: 1 }, built)).toBeGreaterThan(count({ imageTownBias: -1 }, built));
+    expect(count({ imageWater: 1 }, wet)).toBeGreaterThan(count({ imageWater: -1 }, wet));
+  });
+
   test('more likeness keeps smaller patches', () => {
     const pic = paint('Blots', (u, v) => (Math.hypot(u - 0.3, v - 0.5) < 0.04 || Math.hypot(u - 0.7, v - 0.5) < 0.04 ? [30, 30, 30] : [230, 230, 230]));
     const built = (likeness: number) => [...plan(pic, { ...base, likeness }).zones.label].filter((k) => BUILT.has(LABELS[k])).length;
     expect(built(1)).toBeGreaterThan(built(0));
+    const patches = (imageDistrictSize: number) => plan(pic, { ...base, imageDistrictSize }).zones.label.reduce((n, k) => n + Number(BUILT.has(LABELS[k])), 0);
+    expect(patches(0.5)).toBeGreaterThan(patches(2));
   });
 });
 
 describe('the street graph', () => {
+  test('closer street spacing produces more blocks on the same land plan', () => {
+    const pic = PICTURES.gradient();
+    const set: Settings = { ...DEFAULT_SETTINGS, source: 'image', scale: 2500, tilt: 40, sheet: 'a4' };
+    const wide = imageScene(pic, { ...set, imageStreetSpacing: 2 });
+    const close = imageScene(pic, { ...set, imageStreetSpacing: 0.5 });
+    expect(close.zones).toBe(wide.zones);
+    expect(close.blocks.length).toBeGreaterThan(wide.blocks.length);
+    expect(streetRules(close.streets)).toEqual([]);
+    expect(plausibility(close.town)).toEqual([]);
+  });
+
   test('more roundabouts lays more of them, and the streets still keep every rule', () => {
     const pic = PICTURES.gradient();
     const set: Settings = { ...structuredClone(DEFAULT_SETTINGS), source: 'image', image: pic.id, scale: 2500, tilt: 40, sheet: 'a4', style: 'british' };

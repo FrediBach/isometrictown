@@ -56,8 +56,9 @@ const RADIAL_OVER = 250;
 export const RULES = { deadEnd: 25, edge: 10, angle: 35, junctions: 20 };
 
 /** What the street planner needs from the settings. */
-export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number; winding?: number;
-  /** Street pattern, Likeness and More roundabouts where masks set them for part of the picture, at a ground position. */
+export type StreetSettings = Pick<Settings, 'likeness' | 'imageContours' | 'imageStreetSpacing' | 'fabric' | 'seed'> & { style: string; vary?: (x: number, y: number, salt: number) => number; roundabouts?: number; winding?: number;
+  /** Settings a mask changes at a ground position. */
+  spacingAt?: (x: number, y: number) => number;
   fabricAt?: (x: number, y: number) => number;
   likenessAt?: (x: number, y: number) => number;
   roundaboutsAt?: (x: number, y: number) => number;
@@ -267,7 +268,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   const [bx, by] = cam.ground(0, 1);
   const imgAngle = new Float32Array(n);
   const coherence = new Float32Array(n);
-  const ridge = new Int8Array(n);
+  const ridge = new Float32Array(n);
   const blue = new Uint8Array(n);
   const reach = Math.max(0, Math.ceil((cell * cam.s) / target.cell / 2));
   for (let j = 0; j < H; j++)
@@ -285,7 +286,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
       imgAngle[c] = Math.atan2(gy, gx);
       coherence[c] = target.coherence[t] * target.weight[t];
       blue[c] = target.b[t] < -0.02 ? 1 : 0;
-      for (let dy = -reach; dy <= reach && !ridge[c]; dy++)
+      findRidge: for (let dy = -reach; dy <= reach; dy++)
         for (let dx = -reach; dx <= reach; dx++) {
           const u = tx + dx;
           const v = ty + dy;
@@ -294,8 +295,8 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
           // Broad strokes are traced once on the sheet below. Widening their middles to the
           // ground cells would turn a single centreline into several tracks beside one another.
           if (r === 1 || r === -1) {
-            ridge[c] = r;
-            break;
+            ridge[c] = r < 0 ? r : (set.contours?.[v * target.W + u] ?? set.imageContours);
+            break findRidge;
           }
         }
     }
@@ -374,23 +375,9 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
   const roads = mainRoads(z, ridge, cores, cam, dirAt, salt => vary(cx, cy, salt), detour, gridAt, set.seed);
   roads.forEach((pts, k) => keep(pts, k ? 'secondary' : 'primary', true));
 
-  // Bright lines in the image: streets in town, paths in parks, tracks in the fields.
   const paths: Way[] = [];
   const minLine = 80 + (30 - 80) * likeness;
-  for (const pts of traceLines((c) => ridge[c] > 0 && z.label[c] !== WATER, z, minLine)) {
-    const votes = new Map<number, number>();
-    for (let i = 0; i < pts.length; i += 2) {
-      const k = labelAt(pts[i], pts[i + 1]);
-      votes.set(k, (votes.get(k) ?? 0) + 1);
-    }
-    const top = [...votes].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
-    if (top >= 0 && streetable(top)) keep(pts, 'minor');
-    else if (top === L('park') || top === L('wood')) paths.push({ pts, kind: 'path', width: 0, cls: 'footway' });
-    else if (top === L('field') || top === L('meadow') || top === L('allot')) paths.push({ pts, kind: 'path', width: 0, cls: 'track', unpaved: true });
-  }
-
-  // Broad strokes read as local streets in town, walks across squares and parks, or field tracks.
-  // Trace in sheet mm before projecting. Break at water and where the kind of route changes.
+  // Trace image guides on the sheet, breaking at water and where the kind of route changes.
   const routeAt = (x: number, y: number) => {
     const l = LABELS[labelAt(x, y)];
     if (BUILT.has(l)) return 'road';
@@ -398,7 +385,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     if (l === 'field' || l === 'meadow' || l === 'allot') return 'track';
     return null;
   };
-  const layRoute = (sheet: number[], existing?: Near) => {
+  const layRoute = (sheet: number[], existing: Near) => {
     let run: number[] = [];
     let route: ReturnType<typeof routeAt> = null;
     const finish = () => {
@@ -406,7 +393,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
         const pts = simplify(run, z.cell / 2);
         if (route === 'road') keep(pts, 'minor');
         else paths.push({ pts, kind: 'path', width: 0, cls: route, unpaved: route === 'track' });
-        existing?.add(pts, 0);
+        existing.add(pts, 0);
       }
     };
     let [ax, ay] = cam.ground(sheet[0], sheet[1]);
@@ -420,7 +407,7 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
         const dy = (by - ay) / steps;
         const mx = x + dx / 2, my = y + dy / 2;
         let next: ReturnType<typeof routeAt> = routeAt(mx, my);
-        if (existing && next) {
+        if (next) {
           const len = Math.hypot(dx, dy);
           // An outline can lie along the seam of two land labels. A street can front the
           // town on either side; this keeps a field-edge lane continuous along the seam.
@@ -442,12 +429,11 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     }
     finish();
   };
-  for (const sheet of traceLines((i) => target.ridge[i] === 2, target, minLine * cam.s * cam.sa)) layRoute(sheet);
   if (set.contours || set.imageContours > 0) {
     const guides = contourGuides(target, set.contours ?? Math.min(1, set.imageContours));
     if (guides.length) {
       const existing = new Near();
-      for (const { pts } of [...lines, ...paths]) existing.add(pts, 0);
+      for (const { pts } of lines) existing.add(pts, 0);
       for (const sheet of guides) layRoute(sheet, existing);
     }
   }
@@ -457,7 +443,9 @@ export function streets(z: Zones, target: Target, cam: Camera, set: StreetSettin
     const c = cellOf(x, y);
     if (c < 0) return 0;
     const s = SPACING[LABELS[z.label[c]]];
-    return s ? s[1] - (s[1] - s[0]) * z.level[c] : 0;
+    if (!s) return 0;
+    const spacing = (s[1] - (s[1] - s[0]) * z.level[c]) * (set.spacingAt?.(x, y) ?? set.imageStreetSpacing);
+    return Math.max(RULES.junctions, spacing);
   };
   const queue: [number, number, number, number, number][] = [];
   const seed = (id: number) => {
@@ -694,7 +682,7 @@ function coresOf(z: Zones) {
 }
 
 /** Up to two main roads, each the cheapest way from one side of the plan to the other (§10.2). */
-function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number, detour: number, gridAt: (x: number, y: number) => number, seed: number): number[][] {
+function mainRoads(z: Zones, ridge: Float32Array, cores: [number, number][], cam: Camera, dirAt: (x: number, y: number, f: number) => [number, number], roll: (salt: number) => number, detour: number, gridAt: (x: number, y: number) => number, seed: number): number[][] {
   // A coarser grid, about 16 m, for the search; the road is smoothed afterwards.
   const f = Math.max(1, Math.round(16 / z.cell));
   const cs = z.cell * f;
@@ -735,9 +723,9 @@ function mainRoads(z: Zones, ridge: Int8Array, cores: [number, number][], cam: C
           }
           sum += k;
           cnt++;
-          if (ridge[c] > 0) bright = 1;
+          bright = Math.max(bright, ridge[c]);
         }
-      cost[index] = (sum / cnt) * (bright ? 0.4 : 1);
+      cost[index] = (sum / cnt) * (1 - 0.6 * bright);
       // A narrow, winding band between patches of rough ground gives a through road
       // an easier way across country. Water and built-up cells keep their own costs.
       const label = zoneAt(z, mx, my);

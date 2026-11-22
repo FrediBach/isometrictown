@@ -38,6 +38,14 @@ export type Settings = {
   imageFloorplans: number;
   /** How far zoning follows which districts border which in real towns, rather than the hand-made rules. */
   imageNeighbours: number;
+  /** Prefer open land or built neighbourhoods where either could match the image. */
+  imageTownBias: number;
+  /** Smaller districts keep a patchwork of land uses. Larger ones merge small patches into their neighbours. */
+  imageDistrictSize: number;
+  /** Lower it to favour dry land. Raise it to give ponds and channels a better chance. */
+  imageWater: number;
+  /** Space local streets closer together or farther apart within each type of neighbourhood. */
+  imageStreetSpacing: number;
   /** Winding of organic lanes across open ground, from straight to broad meanders. */
   imageRoadWinding: number;
   /** More roundabouts than real towns build, 0 to 2: 0 keeps the learnt rates, 1 makes their odds 100 times higher, 2 makes nearly every junction with room one. */
@@ -212,6 +220,10 @@ export const DEFAULT_SETTINGS: Settings = {
   imageContours: 0,
   imageFloorplans: 0,
   imageNeighbours: 0,
+  imageTownBias: 0,
+  imageDistrictSize: 1,
+  imageWater: 0,
+  imageStreetSpacing: 1,
   imageRoadWinding: 0.5,
   imageRoundabouts: 0,
   imagePreserveSpace: false,

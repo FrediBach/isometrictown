@@ -2,8 +2,11 @@
 import { expect, test } from 'vitest';
 import { PICTURES, runCase } from '../../lab/likeness.js';
 
-test.each(['a4', 'a3'] as const)('roads and paths follow both bright arms on %s', (sheet) => {
-  const { features } = runCase('cross', 2500, { sheet });
+test.each(['a4', 'a3'] as const)('the street control turns following both bright arms on and off on %s', (sheet) => {
+  const { features } = runCase('cross', 2500, { sheet, contours: 1 });
+  const off = runCase('cross', 2500, { sheet, contours: 0 }).features;
+  expect(off['Horizontal arm followed']).toBeLessThan(0.3);
+  expect(off['Vertical arm followed']).toBeLessThan(0.3);
   expect(features['Horizontal arm followed']).toBeGreaterThan(0.6);
   expect(features['Vertical arm followed']).toBeGreaterThan(0.6);
 });
