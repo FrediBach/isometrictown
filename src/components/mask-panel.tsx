@@ -1,12 +1,13 @@
 import { useId } from 'react';
 import { ArrowDownIcon, ArrowUpIcon, CircleIcon, CopyIcon, FlipHorizontal2Icon, FlipVertical2Icon, EyeIcon, EyeOffIcon, PentagonIcon, RectangleHorizontalIcon, RotateCcwIcon, Trash2Icon } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Segmented } from '@/components/ui/segmented';
 import { Slider } from '@/components/ui/slider';
 import { ToggleKey } from '@/components/ui/toggle-key';
 import { cn } from '@/lib/utils';
 import { FORMAT, patternLabel } from '../app/model';
 import { useSettings } from '../app/settings-context';
-import { duplicateMask, FEATHER_MAX, mainValue, mirrorMask, MASK_SWITCHES, MASKS_MAX, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape, type MaskSwitch } from '../image-masks';
+import { duplicateMask, FEATHER_MAX, mainValue, mirrorMask, MASK_SWITCHES, MASKS_MAX, TINT_MODES, newMask, NO_SPACE, type ImageMask, type MaskKey, type MaskShape, type MaskSwitch, type SourceTint } from '../image-masks';
 import { Caption, Hint, KeyGrid } from './fields';
 
 const SHAPES: { shape: MaskShape; label: string; Icon: typeof CircleIcon }[] = [
@@ -118,7 +119,7 @@ export function MaskPanel({ picture, selected, onSelect }: Props) {
       {masks.length > 0 && (
         <ul className="m-0 mb-2 list-none border-t p-0">
           {masks.map((m, i) => {
-            const changed = Object.keys(m.values).length;
+            const changed = Object.keys(m.values).length + Number(!!m.tint);
             const on = m.id === selected;
             return (
               <li key={m.id} className={cn('flex items-center gap-1 border-b py-1', on && 'bg-muted/60')}>
@@ -230,6 +231,7 @@ function MaskSettings({ mask, index, count, update, shift, onDuplicate, onDone }
           In the drawing
         </ToggleKey>
       </KeyGrid>
+      <TintSettings tint={mask.tint} onChange={(tint, sliding) => update({ ...mask, tint }, sliding)} />
       {GROUPS.map(({ caption, keys }) => (
         <div key={caption}>
           <Caption className="mt-3">{caption}</Caption>
@@ -263,7 +265,7 @@ function MaskSettings({ mask, index, count, update, shift, onDuplicate, onDone }
           })}
         </div>
       ))}
-      <Hint className="mt-2">Settings shown in grey follow the drawing’s own. Scale, view, colour, style, light and pens are the drawing’s everywhere.</Hint>
+      <Hint className="mt-2">Settings shown in grey follow the drawing’s own. Scale, view, colour sensitivity, style, light and pens are the drawing’s everywhere.</Hint>
     </div>
   );
 }
@@ -287,6 +289,36 @@ function Switch({ label, own, main, onReset, onChange }: SwitchProps) {
           { value: 'off', label: 'Off' },
         ]}
       />
+    </div>
+  );
+}
+
+/** A solid colour blended into the source picture under this mask. */
+function TintSettings({ tint, onChange }: { tint?: SourceTint; onChange: (tint?: SourceTint, sliding?: boolean) => void }) {
+  if (!tint) return (
+    <button type="button" className={TEXT_BUTTON} onClick={() => onChange({ colour: '#4794c4', mode: 'Colour', amount: 0.5 })}>
+      Add source tint
+    </button>
+  );
+  return (
+    <div className="mb-3 border-y py-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <Caption>Source tint</Caption>
+        <button type="button" className={TEXT_BUTTON} onClick={() => onChange()}>Remove tint</button>
+      </div>
+      <label className="mb-2 flex items-center justify-between gap-2 text-[13px]">
+        Tint colour
+        <input type="color" className="swatch" value={tint.colour} onChange={e => onChange({ ...tint, colour: e.currentTarget.value }, true)} />
+      </label>
+      <div className="mb-2 flex items-center justify-between gap-2 text-[13px]">
+        <span>Blend mode</span>
+        <Select value={tint.mode} onValueChange={v => onChange({ ...tint, mode: v as SourceTint['mode'] })}>
+          <SelectTrigger aria-label="Blend mode" className="h-8 bg-card"><SelectValue /></SelectTrigger>
+          <SelectContent>{TINT_MODES.map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <Dial label="Tint amount" value={tint.amount} min={0} max={1} step={0.01} display={FORMAT.imageColour(tint.amount)} onChange={amount => onChange({ ...tint, amount }, true)} />
+      <Hint>Blends colour into the picture before the town is laid out. Use the Image overlay to see the tinted source.</Hint>
     </div>
   );
 }

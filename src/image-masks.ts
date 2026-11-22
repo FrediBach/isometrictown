@@ -31,6 +31,11 @@ export const BUILDING_KEYS: readonly MaskKey[] = ['heightScale', ...MASK_SWITCHE
 /** The shapes a mask can take. */
 export type MaskShape = 'ellipse' | 'rect' | 'polygon';
 
+/** Blend modes for applying a solid colour to the source picture. */
+export const TINT_MODES = ['Colour', 'Normal', 'Multiply', 'Screen', 'Overlay'] as const;
+/** A mask's source tint and its strength before the mask's own amount and feather. */
+export type SourceTint = { colour: string; mode: (typeof TINT_MODES)[number]; amount: number };
+
 /** A mask over part of the picture, with the settings it changes there. */
 export type ImageMask = {
   /** Stable name for the interface; the drawing never reads it. */
@@ -55,6 +60,7 @@ export type ImageMask = {
   off: boolean;
   /** The settings this mask changes; the rest follow the drawing's. */
   values: Partial<Record<MaskKey, number>>;
+  tint?: SourceTint;
 };
 
 /** Widest feather, as a share of the picture's shorter side. */
@@ -117,7 +123,7 @@ export function mainValue(set: Settings, key: MaskKey): number {
 }
 
 /** Masks that take part in the drawing. */
-export const activeMasks = (masks: readonly ImageMask[] | undefined) => (masks ?? []).filter((m) => !m.off && m.amount > 0 && Object.keys(m.values).length > 0);
+export const activeMasks = (masks: readonly ImageMask[] | undefined) => (masks ?? []).filter((m) => !m.off && m.amount > 0 && (Object.keys(m.values).length > 0 || (m.tint?.amount ?? 0) > 0));
 
 /** Whether any mask in the drawing changes one of `keys`. */
 export const masksSet = (masks: readonly ImageMask[] | undefined, keys: readonly MaskKey[]) => activeMasks(masks).some((m) => keys.some((k) => m.values[k] !== undefined));
@@ -274,7 +280,7 @@ export class MaskField {
 
   constructor(readonly masks: readonly ImageMask[], private readonly set: Settings, readonly grid: Grid, placed: Placed, picture: { w: number; h: number }) {
     const short = Math.min(placed.w, placed.h);
-    this.weights = activeMasks(masks).map((mask) => ({
+    this.weights = activeMasks(masks).filter(m => Object.keys(m.values).length > 0).map((mask) => ({
       mask,
       w: maskWeights(mask, sheetOutline(mask, placed, picture.w, picture.h), Math.max(0, Math.min(FEATHER_MAX, mask.feather)) * short, grid),
     }));
@@ -388,7 +394,11 @@ export function validMasks(raw: unknown): ImageMask[] {
       }
     }
     const id = typeof r.id === 'string' && /^[a-z0-9]{1,12}$/.test(r.id) && !out.some((o) => o.id === r.id) ? r.id : newMaskId(out);
+    const tint = r.tint as Partial<SourceTint> | null | undefined;
     out.push({
+      ...(tint && typeof tint.colour === 'string' && /^#[\da-f]{6}$/i.test(tint.colour) ? {
+        tint: { colour: tint.colour, mode: TINT_MODES.find(mode => mode === tint.mode) ?? 'Colour', amount: clamp(tint.amount, 0, 1, 0.5) },
+      } : {}),
       id,
       shape,
       pts,

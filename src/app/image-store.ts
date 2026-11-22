@@ -113,7 +113,7 @@ export async function loadPicture(id: string): Promise<Picture | null> {
   return p;
 }
 
-/** The picture as normalised, as a PNG, for showing it in the image well and the overlay. */
+/** The source picture as a PNG, for showing it in the image well and the overlay. */
 export async function pictureBlob(p: Picture): Promise<Blob> {
   const canvas = new OffscreenCanvas(p.w, p.h);
   canvas.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(p.rgba), p.w, p.h), 0, 0);

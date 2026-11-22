@@ -18,6 +18,7 @@ import { blocksOf, Occupancy, type Block } from './image-blocks';
 import { FloorplanGuides } from './image-floorplans';
 import { buildingsOf, fieldBarns, landmarks, ROW_LOT_MM, type BuildContext, type FrontageLot } from './image-buildings';
 import { centre, Footprints, Ground } from './image-check';
+import { tintKey, tintPicture } from './image-tint';
 import { plotDensity } from './image-density';
 import { ALLOTMENTS, FIELDS, landOf, patchwork, treesOf } from './image-ground';
 import { imageHeights } from './image-heights';
@@ -75,7 +76,7 @@ export function imageRegion(set: Settings): Region {
 }
 
 /** Everything a drawing from an image needs: the drawn-as settings, the camera, the target, the land plan and the town. */
-export type Scene = { set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction; /** The settings masks change over parts of the picture, on the target's grid. */ masks?: MaskField };
+export type Scene = { tintedSource?: Picture; set: Settings; cam: Camera; frame: Frame; box: [number, number, number, number]; target: Target; zones: Zones; streets: Graph; blocks: Block[]; town: Town; region: Region; style: Style; prediction?: Prediction; /** The settings masks change over parts of the picture, on the target's grid. */ masks?: MaskField };
 
 /**
  * Settings the layout depends on. Colour zoning uses the Classic pens on white paper.
@@ -91,6 +92,7 @@ const keyOf = (pic: Picture, set: Settings, keys: readonly (keyof Settings)[]) =
 /** The last town laid out and the last target read, kept pristine: rendering writes into buildings. */
 let laid: { key: string; zoneKey: string; zones: Zones; layout: Layout } | null = null;
 let built: { key: string; town: Town } | null = null;
+let tinted: { key: string; picture: Picture } | undefined;
 let read: { key: string; target: Target } | null = null;
 
 /** Lay out the town for a picture, reusing the last layout. The lab can request a tuned build of its own. */
@@ -106,12 +108,15 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
   const masks = activeMasks(drawn.imageMasks).length
     ? new MaskField(drawn.imageMasks, drawn, targetGrid(cam.rect), fitImage(cam.rect, pic.w, pic.h, drawn.imageFit, drawn.imageFocus), pic)
     : undefined;
-  const readMasks = masksKey(drawn.imageMasks, READ_KEYS);
-  const layoutMasks = masksKey(drawn.imageMasks, [...READ_KEYS, ...LAYOUT_KEYS]);
+  const tint = tintKey(drawn.imageMasks);
+  if (!tint) tinted = undefined;
+  else if (tinted?.key !== pic.id + tint) tinted = { key: pic.id + tint, picture: tintPicture(pic, drawn.imageMasks) };
+  const readMasks = masksKey(drawn.imageMasks, READ_KEYS) + tint;
+  const layoutMasks = readMasks + masksKey(drawn.imageMasks, LAYOUT_KEYS);
   const lookKey = keyOf(pic, drawn, LOOK) + readMasks;
   if (read?.key !== lookKey) {
     note('Reading the image');
-    read = { key: lookKey, target: readImage(pic, reference, cam.rect, masks) };
+    read = { key: lookKey, target: readImage(tinted?.picture ?? pic, reference, cam.rect, masks) };
   }
   const target = read.target;
   const townKey = keyOf(pic, drawn, STRUCTURE) + layoutMasks;
@@ -128,7 +133,7 @@ export function imageScene(pic: Picture, set: Settings, note: (text: string) => 
     note('Laying out streets');
     laid = { key: townKey, zoneKey, zones, layout: imageLayout(zones, target, drawn, cam, frame, box, style, note, masks) };
   }
-  const scene = { set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style, masks };
+  const scene = { tintedSource: tinted?.picture, set: drawn, cam, frame, box, target: remapTarget(target, drawn), zones: laid.zones, streets: laid.layout.streets, region, style, masks };
   if (tuned) {
     const experiment = imageBuild(laid.layout, scene.target, drawn, cam, note, true, undefined, masks);
     return { ...scene, blocks: experiment.blocks, town: experiment.town, prediction: experiment.prediction! };

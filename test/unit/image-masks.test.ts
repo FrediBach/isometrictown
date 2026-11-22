@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'vitest';
+import { tintPicture } from '@/image-tint';
+import { paint } from '../support/pictures';
 import { fitImage } from '@/image-fit';
 import { activeMasks, duplicateMask, MaskField, mirrorMask, masksKey, maskWeights, newMask, NO_SPACE, roundCorners, sheetOutline, validMasks, type ImageMask } from '@/image-masks';
 import { DEFAULT_SETTINGS, type Settings } from '@/settings';
@@ -166,3 +168,35 @@ describe('duplicating and mirroring', () => {
   });
 });
 
+
+describe('source tints', () => {
+  const original = paint('Grey with a transparent strip', (u) => [128, 128, 128, u < 0.1 ? 0 : 192], 100, 50);
+  const pixel = (p: typeof original, x: number) => [...p.rgba.slice((25 * p.w + x) * 4, (25 * p.w + x + 1) * 4)];
+
+  test.each([
+    ['Normal', [255, 0, 0]], ['Colour', [255, 74, 74]], ['Multiply', [128, 0, 0]],
+    ['Screen', [255, 128, 128]], ['Overlay', [255, 1, 1]],
+  ] as const)('%s blends only covered source pixels and preserves alpha', (mode, expected) => {
+    const mask = left({ tint: { mode, colour: '#ff0000', amount: 1 } });
+    const tinted = tintPicture(original, [mask]);
+    expect(pixel(tinted, 25)).toEqual([...expected, 192]);
+    expect(pixel(tinted, 5)).toEqual(pixel(original, 5));
+    expect(pixel(tinted, 75)).toEqual(pixel(original, 75));
+    expect(pixel(original, 25)).toEqual([128, 128, 128, 192]);
+  });
+
+  test('tint and mask amounts multiply, feathers fade and later masks blend last', () => {
+    const red = left({ amount: 0.5, feather: 0.2, tint: { mode: 'Normal', colour: '#ff0000', amount: 0.5 } });
+    const blue = left({ tint: { mode: 'Normal', colour: '#0000ff', amount: 1 } });
+    const faded = tintPicture(original, [red]);
+    expect(pixel(faded, 25)).toEqual([160, 96, 96, 192]);
+    expect(pixel(faded, 50)[0]).toBeGreaterThan(128);
+    expect(pixel(faded, 50)[0]).toBeLessThan(160);
+    expect(pixel(tintPicture(original, [red, blue]), 25)).toEqual([0, 0, 255, 192]);
+    expect(pixel(tintPicture(original, [blue, red]), 25)).toEqual([64, 0, 191, 192]);
+    expect(pixel(tintPicture(original, [{ ...blue, invert: true }]), 75)).toEqual([0, 0, 255, 192]);
+    expect(tintPicture(original, [{ ...blue, off: true }, { ...red, amount: 0 }])).toBe(original);
+    expect(validMasks([red, blue]).map(m => m.tint)).toEqual([red.tint, blue.tint]);
+    expect(validMasks([{ ...blue, tint: { mode: 'bad', amount: 9, colour: '#123456' } }])[0].tint).toEqual({ mode: 'Colour', amount: 1, colour: '#123456' });
+  });
+});

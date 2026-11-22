@@ -76,7 +76,7 @@ export function App() {
   }, []);
 
   // The picture image mode draws from; a stored one is loaded when its id turns up, then drawn.
-  const picture = usePicture(set.source === 'image' ? set.image : '', () => schedule(0));
+  const picture = usePicture(set.source === 'image' ? set.image : '', result?.tintedPreview, () => schedule(0));
   const currentPicture = picture.current;
 
   /** In image mode, score the drawing on show again for new pens or paper; it needn't be drawn again. */

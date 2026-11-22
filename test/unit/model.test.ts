@@ -1,3 +1,4 @@
+import { newMask } from '@/image-masks';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { defaultsAt, fromSlider, IMAGE_DEFAULTS, isDefault, loadSettings, minutes, persist, selectPicture, slug, toImageMode, toSlider } from '@/app/model';
 import { PALETTES } from '@/palettes';
@@ -154,7 +155,9 @@ describe('image mode', () => {
   const image = (): Settings => ({ ...base(), source: 'image', image: '0123456789abcdef', imageName: 'Harbour at dusk', imageFit: 'fit', imageFocus: [0.25, 0.8], imageLight: -0.3, imageContrast: 1.4, imageColour: 0.2, imageRelief: 0.65, buildingDensity: 0.6, imageDensity: -0.4, imageHatching: 0.25, imageContours: 0.8, imageFloorplans: 0.6, imageNeighbours: 0.4, imageTownBias: -0.6, imageDistrictSize: 1.3, imageWater: 0.7, imageStreetSpacing: 0.8, imageRoundabouts: 1.6, imagePreserveSpace: true, imageHighlight: 0.87, likeness: 0.9, fabric: 0.43 });
 
   test('every image setting survives a share link, and the map place stays', () => {
-    const set = { ...image(), center: [4.89, 52.37] as [number, number], place: 'Amsterdam' };
+    const mask = newMask('ellipse', [], 100, 100);
+    mask.tint = { colour: '#407cdc', mode: 'Overlay', amount: 0.65 };
+    const set: Settings = { ...image(), center: [4.89, 52.37], place: 'Amsterdam', imageMasks: [mask] };
     expect(share(set)).toEqual(set);
   });
 

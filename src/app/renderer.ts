@@ -35,6 +35,8 @@ export type RenderResult = {
   speed: number;
   /** In image mode, how like the image the drawing is. */
   likeness?: DrawingLikeness;
+  /** The source picture with the masks used for this drawing, for the well and overlay. */
+  tintedPreview?: Blob;
 };
 
 /** Pictures the worker keeps, as it does: the last two used. */
@@ -105,7 +107,7 @@ export class Renderer {
         this.onStatus({ text: '', state: 'idle' });
         // Pens may have changed while this drawing was on the worker; colour costs no redraw.
         const likeness = r.likeness && { ...r.likeness, look: scoreLook(drawn) };
-        this.onResult(recolor({ svg: r.svg, sheet: sheetSize(drawn), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: drawn.mono, speed: drawn.speed, likeness }, { ...set, mono: drawn.mono }));
+        this.onResult(recolor({ tintedPreview: r.tintedPreview, svg: r.svg, sheet: sheetSize(drawn), stats: r.stats, counts: r.counts, census: r.census, features: r.features, region: r.region, ms: r.ms, mono: drawn.mono, speed: drawn.speed, likeness }, { ...set, mono: drawn.mono }));
       }
       this.dispatch();
     };

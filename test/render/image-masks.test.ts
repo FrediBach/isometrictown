@@ -34,6 +34,18 @@ describe('masks', () => {
     expect(drawImage({ ...base, imageMasks: [left({ trees: 0, abandon: 1, imageLight: 1 }, { off: true })] }, pic).svg).toBe(plain);
   });
 
+  test('a tint-only edit changes zoning and removing it restores the original drawing', () => {
+    const original = drawImage(base, pic);
+    const tint = left({}, { tint: { mode: 'Normal', colour: '#70bafb', amount: 1 } });
+    const adjusted = drawImage({ ...base, imageMasks: [tint] }, pic);
+    expect(adjusted.scene.zones.label).not.toEqual(original.scene.zones.label);
+    expect(adjusted.svg).not.toBe(original.svg);
+    const source = { ...adjusted.scene.tintedSource!, id: 'tinted-reference' };
+    expect(drawImage(base, source).svg).toBe(adjusted.svg);
+    const removed = drawImage({ ...base, imageMasks: [{ ...tint, off: true }] }, pic);
+    expect(removed.svg).toBe(original.svg);
+  });
+
   test('a street pattern mask can put the grid on either side of the picture', () => {
     const picture = fresh();
     for (const fabric of [0, 1]) {

@@ -6,6 +6,7 @@ import { pickAt, reachHeight, render, type Census, type Counts, type Picks } fro
 import type { Settings } from './settings';
 import type { StageProgress } from './app/stages';
 import { loadTags } from './osm';
+import { pictureBlob } from './app/image-store';
 import { imageScene, type Picture } from './image';
 import { remapTarget, TARGET_CELL, type Target } from './image-read';
 import { coverage, likeness, type Likeness } from './image-tone';
@@ -32,7 +33,7 @@ export type Reply =
   | ({ id: number; kind: 'strokes' } & Strokes)
   | { id: number; kind: 'scored'; likeness: Likeness | null }
   | ({ id: number; kind: 'progress' } & StageProgress)
-  | { id: number; kind: 'done'; svg: string; stats: PlotStats; counts: Counts; census: Census; features: Features; region: Region; ms: number; likeness?: Likeness }
+  | { id: number; kind: 'done'; svg: string; stats: PlotStats; counts: Counts; census: Census; features: Features; region: Region; ms: number; likeness?: Likeness; tintedPreview?: Blob }
   | { id: number; kind: 'error'; text: string; tooBig: boolean; missing?: string };
 
 /** How long to wait for OSM tags once the map tiles are in. */
@@ -132,7 +133,7 @@ self.onmessage = async (e: MessageEvent<Job>) => {
   const { id, set } = job;
   const report = reporter(id);
   if (set.source === 'image') {
-    drawImage(id, set, report, job.picture);
+    await drawImage(id, set, report, job.picture);
     return;
   }
   try {
@@ -164,8 +165,10 @@ self.onmessage = async (e: MessageEvent<Job>) => {
   }
 };
 
+const tintPreviews = new WeakMap<Picture, Blob>();
+
 /** Draw a town laid out from an image: nothing is fetched, and the drawing is scored against the image. */
-function drawImage(id: number, set: Settings, report: (p: StageProgress) => void, sent?: Picture): void {
+async function drawImage(id: number, set: Settings, report: (p: StageProgress) => void, sent?: Picture): Promise<void> {
   try {
     const pic = picture(set.image, sent);
     if (!pic) {
@@ -180,11 +183,16 @@ function drawImage(id: number, set: Settings, report: (p: StageProgress) => void
     report({ stage: 'plan', note: 'Joining strokes, ordering pens' });
     const planned = plan(drawing.pens, scene.set);
     const svg = toSvg(planned.pens, scene.set, scene.cam.sheet);
+    let tintedPreview: Blob | undefined;
+    if (scene.tintedSource) {
+      tintedPreview = tintPreviews.get(scene.tintedSource) ?? await pictureBlob(scene.tintedSource);
+      tintPreviews.set(scene.tintedSource, tintedPreview);
+    }
     const t = scene.target;
     scored = { cov: coverage(drawing.pens, { x0: t.x0, y0: t.y0, cell: TARGET_CELL, W: t.W, H: t.H }, scene.set.penWidth, scene.set.mono), target: t };
     picks = drawing.picks;
     tally = filed;
-    post({ id, kind: 'done', svg, stats: planned.stats, counts: drawing.counts, census: drawing.census, features: features(filed), region: scene.region, ms: performance.now() - t0, likeness: score(scene.set) ?? undefined });
+    post({ id, kind: 'done', tintedPreview, svg, stats: planned.stats, counts: drawing.counts, census: drawing.census, features: features(filed), region: scene.region, ms: performance.now() - t0, likeness: score(scene.set) ?? undefined });
   } catch (err) {
     post({ id, kind: 'error', text: err instanceof Error ? err.message : String(err), tooBig: false });
   }

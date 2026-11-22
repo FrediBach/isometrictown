@@ -24,7 +24,7 @@ export type PictureState = {
  * The picture with id `id`, loaded from storage when the id changes, plus a way to choose a new
  * one. `onLoaded` runs when a stored picture arrives, so the drawing can be made.
  */
-export function usePicture(id: string, onLoaded: () => void): PictureState {
+export function usePicture(id: string, tintedPreview: Blob | undefined, onLoaded: () => void): PictureState {
   const [picture, setPicture] = useState<Picture | null>(null);
   const [missing, setMissing] = useState('');
   const [reading, setReading] = useState(false);
@@ -57,7 +57,7 @@ export function usePicture(id: string, onLoaded: () => void): PictureState {
     if (!picture) return;
     let live = true;
     let url = '';
-    void pictureBlob(picture).then((blob) => {
+    void (tintedPreview ? Promise.resolve(tintedPreview) : pictureBlob(picture)).then((blob) => {
       if (!live) return;
       url = URL.createObjectURL(blob);
       setShown({ id: picture.id, url });
@@ -66,7 +66,7 @@ export function usePicture(id: string, onLoaded: () => void): PictureState {
       live = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [picture]);
+  }, [picture, tintedPreview]);
 
   async function choose(file: File): Promise<Picture | null> {
     const request = ++choice.current;
