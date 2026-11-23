@@ -134,6 +134,7 @@ function PaletteMenu({ pens, mono, onPalette }: { pens: Settings['pens']; mono: 
 export function TitleBlock({ onPalette }: { onPalette: (pens: Settings['pens']) => void }) {
   const { set } = useSettings();
   const [w, h] = sheetSize(set);
+  const several = set.panelCols * set.panelRows > 1;
   return (
     <header className="mb-5 overflow-hidden rounded-lg border border-input bg-card">
       <div className="flex items-center gap-3 px-3.5 py-3">
@@ -147,8 +148,9 @@ export function TitleBlock({ onPalette }: { onPalette: (pens: Settings['pens']) 
         <Fact label={set.source === 'image' ? 'Image' : 'Place'} live>
           <PlaceName />
         </Fact>
-        <Fact label="Sheet" title={`${w} × ${h} mm`}>
-          {SHEETS[set.sheet].label} <span className="font-normal text-muted-foreground">{set.landscape ? 'landscape' : 'portrait'}</span>
+        <Fact label={several ? 'Sheets' : 'Sheet'} title={several ? `${set.panelCols} × ${set.panelRows} sheets of ${w} × ${h} mm, ${set.landscape ? 'landscape' : 'portrait'}` : `${w} × ${h} mm`}>
+          {several && <span className="readout text-sm font-medium">{set.panelCols} × {set.panelRows} </span>}
+          {SHEETS[set.sheet].label} {!several && <span className="font-normal text-muted-foreground">{set.landscape ? 'landscape' : 'portrait'}</span>}
         </Fact>
         <Fact label="Scale">
           <span className="readout text-sm font-medium">1:{Math.round(set.scale).toLocaleString('en')}</span>

@@ -84,7 +84,7 @@ export type Scene = { tintedSource?: Picture; set: Settings; cam: Camera; frame:
  * Detail, pen width, pen colours, sun, shadows and the layer switches only change how it
  * is drawn, so they never move a street.
  */
-const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia'];
+const LOOK: (keyof Settings)[] = ['imageFit', 'imageFocus', 'imageLight', 'imageContrast', 'imageColour', 'mono', 'sheet', 'landscape', 'margin', 'marginalia', 'panelCols', 'panelRows', 'panelGap'];
 const ZONING: (keyof Settings)[] = [...LOOK, ...ZONE_KEYS, 'scale', 'bearing', 'tilt', 'heightScale'];
 const STRUCTURE: (keyof Settings)[] = [...ZONING, 'imageRoundabouts', 'imageRoadWinding', 'imageStreetSpacing', 'imageContours', 'fabric', 'style', 'seed'];
 

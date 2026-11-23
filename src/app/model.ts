@@ -6,6 +6,7 @@ import { STYLES } from '../styles';
 import { phaseName } from '../decay';
 import { validMasks } from '../image-masks';
 import { validPins } from '../image-pins';
+import { PANEL_GAP_MAX, PANELS_MAX } from '../panels';
 
 const STORE = 'isometrictown:settings';
 
@@ -90,6 +91,9 @@ export function loadSettings(): Settings {
   s.seedLocks = Object.fromEntries(Object.entries(s.seedLocks ?? {}).filter(([key, value]) =>
     /^-?\d+,-?\d+$/.test(key) && Number.isInteger(value) && value > 0));
   if (!SHEETS[s.sheet]) s.sheet = 'a3';
+  s.panelCols = Math.round(within(s.panelCols, 1, PANELS_MAX, 1));
+  s.panelRows = Math.round(within(s.panelRows, 1, PANELS_MAX, 1));
+  s.panelGap = within(s.panelGap, 0, PANEL_GAP_MAX, DEFAULT_SETTINGS.panelGap);
   if (s.style !== 'auto' && !STYLES[s.style]) s.style = 'auto';
   validateImage(s);
   return s;
@@ -297,7 +301,7 @@ export const fromSlider = (v: number) => {
   return Math.round(raw / step) * step;
 };
 
-export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'buildingDensity' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageTownBias' | 'imageDistrictSize' | 'imageWater' | 'imageStreetSpacing' | 'imageRoadWinding' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
+export type NumberKey = 'imageLight' | 'imageContrast' | 'imageColour' | 'imageRelief' | 'buildingDensity' | 'imageDensity' | 'imageHatching' | 'imageContours' | 'imageFloorplans' | 'imageNeighbours' | 'imageRoundabouts' | 'imageTownBias' | 'imageDistrictSize' | 'imageWater' | 'imageStreetSpacing' | 'imageRoadWinding' | 'imageHighlight' | 'likeness' | 'humanize' | 'bearing' | 'tilt' | 'scale' | 'heightScale' | 'detail' | 'pitched' | 'trees' | 'cars' | 'abandon' | 'sunAngle' | 'sunHeight' | 'margin' | 'panelGap' | 'penWidth' | 'speed' | 'titleSize' | 'titleWeight' | 'titleDepth' | 'titleTrack' | 'titleLift' | 'titleStreet' | 'titleSlide' | 'titleTurn' | 'titleReveal';
 export type BoolKey = 'imageCoordinates' | 'imagePreserveSpace' | 'windows' | 'roofHatch' | 'rooftops' | 'details' | 'osmTags' | 'lamps' | 'paths' | 'rails' | 'water' | 'parks' | 'ground' | 'markings' | 'power' | 'life' | 'shadows' | 'autoSun' | 'shadeWalls' | 'frame' | 'marginalia' | 'mono' | 'customLayerPens' | 'customLayerDetail' | 'customBackground' | 'title' | 'titleFront' | 'titleClear' | 'titleShade' | 'titleRound';
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
@@ -337,6 +341,7 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
   sunAngle: (v) => `${Math.round(v)}°`,
   sunHeight: (v) => `${Math.round(v)}°`,
   margin: (v) => `${Math.round(v)} mm`,
+  panelGap: (v) => `${Math.round(v)} mm`,
   penWidth: (v) => `${v.toFixed(2)} mm`,
   speed: (v) => `${Math.round(v)} mm/s`,
   titleSize: (v) => `${Math.round(v * 100)}%`,
@@ -351,9 +356,9 @@ export const FORMAT: Record<NumberKey, (v: number) => string> = {
 };
 
 /** Keys that move the red footprint on the locator map. */
-export const VIEW_KEYS = new Set<keyof Settings>(['bearing', 'tilt', 'scale', 'sheet', 'landscape', 'margin', 'marginalia']);
+export const VIEW_KEYS = new Set<keyof Settings>(['bearing', 'tilt', 'scale', 'sheet', 'landscape', 'margin', 'marginalia', 'panelCols', 'panelRows', 'panelGap']);
 /** Keys that change the footprint's size, so the map refits to it. */
-export const REFIT_KEYS = new Set<keyof Settings>(['scale', 'sheet', 'landscape', 'tilt', 'marginalia']);
+export const REFIT_KEYS = new Set<keyof Settings>(['scale', 'sheet', 'landscape', 'tilt', 'marginalia', 'panelCols', 'panelRows', 'panelGap']);
 
 export function minutes(seconds: number): string {
   const m = Math.round(seconds / 60);

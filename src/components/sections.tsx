@@ -24,6 +24,7 @@ import { MaskPanel } from './mask-panel';
 import { PinPanel } from './pin-panel';
 import type { PinOutcomes } from '../image-pins';
 import { InviteDialog } from './invite-dialog';
+import { PANEL_GAP_MAX, PANELS_MAX } from '../panels';
 import { LocatorMap } from './locator-map';
 import { PalettePicker } from './palette-picker';
 import { PlaceSearch } from './place-search';
@@ -362,10 +363,15 @@ export function TitleSection() {
   );
 }
 
+/** Choices for how many sheets across or down a drawing is split over. */
+const PANEL_CHOICES = Array.from({ length: PANELS_MAX }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
+
 export function SheetSection() {
   const { set, change } = useSettings();
+  const several = set.panelCols * set.panelRows > 1;
+  const sheets = several ? `${set.panelCols} × ${set.panelRows} ${SHEETS[set.sheet].label}` : SHEETS[set.sheet].label;
   return (
-    <FoldingSection index={set.source === 'image' ? 11 : 7} title="Sheet" key={set.source} summary={[SHEETS[set.sheet].label, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
+    <FoldingSection index={set.source === 'image' ? 11 : 7} title="Sheet" key={set.source} summary={[sheets, set.landscape ? 'landscape' : 'portrait', FORMAT.margin(set.margin)].join(SEP)}>
       <div className="mb-4 flex gap-2">
         <Select value={set.sheet} onValueChange={(v) => change('sheet', v as SheetId)}>
           <SelectTrigger aria-label="Sheet size" className="h-9 min-w-0 flex-1 rounded-md bg-card">
@@ -392,6 +398,20 @@ export function SheetSection() {
           ]}
         />
       </div>
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        {(['panelCols', 'panelRows'] as const).map((key) => (
+          <div key={key}>
+            <div className="mb-1 text-[13px]">{key === 'panelCols' ? 'Sheets across' : 'Sheets down'}</div>
+            <Segmented aria-label={key === 'panelCols' ? 'Sheets across' : 'Sheets down'} value={String(set[key])} onValueChange={(v) => change(key, Number(v))} className="h-8 w-full" items={PANEL_CHOICES} />
+          </div>
+        ))}
+      </div>
+      {several && <NumberSetting name="panelGap" label="Gap between sheets" min={0} max={PANEL_GAP_MAX} step={1} />}
+      <Hint>
+        {several
+          ? `The drawing is split over ${set.panelCols * set.panelRows} sheets, each printed and downloaded on its own. Hung with the gap between their edges, frames included, they make the whole again: what would fall in the margins and gaps is left out.`
+          : 'Split the drawing over several sheets to print each on its own and hang them side by side.'}
+      </Hint>
       <KeyGrid className="mb-3">
         <BoolSetting name="customBackground" label="Custom background" />
       </KeyGrid>

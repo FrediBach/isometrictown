@@ -1,4 +1,5 @@
-import { mmPerMetre, sheetSize, type LayerId, type Settings } from './settings';
+import { layout, panelCount, panelOrigin, type Layout } from './panels';
+import { mmPerMetre, type LayerId, type Settings } from './settings';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -31,11 +32,18 @@ export class Camera {
   readonly nib: number;
   readonly cx: number;
   readonly cy: number;
-  /** Drawing area on the sheet, [x0, y0, x1, y1] in mm. */
+  /** Drawing area on the sheet, [x0, y0, x1, y1] in mm. Over a set of sheets, the area from the first sheet's to the last one's, gaps included. */
   readonly rect: [number, number, number, number];
+  /** The sheet in mm; over a set of sheets, the whole wall they make (`layout.wall`). */
   readonly sheet: [number, number];
+  /** How the drawing is split over sheets (one for a single sheet). */
+  readonly layout: Layout;
+  /** Each sheet's drawing area on the wall, [x0, y0, x1, y1] in mm; just `rect` for a single sheet. */
+  readonly panels: [number, number, number, number][];
+  /** Each sheet's margin, mm, and the deeper margin below it for map notes. */
+  readonly margins: [side: number, foot: number];
 
-  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail' | 'penWidth' | 'customLayerDetail' | 'layerDetail'>>) {
+  constructor(set: Pick<Settings, 'bearing' | 'tilt' | 'scale' | 'sheet' | 'landscape' | 'margin' | 'marginalia'> & Partial<Pick<Settings, 'detail' | 'penWidth' | 'customLayerDetail' | 'layerDetail' | 'panelCols' | 'panelRows' | 'panelGap'>>) {
     const b = (set.bearing * Math.PI) / 180;
     const a = (set.tilt * Math.PI) / 180;
     this.sb = Math.sin(b);
@@ -47,13 +55,21 @@ export class Camera {
     this.nib = clamp(set.penWidth ?? REF_NIB, 0.1, 2);
     this.lod = (this.s * this.detail * REF_NIB) / this.nib;
     this.over = (set.customLayerDetail && set.layerDetail) || {};
-    this.sheet = sheetSize(set);
-    const [w, h] = this.sheet;
+    this.layout = layout(set);
+    this.sheet = this.layout.wall;
+    const [w, h] = this.layout.sheet;
     const m = Math.min(set.margin, w / 2 - 10, h / 2 - 10);
     // Map notes need a deeper margin below, as on a printed map. The place stays centred in the drawing.
     const foot = set.marginalia ? Math.min(clamp(m * 0.7, 8, 22), h / 2 - 10 - m) : 0;
-    this.rect = [m, m, w - m, h - m - Math.max(0, foot)];
-    this.cx = w / 2;
+    this.margins = [m, Math.max(0, foot)];
+    // Every sheet of a set has the same margins, as identical frames would.
+    const [W, H] = this.sheet;
+    this.rect = [m, m, W - m, H - m - Math.max(0, foot)];
+    this.panels = panelCount(this.layout) === 1 ? [this.rect] : Array.from({ length: panelCount(this.layout) }, (_, i) => {
+      const [ox, oy] = panelOrigin(this.layout, i);
+      return [ox + m, oy + m, ox + w - m, oy + h - m - Math.max(0, foot)];
+    });
+    this.cx = W / 2;
     this.cy = (this.rect[1] + this.rect[3]) / 2;
   }
 

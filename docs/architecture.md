@@ -35,6 +35,7 @@ All drawing code lives flat in `src/`. Modules are grouped here by role; names i
 | `camera.ts` | Orthographic camera: world metres → sheet mm and depth |
 | `geo.ts` | Web Mercator, `Frame` (local metres around the centre), ring helpers |
 | `plot.ts` | Stroke joining and ordering, plot stats, SVG output, recolouring |
+| `panels.ts` | Sets of sheets: the wall they hang as, cutting strokes to each sheet's drawing area, planning each sheet from its own corner, and taking each sheet's SVG out of the wall SVG (see [coordinates.md](coordinates.md#panels)) |
 | `gcode.ts` | G-code for GRBL pen plotters, read back from the finished SVG on the main thread (see [ui.md](ui.md#pen-plot)) |
 | `rng.ts` | `hash()` for position-keyed randomness, `sequence()` for seeded streams |
 | `settings.ts` | `Settings` type, defaults, sheet sizes, pen indices |

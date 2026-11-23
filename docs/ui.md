@@ -74,6 +74,10 @@ The UUNA TEK 3.0 runs GRBL 1.1 on a DrawCore board. The pen hangs on a Z axis wi
 
 `locator.ts` wraps MapLibre: `setView()` moves without echoing back as a user move, `setFootprint()` draws the red outline of the ground on the sheet (from `Camera.footprint()`), `fit()` frames it. User pans and rotations come back through `onMapMove` and redraw.
 
+## Sets of sheets
+
+The Sheet section's **Sheets across** and **Sheets down** (1–4 each) split the drawing over a set of sheets, and **Gap between sheets** sets the space between them as they hang, frames included (see [coordinates.md](coordinates.md#panels)). `RenderResult.layout` says how the drawing on show is split, and `sheet` is then the whole wall. The preview (`Sheets` in `components/stage.tsx`) lays a sheet of paper under each panel with the stage showing through the gaps; the paper colour moves from the SVG onto the sheets. **Download** gives one SVG for a single sheet, and for a set a ZIP (`app/zip.ts`, deflated with `CompressionStream` where there is one) of one SVG per sheet, named by row and column. The plot dialog shows a small plan of the set to pick the sheet to plot; it is fixed while that sheet's plot is under way, and the pen table measures that sheet's own strokes. G-code files carry the sheet's row and column in their name and title.
+
 ## Panel sections
 
 `components/sections.tsx` holds the numbered sections (Place, View, Town, Light, Title, Sheet, Pens, Seed), built from the field patterns in `components/fields.tsx`. The pens section uses `palettes.ts` (presets) and `harmony.ts` (generated sets).

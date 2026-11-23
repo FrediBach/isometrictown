@@ -83,6 +83,11 @@ export type Settings = {
   frame: boolean;
   /** Title, graticule ticks, scale bar, north arrow and imprint in the margin. */
   marginalia: boolean;
+  /** Sheets across and down that the drawing is split over, each printed on its own and hung side by side; 1 × 1 is one sheet. */
+  panelCols: number;
+  panelRows: number;
+  /** Space between neighbouring sheets as they hang, mm: frames and the wall between them. */
+  panelGap: number;
 
   pitched: number;
   /** Regional building style, or 'auto' to pick one from the country. */
@@ -250,6 +255,9 @@ export const DEFAULT_SETTINGS: Settings = {
   margin: 20,
   frame: true,
   marginalia: true,
+  panelCols: 1,
+  panelRows: 1,
+  panelGap: 40,
 
   pitched: 0.7,
   style: 'auto',

@@ -199,7 +199,7 @@ export async function loadTown(frame: Frame, box: [number, number, number, numbe
   const ty0 = toTileY(box[3]);
   const ty1 = toTileY(box[1]);
   const count = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
-  if (count > MAX_TILES) throw new TooBigError(`That needs ${count} map tiles. Zoom in a little (a larger scale) or pick a smaller sheet.`);
+  if (count > MAX_TILES) throw new TooBigError(`That needs ${count} map tiles. Zoom in a little (a larger scale), or pick a smaller sheet or fewer sheets.`);
 
   let done = 0;
   const jobs: Promise<Town>[] = [];

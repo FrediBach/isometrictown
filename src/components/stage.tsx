@@ -8,6 +8,7 @@ import { metres, minutes, MONO_INK, num } from '../app/model';
 import { usePlotActivity } from '../app/plot-activity';
 import type { RenderResult, RenderStatus } from '../app/renderer';
 import type { Placed } from '../image-fit';
+import { panelCount, panelOrigin, type Layout } from '../panels';
 import { DrawingProgress } from './drawing-progress';
 import { MaskEditor, type MaskEditing } from './mask-editor';
 import { PinLayer, type PinEditing } from './pin-layer';
@@ -25,6 +26,8 @@ type ToolbarProps = {
   onFull: (full: boolean) => void;
   status: RenderStatus;
   canDownload: boolean;
+  /** How many sheets the drawing on show is split over: a set downloads as a ZIP of one SVG each. */
+  sheets: number;
   onDownload: () => void;
   onAbout: () => void;
   onCatalogue: () => void;
@@ -32,7 +35,7 @@ type ToolbarProps = {
   look?: { overlay: boolean; squint: boolean; onOverlay: (on: boolean) => void; onSquint: (on: boolean) => void };
 };
 
-export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDownload, onAbout, onCatalogue, look }: ToolbarProps) {
+export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, sheets, onDownload, onAbout, onCatalogue, look }: ToolbarProps) {
   return (
     <div className="dark flex h-14 items-center gap-4 border-b border-black/40 bg-background px-[18px] text-foreground max-[900px]:h-auto max-[900px]:flex-wrap max-[900px]:gap-3 max-[900px]:px-4 max-[900px]:py-2.5">
       <div className="flex items-center gap-3">
@@ -89,9 +92,9 @@ export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDow
       <button type="button" onClick={onAbout} className={TEXT_BUTTON}>
         About
       </button>
-      <Button variant="signal" size="lg" className="h-9 rounded-md px-3.5" disabled={!canDownload} onClick={onDownload}>
+      <Button variant="signal" size="lg" className="h-9 rounded-md px-3.5" disabled={!canDownload} onClick={onDownload} title={sheets > 1 ? `A ZIP of ${sheets} SVG files, one for each sheet` : undefined}>
         <DownloadIcon data-icon="inline-start" />
-        Download SVG
+        {sheets > 1 ? `Download ${sheets} SVGs` : 'Download SVG'}
       </Button>
     </div>
   );
@@ -99,7 +102,10 @@ export function Toolbar({ zoom, onZoom, full, onFull, status, canDownload, onDow
 
 type PreviewProps = {
   result: RenderResult | null;
+  /** Size of the drawing, mm: the sheet, or the wall a set of sheets makes. */
   sheet: [number, number];
+  /** How the drawing is split over sheets, each shown as its own sheet of paper with the gaps between them. */
+  layout: Layout;
   zoom: Zoom;
   pens: string[];
   mono: boolean;
@@ -119,12 +125,13 @@ type PreviewProps = {
 /** How far Squint blurs, mm on the sheet: about what arm's length does to a pen line. */
 const SQUINT_MM = 1.5;
 
-export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overlay, squint = false, masking, pinning }: PreviewProps) {
+export function Preview({ result, sheet, layout, zoom, pens, mono, status, onPick, overlay, squint = false, masking, pinning }: PreviewProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
   const ink = useRef<HTMLDivElement>(null);
 
   const drawing = result?.svg;
+  const several = panelCount(layout) > 1;
   useEffect(() => {
     if (!drawing) {
       ink.current!.replaceChildren();
@@ -132,8 +139,12 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
     }
     // Parse as XML rather than HTML: the SVG is our own output, and this keeps it out of the HTML parser.
     const doc = new DOMParser().parseFromString(drawing, 'image/svg+xml');
-    ink.current!.replaceChildren(document.importNode(doc.documentElement, true));
-  }, [drawing]);
+    const svg = document.importNode(doc.documentElement, true) as unknown as SVGSVGElement;
+    // Over a set of sheets the paper colour belongs on the sheets, not on the gaps between them.
+    paper.current!.style.setProperty('--sheet-paper', svg.style.backgroundColor || 'var(--paper)');
+    if (several) svg.style.backgroundColor = '';
+    ink.current!.replaceChildren(svg);
+  }, [drawing, several]);
 
   // Pen colours change without redrawing: just restyle the preview layers.
   useEffect(() => {
@@ -190,12 +201,14 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
           ref={paper}
           title={result && !masking ? 'Click a building to try another look for it' : undefined}
           className={cn(
-            'sheet relative cursor-crosshair overflow-hidden rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)] transition-opacity duration-300',
+            'sheet relative cursor-crosshair transition-opacity duration-300',
+            several ? 'overflow-visible' : cn('overflow-hidden', SHEET),
             // Fade the old drawing only once the progress card shows, so quick redraws don't flicker.
             working && 'opacity-55 delay-350',
           )}
         >
-          <div ref={ink} className="size-full" style={squint ? { filter: `blur(calc(var(--mm) * ${SQUINT_MM}))` } : undefined} />
+          {several && <Sheets layout={layout} sheet={sheet} />}
+          <div ref={ink} className="relative size-full" style={squint ? { filter: `blur(calc(var(--mm) * ${SQUINT_MM}))` } : undefined} />
           {overlay && <ImageOverlay {...overlay} sheet={sheet} />}
           {pinning && !masking && <PinLayer {...pinning} sheet={sheet} />}
           {masking && <MaskEditor {...masking} sheet={sheet} />}
@@ -204,6 +217,25 @@ export function Preview({ result, sheet, zoom, pens, mono, status, onPick, overl
       <DrawingProgress status={status} />
     </div>
   );
+}
+
+/** A sheet of paper lying on the stage. */
+const SHEET = 'rounded-[2px] bg-paper shadow-[0_1px_2px_rgb(0_0_0/0.4),0_16px_48px_rgb(0_0_0/0.35)]';
+
+/** The sheets of a set as they hang, each its own piece of paper, with the stage showing through the gaps. */
+function Sheets({ layout, sheet }: { layout: Layout; sheet: [number, number] }) {
+  const at = (v: number, of: number) => `${(v / of) * 100}%`;
+  return Array.from({ length: panelCount(layout) }, (_, i) => {
+    const [x, y] = panelOrigin(layout, i);
+    return (
+      <div
+        key={i}
+        aria-hidden
+        className={cn('absolute', SHEET)}
+        style={{ left: at(x, sheet[0]), top: at(y, sheet[1]), width: at(layout.sheet[0], sheet[0]), height: at(layout.sheet[1], sheet[1]), backgroundColor: 'var(--sheet-paper)' }}
+      />
+    );
+  });
 }
 
 /** The image laid over the drawing area at half strength, placed as the town was laid out under it. */

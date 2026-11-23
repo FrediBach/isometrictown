@@ -13,6 +13,7 @@ import { streetClearance } from './image-check';
 import { atLeast, LOD, shows, showsAt } from './lod';
 import { legibleTrees, placeTrees, regionalTrees, treeSprite, type Masks, type Tree } from './nature';
 import { marginalia } from './marginalia';
+import { panelOrigin, trimToPanels } from './panels';
 import { Paper } from './raster';
 import { humanize } from './humanize';
 import { ImageHatching } from './image-hatching';
@@ -62,6 +63,10 @@ export function pickAt(p: Picks, x: number, y: number): string | null {
   return null;
 }
 
+/** Depth-buffer pixels for one sheet, and the most a set of sheets gets (each takes about 30 bytes). */
+const PAPER_PIXELS = 7e6;
+const PAPER_PIXELS_MAX = 2.4e7;
+
 /** Tallest building we expect to poke into view from below the sheet, in metres. */
 export function reachHeight(set: Settings): number {
   return Math.min(400, 160 * set.heightScale);
@@ -76,7 +81,8 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   // for the most anywhere and thinned back, or asks the masks, where they want less.
   if (masks) set = { ...set, trees: masks.peak('trees'), cars: masks.peak('cars'), abandon: masks.peak('abandon') };
   const cam = new Camera(set);
-  const paper = new Paper(cam);
+  // A set of sheets gets more of the depth buffer, so its hidden lines stay about as fine as on one sheet.
+  const paper = cam.panels.length === 1 ? new Paper(cam) : new Paper(cam, Math.min(PAPER_PIXELS * cam.panels.length, PAPER_PIXELS_MAX));
   const hatches = target && masks?.field('imageHatching');
   const hatching = set.source === 'image' && target && (hatches ? masks!.peak('imageHatching') > 0 : set.imageHatching > 0) ? new ImageHatching(target, hatches || set.imageHatching, cam.nib) : undefined;
   paper.tally = tally;
@@ -472,8 +478,23 @@ export function render(town: Town, set: Settings, frame: Frame, style: Style, on
   const cutoffs = target && masks?.field('imageHighlight');
   const space = set.source === 'image' && target && (cutoffs || set.imagePreserveSpace) ? new ImageSpace(target, cutoffs || set.imageHighlight, set.penWidth) : undefined;
   space?.trim(paper.pens, tally);
-  if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
-  if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
+  if (cam.panels.length === 1) {
+    if (set.frame) paper.pens[layerPen(set, 'margin', LINEWORK)].push([rx0, ry0, rx1, ry0, rx1, ry1, rx0, ry1, rx0, ry0]);
+    if (set.marginalia) paper.pens[layerPen(set, 'margin', LINEWORK)].push(...marginalia(set, cam, frame));
+  } else {
+    // A set of sheets: what falls in the margins and gaps is cut away, and each sheet gets its own frame.
+    trimToPanels(paper.pens, tally, cam.panels);
+    const marginPen = paper.pens[layerPen(set, 'margin', LINEWORK)];
+    const { cols, rows } = cam.layout;
+    cam.panels.forEach(([x0, y0, x1, y1], i) => {
+      if (set.frame) marginPen.push([x0, y0, x1, y0, x1, y1, x0, y1, x0, y0]);
+      if (!set.marginalia) return;
+      // The bottom row carries the notes: the title on the left sheet, the scale and north arrow on the right one.
+      const col = i % cols;
+      const notes = i < (rows - 1) * cols ? 'none' : cols === 1 ? 'all' : col === 0 ? 'title' : col === cols - 1 ? 'scale' : 'none';
+      marginPen.push(...marginalia(set, cam, frame, undefined, { rect: [x0, y0, x1, y1], m: cam.margins[0], bottom: panelOrigin(cam.layout, i)[1] + cam.layout.sheet[1], notes }));
+    });
+  }
   const picks: Picks = { x0: paper.x0, y0: paper.y0, ppm: paper.ppm, W: paper.W, H: paper.H, ids: paper.ids, keys: pickKeys, space };
   return { pens: paper.pens, counts, census, picks };
 }

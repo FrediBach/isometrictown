@@ -51,15 +51,15 @@ function rect(x0: number, y0: number, x1: number, y1: number): number[] {
   return [x0, y0, x1, y0, x1, y1, x0, y1, x0, y0];
 }
 
-/** Ticks and labels where whole minutes or seconds of latitude and longitude cross the neat line. */
-function graticule(cam: Camera, frame: Frame, g: number, t: number): Lines {
+/** Ticks and labels where whole minutes or seconds of latitude and longitude cross the neat line round `rect`, in a margin `m` wide. */
+function graticule(cam: Camera, frame: Frame, rect: readonly [number, number, number, number], m: number, g: number, t: number): Lines {
   const out: Lines = [];
-  const [x0, y0, x1, y1] = cam.rect;
+  const [x0, y0, x1, y1] = rect;
   const latOf = (sx: number, sy: number) => frame.toLngLat(...cam.ground(sx, sy))[1] * 3600;
   const lngOf = (sx: number, sy: number) => frame.toLngLat(...cam.ground(sx, sy))[0] * 3600;
   const metresPerSec = 30.87;
   // Larger lettering needs fewer coordinate labels, not just wider glyphs at every old tick.
-  const spacing = 42 * Math.max(1, t / clamp(cam.rect[0] * 0.085, 1.3, 2));
+  const spacing = 42 * Math.max(1, t / clamp(m * 0.085, 1.3, 2));
   const latStep = pickStep(spacing / cam.s, metresPerSec);
   const lngStep = pickStep(spacing / cam.s, metresPerSec * frame.k);
   const off = 0.9;
@@ -199,11 +199,18 @@ function fit(text: string, h: number, maxWidth: number, track = 0, min = 0.9): n
   return w > maxWidth ? Math.max(min, (h * maxWidth) / w) : h;
 }
 
-export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new Date()): Lines {
+/**
+ * Where marginalia go on one sheet of a set: its drawing area and margin, the bottom edge of
+ * the sheet, and which notes it carries below the drawing (the title and imprint, the scale
+ * bar and north arrow, both or none).
+ */
+export type MarginArea = { rect: readonly [number, number, number, number]; m: number; bottom: number; notes: 'all' | 'title' | 'scale' | 'none' };
+
+export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new Date(), area: MarginArea = { rect: cam.rect, m: cam.rect[0], bottom: cam.sheet[1], notes: 'all' }): Lines {
   const out: Lines = [];
-  const H = cam.sheet[1];
-  const [x0, y0, x1, y1] = cam.rect;
-  const m = x0;
+  const H = area.bottom;
+  const [x0, y0, x1, y1] = area.rect;
+  const m = area.m;
   const g = set.frame ? clamp(m * 0.1, 1.2, 2.5) : 0;
   const t = clamp(m * 0.085, 1.3, 2);
   const coordinateHeight = Math.max(t, 4.8 * cam.nib);
@@ -214,9 +221,10 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
     out.push(rect(x0 - g, y0 - g, x1 + g, y1 + g));
     if (coordinatesFit && (!image || set.imageCoordinates)) {
       const origin = image ? new Frame([set.imageLongitude, set.imageLatitude]) : frame;
-      out.push(...graticule(cam, origin, g, coordinateHeight));
+      out.push(...graticule(cam, origin, area.rect, m, g, coordinateHeight));
     }
   }
+  if (area.notes === 'none') return out;
 
   // The bottom margin carries the title on the left and the scale and north arrow on the right.
   const top = y1 + (set.frame ? g + 0.9 + (coordinatesFit ? coordinateHeight : t) : 0) + clamp(m * 0.12, 1.5, 4);
@@ -231,16 +239,16 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   const by = set.imageCreator.trim();
   const imageCredit = `DRAWN WITH ISOMETRICTOWN.COM${by ? ` BY ${by.toUpperCase()}` : ''} · ${date}`;
   const credit = image ? imageCredit : '© OPENSTREETMAP CONTRIBUTORS';
-  const textWidth = compact ? measure(credit, s, 0.3) : 40;
+  const textWidth = area.notes === 'scale' ? 0 : compact ? measure(credit, s, 0.3) : 40;
   // Room for the N above or below the needle, whichever way north points.
   const r = Math.min(8, (room - 2.8 * s) / 2);
   let right = x1;
-  if (r >= 2.5 && (!compact || x1 - r * 2.4 - 6 - x0 >= textWidth)) {
+  if (area.notes !== 'title' && r >= 2.5 && (!compact || x1 - r * 2.4 - 6 - x0 >= textWidth)) {
     out.push(...northArrow(cam, x1 - r * 1.2, (top + bottom) / 2, r, s));
     right = x1 - r * 2.4 - 6;
   }
   const bar = barLength(cam, Math.min(60, (x1 - x0) * 0.22, right - x0 - textWidth - (compact ? 16 : 0)));
-  if (bar && room >= 3 * s + 2) {
+  if (area.notes !== 'title' && bar && room >= 3 * s + 2) {
     const bw = bar.m * cam.s;
     const lw = measure(distance(bar.m), s) / 2;
     const extent = compact ? Math.max(bw + lw, measure(`SCALE 1:${scaleText(set.scale)}`, s, 0.6)) : bw + lw;
@@ -252,7 +260,7 @@ export function marginalia(set: Settings, cam: Camera, frame: Frame, now = new D
   }
 
   const width = right - x0;
-  if (width < 30) return out;
+  if (area.notes === 'scale' || width < 30) return out;
   const [clng, clat] = set.center;
   const place = letterable(set.place) ? set.place : image ? 'IMAGE' : `${lat(clat)} ${lng(clng)}`;
   if (compact) {

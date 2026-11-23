@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 import { Camera } from './camera';
 import { Frame } from './geo';
-import { pathData, plan, toSvg, type PlotStats } from './plot';
+import { pathData, type PlotStats } from './plot';
+import { planDrawing } from './panels';
 import { pickAt, reachHeight, render, type Census, type Counts, type Picks } from './render';
 import type { Settings } from './settings';
 import type { StageProgress } from './app/stages';
@@ -155,8 +156,8 @@ self.onmessage = async (e: MessageEvent<Job>) => {
     const filed = new Map<string, number[][]>();
     const drawing = render(town, set, frame, style, report, region.left, filed);
     report({ stage: 'plan', note: 'Joining strokes, ordering pens' });
-    const planned = plan(drawing.pens, set);
-    const svg = toSvg(planned.pens, set, cam.sheet);
+    const planned = planDrawing(drawing.pens, set, cam.layout);
+    const svg = planned.svg;
     picks = drawing.picks;
     tally = filed;
     scored = null;
@@ -182,8 +183,8 @@ async function drawImage(id: number, set: Settings, report: (p: StageProgress) =
     const filed = new Map<string, number[][]>();
     const drawing = render(scene.town, scene.set, scene.frame, scene.style, report, scene.region.left, filed, scene.target, scene.masks);
     report({ stage: 'plan', note: 'Joining strokes, ordering pens' });
-    const planned = plan(drawing.pens, scene.set);
-    const svg = toSvg(planned.pens, scene.set, scene.cam.sheet);
+    const planned = planDrawing(drawing.pens, scene.set, scene.cam.layout);
+    const svg = planned.svg;
     let tintedPreview: Blob | undefined;
     if (scene.tintedSource) {
       tintedPreview = tintPreviews.get(scene.tintedSource) ?? await pictureBlob(scene.tintedSource);

@@ -163,6 +163,13 @@ export function order(lines: number[][]): number[][] {
   return out;
 }
 
+/** Ink, travel, lifts and time (s) for one pen's strokes in plot order, at `speed` mm/s. */
+export function measure(lines: number[][], speed: number): Pick<PenStats, 'ink' | 'lifts' | 'travel' | 'seconds'> {
+  const ink = lines.reduce((s, l) => s + length(l), 0);
+  const travel = lines.length ? travelOf(lines) : 0;
+  return { ink, lifts: lines.length, travel, seconds: ink / speed + travel / (speed * 2) + lines.length * LIFT_SECONDS };
+}
+
 export type Plotted = { pens: number[][][]; stats: PlotStats };
 
 /** Join, sort and measure every pen. */
@@ -178,16 +185,7 @@ export function plan(raw: number[][][], set: Settings): Plotted {
     rawTravel += lines.length ? travelOf(lines) : 0;
     const sorted = order(join(lines));
     pens.push(sorted);
-    const ink = sorted.reduce((s, l) => s + length(l), 0);
-    const travel = sorted.length ? travelOf(sorted) : 0;
-    stats.push({
-      name: PEN_NAMES[i],
-      color: set.pens[i],
-      ink,
-      lifts: sorted.length,
-      travel,
-      seconds: ink / v + travel / (v * 2) + sorted.length * LIFT_SECONDS,
-    });
+    stats.push({ name: PEN_NAMES[i], color: set.pens[i], ...measure(sorted, v) });
   });
   return {
     pens,
@@ -221,12 +219,21 @@ function escape(text: string): string {
 
 /** A plotter-ready SVG in millimetres, one Inkscape layer per pen in plot order. */
 export function toSvg(pens: number[][][], set: Settings, sheet: [number, number]): string {
+  return svgDocument(pens, set, sheet);
+}
+
+/**
+ * The SVG `toSvg()` writes, from each pen's lines or from each pen's layer content already
+ * written as paths (empty for none); `note` is added to the description.
+ */
+export function svgDocument(pens: (number[][] | string)[], set: Settings, sheet: [number, number], note = ''): string {
   const [w, h] = sheet;
   const layers = pens
     .map((lines, i) => {
       if (!lines.length) return '';
       const label = set.mono ? 'Black' : `${i + 1} ${PEN_NAMES[i]}`;
-      return `<g inkscape:groupmode="layer" inkscape:label="${label}" id="pen-${i + 1}" fill="none" stroke="${escape(set.mono ? '#000000' : set.pens[i])}" stroke-width="${Number(set.penWidth)}" stroke-linecap="round" stroke-linejoin="round"><path d="${pathData(lines)}"/></g>`;
+      const content = typeof lines === 'string' ? lines : `<path d="${pathData(lines)}"/>`;
+      return `<g inkscape:groupmode="layer" inkscape:label="${label}" id="pen-${i + 1}" fill="none" stroke="${escape(set.mono ? '#000000' : set.pens[i])}" stroke-width="${Number(set.penWidth)}" stroke-linecap="round" stroke-linejoin="round">${content}</g>`;
     })
     .join('\n');
   const [lng, lat] = set.center;
@@ -237,7 +244,7 @@ export function toSvg(pens: number[][][], set: Settings, sheet: [number, number]
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">
 <title>${escape(set.place)}, Isometric Town</title>
-<desc>${escape(desc)}</desc>
+<desc>${escape(note ? `${desc} ${note}` : desc)}</desc>
 ${layers}
 </svg>
 `;

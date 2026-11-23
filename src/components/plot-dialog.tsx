@@ -11,6 +11,8 @@ import type { RenderResult } from '../app/renderer';
 import { usePlotter, type Job, type Plotter } from '../app/use-plotter';
 import { bedSize, DEFAULT_SETUP, gcodeFile, layersOf, outline, penDown, penUp, type PenLayer, type PlotterSetup } from '../gcode';
 import { SliderField } from './fields';
+import { measure } from '../plot';
+import { panelCount, panelName, panelSvg, type Layout } from '../panels';
 import { PenDot } from './title-block';
 
 const SETUP_KEY = 'isometrictown:plotter';
@@ -61,7 +63,7 @@ export function PlotDialog({ open, onOpenChange, result, place, seed }: PlotDial
   const [setup, setSetupState] = useState(loadSetup);
   const feed = (result?.speed ?? 40) * 60;
   const plotter = usePlotter(setup, feed);
-  const fresh = useMemo<Job | null>(() => (result ? { svg: result.svg, sheet: result.sheet, layers: layersOf(result.svg) } : null), [result]);
+  const { fresh, panel, setPanel, sheets, label, suffix: sheetSuffix } = useSheetJob(result);
   const shown = plotter.job ?? fresh;
 
   const setSetup = (s: PlotterSetup) => {
@@ -72,7 +74,7 @@ export function PlotDialog({ open, onOpenChange, result, place, seed }: PlotDial
   function download(layers: PenLayer[], suffix = ''): void {
     if (!shown) return;
     const title = `${place}, Isometric Town, seed ${seed}`;
-    save(gcodeFile(layers, { title, sheet: shown.sheet, setup, feed }), `isometric-town-${slug(place)}-${seed}${suffix}.gcode`);
+    save(gcodeFile(layers, { title: title + label, sheet: shown.sheet, setup, feed }), `isometric-town-${slug(place)}-${seed}${sheetSuffix}${suffix}.gcode`);
   }
 
   let body: ReactNode;
@@ -117,6 +119,7 @@ export function PlotDialog({ open, onOpenChange, result, place, seed }: PlotDial
           />
         </DialogHeader>
         <div className="min-h-0 overflow-y-auto px-6 pb-6">
+          {result && sheets > 1 && <SheetPicker layout={result.layout} panel={panel} locked={plotter.running || !!plotter.job} onPanel={setPanel} />}
           {body}
           {plotter.note && (mode === 'usb' || plotter.note.error) && (
             <p role="status" className={cn(TEXT, 'mt-4', plotter.note.error && 'text-destructive')}>
@@ -126,6 +129,56 @@ export function PlotDialog({ open, onOpenChange, result, place, seed }: PlotDial
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The job for the sheet chosen to plot: the whole drawing for a single sheet, one sheet's own
+ * file for a set, with how to name it in G-code titles and file names.
+ */
+function useSheetJob(result: RenderResult | null) {
+  const [chosen, setPanel] = useState(0);
+  const sheets = result ? panelCount(result.layout) : 1;
+  const panel = Math.min(chosen, sheets - 1);
+  const fresh = useMemo<Job | null>(() => {
+    if (!result) return null;
+    const svg = panelSvg(result.svg, result.layout, panel);
+    return { svg, sheet: result.layout.sheet, layers: layersOf(svg) };
+  }, [result, panel]);
+  if (!result || sheets === 1) return { fresh, panel, setPanel, sheets, label: '', suffix: '' };
+  const { row, col } = panelName(result.layout, panel);
+  return { fresh, panel, setPanel, sheets, label: `, sheet ${panel + 1} of ${sheets} (row ${row}, column ${col})`, suffix: `-row-${row}-column-${col}` };
+}
+
+/** Which sheet of a set to plot, as a small plan of the set. Fixed while a sheet's plot is under way. */
+function SheetPicker({ layout, panel, locked, onPanel }: { layout: Layout; panel: number; locked: boolean; onPanel: (i: number) => void }) {
+  const [w, h] = layout.sheet;
+  const { row, col } = panelName(layout, panel);
+  return (
+    <section className="flex items-center gap-4 border-b py-4">
+      <div role="radiogroup" aria-label="Sheet to plot" className="grid shrink-0 gap-1" style={{ gridTemplateColumns: `repeat(${layout.cols}, ${Math.round(28 * Math.min(1, w / h))}px)` }}>
+        {Array.from({ length: panelCount(layout) }, (_, i) => {
+          const at = panelName(layout, i);
+          return (
+            <button
+              key={`${at.row}:${at.col}`}
+              type="button"
+              role="radio"
+              aria-checked={i === panel}
+              aria-label={`Row ${at.row}, column ${at.col}`}
+              disabled={locked && i !== panel}
+              onClick={() => onPanel(i)}
+              className={cn('rounded-[2px] border border-input bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-40', i === panel && 'border-signal bg-signal/25')}
+              style={{ aspectRatio: `${w} / ${h}` }}
+            />
+          );
+        })}
+      </div>
+      <p className={TEXT}>
+        Sheet {panel + 1} of {panelCount(layout)}, row {row}, column {col}. Each sheet plots from its own corner; plot them one by one on separate sheets of paper.
+        {locked && ' Start over to plot another sheet.'}
+      </p>
+    </section>
   );
 }
 
@@ -416,7 +469,8 @@ function PenTable({ layers, result, children }: { layers: PenLayer[]; result: Re
       </thead>
       <tbody>
         {layers.map((layer, i) => {
-          const stats = result?.stats.pens[layer.pen];
+          // Measured from the job's own strokes: one sheet of a set, or the drawing a plot was started with.
+          const stats = result && measure(layer.lines, result.speed);
           return (
             <tr key={layer.pen} className="border-b">
               <td className="py-[5px] pr-3 align-middle">

@@ -39,12 +39,20 @@ cam.size(m)         // m metres on paper as level of detail sees it, mm
 cam.gap(mm)         // a hatch or texture spacing on paper, mm, scaled by Detail and pen width
 cam.tone(mm)        // a tone hatch or dash spacing, mm, scaled by pen width only
 cam.rect            // drawing area on the sheet, [x0, y0, x1, y1] mm, inside margins
+cam.sheet           // the sheet, mm; for a set of sheets, the wall they make
+cam.panels          // each sheet's drawing area on the wall; [cam.rect] for one sheet
 cam.region(h)       // local bounding box of all ground that can show, incl. buildings of height h in front
 ```
 
 `cam.lod` drives level of detail: it is `cam.s` scaled up by the Detail setting and down by a pen broader than 0.35 mm. Don't compare it with bare numbers; ask the rules in `src/lod.ts` with the thing's size (`shows(cam, LOD.chimney, width)`), as [lod.md](lod.md) explains. Use `cam.s` itself only for converting between metres and millimetres. Hatch and texture spacings on paper go through `cam.gap()`, so Detail closes them up and a broad pen opens them out. Tone hatching (shadows, shaded walls) and dash patterns use `cam.tone()`, which follows the pen but not Detail. Object counts that have their own slider (trees, traffic) use neither.
 
 `reachHeight(set)` in `render.ts` is the tallest building expected to poke in from below; the worker passes it to `cam.region()` when choosing tiles.
+
+## Panels
+
+A drawing can be split over a set of sheets (`panelCols` × `panelRows`, `src/panels.ts`), each printed on its own and hung `panelGap` mm apart, edge to edge. The camera doesn't change: it draws the whole wall at once. `cam.sheet` is the wall (`layout.wall`), and `cam.rect` runs from the first sheet's drawing area to the last one's, across the gaps, so a metre is the same length on every sheet and a street leaving one sheet comes back on the next where it would really be. Every sheet keeps the same margins (`cam.margins`), as identical frames would, so neighbouring drawing areas are two margins plus the gap apart.
+
+Everything in `render()` is drawn in wall millimetres as on one big sheet. At the end, `trimToPanels()` cuts every stroke to the sheets' drawing areas (`cam.panels`), and each sheet gets its own frame and graticule; the bottom row carries the map notes, the title on the left sheet and the scale bar and north arrow on the right one (`MarginArea` in `marginalia.ts`). `planDrawing()` then moves each sheet's strokes to its own corner, plans them from there and writes one wall-sized SVG with a `<path data-panel="n" transform="translate(…)">` per sheet in each pen's layer. The preview shows that SVG; `panelSvg()` takes each sheet's own file out of it for download and plotting. A set of sheets gets a bigger depth buffer (up to 24 million pixels) so hidden lines stay close to one sheet's resolution. One sheet goes through none of this and draws byte for byte as before.
 
 ## Rings and winding
 

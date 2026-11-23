@@ -16,7 +16,9 @@ import type { MaskEditing } from './components/mask-editor';
 import type { PinEditing } from './components/pin-layer';
 import { newPin, PINS_MAX, type PinKindId, type PinOutcomes } from './image-pins';
 import { recolor } from './plot';
-import { sheetSize, type Settings } from './settings';
+import { layout, panelCount, panelName, panelSvg } from './panels';
+import type { Settings } from './settings';
+import { zip } from './app/zip';
 
 // The catalogue pulls in the drawing's own tables, so it loads only when first opened.
 const CatalogueDialog = lazy(() => import('./components/catalogue-dialog').then((m) => ({ default: m.CatalogueDialog })));
@@ -235,12 +237,22 @@ export function App() {
     commit({ ...live.current, pens });
   }
 
-  function download(): void {
+  /** The drawing as an SVG; a set of sheets as a ZIP of one SVG per sheet, named by row and column. */
+  async function download(): Promise<void> {
     if (!result) return;
-    const url = URL.createObjectURL(new Blob([result.svg], { type: 'image/svg+xml' }));
+    const name = `isometric-town-${slug(drawingName(live.current))}-${live.current.seed}`;
+    const l = result.layout;
+    const n = panelCount(l);
+    const file = n === 1
+      ? new Blob([result.svg], { type: 'image/svg+xml' })
+      : await zip(Array.from({ length: n }, (_, i) => {
+        const { row, col } = panelName(l, i);
+        return { name: `${name}-row-${row}-column-${col}.svg`, text: panelSvg(result.svg, l, i) };
+      }));
+    const url = URL.createObjectURL(file);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `isometric-town-${slug(drawingName(live.current))}-${live.current.seed}.svg`;
+    a.download = n === 1 ? `${name}.svg` : `${name}-${l.cols}x${l.rows}.zip`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -315,12 +327,13 @@ export function App() {
           onFull={setFull}
           status={status}
           canDownload={!!result}
-          onDownload={download}
+          sheets={result ? panelCount(result.layout) : 1}
+          onDownload={() => void download()}
           onAbout={() => setAboutOpen(true)}
           onCatalogue={openCatalogue}
           look={image ? { overlay, squint, onOverlay: setOverlay, onSquint: setSquint } : undefined}
         />
-        <Preview result={result} sheet={result?.sheet ?? sheetSize(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} masking={masking} pinning={pinning} />
+        <Preview result={result} sheet={result?.sheet ?? layout(set).wall} layout={result?.layout ?? layout(set)} zoom={zoom} pens={set.pens} mono={set.mono} status={status} onPick={reroll} overlay={imageOverlay} squint={image && squint} masking={masking} pinning={pinning} />
         {!full && <Stats result={result} look={scoreLook(set)} onPlot={openPlot} />}
       </main>
 
